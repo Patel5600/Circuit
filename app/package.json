@@ -1,0 +1,33 @@
+{
+  "name": "circuit-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anchor-lang/core": "1.2.0",
+    "@solana/spl-token": "0.4.15",
+    "@solana/wallet-adapter-base": "0.9.28",
+    "@solana/wallet-adapter-react": "0.15.40",
+    "@solana/wallet-adapter-react-ui": "0.9.40",
+    "@solana/wallet-adapter-wallets": "0.19.39",
+    "@solana/web3.js": "1.99.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-router-dom": "6.28.0"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.5",
+    "@types/react-dom": "18.3.0",
+    "@vitejs/plugin-react": "4.3.1",
+    "puppeteer-core": "^23.11.1",
+    "simple-icons": "^13.21.0",
+    "typescript": "5.7.2",
+    "vite": "5.4.2",
+    "vite-plugin-node-polyfills": "0.22.0"
+  }
+}

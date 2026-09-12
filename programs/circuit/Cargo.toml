@@ -1,0 +1,21 @@
+[package]
+name = "circuit"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+description = "Circuit Protocol - Programmable collateral for tokenized equities on Solana"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "circuit"
+
+[dependencies]
+anchor-lang = { version = "1.2.0", features = ["init-if-needed"] }
+anchor-spl = { version = "1.2.0", features = ["token", "associated_token"] }
+pyth-solana-receiver-sdk = "2.0.0"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]

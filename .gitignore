@@ -1,0 +1,43 @@
+# Anchor / Solana
+.anchor
+.cargo-ok
+target/
+test-ledger/
+
+# Node
+node_modules/
+app/node_modules/
+
+# Build artifacts
+dist/
+app/dist/
+app/.next/
+app/out/
+
+# Environment / secrets
+.env
+.env.local
+.env.production
+*.pem
+*-keypair.json
+!target/deploy/circuit-keypair.json
+
+# Local QA output (screenshots from app/scripts/shots.mjs)
+app/.shots/
+
+# rustc internal-compiler-error dumps
+rustc-ice-*.txt
+
+# OS
+.DS_Store
+*.log
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Devnet deployment records (regenerated)
+devnet/

@@ -1,0 +1,2848 @@
+{
+  "address": "Cq4Lvd6Kgr3a2aP6ENPVGQ8tUpbkGmoWr9ZDBdXGiTs2",
+  "metadata": {
+    "name": "circuit",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Circuit Protocol - Programmable collateral for tokenized equities on Solana"
+  },
+  "docs": [
+    "Circuit Protocol - Programmable collateral for tokenized equities on Solana.",
+    "",
+    "Combines verifiable market-state gating, oracle-validated credit,",
+    "health-factor enforcement, and onchain liquidation.",
+    "",
+    "See ARCHITECTURE.md and SECURITY.md for full documentation."
+  ],
+  "instructions": [
+    {
+      "name": "borrow",
+      "docs": [
+        "Borrow quote tokens against collateral.",
+        "Full oracle + market + health factor validation.",
+        "Blocked when paused or market unsafe."
+      ],
+      "discriminator": [
+        228,
+        253,
+        131,
+        202,
+        207,
+        116,
+        89,
+        18
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "docs": [
+            "Borrower - must be the position owner"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "protocol_config",
+          "docs": [
+            "ProtocolConfig PDA"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "asset_config",
+          "docs": [
+            "AssetConfig PDA - validates mint, feed ID, and risk parameters"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  115,
+                  115,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "asset_config.mint",
+                "account": "AssetConfig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "position",
+          "docs": [
+            "Position PDA - must already exist (created during deposit)"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "asset_config.mint",
+                "account": "AssetConfig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "price_update",
+          "docs": [
+            "Pyth PriceUpdateV2 account - validated by oracle module"
+          ]
+        },
+        {
+          "name": "collateral_mint",
+          "docs": [
+            "Collateral token mint"
+          ]
+        },
+        {
+          "name": "quote_mint",
+          "docs": [
+            "Quote token mint"
+          ]
+        },
+        {
+          "name": "user_quote_ata",
+          "docs": [
+            "User's quote token account (receives borrowed tokens)"
+          ],
+          "writable": true
+        },
+        {
+          "name": "liquidity_vault",
+          "docs": [
+            "Protocol liquidity vault (source of borrowed tokens)"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "protocol_config"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "quote_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "deposit",
+      "docs": [
+        "Deposit equity tokens as collateral.",
+        "Creates position on first deposit. Allowed when paused."
+      ],
+      "discriminator": [
+        242,
+        35,
+        198,
+        137,
+        82,
+        225,
+        242,
+        182
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "docs": [
+            "User depositing collateral"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "protocol_config",
+          "docs": [
+            "ProtocolConfig - not strictly needed for deposit but validates",
+            "the collateral vault authority"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "asset_config",
+          "docs": [
+            "AssetConfig - validates the equity mint and enabled status"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  115,
+                  115,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "asset_config.mint",
+                "account": "AssetConfig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint",
+          "docs": [
+            "The equity token mint"
+          ]
+        },
+        {
+          "name": "position",
+          "docs": [
+            "User's Position PDA - created on first deposit"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "asset_config.mint",
+                "account": "AssetConfig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_collateral_ata",
+          "docs": [
+            "User's equity token account"
+          ],
+          "writable": true
+        },
+        {
+          "name": "collateral_vault",
+          "docs": [
+            "Protocol collateral vault - ATA of protocol PDA for equity mint"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "protocol_config"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "initialize_protocol",
+      "docs": [
+        "Initialize the global protocol configuration.",
+        "Can only be called once (PDA prevents re-init)."
+      ],
+      "discriminator": [
+        188,
+        233,
+        252,
+        106,
+        134,
+        146,
+        202,
+        91
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "Admin authority - becomes the protocol authority"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "protocol_config",
+          "docs": [
+            "ProtocolConfig PDA - singleton, seeds = [\"protocol\"]"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "min_health_factor_bps",
+          "type": "u64"
+        },
+        {
+          "name": "default_max_oracle_age",
+          "type": "u64"
+        },
+        {
+          "name": "default_max_conf_bps",
+          "type": "u64"
+        },
+        {
+          "name": "liquidation_bonus_bps",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "liquidate",
+      "docs": [
+        "Liquidate an unhealthy position (full liquidation, MVP).",
+        "Uses emergency price policy when current oracle is invalid.",
+        "Permissionless. Allowed when paused."
+      ],
+      "discriminator": [
+        223,
+        179,
+        226,
+        125,
+        48,
+        46,
+        39,
+        74
+      ],
+      "accounts": [
+        {
+          "name": "liquidator",
+          "docs": [
+            "Liquidator - any account can liquidate"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "protocol_config",
+          "docs": [
+            "ProtocolConfig PDA"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "asset_config",
+          "docs": [
+            "AssetConfig PDA"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  115,
+                  115,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "asset_config.mint",
+                "account": "AssetConfig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "position",
+          "docs": [
+            "The position being liquidated - NOT owned by the liquidator"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "position.owner",
+                "account": "Position"
+              },
+              {
+                "kind": "account",
+                "path": "asset_config.mint",
+                "account": "AssetConfig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "price_update",
+          "docs": [
+            "Pyth PriceUpdateV2 - used if valid, otherwise falls back to last_valid_price"
+          ]
+        },
+        {
+          "name": "collateral_mint",
+          "docs": [
+            "Collateral token mint"
+          ]
+        },
+        {
+          "name": "quote_mint",
+          "docs": [
+            "Quote token mint"
+          ]
+        },
+        {
+          "name": "liquidator_quote_ata",
+          "docs": [
+            "Liquidator's quote token account (pays debt)"
+          ],
+          "writable": true
+        },
+        {
+          "name": "liquidator_collateral_ata",
+          "docs": [
+            "Liquidator's collateral token account (receives seized collateral)"
+          ],
+          "writable": true
+        },
+        {
+          "name": "collateral_vault",
+          "docs": [
+            "Protocol collateral vault"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "protocol_config"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "collateral_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "liquidity_vault",
+          "docs": [
+            "Protocol liquidity vault"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "protocol_config"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "quote_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "pause_protocol",
+      "docs": [
+        "Pause the protocol (borrow/withdraw blocked)."
+      ],
+      "discriminator": [
+        144,
+        95,
+        0,
+        107,
+        119,
+        39,
+        248,
+        141
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "Admin authority"
+          ],
+          "signer": true
+        },
+        {
+          "name": "protocol_config",
+          "docs": [
+            "ProtocolConfig PDA"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "refresh_guard",
+      "docs": [
+        "Refresh the cached MarketGuard state.",
+        "Permissionless. Does NOT serve as sole authorization for borrow/withdraw."
+      ],
+      "discriminator": [
+        49,
+        50,
+        69,
+        203,
+        152,
+        103,
+        48,
+        56
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "docs": [
+            "Anyone can call refresh_guard - permissionless"
+          ],
+          "signer": true
+        },
+        {
+          "name": "asset_config",
+          "docs": [
+            "AssetConfig PDA - source of oracle config and custody/liquidity state"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  115,
+                  115,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "asset_config.mint",
+                "account": "AssetConfig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "market_guard",
+          "docs": [
+            "MarketGuard PDA to update"
+          ],
+          "writable": true
+        },
+        {
+          "name": "price_update",
+          "docs": [
+            "Pyth PriceUpdateV2 account"
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "register_asset",
+      "docs": [
+        "Register a new equity token as collateral.",
+        "Creates AssetConfig, MarketGuard, and vault accounts."
+      ],
+      "discriminator": [
+        21,
+        80,
+        155,
+        149,
+        117,
+        207,
+        235,
+        16
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "Admin authority - must match ProtocolConfig.authority"
+          ],
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "protocol_config"
+          ]
+        },
+        {
+          "name": "protocol_config",
+          "docs": [
+            "ProtocolConfig - validates admin authority"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint",
+          "docs": [
+            "The equity token mint being registered as collateral"
+          ]
+        },
+        {
+          "name": "quote_mint",
+          "docs": [
+            "The quote token mint (e.g., TEST-USDC) for borrowing"
+          ]
+        },
+        {
+          "name": "asset_config",
+          "docs": [
+            "AssetConfig PDA - seeds: [\"asset\", mint]"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  115,
+                  115,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "market_guard",
+          "docs": [
+            "MarketGuard PDA - seeds: [\"guard\", pyth_feed_id]"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  117,
+                  97,
+                  114,
+                  100
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "pyth_feed_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "collateral_vault",
+          "docs": [
+            "Collateral vault - ATA of protocol PDA for equity mint"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "protocol_config"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "liquidity_vault",
+          "docs": [
+            "Liquidity vault - ATA of protocol PDA for quote mint"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "protocol_config"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "quote_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "pyth_feed_id",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "base_ltv_bps",
+          "type": "u64"
+        },
+        {
+          "name": "liquidation_threshold_bps",
+          "type": "u64"
+        },
+        {
+          "name": "liquidation_bonus_bps",
+          "type": "u64"
+        },
+        {
+          "name": "max_oracle_age",
+          "type": "u64"
+        },
+        {
+          "name": "max_conf_bps",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "repay",
+      "docs": [
+        "Repay outstanding debt.",
+        "Always allowed (even when paused)."
+      ],
+      "discriminator": [
+        234,
+        103,
+        67,
+        82,
+        208,
+        234,
+        219,
+        166
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "docs": [
+            "User repaying debt"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "protocol_config",
+          "docs": [
+            "ProtocolConfig - needed for vault authority validation"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "asset_config",
+          "docs": [
+            "AssetConfig - validates the asset"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  115,
+                  115,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "asset_config.mint",
+                "account": "AssetConfig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "position",
+          "docs": [
+            "Position PDA"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "asset_config.mint",
+                "account": "AssetConfig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "quote_mint",
+          "docs": [
+            "Quote token mint"
+          ]
+        },
+        {
+          "name": "user_quote_ata",
+          "docs": [
+            "User's quote token account (source of repayment)"
+          ],
+          "writable": true
+        },
+        {
+          "name": "liquidity_vault",
+          "docs": [
+            "Protocol liquidity vault (receives repayment)"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "protocol_config"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "quote_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "set_custody_state",
+      "docs": [
+        "Set custody state (admin-controlled MVP simulation input)."
+      ],
+      "discriminator": [
+        110,
+        60,
+        239,
+        56,
+        209,
+        15,
+        158,
+        179
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "Admin authority"
+          ],
+          "signer": true
+        },
+        {
+          "name": "protocol_config",
+          "docs": [
+            "ProtocolConfig - validates admin"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "asset_config",
+          "docs": [
+            "AssetConfig to update"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  115,
+                  115,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "asset_config.mint",
+                "account": "AssetConfig"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "new_state",
+          "type": {
+            "defined": {
+              "name": "CustodyState"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "set_liquidity_state",
+      "docs": [
+        "Set liquidity state (admin-controlled MVP simulation input)."
+      ],
+      "discriminator": [
+        45,
+        54,
+        30,
+        2,
+        46,
+        66,
+        83,
+        215
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "Admin authority"
+          ],
+          "signer": true
+        },
+        {
+          "name": "protocol_config",
+          "docs": [
+            "ProtocolConfig - validates admin"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "asset_config",
+          "docs": [
+            "AssetConfig to update"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  115,
+                  115,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "asset_config.mint",
+                "account": "AssetConfig"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "new_state",
+          "type": {
+            "defined": {
+              "name": "LiquidityState"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "unpause_protocol",
+      "docs": [
+        "Unpause the protocol."
+      ],
+      "discriminator": [
+        183,
+        154,
+        5,
+        183,
+        105,
+        76,
+        87,
+        18
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "Admin authority"
+          ],
+          "signer": true
+        },
+        {
+          "name": "protocol_config",
+          "docs": [
+            "ProtocolConfig PDA"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "withdraw",
+      "docs": [
+        "Withdraw collateral.",
+        "Risk-increasing - requires oracle + health factor validation when debt > 0.",
+        "Blocked when paused."
+      ],
+      "discriminator": [
+        183,
+        18,
+        70,
+        156,
+        148,
+        109,
+        161,
+        34
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "docs": [
+            "User withdrawing collateral"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "protocol_config",
+          "docs": [
+            "ProtocolConfig PDA"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "asset_config",
+          "docs": [
+            "AssetConfig PDA"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  115,
+                  115,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "asset_config.mint",
+                "account": "AssetConfig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "position",
+          "docs": [
+            "Position PDA"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "asset_config.mint",
+                "account": "AssetConfig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "price_update",
+          "docs": [
+            "Pyth PriceUpdateV2 - required when debt > 0",
+            "When debt == 0, this account is still required to be provided",
+            "but is not read (Anchor requires all accounts to be present)."
+          ]
+        },
+        {
+          "name": "collateral_mint",
+          "docs": [
+            "Collateral token mint"
+          ]
+        },
+        {
+          "name": "quote_mint",
+          "docs": [
+            "Quote token mint"
+          ]
+        },
+        {
+          "name": "user_collateral_ata",
+          "docs": [
+            "User's collateral token account (receives withdrawn tokens)"
+          ],
+          "writable": true
+        },
+        {
+          "name": "collateral_vault",
+          "docs": [
+            "Protocol collateral vault"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "protocol_config"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "collateral_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "AssetConfig",
+      "discriminator": [
+        57,
+        112,
+        247,
+        166,
+        247,
+        64,
+        140,
+        23
+      ]
+    },
+    {
+      "name": "MarketGuard",
+      "discriminator": [
+        173,
+        46,
+        45,
+        195,
+        31,
+        243,
+        55,
+        153
+      ]
+    },
+    {
+      "name": "Position",
+      "discriminator": [
+        170,
+        188,
+        143,
+        228,
+        122,
+        64,
+        247,
+        208
+      ]
+    },
+    {
+      "name": "ProtocolConfig",
+      "discriminator": [
+        207,
+        91,
+        250,
+        28,
+        152,
+        179,
+        215,
+        209
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "ProtocolPaused",
+      "msg": "Protocol is paused"
+    },
+    {
+      "code": 6001,
+      "name": "AssetDisabled",
+      "msg": "Asset is disabled"
+    },
+    {
+      "code": 6002,
+      "name": "InvalidAsset",
+      "msg": "Invalid asset configuration"
+    },
+    {
+      "code": 6003,
+      "name": "InvalidOracle",
+      "msg": "Invalid oracle account"
+    },
+    {
+      "code": 6004,
+      "name": "InvalidFeed",
+      "msg": "Oracle feed ID mismatch"
+    },
+    {
+      "code": 6005,
+      "name": "StaleOracle",
+      "msg": "Oracle price is stale"
+    },
+    {
+      "code": 6006,
+      "name": "ConfidenceTooWide",
+      "msg": "Oracle confidence interval too wide"
+    },
+    {
+      "code": 6007,
+      "name": "MarketClosed",
+      "msg": "Reference market is closed"
+    },
+    {
+      "code": 6008,
+      "name": "MarketRestricted",
+      "msg": "Market state is restricted"
+    },
+    {
+      "code": 6009,
+      "name": "MarketEmergency",
+      "msg": "Market state is emergency"
+    },
+    {
+      "code": 6010,
+      "name": "InsufficientCollateral",
+      "msg": "Insufficient collateral"
+    },
+    {
+      "code": 6011,
+      "name": "BorrowExceedsCapacity",
+      "msg": "Borrow exceeds capacity"
+    },
+    {
+      "code": 6012,
+      "name": "HealthFactorTooLow",
+      "msg": "Health factor too low"
+    },
+    {
+      "code": 6013,
+      "name": "NotLiquidatable",
+      "msg": "Position is not liquidatable"
+    },
+    {
+      "code": 6014,
+      "name": "InvalidPositionOwner",
+      "msg": "Invalid position owner"
+    },
+    {
+      "code": 6015,
+      "name": "InvalidCustodyState",
+      "msg": "Invalid custody state"
+    },
+    {
+      "code": 6016,
+      "name": "InvalidLiquidityState",
+      "msg": "Invalid liquidity state"
+    },
+    {
+      "code": 6017,
+      "name": "MathOverflow",
+      "msg": "Math overflow"
+    },
+    {
+      "code": 6018,
+      "name": "InvalidMint",
+      "msg": "Invalid mint"
+    },
+    {
+      "code": 6019,
+      "name": "InvalidTokenAccount",
+      "msg": "Invalid token account"
+    },
+    {
+      "code": 6020,
+      "name": "Unauthorized",
+      "msg": "Unauthorized"
+    },
+    {
+      "code": 6021,
+      "name": "InvalidPda",
+      "msg": "Invalid PDA"
+    },
+    {
+      "code": 6022,
+      "name": "InvalidTimestamp",
+      "msg": "Invalid timestamp"
+    },
+    {
+      "code": 6023,
+      "name": "InvalidPrice",
+      "msg": "Invalid price"
+    },
+    {
+      "code": 6024,
+      "name": "InsufficientLiquidity",
+      "msg": "Insufficient liquidity"
+    },
+    {
+      "code": 6025,
+      "name": "RepayExceedsDebt",
+      "msg": "Repay exceeds debt"
+    },
+    {
+      "code": 6026,
+      "name": "WithdrawExceedsCollateral",
+      "msg": "Withdraw exceeds collateral"
+    }
+  ],
+  "types": [
+    {
+      "name": "AssetConfig",
+      "docs": [
+        "Per-asset configuration - one PDA per supported token mint.",
+        "",
+        "Seeds: [\"asset\", mint.key()]",
+        "",
+        "Stores oracle feed binding, risk parameters, and admin-controlled",
+        "custody/liquidity simulation state."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "docs": [
+              "Admin authority for this asset's configuration"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "docs": [
+              "The SPL token mint this configuration governs (equity token)"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "pyth_feed_id",
+            "docs": [
+              "Pyth price feed identifier (32 bytes).",
+              "The on-chain program validates that any PriceUpdateV2 account",
+              "matches this exact feed ID before accepting the price."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "base_ltv_bps",
+            "docs": [
+              "Base loan-to-value ratio in BPS (e.g., 7000 = 70%).",
+              "Applied only when MarketState == Safe.",
+              "MVP: fixed, no dynamic adjustment."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "liquidation_threshold_bps",
+            "docs": [
+              "Liquidation threshold in BPS (e.g., 8000 = 80%).",
+              "When collateral_value * threshold < debt, position is liquidatable."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "liquidation_bonus_bps",
+            "docs": [
+              "Per-asset liquidation bonus in BPS (e.g., 500 = 5%).",
+              "Overrides global if non-zero; falls back to ProtocolConfig otherwise."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "max_oracle_age",
+            "docs": [
+              "Maximum oracle age in seconds for this specific asset.",
+              "Overrides ProtocolConfig.default_max_oracle_age."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "max_conf_bps",
+            "docs": [
+              "Maximum confidence width in BPS for this specific asset.",
+              "conf * BPS_SCALE / price must be <= this value."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "custody_state",
+            "docs": [
+              "Admin-controlled custody simulation state.",
+              "MVP: explicitly set by admin, NOT from a live oracle.",
+              "Impaired custody triggers Emergency market state."
+            ],
+            "type": {
+              "defined": {
+                "name": "CustodyState"
+              }
+            }
+          },
+          {
+            "name": "liquidity_state",
+            "docs": [
+              "Admin-controlled liquidity simulation state.",
+              "MVP: explicitly set by admin, NOT from a live oracle.",
+              "Critical/Thin liquidity triggers Emergency/Restricted market state."
+            ],
+            "type": {
+              "defined": {
+                "name": "LiquidityState"
+              }
+            }
+          },
+          {
+            "name": "enabled",
+            "docs": [
+              "Whether this asset is enabled for protocol operations.",
+              "Disabled assets block deposit/borrow but allow repay/withdraw."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "quote_mint",
+            "docs": [
+              "The quote token mint (e.g., USDC) used for borrowing against this asset"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump seed"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CustodyState",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Healthy"
+          },
+          {
+            "name": "Delayed"
+          },
+          {
+            "name": "Impaired"
+          }
+        ]
+      }
+    },
+    {
+      "name": "GuardReason",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Ok"
+          },
+          {
+            "name": "StaleOracle"
+          },
+          {
+            "name": "ConfidenceTooWide"
+          },
+          {
+            "name": "MarketClosed"
+          },
+          {
+            "name": "InvalidPrice"
+          },
+          {
+            "name": "CustodyImpaired"
+          },
+          {
+            "name": "LiquidityCritical"
+          },
+          {
+            "name": "LiquidityThin"
+          }
+        ]
+      }
+    },
+    {
+      "name": "LiquidityState",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Deep"
+          },
+          {
+            "name": "Normal"
+          },
+          {
+            "name": "Thin"
+          },
+          {
+            "name": "Critical"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MarketGuard",
+      "docs": [
+        "Cached market guard state - one PDA per Pyth feed.",
+        "",
+        "Seeds: [\"guard\", pyth_feed_id]",
+        "",
+        "Updated by the permissionless `refresh_guard` instruction.",
+        "Stores observability state and the last-valid oracle snapshot.",
+        "",
+        "SECURITY: This cached state is for observability/UI only.",
+        "borrow/withdraw instructions MUST independently re-validate",
+        "oracle and market conditions. Do not trust this as sole authorization."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "feed_id",
+            "docs": [
+              "The Pyth feed ID this guard monitors"
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "last_valid_price",
+            "docs": [
+              "Last validated oracle price (stored only after successful validation).",
+              "Used as emergency liquidation reference when current oracle is invalid.",
+              "INVARIANT: Only updated when oracle validation fully succeeds."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "last_valid_expo",
+            "docs": [
+              "Exponent for last_valid_price (e.g., -8 means price * 10^-8)"
+            ],
+            "type": "i32"
+          },
+          {
+            "name": "last_publish_time",
+            "docs": [
+              "Unix timestamp of the last valid oracle publish time"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "market_state",
+            "docs": [
+              "Current derived market state"
+            ],
+            "type": {
+              "defined": {
+                "name": "MarketState"
+              }
+            }
+          },
+          {
+            "name": "reason",
+            "docs": [
+              "Reason for the current market state"
+            ],
+            "type": {
+              "defined": {
+                "name": "GuardReason"
+              }
+            }
+          },
+          {
+            "name": "last_checked_slot",
+            "docs": [
+              "Solana slot at which guard was last checked/updated"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump seed"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MarketState",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Safe"
+          },
+          {
+            "name": "Restricted"
+          },
+          {
+            "name": "Emergency"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Position",
+      "docs": [
+        "User collateral position - one PDA per (owner, asset) pair.",
+        "",
+        "Seeds: [\"position\", owner.key(), asset_mint.key()]",
+        "",
+        "Tracks deposited collateral, outstanding debt, and the last",
+        "validated oracle snapshot for emergency liquidation reference."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "docs": [
+              "The wallet that owns this position"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "asset",
+            "docs": [
+              "The equity token mint this position is collateralized with"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "collateral_amount",
+            "docs": [
+              "Amount of equity tokens deposited as collateral (in token native units)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "debt_amount",
+            "docs": [
+              "Amount of quote tokens borrowed (in quote token native units)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "last_valid_price",
+            "docs": [
+              "Last validated oracle price snapshot.",
+              "Updated only after successful oracle validation during borrow/withdraw.",
+              "Used as emergency liquidation reference when current oracle is invalid."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "last_valid_expo",
+            "docs": [
+              "Exponent for last_valid_price"
+            ],
+            "type": "i32"
+          },
+          {
+            "name": "state",
+            "docs": [
+              "Current position health state"
+            ],
+            "type": {
+              "defined": {
+                "name": "PositionState"
+              }
+            }
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump seed"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PositionState",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Healthy"
+          },
+          {
+            "name": "Liquidatable"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PriceFeedMessage",
+      "repr": {
+        "kind": "c"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "feed_id",
+            "docs": [
+              "`FeedId` but avoid the type alias because of compatibility issues with Anchor's `idl-build` feature."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "price",
+            "type": "i64"
+          },
+          {
+            "name": "conf",
+            "type": "u64"
+          },
+          {
+            "name": "exponent",
+            "type": "i32"
+          },
+          {
+            "name": "publish_time",
+            "docs": [
+              "The timestamp of this price update in seconds"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "prev_publish_time",
+            "docs": [
+              "The timestamp of the previous price update. This field is intended to allow users to",
+              "identify the single unique price update for any moment in time:",
+              "for any time t, the unique update is the one such that prev_publish_time < t <= publish_time.",
+              "",
+              "Note that there may not be such an update while we are migrating to the new message-sending logic,",
+              "as some price updates on pythnet may not be sent to other chains (because the message-sending",
+              "logic may not have triggered). We can solve this problem by making the message-sending mandatory",
+              "(which we can do once publishers have migrated over).",
+              "",
+              "Additionally, this field may be equal to publish_time if the message is sent on a slot where",
+              "where the aggregation was unsuccesful. This problem will go away once all publishers have",
+              "migrated over to a recent version of pyth-agent."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "ema_price",
+            "type": "i64"
+          },
+          {
+            "name": "ema_conf",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PriceUpdateV2",
+      "docs": [
+        "A price update account. This account is used by the Pyth Receiver program to store a verified price update from a Pyth price feed.",
+        "It contains:",
+        "- `write_authority`: The write authority for this account. This authority can close this account to reclaim rent or update the account to contain a different price update.",
+        "- `verification_level`: The [`VerificationLevel`] of this price update. This represents how many Wormhole guardian signatures have been verified for this price update.",
+        "- `price_message`: The actual price update.",
+        "- `posted_slot`: The slot at which this price update was posted."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "write_authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "verification_level",
+            "type": {
+              "defined": {
+                "name": "VerificationLevel"
+              }
+            }
+          },
+          {
+            "name": "price_message",
+            "type": {
+              "defined": {
+                "name": "PriceFeedMessage"
+              }
+            }
+          },
+          {
+            "name": "posted_slot",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProtocolConfig",
+      "docs": [
+        "Global protocol configuration - singleton PDA.",
+        "",
+        "Seeds: [\"protocol\"]",
+        "",
+        "Controls pause state, health factor minimums, oracle defaults,",
+        "and liquidation parameters. Only the designated authority can modify."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "docs": [
+              "Admin authority that can modify protocol parameters"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "paused",
+            "docs": [
+              "When true, risk-increasing operations (borrow, withdraw) are blocked.",
+              "Deposit, repay, and liquidation remain available."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "version",
+            "docs": [
+              "Protocol version for future upgrade tracking"
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "min_health_factor_bps",
+            "docs": [
+              "Minimum health factor in BPS (10000 = 1.0).",
+              "Positions below this threshold become liquidatable."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "default_max_oracle_age",
+            "docs": [
+              "Default maximum oracle age in seconds.",
+              "Used when AssetConfig doesn't override."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "default_max_conf_bps",
+            "docs": [
+              "Default maximum confidence width in BPS.",
+              "conf * BPS_SCALE / price must be <= this value."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "liquidation_bonus_bps",
+            "docs": [
+              "Global liquidation bonus in BPS.",
+              "Liquidators receive this % bonus on seized collateral."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump seed"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VerificationLevel",
+      "docs": [
+        "Pyth price updates are bridged to all blockchains via Wormhole.",
+        "Using the price updates on another chain requires verifying the signatures of the Wormhole guardians.",
+        "The usual process is to check the signatures for two thirds of the total number of guardians, but this can be cumbersome on Solana because of the transaction size limits,",
+        "so we also allow for partial verification.",
+        "",
+        "This enum represents how much a price update has been verified:",
+        "- If `Full`, we have verified the signatures for two thirds of the current guardians.",
+        "- If `Partial`, only `num_signatures` guardian signatures have been checked.",
+        "",
+        "# Warning",
+        "Using partially verified price updates is dangerous, as it lowers the threshold of guardians that need to collude to produce a malicious price update."
+      ],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Partial",
+            "fields": [
+              {
+                "name": "num_signatures",
+                "type": "u8"
+              }
+            ]
+          },
+          {
+            "name": "Full"
+          }
+        ]
+      }
+    }
+  ]
+}
