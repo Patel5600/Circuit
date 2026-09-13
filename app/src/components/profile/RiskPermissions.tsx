@@ -32,14 +32,20 @@ export function RiskPermissions({
   const isEmergency = riskState === "EMERGENCY";
   const isRestricted = riskState === "RESTRICTED" || riskState === "DEFENSIVE";
 
+  const isNoCollateral = borrowBlockers.some((b) => b.toLowerCase().includes("no collateral"));
+
   const borrowStatus = borrowAllowed
     ? "✓ Allowed"
+    : isNoCollateral
+    ? "— Awaiting Deposit"
     : isRestricted
     ? "⚠ Restricted"
     : "✗ Blocked";
 
   const borrowTone: Tone = borrowAllowed
     ? "success"
+    : isNoCollateral
+    ? "neutral"
     : isRestricted
     ? "warning"
     : "danger";
@@ -62,9 +68,9 @@ export function RiskPermissions({
     {
       action: "Withdraw",
       allowed: withdrawAllowed,
-      statusText: withdrawAllowed ? "✓ Allowed" : "✗ Blocked",
-      tone: withdrawAllowed ? "success" : "danger",
-      reason: withdrawReason || (withdrawAllowed ? "Withdrawals permitted while position remains solvent" : "Risk-increasing withdrawals halted in Emergency state"),
+      statusText: withdrawAllowed ? "✓ Allowed" : isEmergency ? "✗ Blocked" : "— Inactive",
+      tone: withdrawAllowed ? "success" : isEmergency ? "danger" : "neutral",
+      reason: withdrawReason || (withdrawAllowed ? "Withdrawals permitted while position remains solvent" : isEmergency ? "Risk-increasing withdrawals halted in Emergency state" : "No deposited collateral to withdraw"),
     },
     {
       action: "Repay",

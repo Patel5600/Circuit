@@ -24,13 +24,15 @@ import { toUi, BPS } from "../lib/protocol";
 /*  Helpers                                                                   */
 /* -------------------------------------------------------------------------- */
 
-function riskProfile(leverageRatio: number): string {
+function riskProfile(leverageRatio: number, hasDebt: boolean = true): string {
+  if (!hasDebt || leverageRatio === 0) return "Unleveraged";
   if (leverageRatio <= 0.25) return "Conservative";
   if (leverageRatio <= 0.55) return "Moderate";
   return "Aggressive";
 }
 
-function riskProfileTone(label: string): "success" | "warning" | "danger" {
+function riskProfileTone(label: string): "neutral" | "success" | "warning" | "danger" {
+  if (label === "Unleveraged") return "neutral";
   if (label === "Conservative") return "success";
   if (label === "Moderate") return "warning";
   return "danger";
@@ -38,9 +40,10 @@ function riskProfileTone(label: string): "success" | "warning" | "danger" {
 
 function riskStateFromGuard(
   guardReason: string | undefined,
-  borrowAllowed: boolean
+  borrowAllowed: boolean,
+  hasCollateral: boolean = true
 ): "SAFE" | "RESTRICTED" | "DEFENSIVE" | "EMERGENCY" {
-  if (!guardReason) return borrowAllowed ? "SAFE" : "RESTRICTED";
+  if (!guardReason) return "SAFE";
   const r = guardReason.toLowerCase();
   if (r.includes("emergency") || r.includes("impaired")) return "EMERGENCY";
   if (r.includes("defensive")) return "DEFENSIVE";
@@ -97,7 +100,7 @@ export default function Profile() {
   const { selectedMarket } = useMarket();
   const s = useProtocolState();
 
-  // Mode and dynamic simulation synchronization
+  // Mode: "LIVE" (100% on-chain truth) or Simulation scenario modes
   const [simMode, setSimMode] = useState<"LIVE" | "HEALTHY" | "STRESS" | "EMERGENCY">("LIVE");
   const [dynamicPayload, setDynamicPayload] = useState<DynamicStatePayload | null>(null);
 
@@ -106,13 +109,12 @@ export default function Profile() {
   const priceUsd = s.oracle?.priceUsd ?? 138.25;
 
   const hasLiveCollateral = rawCollateralUi > 0;
-  // Default to reference proof position if empty wallet to provide immediate live calculation
-  const [useDemoProof, setUseDemoProof] = useState<boolean>(!hasLiveCollateral);
+  const isSimulation = simMode !== "LIVE";
 
-  const isProofActive = useDemoProof || (!hasLiveCollateral && simMode !== "LIVE");
-
-  const collateralUi = isProofActive ? 72.33 : rawCollateralUi;
-  const debtUi = isProofActive ? 2500 : rawDebtUi;
+  // In LIVE mode: Strictly use verified on-chain balances ($0 on empty wallet).
+  // In Simulation mode: Use reference modeling scenario position.
+  const collateralUi = isSimulation ? 72.33 : rawCollateralUi;
+  const debtUi = isSimulation ? 2500 : rawDebtUi;
   const collateralValueUsd = collateralUi * priceUsd;
   const leverageRatio = collateralValueUsd > 0 ? debtUi / collateralValueUsd : 0;
 
@@ -120,8 +122,8 @@ export default function Profile() {
   const baseLtvBps = s.asset?.baseLtvBps ?? 7000;
   const capacityUsd = collateralValueUsd * (baseLtvBps / BPS);
 
-  const liveRiskState = riskStateFromGuard(s.guard?.reason, s.risk?.borrowAllowed ?? false);
-  const liveBorrowAllowed = s.risk?.borrowAllowed ?? false;
+  const liveRiskState = riskStateFromGuard(s.guard?.reason, s.risk?.borrowAllowed ?? false, hasLiveCollateral);
+  const liveBorrowAllowed = hasLiveCollateral && (s.risk?.borrowAllowed ?? false);
 
   // Oracle posture
   const confBps = s.oracle?.confBps ?? 18;
@@ -136,24 +138,53 @@ export default function Profile() {
     return ["AAPL", "MSFT", "NVDA", "AMZN", "USDC"].filter((sym) => sym !== primarySymbol);
   }, [primarySymbol]);
 
-  // Clean deduplicated 4-asset portfolio for graph
+  // Clean deduplicated assets for graph
   const graphAssets: AssetNode[] = useMemo(() => {
-    const primary: AssetNode = {
-      symbol: primarySymbol,
-      name: getAssetName(primarySymbol),
-      weightPct: 58,
-      oracleHealthy: confBps <= maxConfBps && oracleAge <= maxOracleAge,
-      confBps,
-      maxConfBps,
-      marketOpen: s.session?.open ?? true,
-      mark: getAssetMark(primarySymbol),
-    };
+    if (!isSimulation) {
+      // In LIVE mode: reflect real wallet asset holdings
+      if (!hasLiveCollateral) {
+        return [
+          {
+            symbol: primarySymbol,
+            name: getAssetName(primarySymbol),
+            weightPct: 0,
+            oracleHealthy: confBps <= maxConfBps && oracleAge <= maxOracleAge,
+            confBps,
+            maxConfBps,
+            marketOpen: s.session?.open ?? true,
+            mark: getAssetMark(primarySymbol),
+          },
+        ];
+      }
+      return [
+        {
+          symbol: primarySymbol,
+          name: getAssetName(primarySymbol),
+          weightPct: 100,
+          oracleHealthy: confBps <= maxConfBps && oracleAge <= maxOracleAge,
+          confBps,
+          maxConfBps,
+          marketOpen: s.session?.open ?? true,
+          mark: getAssetMark(primarySymbol),
+        },
+      ];
+    }
 
+    // In Simulation mode: Clean deduplicated 4-asset portfolio for modeling
     const sec1 = secondaryPool[0] || "AAPL";
     const sec2 = secondaryPool[1] || "MSFT";
 
     return [
-      primary,
+      {
+        symbol: primarySymbol,
+        name: getAssetName(primarySymbol),
+        weightPct: 58,
+        oracleHealthy: confBps <= maxConfBps && oracleAge <= maxOracleAge,
+        confBps,
+        maxConfBps,
+        marketOpen: s.session?.open ?? true,
+        mark: getAssetMark(primarySymbol),
+      },
       {
         symbol: sec1,
         name: getAssetName(sec1),
@@ -185,13 +216,13 @@ export default function Profile() {
         mark: getAssetMark("USDC"),
       },
     ];
-  }, [primarySymbol, secondaryPool, confBps, maxConfBps, oracleAge, maxOracleAge, s.session]);
+  }, [isSimulation, hasLiveCollateral, primarySymbol, secondaryPool, confBps, maxConfBps, oracleAge, maxOracleAge, s.session]);
 
   // Concentration penalty math
-  const maxWeight = Math.max(...graphAssets.map((a) => a.weightPct));
-  const concentrationPenaltyBps = maxWeight > 40 ? Math.round((maxWeight - 40) * 100 * 0.36) : 0;
-  const effectiveLtvBps = Math.max(3000, baseLtvBps - concentrationPenaltyBps);
-  const adjustedBorrowPower = collateralValueUsd * (effectiveLtvBps / BPS) - debtUi;
+  const maxWeight = isSimulation ? Math.max(...graphAssets.map((a) => a.weightPct)) : (hasLiveCollateral ? 100 : 0);
+  const concentrationPenaltyBps = isSimulation && maxWeight > 40 ? Math.round((maxWeight - 40) * 100 * 0.36) : 0;
+  const effectiveLtvBps = hasLiveCollateral || isSimulation ? Math.max(3000, baseLtvBps - concentrationPenaltyBps) : 0;
+  const adjustedBorrowPower = hasLiveCollateral ? Math.max(0, collateralValueUsd * (effectiveLtvBps / BPS) - debtUi) : 0;
 
   // Callback with equality check to prevent infinite re-render loops
   const handleDynamicStateChange = useCallback((payload: DynamicStatePayload) => {
@@ -214,35 +245,43 @@ export default function Profile() {
   }, []);
 
   // Active synchronized values across the page
-  const activeRiskState = dynamicPayload?.riskState ?? liveRiskState;
-  const activeBorrowAllowed = dynamicPayload?.borrowAllowed ?? (liveBorrowAllowed || (isProofActive && activeRiskState !== "EMERGENCY"));
-  const activeEffectiveLtvBps = dynamicPayload?.effectiveLtvBps ?? effectiveLtvBps;
-  const activeBorrowPower = dynamicPayload?.borrowPowerUsd ?? Math.max(0, adjustedBorrowPower);
-  const activeConcentrationPct = dynamicPayload?.concentrationPct ?? maxWeight;
-  const activeConfBps = dynamicPayload?.confBps ?? confBps;
-  const activeHardOverride = dynamicPayload?.hardOverride ?? liveHardOverride;
-  const activeHardReason = dynamicPayload?.hardOverrideReason ?? (activeHardOverride ? "Upstream custody settlement link impaired" : undefined);
+  const activeRiskState = isSimulation ? (dynamicPayload?.riskState ?? "SAFE") : liveRiskState;
+  const activeBorrowAllowed = isSimulation
+    ? (dynamicPayload?.borrowAllowed ?? false)
+    : liveBorrowAllowed;
+  const activeEffectiveLtvBps = isSimulation
+    ? (dynamicPayload?.effectiveLtvBps ?? effectiveLtvBps)
+    : effectiveLtvBps;
+  const activeBorrowPower = isSimulation
+    ? (dynamicPayload?.borrowPowerUsd ?? 0)
+    : adjustedBorrowPower;
+  const activeConcentrationPct = isSimulation
+    ? (dynamicPayload?.concentrationPct ?? maxWeight)
+    : (hasLiveCollateral ? 100 : 0);
+  const activeConfBps = isSimulation ? (dynamicPayload?.confBps ?? confBps) : confBps;
+  const activeHardOverride = isSimulation ? (dynamicPayload?.hardOverride ?? false) : liveHardOverride;
+  const activeHardReason = isSimulation
+    ? dynamicPayload?.hardOverrideReason
+    : (activeHardOverride ? "Upstream custody settlement link impaired" : undefined);
 
   const activeEffectiveLtvPct = activeEffectiveLtvBps / 100;
-  const activeProfile = riskProfile(leverageRatio);
+  const activeProfile = riskProfile(leverageRatio, debtUi > 0);
 
-  const hfDisplay =
-    activeRiskState === "EMERGENCY"
+  const hfDisplay = isSimulation
+    ? activeRiskState === "EMERGENCY"
       ? "0.92"
       : activeRiskState === "RESTRICTED"
       ? "1.38"
-      : isProofActive
-      ? "2.80"
-      : rawHfBps !== null
-      ? (rawHfBps / BPS).toFixed(2)
-      : "No debt";
+      : "2.80"
+    : rawHfBps !== null
+    ? (rawHfBps / BPS).toFixed(2)
+    : "No debt";
 
-  const liquidationActive =
-    activeRiskState === "EMERGENCY"
-      ? false
-      : rawHfBps !== null && rawHfBps < BPS;
+  const liquidationActive = isSimulation
+    ? activeRiskState === "EMERGENCY"
+    : rawHfBps !== null && rawHfBps < BPS;
 
-  const withdrawAllowed = !s.protocol?.paused && activeRiskState !== "EMERGENCY";
+  const withdrawAllowed = hasLiveCollateral && !s.protocol?.paused && activeRiskState !== "EMERGENCY";
 
   if (!connected) {
     return (
@@ -258,8 +297,39 @@ export default function Profile() {
         className="stack g-20"
         style={{ maxWidth: 1080, margin: "0 auto", paddingBottom: 60 }}
       >
-        {/* ── Demo / Live State Indicator Banner for Empty Devnet Wallets ── */}
-        {!hasLiveCollateral && (
+        {/* ── Real On-Chain / Simulation State Indicator Banner ── */}
+        {!isSimulation && !hasLiveCollateral ? (
+          <div
+            style={{
+              padding: "12px 16px",
+              background: "rgba(127, 195, 154, 0.06)",
+              border: "1px solid rgba(127, 195, 154, 0.2)",
+              borderRadius: 8,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: 12,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <Icon name="check" size={16} />
+              <div>
+                <span style={{ fontSize: 12, fontWeight: 650, color: "var(--text)" }}>
+                  Connected Wallet: {shortenAddress(publicKey?.toBase58() ?? "", 4, 4)} (Live Devnet State)
+                </span>
+                <div style={{ fontSize: 11.5, color: "var(--text-3)", marginTop: 2 }}>
+                  Fresh wallet detected with $0.00 collateral. Available borrow capacity is strictly $0.00.
+                </div>
+              </div>
+            </div>
+            <div className="row g-8">
+              <Link to="/app/position" className="btn btn--accent btn--sm" style={{ fontSize: 11, height: 26 }}>
+                Deposit Collateral →
+              </Link>
+            </div>
+          </div>
+        ) : isSimulation ? (
           <div
             style={{
               padding: "10px 16px",
@@ -276,21 +346,19 @@ export default function Profile() {
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <Icon name="info" size={16} />
               <span style={{ fontSize: 12, color: "var(--text-2)" }}>
-                {isProofActive
-                  ? "Active Proof Mode: Modeling with reference $10,000 NVDA collateral position."
-                  : "Wallet has $0 on-chain collateral. Modeling with real-time $0 balance."}
+                <strong>Simulation Active ({simMode}):</strong> Modeling risk ratchet behavior under hypothetical scenario.
               </span>
             </div>
             <button
               type="button"
-              className={`btn ${isProofActive ? "btn--secondary" : "btn--accent"} btn--sm`}
+              className="btn btn--secondary btn--sm"
               style={{ fontSize: 11, padding: "4px 10px", height: 26 }}
-              onClick={() => setUseDemoProof(!useDemoProof)}
+              onClick={() => setSimMode("LIVE")}
             >
-              {isProofActive ? "Switch to Live $0 Balance" : "Load $10,000 Reference Collateral"}
+              Return to Live Wallet State
             </button>
           </div>
-        )}
+        ) : null}
 
         {/* ── Section 1: Risk Identity Card ──────────────────────────── */}
         <Card>
@@ -408,7 +476,11 @@ export default function Profile() {
               <StatBlock
                 label="Collateral"
                 value={`$${formatMoney(collateralValueUsd)}`}
-                sub={`${formatMoney(collateralUi, 4)} ${selectedMarket?.tokenSymbol ?? "NVDAx"}`}
+                sub={
+                  hasLiveCollateral || isSimulation
+                    ? `${formatMoney(collateralUi, 4)} ${selectedMarket?.tokenSymbol ?? "NVDAx"}`
+                    : `0.0000 ${selectedMarket?.tokenSymbol ?? "NVDAx"}`
+                }
               />
               <StatBlock
                 label="Current Debt"
@@ -418,14 +490,26 @@ export default function Profile() {
               <StatBlock
                 label="Borrow Capacity"
                 value={`$${formatMoney(Math.max(0, activeBorrowPower))}`}
-                sub={`Effective LTV: ${formatPercent(activeEffectiveLtvBps)}`}
+                sub={
+                  hasLiveCollateral || isSimulation
+                    ? `Effective LTV: ${formatPercent(activeEffectiveLtvBps)}`
+                    : "No collateral deposited"
+                }
               />
               <StatBlock
                 label="Effective LTV"
-                value={`${activeEffectiveLtvPct.toFixed(1)}%`}
-                sub={`Base: ${formatPercent(baseLtvBps)} | Penalty: -${Math.round(
-                  (activeConcentrationPct > 40 ? (activeConcentrationPct - 40) * 36 : 0)
-                )} bps`}
+                value={
+                  hasLiveCollateral || isSimulation
+                    ? `${activeEffectiveLtvPct.toFixed(1)}%`
+                    : "0.0%"
+                }
+                sub={
+                  hasLiveCollateral || isSimulation
+                    ? `Base: ${formatPercent(baseLtvBps)} | Penalty: -${Math.round(
+                        (activeConcentrationPct > 40 ? (activeConcentrationPct - 40) * 36 : 0)
+                      )} bps`
+                    : `Base limit: ${formatPercent(baseLtvBps)} (Awaiting deposit)`
+                }
               />
             </div>
           )}
@@ -464,6 +548,8 @@ export default function Profile() {
           borrowBlockers={
             activeHardOverride
               ? [activeHardReason || "Hard risk override active"]
+              : !hasLiveCollateral && !isSimulation
+              ? ["No collateral deposited — deposit equity tokens to unlock credit line"]
               : !activeBorrowAllowed
               ? ["Capacity restricted by Risk Ratchet (Concentration penalty active)"]
               : []
@@ -471,19 +557,21 @@ export default function Profile() {
           withdrawAllowed={withdrawAllowed}
           withdrawReason={
             !withdrawAllowed
-              ? activeRiskState === "EMERGENCY"
+              ? !hasLiveCollateral && !isSimulation
+                ? "No collateral deposited"
+                : activeRiskState === "EMERGENCY"
                 ? "Risk-increasing withdrawals blocked in Emergency state"
                 : "Protocol paused"
               : undefined
           }
           liquidationActive={liquidationActive}
           healthFactorBps={
-            activeRiskState === "EMERGENCY"
-              ? 9200
-              : activeRiskState === "RESTRICTED"
-              ? 13800
-              : isProofActive
-              ? 28000
+            isSimulation
+              ? activeRiskState === "EMERGENCY"
+                ? 9200
+                : activeRiskState === "RESTRICTED"
+                ? 13800
+                : 28000
               : rawHfBps
           }
           riskState={activeRiskState}
