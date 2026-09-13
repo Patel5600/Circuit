@@ -4,7 +4,7 @@ import { Reveal } from "../ui/Reveal";
 import { Icon } from "../ui";
 
 /* -------------------------------------------------------------------------- */
-/*  Dimensions Data (7 Chapters) — Unified, Refined Palette                   */
+/*  Dimensions Data (7 Chapters) — Unified, Monochrome & Gold Palette         */
 /* -------------------------------------------------------------------------- */
 
 export interface DimensionChapter {
@@ -141,67 +141,56 @@ const DIMENSIONS: DimensionChapter[] = [
 /* -------------------------------------------------------------------------- */
 
 export function FaultLineMatrix() {
-  const [isExpanded, setIsExpanded] = useState(false);
-  // pageIndex: 0 = closed cover, 1 = Chapter 1 open, 2 = Chapter 2 open, ..., 7 = Chapter 7
-  const [pageIndex, setPageIndex] = useState(0);
+  const [isOpen, setIsOpen] = useState(false);
+  const [activeChapterIndex, setActiveChapterIndex] = useState(0);
 
-  // Close and reset book
-  const resetBook = useCallback(() => {
-    setIsExpanded(false);
-    setTimeout(() => {
-      setPageIndex(0);
-    }, 350);
-  }, []);
+  const chapter = DIMENSIONS[activeChapterIndex];
 
-  // Open book and expand
-  const expandBook = (targetPage = 1) => {
-    setIsExpanded(true);
-    setTimeout(() => {
-      setPageIndex(targetPage);
-    }, 200);
-  };
-
-  // Flip forward (next page)
-  const flipNext = (e?: React.MouseEvent) => {
+  const nextChapter = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    if (pageIndex < DIMENSIONS.length) {
-      setPageIndex((p) => p + 1);
+    if (activeChapterIndex < DIMENSIONS.length - 1) {
+      setActiveChapterIndex((idx) => idx + 1);
     } else {
-      resetBook();
+      setIsOpen(false);
     }
   };
 
-  // Flip backward (previous page)
-  const flipPrev = (e?: React.MouseEvent) => {
+  const prevChapter = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    if (pageIndex > 1) {
-      setPageIndex((p) => p - 1);
-    } else if (pageIndex === 1) {
-      setPageIndex(0);
+    if (activeChapterIndex > 0) {
+      setActiveChapterIndex((idx) => idx - 1);
     }
   };
 
-  // Keyboard navigation
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!isExpanded) return;
+  // Keyboard navigation when book is open
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (!isOpen) return;
       if (e.key === "Escape") {
-        resetBook();
+        setIsOpen(false);
       } else if (e.key === "ArrowRight") {
-        if (pageIndex < DIMENSIONS.length) setPageIndex((p) => p + 1);
-        else resetBook();
+        if (activeChapterIndex < DIMENSIONS.length - 1) {
+          setActiveChapterIndex((idx) => idx + 1);
+        } else {
+          setIsOpen(false);
+        }
       } else if (e.key === "ArrowLeft") {
-        if (pageIndex > 1) setPageIndex((p) => p - 1);
-        else if (pageIndex === 1) setPageIndex(0);
+        if (activeChapterIndex > 0) {
+          setActiveChapterIndex((idx) => idx - 1);
+        }
       }
-    };
+    },
+    [isOpen, activeChapterIndex]
+  );
+
+  useEffect(() => {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isExpanded, pageIndex, resetBook]);
+  }, [handleKeyDown]);
 
-  // Lock body scroll when book is expanded
+  // Lock body scroll when book is open
   useEffect(() => {
-    if (isExpanded) {
+    if (isOpen) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "";
@@ -209,9 +198,7 @@ export function FaultLineMatrix() {
     return () => {
       document.body.style.overflow = "";
     };
-  }, [isExpanded]);
-
-  const activeChapter = DIMENSIONS[Math.max(0, Math.min(DIMENSIONS.length - 1, (pageIndex > 0 ? pageIndex - 1 : 0)))];
+  }, [isOpen]);
 
   return (
     <section className="sec" id="dimensions" style={{ position: "relative", zIndex: 1 }}>
@@ -229,53 +216,63 @@ export function FaultLineMatrix() {
             </h2>
             <p className="t-base muted" style={{ maxWidth: 640, margin: "14px auto 0", fontSize: 16, lineHeight: 1.55 }}>
               Tokenized equities require fundamentally different primitives than crypto-native assets.
-              Click the handbook below to open the specification and flip through the chapters.
+              Click the handbook below to open the specification and explore each chapter.
             </p>
           </div>
         </Reveal>
 
-        {/* ── Center Book Display in Section 07 (No Left Specification Sheet) ── */}
+        {/* ── Center Book Display in Section 07 (Clean, Fully Rendered Closed Book) ── */}
         <Reveal delay={80}>
           <div className="center-book-container">
             <div
-              className="book-mockup in-situ-center"
+              className="book-mockup-closed"
               role="button"
               tabIndex={0}
               aria-label="Click to open the Architectural Codex book"
-              onClick={() => expandBook(1)}
-              onKeyDown={(e) => e.key === "Enter" && expandBook(1)}
+              onClick={() => {
+                setActiveChapterIndex(0);
+                setIsOpen(true);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  setActiveChapterIndex(0);
+                  setIsOpen(true);
+                }
+              }}
             >
-              {/* Book Cover */}
-              <div className="book-cover in-situ-cover">
-                <div className="cover-spine-crease" />
-                <div className="cover-inner-border">
-                  <div className="cover-top-folio">
+              {/* Full Hardcover Front Cover (No overlapping cuts or half shapes) */}
+              <div className="closed-cover-face">
+                <div className="closed-spine-ridge" />
+                <div className="closed-inner-frame">
+                  <div className="closed-top-folio">
                     <span>CIRCUIT PROTOCOL</span>
                     <span>SOLANA DEVNET</span>
                   </div>
 
-                  <div className="cover-center-badge">
-                    <div className="cover-emblem-circle">
-                      <Icon name="shield" size={30} />
+                  <div className="closed-center-insignia">
+                    <div className="closed-emblem-circle">
+                      <Icon name="shield" size={32} />
                     </div>
-                    <h4 className="cover-title-text">
+                    <h4 className="closed-title">
                       ARCHITECTURAL
                       <br />
                       <span>CODEX</span>
                     </h4>
-                    <p className="cover-edition-text">VII CHAPTERS · ON-CHAIN</p>
+                    <p className="closed-edition">VII CHAPTERS · ON-CHAIN</p>
                   </div>
 
-                  <div className="cover-bottom-hint">
+                  <div className="closed-bottom-callout">
                     <span>CLICK TO OPEN ↗</span>
                   </div>
                 </div>
+
+                {/* Silk Ribbon Marker Hanging at the Bottom */}
+                <div className="closed-silk-ribbon" />
               </div>
 
-              {/* Edge Stack Depth */}
-              <div className="book-page page-depth-3" />
-              <div className="book-page page-depth-2" />
-              <div className="book-page page-depth-1" />
+              {/* Realistic Paper Page Thickness on Right & Bottom Edge */}
+              <div className="closed-paper-edge-right" />
+              <div className="closed-paper-edge-bottom" />
             </div>
 
             <div style={{ marginTop: 22 }}>
@@ -287,159 +284,160 @@ export function FaultLineMatrix() {
         </Reveal>
       </div>
 
-      {/* ── React Portal: Pure Centered Book Overlay without Header Collision or Clutter ── */}
-      {isExpanded &&
+      {/* ── React Portal: Real Two-Page Book Mode View with Center Curve & Light Shadow Curves ── */}
+      {isOpen &&
         createPortal(
           <div
-            className="book-portal-overlay"
+            className="book-modal-portal"
             role="dialog"
             aria-modal="true"
-            aria-label="Circuit Architectural Codex Reader"
-            onClick={resetBook}
+            aria-label="Circuit Architectural Codex Two-Page Spread"
+            onClick={() => setIsOpen(false)}
           >
-            {/* Minimal, Quiet Close Button (Safely Positioned) */}
+            {/* Minimal, Quiet Close Button in Viewport Top-Right (No Header Touch) */}
             <button
               type="button"
               aria-label="Close book"
-              className="book-minimal-close-btn"
-              onClick={resetBook}
+              className="book-quiet-close-btn"
+              onClick={() => setIsOpen(false)}
             >
               ✕ Esc
             </button>
 
-            {/* Enlarged Centered 3D Book */}
+            {/* ── The Real Two-Page Hardcover Book Spread ── */}
             <div
-              className="book-expanded-stage"
+              className="real-two-page-spread"
               onClick={(e) => e.stopPropagation()}
             >
-              <div
-                className="book-mockup enlarged-book"
-                onClick={flipNext}
-                role="button"
-                tabIndex={0}
-                aria-label="Click book to turn page"
-              >
-                {/* ── Book Front Cover ── */}
-                <div className={`book-cover ${pageIndex > 0 ? "flipped" : ""}`}>
-                  <div className="cover-spine-crease" />
-                  <div className="cover-inner-border">
-                    <div className="cover-top-folio">
-                      <span>CIRCUIT PROTOCOL</span>
-                      <span>SOLANA DEVNET</span>
-                    </div>
+              {/* Hanging Center Silk Ribbon */}
+              <div className="spread-center-silk-ribbon" />
 
-                    <div className="cover-center-badge">
-                      <div className="cover-emblem-circle" style={{ width: 64, height: 64 }}>
-                        <Icon name="shield" size={36} />
-                      </div>
-                      <h4 className="cover-title-text" style={{ fontSize: 20 }}>
-                        ARCHITECTURAL
-                        <br />
-                        <span>CODEX</span>
-                      </h4>
-                      <p className="cover-edition-text" style={{ fontSize: 10 }}>VII CHAPTERS · ON-CHAIN SPECIFICATION</p>
-                    </div>
+              {/* ── LEFT PAGE (Verso) with Center Curve & Light Shadow ── */}
+              <div className="spread-page spread-page-left">
+                {/* Running Head */}
+                <div className="spread-running-head">
+                  <span>CIRCUIT ARCHITECTURAL CODEX</span>
+                  <span>CHAPTER {chapter.roman}</span>
+                </div>
 
-                    <div className="cover-bottom-hint">
-                      <span>CLICK TO TURN PAGE ▸</span>
-                    </div>
+                {/* Background Roman Watermark */}
+                <div className="spread-chapter-watermark">{chapter.roman}</div>
+
+                {/* Left Page Body Content */}
+                <div className="spread-page-content">
+                  <div style={{ marginBottom: 8 }}>
+                    <span className="spread-chapter-badge">
+                      DIMENSION {chapter.roman} · {chapter.badge}
+                    </span>
+                  </div>
+
+                  <h3 className="spread-chapter-title">{chapter.title}</h3>
+                  <div className="spread-chapter-sub">{chapter.subtitle}</div>
+
+                  {/* Illuminated Tagline Quote */}
+                  <div className="spread-tagline-box">
+                    “{chapter.tagline}”
+                  </div>
+
+                  {/* Mathematical Formula Card */}
+                  <div className="spread-formula-card">
+                    <span className="spread-formula-label">On-Chain Mathematical Constraint</span>
+                    <code>{chapter.formula}</code>
                   </div>
                 </div>
 
-                {/* ── 7 Chapter Pages Stacked Underneath (Monochrome / Reduced Colorfulness) ── */}
-                {DIMENSIONS.map((dim, idx) => {
-                  const pageNum = idx + 1;
-                  const isFlipped = pageIndex > pageNum;
-                  const zIndex = 9 - idx;
+                {/* Left Page Footer Nav */}
+                <div className="spread-page-footer left-footer">
+                  <button
+                    type="button"
+                    className="spread-turn-btn"
+                    disabled={activeChapterIndex === 0}
+                    onClick={prevChapter}
+                    style={{ opacity: activeChapterIndex === 0 ? 0.35 : 1 }}
+                  >
+                    ◂ Turn Page (Prev)
+                  </button>
+                  <span className="spread-page-num">PAGE {activeChapterIndex * 2 + 1}</span>
+                </div>
+              </div>
 
-                  return (
-                    <div
-                      key={dim.id}
-                      className={`book-page page-${pageNum} ${isFlipped ? "flipped" : ""}`}
-                      style={{ zIndex }}
-                    >
-                      <div className="page-spine-shadow" />
+              {/* ── CENTER SPINE CREASE GUTTER (Real Curve Depth & Shadow) ── */}
+              <div className="spread-spine-crease-gutter">
+                <div className="spine-light-shadow-left" />
+                <div className="spine-center-stitch-line" />
+                <div className="spine-light-shadow-right" />
+              </div>
 
-                      {/* Clean Folio Header */}
-                      <div className="page-header-row">
-                        <span className="page-folio-label">CIRCUIT SPECIFICATION</span>
-                        <span className="page-folio-chapter">CHAPTER {dim.roman}</span>
-                        <span className="page-number">{pageNum} / 7</span>
-                      </div>
+              {/* ── RIGHT PAGE (Recto) with Center Curve & Light Shadow ── */}
+              <div className="spread-page spread-page-right">
+                {/* Running Head */}
+                <div className="spread-running-head">
+                  <span>ON-CHAIN SPECIFICATION</span>
+                  <span>SOLANA DEVNET</span>
+                </div>
 
-                      {/* Content Flow */}
-                      <div className="page-content-flow">
-                        <div>
-                          <div className="page-chapter-tag">
-                            DIMENSION {dim.roman} · {dim.badge}
-                          </div>
-
-                          <h4 className="page-chapter-title">{dim.title}</h4>
-                          <div className="page-chapter-subtitle">{dim.subtitle}</div>
-
-                          <div className="page-tagline-quote">
-                            “{dim.tagline}”
-                          </div>
-                        </div>
-
-                        {/* Specification Blocks */}
-                        <div className="page-spec-section">
-                          <span className="page-spec-title">The Problem Thesis</span>
-                          <p className="page-spec-text">{dim.thesis}</p>
-                        </div>
-
-                        <div className="page-spec-section">
-                          <span className="page-spec-title">On-Chain Circuit Primitive</span>
-                          <p className="page-spec-text">{dim.mechanism}</p>
-                        </div>
-
-                        {/* Mathematical Formula Constraint */}
-                        <div className="page-formula-box">
-                          <span className="formula-tag">ON-CHAIN CONSTRAINT SPECIFICATION</span>
-                          <code>{dim.formula}</code>
-                        </div>
-
-                        <div className="page-spec-section" style={{ marginBottom: 0 }}>
-                          <span className="page-spec-title">Why This Changes Everything</span>
-                          <p className="page-spec-text">{dim.whyItMatters}</p>
-                        </div>
-                      </div>
-
-                      {/* Bottom Page Footer Nav */}
-                      <div className="page-bottom-nav">
-                        <div className="row g-8" style={{ alignItems: "center" }}>
-                          {pageNum > 1 && (
-                            <button
-                              type="button"
-                              className="page-turn-btn"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                flipPrev();
-                              }}
-                            >
-                              ◂ Prev
-                            </button>
-                          )}
-                          <span className="page-hint-text">
-                            {pageNum < 7 ? "Click page to flip next ▸" : "Click page to finish ✓"}
-                          </span>
-                        </div>
-                        <span className="page-footer-num">PAGE {pageNum}</span>
-                      </div>
+                {/* Right Page Body Content */}
+                <div className="spread-page-content">
+                  {/* Specification 1: The Problem Thesis */}
+                  <div className="spread-spec-block">
+                    <div className="spread-spec-head">
+                      <span className="spread-spec-bullet" />
+                      I. The Problem Thesis
                     </div>
-                  );
-                })}
+                    <p className="spread-spec-text">{chapter.thesis}</p>
+                  </div>
+
+                  {/* Specification 2: On-Chain Circuit Mechanism */}
+                  <div className="spread-spec-block">
+                    <div className="spread-spec-head">
+                      <span className="spread-spec-bullet" />
+                      II. On-Chain Circuit Mechanism
+                    </div>
+                    <p className="spread-spec-text">{chapter.mechanism}</p>
+                  </div>
+
+                  {/* Specification 3: Solvency & Economic Invariant */}
+                  <div className="spread-spec-block" style={{ marginBottom: 0 }}>
+                    <div className="spread-spec-head">
+                      <span className="spread-spec-bullet" />
+                      III. Solvency & Economic Invariant
+                    </div>
+                    <p className="spread-spec-text">{chapter.whyItMatters}</p>
+                  </div>
+                </div>
+
+                {/* Right Page Footer Nav */}
+                <div className="spread-page-footer right-footer">
+                  <span className="spread-page-num">PAGE {activeChapterIndex * 2 + 2}</span>
+                  {activeChapterIndex < DIMENSIONS.length - 1 ? (
+                    <button
+                      type="button"
+                      className="spread-turn-btn active-turn-btn"
+                      onClick={nextChapter}
+                    >
+                      Turn Page (Chapter {DIMENSIONS[activeChapterIndex + 1].roman}) ▸
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="spread-turn-btn active-turn-btn"
+                      onClick={() => setIsOpen(false)}
+                    >
+                      Finish Reading ✓
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* Minimal Under-Book Chapter Navigation Dots */}
-            <div className="book-bottom-dots-bar" onClick={(e) => e.stopPropagation()}>
+            {/* ── Under-Book Chapter Navigation Dots ── */}
+            <div className="spread-bottom-dots-bar" onClick={(e) => e.stopPropagation()}>
               <button
                 type="button"
-                className="book-bottom-nav-arrow"
-                disabled={pageIndex <= 1}
-                onClick={flipPrev}
-                style={{ opacity: pageIndex <= 1 ? 0.3 : 1 }}
+                className="spread-dots-arrow"
+                disabled={activeChapterIndex === 0}
+                onClick={prevChapter}
+                style={{ opacity: activeChapterIndex === 0 ? 0.3 : 1 }}
               >
                 ◂
               </button>
@@ -450,8 +448,8 @@ export function FaultLineMatrix() {
                     key={d.id}
                     type="button"
                     title={`Chapter ${d.roman}: ${d.title}`}
-                    className={`book-bottom-dot ${pageIndex === i + 1 ? "active" : ""}`}
-                    onClick={() => setPageIndex(i + 1)}
+                    className={`spread-dot-pill ${activeChapterIndex === i ? "active" : ""}`}
+                    onClick={() => setActiveChapterIndex(i)}
                   >
                     {d.roman}
                   </button>
@@ -460,10 +458,10 @@ export function FaultLineMatrix() {
 
               <button
                 type="button"
-                className="book-bottom-nav-arrow"
-                disabled={pageIndex >= 7}
-                onClick={flipNext}
-                style={{ opacity: pageIndex >= 7 ? 0.3 : 1 }}
+                className="spread-dots-arrow"
+                disabled={activeChapterIndex === DIMENSIONS.length - 1}
+                onClick={nextChapter}
+                style={{ opacity: activeChapterIndex === DIMENSIONS.length - 1 ? 0.3 : 1 }}
               >
                 ▸
               </button>
@@ -472,9 +470,9 @@ export function FaultLineMatrix() {
           document.body
         )}
 
-      {/* ── Clean, Monochrome, High-Scale Styles ── */}
+      {/* ── Precision CSS for Closed Book & Real Two-Page Mode Spread with Center Curve ── */}
       <style>{`
-        /* Center Book Stage on Page */
+        /* Center Book Container on Main Page */
         .center-book-container {
           display: flex;
           flex-direction: column;
@@ -483,58 +481,186 @@ export function FaultLineMatrix() {
           padding: 24px 0 36px;
         }
 
-        /* ── Base In-Situ Book (Centered in Section 07) ── */
-        .book-mockup.in-situ-center {
+        /* ── The Clean, Pristine Closed Hardcover Book ── */
+        .book-mockup-closed {
           width: 250px;
           height: 360px;
           position: relative;
-          background-color: transparent;
-          perspective: 1500px;
-          transform-style: preserve-3d;
-          transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.4s ease;
           cursor: pointer;
+          perspective: 1200px;
+          transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.4s ease;
         }
-        .book-mockup.in-situ-center:hover {
-          transform: rotateY(-10deg) scale(1.03) translateY(-8px);
+        .book-mockup-closed:hover {
+          transform: translateY(-8px) rotateY(-10deg) scale(1.03);
         }
-        .book-mockup.in-situ-center::before {
+        .book-mockup-closed::before {
           content: '';
           position: absolute;
           bottom: -12px;
           left: 6%;
           width: 88%;
-          height: 26px;
-          background: rgba(0, 0, 0, 0.55);
+          height: 24px;
+          background: rgba(0, 0, 0, 0.6);
           filter: blur(14px);
-          transform: translateZ(-10px);
         }
 
-        /* ── Portal Overlay (Mounted Directly to document.body) ── */
-        .book-portal-overlay {
+        /* Closed Cover Face */
+        .closed-cover-face {
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(135deg, #151821 0%, #0c0e14 100%);
+          border: 1.5px solid rgba(207, 173, 116, 0.45);
+          border-radius: 4px 12px 12px 4px;
+          box-shadow:
+            -8px 0 0 #07090d,
+            -14px 0 24px rgba(0,0,0,0.8),
+            18px 24px 44px rgba(0,0,0,0.7),
+            inset 0 0 30px rgba(0,0,0,0.8);
+          padding: 24px 18px;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+          position: relative;
+          overflow: hidden;
+          z-index: 5;
+        }
+
+        .closed-spine-ridge {
+          position: absolute;
+          left: 0;
+          top: 0;
+          bottom: 0;
+          width: 16px;
+          background: linear-gradient(90deg, rgba(0,0,0,0.75) 0%, rgba(255,255,255,0.08) 50%, rgba(0,0,0,0.45) 100%);
+          border-right: 1px solid rgba(207, 173, 116, 0.25);
+        }
+
+        .closed-inner-frame {
+          flex: 1;
+          margin-left: 12px;
+          border: 1px solid rgba(207, 173, 116, 0.25);
+          padding: 20px 14px;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+          text-align: center;
+        }
+
+        .closed-top-folio {
+          display: flex;
+          justify-content: space-between;
+          font-family: var(--mono);
+          font-size: 8.5px;
+          letter-spacing: 0.18em;
+          color: var(--accent);
+          opacity: 0.9;
+          text-transform: uppercase;
+        }
+
+        .closed-emblem-circle {
+          width: 54px;
+          height: 54px;
+          margin: 0 auto 12px;
+          border-radius: 50%;
+          border: 1.5px solid var(--accent);
+          background: rgba(207, 173, 116, 0.1);
+          color: var(--accent);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 0 20px rgba(207, 173, 116, 0.2);
+        }
+
+        .closed-title {
+          margin: 0;
+          font-size: 16px;
+          font-weight: 750;
+          letter-spacing: 0.08em;
+          color: var(--text);
+          text-transform: uppercase;
+          line-height: 1.25;
+        }
+        .closed-title span {
+          color: var(--accent);
+        }
+
+        .closed-edition {
+          margin: 8px 0 0;
+          font-family: var(--mono);
+          font-size: 8.5px;
+          color: var(--text-3);
+          letter-spacing: 0.08em;
+        }
+
+        .closed-bottom-callout {
+          font-family: var(--mono);
+          font-size: 8.5px;
+          color: var(--accent);
+          letter-spacing: 0.1em;
+          opacity: 0.9;
+        }
+
+        /* Ribbon Hanging on Closed Book */
+        .closed-silk-ribbon {
+          position: absolute;
+          bottom: -12px;
+          right: 32px;
+          width: 14px;
+          height: 26px;
+          background: var(--accent);
+          clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 75%, 0 100%);
+          box-shadow: 0 3px 8px rgba(0,0,0,0.6);
+        }
+
+        /* Paper Stack Edges for Closed Book */
+        .closed-paper-edge-right {
+          position: absolute;
+          right: -8px;
+          top: 6px;
+          bottom: 6px;
+          width: 8px;
+          background: repeating-linear-gradient(180deg, #ded9c7 0px, #ded9c7 1px, #b2ab96 1px, #b2ab96 2px);
+          border-radius: 0 3px 3px 0;
+          box-shadow: 3px 0 6px rgba(0,0,0,0.5);
+          z-index: 2;
+        }
+        .closed-paper-edge-bottom {
+          position: absolute;
+          bottom: -7px;
+          left: 10px;
+          right: -4px;
+          height: 7px;
+          background: repeating-linear-gradient(90deg, #ded9c7 0px, #ded9c7 1px, #b2ab96 1px, #b2ab96 2px);
+          border-radius: 0 0 3px 3px;
+          box-shadow: 0 3px 6px rgba(0,0,0,0.5);
+          z-index: 2;
+        }
+
+        /* ── Portal Modal Overlay ── */
+        .book-modal-portal {
           position: fixed;
           inset: 0;
           z-index: 99999;
-          background: rgba(6, 8, 12, 0.9);
-          backdrop-filter: blur(14px);
+          background: rgba(6, 8, 12, 0.92);
+          backdrop-filter: blur(16px);
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          padding: 30px 16px 20px;
-          overflow: hidden;
-          animation: portalFadeIn 0.25s ease-out;
+          padding: 24px 16px;
+          animation: portalFade 0.25s ease-out;
         }
-        @keyframes portalFadeIn {
+        @keyframes portalFade {
           from { opacity: 0; }
           to { opacity: 1; }
         }
 
-        /* Minimal Close Button at Top-Right of Viewport */
-        .book-minimal-close-btn {
+        /* Minimal Close Button in Top-Right Corner */
+        .book-quiet-close-btn {
           position: fixed;
           top: 24px;
           right: 28px;
-          background: rgba(255, 255, 255, 0.05);
+          background: rgba(255, 255, 255, 0.06);
           border: 1px solid rgba(255, 255, 255, 0.15);
           border-radius: 8px;
           color: var(--text-2);
@@ -545,25 +671,35 @@ export function FaultLineMatrix() {
           transition: all 0.2s ease;
           z-index: 100000;
         }
-        .book-minimal-close-btn:hover {
-          background: rgba(255, 255, 255, 0.12);
+        .book-quiet-close-btn:hover {
+          background: rgba(255, 255, 255, 0.15);
           color: var(--text);
           border-color: var(--accent);
         }
 
-        /* ── Centered Enlarged Book Stage in Modal ── */
-        .book-expanded-stage {
+        /* ── REAL TWO-PAGE HARDCOVER SPREAD WITH CENTER CURVE ── */
+        .real-two-page-spread {
+          width: 920px;
+          max-width: 95vw;
+          min-height: 560px;
+          max-height: 84vh;
           display: flex;
-          justify-content: center;
-          align-items: center;
+          position: relative;
+          background: #090c12;
+          border: 2px solid rgba(207, 173, 116, 0.4);
+          border-radius: 12px;
+          box-shadow:
+            0 36px 90px rgba(0, 0, 0, 0.9),
+            0 0 40px rgba(207, 173, 116, 0.15),
+            inset 0 0 40px rgba(0, 0, 0, 0.85);
+          overflow: hidden;
           perspective: 2000px;
-          margin: auto 0;
-          animation: bookStageBump 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+          animation: spreadOpenBump 0.35s cubic-bezier(0.25, 1, 0.5, 1);
         }
-        @keyframes bookStageBump {
+        @keyframes spreadOpenBump {
           0% {
             opacity: 0;
-            transform: scale(0.85) translateY(24px);
+            transform: scale(0.88) translateY(28px);
           }
           100% {
             opacity: 1;
@@ -571,300 +707,239 @@ export function FaultLineMatrix() {
           }
         }
 
-        /* Enlarged Book Dimensions (Larger for crystal-clear reading) */
-        .book-mockup.enlarged-book {
-          width: 440px;
-          height: 620px;
-          position: relative;
-          background-color: transparent;
-          perspective: 2000px;
-          transform-style: preserve-3d;
-          cursor: pointer;
-        }
-        @media (max-width: 600px) {
-          .book-mockup.enlarged-book {
-            width: 320px;
-            height: 490px;
-          }
-        }
-        @media (min-width: 1400px) {
-          .book-mockup.enlarged-book {
-            width: 480px;
-            height: 670px;
-          }
-        }
-
-        /* Common Sizing for Cover and Pages */
-        .book-cover,
-        .book-page {
+        /* Silk Ribbon Hanging Down the Center Fold */
+        .spread-center-silk-ribbon {
           position: absolute;
           top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
-          border-radius: 4px 12px 12px 4px;
-          transform-origin: left center;
-          transition: transform 0.8s cubic-bezier(0.64, 0, 0.32, 1);
-          backface-visibility: hidden;
-          box-shadow: inset 6px 0 18px rgba(0, 0, 0, 0.5);
-          user-select: none;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 14px;
+          height: 98%;
+          background: linear-gradient(180deg, var(--accent) 0%, rgba(207, 173, 116, 0.8) 85%, transparent 100%);
+          z-index: 20;
+          pointer-events: none;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.7);
+          border-radius: 0 0 4px 4px;
         }
 
-        /* ── The Book Cover (Monochrome & Gilded Leather) ── */
-        .book-cover {
-          background: linear-gradient(135deg, #151821 0%, #0c0e14 100%);
-          border: 1.5px solid rgba(207, 173, 116, 0.4);
+        /* ── Common Page Styling ── */
+        .spread-page {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+          position: relative;
+          overflow-y: auto;
+          color: var(--text);
+        }
+
+        /* ── Left Page (Verso): Center Curve & Shadow Gradients ── */
+        .spread-page-left {
+          padding: 32px 36px 22px 38px;
+          /* Subtle 3D paper curvature gradient on right edge toward gutter */
+          background: linear-gradient(90deg, #131720 0%, #11151e 84%, #0b0e14 100%);
+          box-shadow: inset -26px 0 34px -10px rgba(0, 0, 0, 0.8);
+          border-right: 1px solid rgba(0, 0, 0, 0.6);
+        }
+
+        /* ── Right Page (Recto): Center Curve & Shadow Gradients ── */
+        .spread-page-right {
+          padding: 32px 38px 22px 36px;
+          /* Subtle 3D paper curvature gradient on left edge toward gutter */
+          background: linear-gradient(270deg, #131720 0%, #11151e 84%, #0b0e14 100%);
+          box-shadow: inset 26px 0 34px -10px rgba(0, 0, 0, 0.8);
+          border-left: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        /* ── CENTER SPINE CREASE GUTTER (Real Curve Depth & Shadow) ── */
+        .spread-spine-crease-gutter {
+          width: 8px;
+          position: relative;
+          background: #080a0e;
           z-index: 10;
           display: flex;
-          flex-direction: column;
-          overflow: hidden;
-          box-shadow:
-            -8px 0 0 #07090d,
-            -14px 0 24px rgba(0,0,0,0.8),
-            18px 24px 44px rgba(0,0,0,0.7),
-            inset 0 0 32px rgba(0,0,0,0.85);
         }
-        .cover-spine-crease {
-          position: absolute;
-          left: 0;
-          top: 0;
-          bottom: 0;
-          width: 18px;
-          background: linear-gradient(90deg, rgba(0,0,0,0.7) 0%, rgba(255,255,255,0.08) 50%, rgba(0,0,0,0.4) 100%);
-          border-right: 1px solid rgba(207, 173, 116, 0.25);
-        }
-        .cover-inner-border {
+        .spine-light-shadow-left {
           flex: 1;
-          margin: 16px 16px 16px 24px;
-          border: 1px solid rgba(207, 173, 116, 0.25);
-          padding: 24px 18px;
-          display: flex;
-          flex-direction: column;
-          justify-content: space-between;
-          text-align: center;
+          background: linear-gradient(90deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.2) 100%);
         }
-        .cover-top-folio {
-          display: flex;
-          justify-content: space-between;
-          font-family: var(--mono);
-          font-size: 8.5px;
-          letter-spacing: 0.18em;
-          color: var(--accent);
-          opacity: 0.85;
-          text-transform: uppercase;
+        .spine-center-stitch-line {
+          width: 1px;
+          background: rgba(207, 173, 116, 0.2);
         }
-        .cover-emblem-circle {
-          width: 56px;
-          height: 56px;
-          margin: 0 auto 14px;
-          border-radius: 50%;
-          border: 1.5px solid var(--accent);
-          background: rgba(207, 173, 116, 0.1);
-          color: var(--accent);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          box-shadow: 0 0 24px rgba(207, 173, 116, 0.2);
-        }
-        .cover-title-text {
-          margin: 0;
-          font-size: 16px;
-          font-weight: 750;
-          letter-spacing: 0.08em;
-          color: var(--text);
-          text-transform: uppercase;
-          line-height: 1.25;
-        }
-        .cover-title-text span {
-          color: var(--accent);
-        }
-        .cover-edition-text {
-          margin: 8px 0 0;
-          font-family: var(--mono);
-          font-size: 8.5px;
-          color: var(--text-3);
-          letter-spacing: 0.08em;
-        }
-        .cover-bottom-hint {
-          font-family: var(--mono);
-          font-size: 8.5px;
-          color: var(--accent);
-          letter-spacing: 0.1em;
-          opacity: 0.9;
+        .spine-light-shadow-right {
+          flex: 1;
+          background: linear-gradient(270deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.2) 100%);
         }
 
-        /* ── Individual Book Pages (Monochrome & Subdued Palette) ── */
-        .book-page {
-          background: #10131b;
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          padding: 28px 28px 22px 34px;
+        /* Running Head on Pages */
+        .spread-running-head {
           display: flex;
-          flex-direction: column;
-          justify-content: space-between;
-          color: var(--text);
-          overflow: hidden;
-          box-shadow:
-            0 20px 48px rgba(0, 0, 0, 0.7),
-            inset 8px 0 20px rgba(0, 0, 0, 0.45);
-        }
-        .page-spine-shadow {
-          position: absolute;
-          left: 0;
-          top: 0;
-          bottom: 0;
-          width: 20px;
-          background: linear-gradient(90deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 100%);
-          pointer-events: none;
-        }
-        .page-header-row {
-          display: flex;
-          align-items: center;
           justify-content: space-between;
           padding-bottom: 10px;
+          margin-bottom: 14px;
           border-bottom: 1px solid rgba(255, 255, 255, 0.08);
           font-family: var(--mono);
           font-size: 9.5px;
           color: var(--text-3);
-          letter-spacing: 0.1em;
+          letter-spacing: 0.12em;
           text-transform: uppercase;
         }
-        .page-number {
-          font-weight: 700;
-          color: var(--accent);
-          font-size: 10.5px;
+
+        /* Watermark Roman Numeral */
+        .spread-chapter-watermark {
+          position: absolute;
+          top: 36px;
+          right: 32px;
+          font-size: 88px;
+          font-weight: 800;
+          font-family: serif;
+          color: rgba(255, 255, 255, 0.025);
+          line-height: 1;
+          pointer-events: none;
+          user-select: none;
         }
-        .page-content-flow {
+
+        .spread-page-content {
           flex: 1;
-          padding: 14px 0;
+          position: relative;
+          z-index: 2;
           display: flex;
           flex-direction: column;
           justify-content: space-between;
         }
-        .page-chapter-tag {
+
+        .spread-chapter-badge {
           font-family: var(--mono);
           font-size: 10.5px;
           font-weight: 700;
           letter-spacing: 0.08em;
           color: var(--accent);
-          margin-bottom: 6px;
+          background: rgba(207, 173, 116, 0.1);
+          border: 1px solid rgba(207, 173, 116, 0.25);
+          padding: 2px 8px;
+          border-radius: 4px;
+          display: inline-block;
         }
-        .page-chapter-title {
+
+        .spread-chapter-title {
           margin: 0;
-          font-size: 18px;
+          font-size: clamp(1.35rem, 2.4vw, 1.75rem);
           font-weight: 750;
           color: var(--text);
           line-height: 1.25;
         }
-        .page-chapter-subtitle {
-          font-size: 11.5px;
-          color: var(--text-2);
-          font-family: var(--mono);
-          margin-top: 3px;
-          margin-bottom: 12px;
-        }
-        .page-tagline-quote {
+
+        .spread-chapter-sub {
           font-size: 12px;
-          line-height: 1.5;
+          font-family: var(--mono);
+          color: var(--text-2);
+          margin-top: 3px;
+          margin-bottom: 14px;
+        }
+
+        .spread-tagline-box {
+          font-size: 13px;
+          line-height: 1.55;
           color: var(--text-2);
           font-style: italic;
           background: rgba(255, 255, 255, 0.025);
-          border-left: 2.5px solid var(--accent);
-          padding: 8px 12px;
-          margin-bottom: 12px;
+          border-left: 3px solid var(--accent);
+          padding: 10px 14px;
+          margin-bottom: 16px;
           border-radius: 0 6px 6px 0;
         }
-        .page-spec-section {
-          margin-bottom: 10px;
-        }
-        .page-spec-title {
+
+        .spread-formula-card {
+          background: rgba(6, 8, 12, 0.85);
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          padding: 10px 14px;
           font-family: var(--mono);
-          font-size: 9.5px;
+          font-size: 11px;
+        }
+        .spread-formula-label {
+          font-size: 8.5px;
           text-transform: uppercase;
           letter-spacing: 0.08em;
           color: var(--text-3);
           display: block;
-          margin-bottom: 3px;
+          margin-bottom: 4px;
         }
-        .page-spec-text {
-          margin: 0;
-          font-size: 11.5px;
-          color: var(--text-2);
-          line-height: 1.5;
-        }
-        .page-formula-box {
-          background: rgba(6, 8, 12, 0.85);
-          border: 1px solid var(--border);
-          border-radius: 6px;
-          padding: 8px 12px;
-          font-family: var(--mono);
-          font-size: 11px;
-          margin-bottom: 10px;
-        }
-        .page-formula-box code {
+        .spread-formula-card code {
           color: var(--accent);
           font-weight: 600;
         }
-        .formula-tag {
-          font-size: 8px;
+
+        /* Right Page Specification Blocks */
+        .spread-spec-block {
+          margin-bottom: 14px;
+        }
+        .spread-spec-head {
+          font-family: var(--mono);
+          font-size: 10.5px;
+          text-transform: uppercase;
           letter-spacing: 0.08em;
-          color: var(--text-3);
-          display: block;
-          margin-bottom: 3px;
-        }
-        .page-bottom-nav {
+          color: var(--text);
+          font-weight: 700;
+          margin-bottom: 4px;
           display: flex;
-          justify-content: space-between;
           align-items: center;
-          padding-top: 10px;
+          gap: 7px;
+        }
+        .spread-spec-bullet {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background: var(--accent);
+        }
+        .spread-spec-text {
+          margin: 0;
+          font-size: 12px;
+          color: var(--text-2);
+          line-height: 1.55;
+        }
+
+        /* Page Footer Nav */
+        .spread-page-footer {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding-top: 12px;
+          margin-top: 12px;
           border-top: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .spread-page-num {
           font-family: var(--mono);
-          font-size: 9.5px;
+          font-size: 10.5px;
           color: var(--text-3);
         }
-        .page-hint-text {
-          color: var(--accent);
-          opacity: 0.9;
-        }
-        .page-turn-btn {
-          background: rgba(255, 255, 255, 0.06);
+
+        .spread-turn-btn {
+          background: rgba(255, 255, 255, 0.05);
           border: 1px solid var(--border);
-          border-radius: 4px;
+          border-radius: 6px;
           color: var(--text-2);
-          font-size: 9px;
+          font-size: 11px;
           font-family: var(--mono);
-          padding: 2px 6px;
+          padding: 4px 10px;
           cursor: pointer;
+          transition: all 0.2s ease;
         }
-        .page-turn-btn:hover {
+        .spread-turn-btn:hover:not(:disabled) {
+          background: rgba(255, 255, 255, 0.12);
           color: var(--text);
           border-color: var(--accent);
         }
-
-        /* ── Flipped State (0.8s smooth cubic-bezier physics) ── */
-        .book-page.flipped,
-        .book-cover.flipped {
-          transform: rotateY(-150deg);
+        .spread-turn-btn.active-turn-btn {
+          background: rgba(207, 173, 116, 0.18);
+          border-color: var(--accent);
+          color: var(--accent);
+          font-weight: 700;
         }
 
-        /* In-situ depth decoration pages */
-        .page-depth-1 {
-          z-index: 3;
-          background: #0f131a;
-          transform: rotateY(-2deg) translateZ(-4px);
-        }
-        .page-depth-2 {
-          z-index: 2;
-          background: #0d1016;
-          transform: rotateY(-4deg) translateZ(-8px);
-        }
-        .page-depth-3 {
-          z-index: 1;
-          background: #0a0d12;
-          transform: rotateY(-6deg) translateZ(-12px);
-        }
-
-        /* Bottom Minimal Dots Bar */
-        .book-bottom-dots-bar {
+        /* Under-Book Navigation Dots */
+        .spread-bottom-dots-bar {
           display: flex;
           align-items: center;
           gap: 12px;
@@ -874,7 +949,7 @@ export function FaultLineMatrix() {
           border: 1px solid var(--border);
           border-radius: 20px;
         }
-        .book-bottom-nav-arrow {
+        .spread-dots-arrow {
           background: transparent;
           border: none;
           color: var(--text-2);
@@ -882,10 +957,10 @@ export function FaultLineMatrix() {
           cursor: pointer;
           padding: 0 4px;
         }
-        .book-bottom-nav-arrow:hover:not(:disabled) {
+        .spread-dots-arrow:hover:not(:disabled) {
           color: var(--accent);
         }
-        .book-bottom-dot {
+        .spread-dot-pill {
           background: transparent;
           border: none;
           color: var(--text-3);
@@ -896,13 +971,32 @@ export function FaultLineMatrix() {
           border-radius: 4px;
           transition: all 0.2s ease;
         }
-        .book-bottom-dot:hover {
+        .spread-dot-pill:hover {
           color: var(--text);
         }
-        .book-bottom-dot.active {
+        .spread-dot-pill.active {
           color: var(--accent);
           background: rgba(207, 173, 116, 0.15);
           font-weight: 700;
+        }
+
+        /* Mobile Single-Page Fallback (< 768px) */
+        @media (max-width: 768px) {
+          .real-two-page-spread {
+            flex-direction: column;
+            max-height: 86vh;
+          }
+          .spread-spine-crease-gutter {
+            display: none;
+          }
+          .spread-center-silk-ribbon {
+            display: none;
+          }
+          .spread-page-left,
+          .spread-page-right {
+            padding: 20px;
+            box-shadow: none;
+          }
         }
       `}</style>
     </section>
