@@ -24,6 +24,7 @@ const Activity = lazy(() => import("./pages/Activity"));
 const Learn = lazy(() => import("./pages/Learn"));
 const Verify = lazy(() => import("./pages/Verify"));
 const Demo = lazy(() => import("./pages/Demo"));
+const Profile = lazy(() => import("./pages/Profile"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 /** Announce route changes so the page title stays meaningful. */
@@ -32,6 +33,7 @@ const TITLES: Record<string, string> = {
   "/app/markets": "Markets",
   "/app/position": "Position",
   "/app/borrow": "Borrow",
+  "/app/profile": "Risk Profile",
   "/app/activity": "Activity",
   "/app/learn": "How it works",
   "/app/verify": "Verification",
@@ -114,6 +116,7 @@ export default function App() {
         <Route path="/app/markets" element={<AppRoute><Markets /></AppRoute>} />
         <Route path="/app/position" element={<AppRoute><Position /></AppRoute>} />
         <Route path="/app/borrow" element={<AppRoute><Borrow /></AppRoute>} />
+        <Route path="/app/profile" element={<AppRoute><Profile /></AppRoute>} />
         <Route path="/app/activity" element={<AppRoute><Activity /></AppRoute>} />
         <Route path="/app/learn" element={<AppRoute><Learn /></AppRoute>} />
         <Route path="/app/verify" element={<AppRoute><Verify /></AppRoute>} />

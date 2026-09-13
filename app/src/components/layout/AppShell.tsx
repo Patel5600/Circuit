@@ -12,6 +12,7 @@ const PRIMARY: { to: string; label: string; icon: IconName }[] = [
   { to: "/app", label: "Dashboard", icon: "dashboard" },
   { to: "/app/markets", label: "Markets", icon: "markets" },
   { to: "/app/position", label: "Position", icon: "position" },
+  { to: "/app/profile", label: "Profile", icon: "shield" },
   { to: "/app/demo", label: "Risk Demo", icon: "gauge" },
   { to: "/app/activity", label: "Activity", icon: "activity" },
 ];
@@ -44,7 +45,7 @@ function Header() {
         style={{ marginLeft: 12, display: "none" }}
         data-desktop-nav
       >
-        {PRIMARY.slice(0, 3).map((item) => (
+        {PRIMARY.slice(0, 4).map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
