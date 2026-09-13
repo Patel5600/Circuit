@@ -92,37 +92,14 @@ export default function Landing() {
                 When market risk changes, credit permissions change with it.
               </p>
 
-              <div className="hero__cta stack g-10" style={{ maxWidth: 480 }}>
-                <Link
-                  to="/app/demo"
-                  className="btn btn--primary btn--lg"
-                  style={{
-                    background: "linear-gradient(135deg, #7fc39a 0%, #4ea373 100%)",
-                    color: "#0c130e",
-                    fontWeight: 650,
-                    boxShadow: "0 0 24px rgba(127, 195, 154, 0.25)",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <span className="row g-8" style={{ alignItems: "center" }}>
-                    <Icon name="gauge" size={18} />
-                    <span>Launch Interactive Risk Demo</span>
-                  </span>
-                  <span style={{ fontSize: 11, fontFamily: "var(--mono)", opacity: 0.85 }}>
-                    60s Proof &rarr;
-                  </span>
+              <div className="hero__cta">
+                <Link to="/app" className="btn btn--primary btn--lg">
+                  Launch App
+                  <Icon name="arrowRight" size={17} />
                 </Link>
-
-                <div className="row g-8 wrap">
-                  <Link to="/app/markets" className="btn btn--secondary btn--md grow" style={{ justifyContent: "center" }}>
-                    <Icon name="markets" size={15} />
-                    12 Live Markets
-                  </Link>
-                  <Link to="/app/verify" className="btn btn--ghost btn--md grow" style={{ justifyContent: "center" }}>
-                    <Icon name="verify" size={15} />
-                    Verify On-Chain
-                  </Link>
-                </div>
+                <a href="#dimensions" className="btn btn--ghost btn--lg">
+                  Explore Architecture
+                </a>
               </div>
 
               <ul className="hero__status">

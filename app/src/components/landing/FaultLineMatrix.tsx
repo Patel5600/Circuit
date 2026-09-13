@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Reveal } from "../ui/Reveal";
 import { Icon } from "../ui";
@@ -200,8 +200,66 @@ export function FaultLineMatrix() {
     };
   }, [isOpen]);
 
+  const sectionRef = useRef<HTMLElement>(null);
+  const [isGentleStopped, setIsGentleStopped] = useState(false);
+
+  // Small and gentle stop on book when user scrolls with speed
+  useEffect(() => {
+    let lastY = window.scrollY;
+    let lastTime = performance.now();
+    let hasTriggeredInPass = false;
+    let cooldownTimer: any = null;
+
+    const onScroll = () => {
+      if (isOpen) return;
+
+      const now = performance.now();
+      const currentY = window.scrollY;
+      const dt = Math.max(1, now - lastTime);
+      const dy = Math.abs(currentY - lastY);
+      const speed = dy / dt; // pixels per ms
+
+      lastY = currentY;
+      lastTime = now;
+
+      const el = sectionRef.current;
+      if (!el) return;
+
+      const rect = el.getBoundingClientRect();
+      const vh = window.innerHeight;
+      const bookMid = rect.top + rect.height * 0.46;
+      const distFromCenter = Math.abs(bookMid - vh / 2);
+
+      // When user scrolls fast (> 0.7 px/ms) approaching book center
+      if (!hasTriggeredInPass && speed > 0.7 && distFromCenter < vh * 0.38) {
+        hasTriggeredInPass = true;
+        setIsGentleStopped(true);
+
+        // Gentle smooth settling to center on the book
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+
+        clearTimeout(cooldownTimer);
+        cooldownTimer = setTimeout(() => {
+          setIsGentleStopped(false);
+          setTimeout(() => {
+            hasTriggeredInPass = false;
+          }, 800);
+        }, 1200);
+      } else if (distFromCenter > vh * 0.85) {
+        hasTriggeredInPass = false;
+        setIsGentleStopped(false);
+      }
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      clearTimeout(cooldownTimer);
+    };
+  }, [isOpen]);
+
   return (
-    <section className="sec" id="dimensions" style={{ position: "relative", zIndex: 1 }}>
+    <section className="sec" id="dimensions" ref={sectionRef} style={{ position: "relative", zIndex: 1 }}>
       <div className="sec__inner" style={{ textAlign: "center" }}>
         <Reveal>
           <p className="sec__index" style={{ justifyContent: "center" }}>
@@ -221,9 +279,9 @@ export function FaultLineMatrix() {
           </div>
         </Reveal>
 
-        {/* ── Center Book Display in Section 07 (Clean, Fully Rendered Closed Book) ── */}
+        {/* ── Center Book Display in Section 07 (Clean, Polished Closed Book with ONLY "circuit") ── */}
         <Reveal delay={80}>
-          <div className="center-book-container">
+          <div className={`center-book-container ${isGentleStopped ? "gentle-active" : ""}`}>
             <div
               className="book-mockup-closed"
               role="button"
@@ -240,29 +298,87 @@ export function FaultLineMatrix() {
                 }
               }}
             >
-              {/* Full Hardcover Front Cover (No overlapping cuts or half shapes) */}
+              {/* Full Hardcover Front Cover */}
               <div className="closed-cover-face">
                 <div className="closed-spine-ridge" />
+                <div className="closed-spine-groove" />
+
                 <div className="closed-inner-frame">
-                  <div className="closed-top-folio">
-                    <span>CIRCUIT PROTOCOL</span>
-                    <span>SOLANA DEVNET</span>
+                  {/* Four Gold Precision Corner Brackets */}
+                  <div className="closed-corner corner-tl" />
+                  <div className="closed-corner corner-tr" />
+                  <div className="closed-corner corner-bl" />
+                  <div className="closed-corner corner-br" />
+
+                  {/* Exquisite Geometric Circuit & Orbital Trace (Theme-Aligned, Anti-Boring) */}
+                  <div className="closed-symbol-container">
+                    <svg
+                      className="closed-circuit-svg"
+                      viewBox="0 0 160 160"
+                      width="130"
+                      height="130"
+                      fill="none"
+                    >
+                      {/* Outer dashed orbit */}
+                      <circle
+                        cx="80"
+                        cy="80"
+                        r="68"
+                        stroke="rgba(207, 173, 116, 0.22)"
+                        strokeWidth="1"
+                        strokeDasharray="4 5"
+                      />
+                      {/* Secondary fine orbit */}
+                      <circle
+                        cx="80"
+                        cy="80"
+                        r="52"
+                        stroke="rgba(207, 173, 116, 0.35)"
+                        strokeWidth="1"
+                      />
+                      {/* Inner micro orbit */}
+                      <circle
+                        cx="80"
+                        cy="80"
+                        r="36"
+                        stroke="rgba(207, 173, 116, 0.22)"
+                        strokeWidth="0.8"
+                        strokeDasharray="2 3"
+                      />
+                      {/* Precision Axis Register Ticks */}
+                      <line x1="80" y1="6" x2="80" y2="18" stroke="rgba(207, 173, 116, 0.5)" strokeWidth="1" />
+                      <line x1="80" y1="142" x2="80" y2="154" stroke="rgba(207, 173, 116, 0.5)" strokeWidth="1" />
+                      <line x1="6" y1="80" x2="18" y2="80" stroke="rgba(207, 173, 116, 0.5)" strokeWidth="1" />
+                      <line x1="142" y1="80" x2="154" y2="80" stroke="rgba(207, 173, 116, 0.5)" strokeWidth="1" />
+                      {/* Diagonal Trace Lines with Contact Nodes */}
+                      <line x1="28" y1="28" x2="42" y2="42" stroke="rgba(207, 173, 116, 0.35)" strokeWidth="1" />
+                      <circle cx="28" cy="28" r="2.2" fill="#cfad74" />
+                      <line x1="132" y1="132" x2="118" y2="118" stroke="rgba(207, 173, 116, 0.35)" strokeWidth="1" />
+                      <circle cx="132" cy="132" r="2.2" fill="#cfad74" />
+                      {/* Orbital Contact Points */}
+                      <circle cx="80" cy="28" r="2.5" fill="#cfad74" />
+                      <circle cx="132" cy="80" r="2.5" fill="#cfad74" />
+                      <circle cx="80" cy="132" r="2" fill="#cfad74" opacity="0.8" />
+                      <circle cx="28" cy="80" r="2" fill="#cfad74" opacity="0.8" />
+                      {/* Core Circuit Arc Mark */}
+                      <path
+                        d="M93 69.5a15.5 15.5 0 1 0 0 21"
+                        stroke="#cfad74"
+                        strokeWidth="3.2"
+                        strokeLinecap="round"
+                      />
+                      <circle cx="94.5" cy="80" r="3.2" fill="#cfad74" />
+                    </svg>
                   </div>
 
-                  <div className="closed-center-insignia">
-                    <div className="closed-emblem-circle">
-                      <Icon name="shield" size={32} />
+                  {/* ONLY "circuit" Written on the Book Cover */}
+                  <div className="closed-brand-lockup">
+                    <h3 className="closed-brand-title">circuit</h3>
+                    <div className="closed-brand-accent">
+                      <span className="closed-brand-bar" />
+                      <span className="closed-brand-node" />
+                      <span className="closed-brand-bar" />
                     </div>
-                    <h4 className="closed-title">
-                      ARCHITECTURAL
-                      <br />
-                      <span>CODEX</span>
-                    </h4>
-                    <p className="closed-edition">VII CHAPTERS · ON-CHAIN</p>
-                  </div>
-
-                  <div className="closed-bottom-callout">
-                    <span>CLICK TO OPEN ↗</span>
                   </div>
                 </div>
 
@@ -276,8 +392,8 @@ export function FaultLineMatrix() {
             </div>
 
             <div style={{ marginTop: 22 }}>
-              <p style={{ margin: 0, fontSize: 12, fontFamily: "var(--mono)", color: "var(--text-3)", letterSpacing: "0.06em" }}>
-                CLICK TO OPEN CODEX · 7 SPECIFICATION CHAPTERS
+              <p style={{ margin: 0, fontSize: 12, fontFamily: "var(--mono)", color: "var(--text-3)", letterSpacing: "0.08em" }}>
+                ✦ CLICK TO OPEN ARCHITECTURAL CODEX · 7 DIMENSIONS ✦
               </p>
             </div>
           </div>
@@ -472,6 +588,13 @@ export function FaultLineMatrix() {
 
       {/* ── Precision CSS for Closed Book & Real Two-Page Mode Spread with Center Curve ── */}
       <style>{`
+        /* Dimensions Section Scroll Snap */
+        #dimensions {
+          scroll-snap-align: center;
+          scroll-snap-stop: normal;
+          scroll-margin-top: calc(var(--nav-h, 58px) + 20px);
+        }
+
         /* Center Book Container on Main Page */
         .center-book-container {
           display: flex;
@@ -479,6 +602,28 @@ export function FaultLineMatrix() {
           align-items: center;
           justify-content: center;
           padding: 24px 0 36px;
+          position: relative;
+        }
+
+        .center-book-container.gentle-active::after {
+          content: '';
+          position: absolute;
+          top: 45%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          width: 360px;
+          height: 360px;
+          border-radius: 50%;
+          background: radial-gradient(circle, rgba(207, 173, 116, 0.18) 0%, transparent 70%);
+          pointer-events: none;
+          animation: gentlePulse 1.2s ease-out forwards;
+          z-index: 1;
+        }
+
+        @keyframes gentlePulse {
+          0% { transform: translate(-50%, -50%) scale(0.85); opacity: 0; }
+          45% { transform: translate(-50%, -50%) scale(1.12); opacity: 1; }
+          100% { transform: translate(-50%, -50%) scale(1.02); opacity: 0.5; }
         }
 
         /* ── The Clean, Pristine Closed Hardcover Book ── */
@@ -489,6 +634,7 @@ export function FaultLineMatrix() {
           cursor: pointer;
           perspective: 1200px;
           transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.4s ease;
+          z-index: 2;
         }
         .book-mockup-closed:hover {
           transform: translateY(-8px) rotateY(-10deg) scale(1.03);
@@ -508,14 +654,14 @@ export function FaultLineMatrix() {
         .closed-cover-face {
           width: 100%;
           height: 100%;
-          background: linear-gradient(135deg, #151821 0%, #0c0e14 100%);
+          background: radial-gradient(ellipse at 50% 35%, #181d29 0%, #0c0e14 70%, #06070a 100%);
           border: 1.5px solid rgba(207, 173, 116, 0.45);
           border-radius: 4px 12px 12px 4px;
           box-shadow:
             -8px 0 0 #07090d,
             -14px 0 24px rgba(0,0,0,0.8),
             18px 24px 44px rgba(0,0,0,0.7),
-            inset 0 0 30px rgba(0,0,0,0.8);
+            inset 0 0 32px rgba(0,0,0,0.85);
           padding: 24px 18px;
           display: flex;
           flex-direction: column;
@@ -525,79 +671,134 @@ export function FaultLineMatrix() {
           z-index: 5;
         }
 
+        /* Specular Sweep on Hover */
+        .closed-cover-face::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(115deg, transparent 40%, rgba(255, 255, 255, 0.07) 50%, transparent 60%);
+          opacity: 0;
+          transition: opacity 0.4s ease;
+          pointer-events: none;
+        }
+        .book-mockup-closed:hover .closed-cover-face::after {
+          opacity: 1;
+        }
+
         .closed-spine-ridge {
           position: absolute;
           left: 0;
           top: 0;
           bottom: 0;
           width: 16px;
-          background: linear-gradient(90deg, rgba(0,0,0,0.75) 0%, rgba(255,255,255,0.08) 50%, rgba(0,0,0,0.45) 100%);
+          background: linear-gradient(90deg, rgba(0,0,0,0.8) 0%, rgba(255,255,255,0.08) 50%, rgba(0,0,0,0.5) 100%);
           border-right: 1px solid rgba(207, 173, 116, 0.25);
+        }
+
+        .closed-spine-groove {
+          position: absolute;
+          left: 20px;
+          top: 0;
+          bottom: 0;
+          width: 1px;
+          background: rgba(0, 0, 0, 0.6);
+          box-shadow: 1px 0 0 rgba(255, 255, 255, 0.04);
         }
 
         .closed-inner-frame {
           flex: 1;
-          margin-left: 12px;
+          margin-left: 10px;
           border: 1px solid rgba(207, 173, 116, 0.25);
-          padding: 20px 14px;
+          padding: 24px 14px 20px;
           display: flex;
           flex-direction: column;
-          justify-content: space-between;
-          text-align: center;
+          align-items: center;
+          justify-content: center;
+          position: relative;
         }
 
-        .closed-top-folio {
-          display: flex;
-          justify-content: space-between;
-          font-family: var(--mono);
-          font-size: 8.5px;
-          letter-spacing: 0.18em;
-          color: var(--accent);
-          opacity: 0.9;
-          text-transform: uppercase;
+        /* Corner Precision Brackets */
+        .closed-corner {
+          position: absolute;
+          width: 11px;
+          height: 11px;
+          pointer-events: none;
+        }
+        .corner-tl {
+          top: 6px;
+          left: 6px;
+          border-top: 1.5px solid rgba(207, 173, 116, 0.6);
+          border-left: 1.5px solid rgba(207, 173, 116, 0.6);
+        }
+        .corner-tr {
+          top: 6px;
+          right: 6px;
+          border-top: 1.5px solid rgba(207, 173, 116, 0.6);
+          border-right: 1.5px solid rgba(207, 173, 116, 0.6);
+        }
+        .corner-bl {
+          bottom: 6px;
+          left: 6px;
+          border-bottom: 1.5px solid rgba(207, 173, 116, 0.6);
+          border-left: 1.5px solid rgba(207, 173, 116, 0.6);
+        }
+        .corner-br {
+          bottom: 6px;
+          right: 6px;
+          border-bottom: 1.5px solid rgba(207, 173, 116, 0.6);
+          border-right: 1.5px solid rgba(207, 173, 116, 0.6);
         }
 
-        .closed-emblem-circle {
-          width: 54px;
-          height: 54px;
-          margin: 0 auto 12px;
-          border-radius: 50%;
-          border: 1.5px solid var(--accent);
-          background: rgba(207, 173, 116, 0.1);
-          color: var(--accent);
+        .closed-symbol-container {
+          margin-bottom: 22px;
+          position: relative;
           display: flex;
           align-items: center;
           justify-content: center;
-          box-shadow: 0 0 20px rgba(207, 173, 116, 0.2);
         }
 
-        .closed-title {
+        .closed-circuit-svg {
+          display: block;
+          filter: drop-shadow(0 0 10px rgba(207, 173, 116, 0.22));
+        }
+
+        .closed-brand-lockup {
+          text-align: center;
+        }
+
+        .closed-brand-title {
           margin: 0;
-          font-size: 16px;
-          font-weight: 750;
-          letter-spacing: 0.08em;
-          color: var(--text);
-          text-transform: uppercase;
-          line-height: 1.25;
-        }
-        .closed-title span {
-          color: var(--accent);
-        }
-
-        .closed-edition {
-          margin: 8px 0 0;
-          font-family: var(--mono);
-          font-size: 8.5px;
-          color: var(--text-3);
-          letter-spacing: 0.08em;
+          font-size: 26px;
+          font-weight: 700;
+          letter-spacing: 0.2em;
+          color: #fbf7ee;
+          background: linear-gradient(135deg, #fffaf2 0%, #e0c28d 40%, #b89255 75%, #ecd2a2 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          filter: drop-shadow(0 2px 8px rgba(207, 173, 116, 0.35));
         }
 
-        .closed-bottom-callout {
-          font-family: var(--mono);
-          font-size: 8.5px;
-          color: var(--accent);
-          letter-spacing: 0.1em;
-          opacity: 0.9;
+        .closed-brand-accent {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          margin-top: 8px;
+          opacity: 0.75;
+        }
+
+        .closed-brand-bar {
+          width: 20px;
+          height: 1px;
+          background: rgba(207, 173, 116, 0.5);
+        }
+
+        .closed-brand-node {
+          width: 4px;
+          height: 4px;
+          border-radius: 50%;
+          background: #cfad74;
+          box-shadow: 0 0 6px #cfad74;
         }
 
         /* Ribbon Hanging on Closed Book */
