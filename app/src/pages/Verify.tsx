@@ -106,35 +106,65 @@ export default function Verify() {
         {/* -- Program and accounts ------------------------------------ */}
         <Card title="Program and accounts">
           <div className="grid grid--2">
-            <AddressCard label="Program" address={PROGRAM_ID} note="Anchor program that enforces every rule" />
+            <AddressCard
+              label="Program"
+              address={PROGRAM_ID}
+              badge="Smart Contract"
+              badgeTone="accent"
+              note="Anchor bytecode on Solana Devnet enforcing all protocol credit rules"
+            />
             <AddressCard
               label="Protocol config"
               address={protocolConfigPda()}
-              note='Program-derived account, seeds ["protocol"]'
+              badge="Singleton PDA"
+              badgeTone="neutral"
+              seeds={["protocol"]}
+              note="Global singleton holding admin authority, pause switch, and min health factor"
             />
             <AddressCard
-              label="Asset config"
+              label="Asset config (NVDAx)"
               address={EQUITY_MINT ? assetConfigPda(EQUITY_MINT) : null}
-              note='Seeds ["asset", collateral mint]'
+              badge="Collateral PDA"
+              badgeTone="neutral"
+              seeds={["asset", "NVDAx_mint"]}
+              note="Collateral parameters: 70% base LTV, 80% liquidation threshold, custody & liquidity state"
             />
             <AddressCard
               label="Market guard"
               address={marketGuardPda()}
-              note='Seeds ["guard", Pyth feed id]'
+              badge="Circuit Breaker PDA"
+              badgeTone="warning"
+              seeds={["guard", "pyth_feed"]}
+              note="Deterministic reference-market session gate, Pyth feed binding, and emergency price snapshot"
             />
             <AddressCard
               label="Your position"
               address={
                 publicKey && EQUITY_MINT ? positionPda(publicKey, EQUITY_MINT) : null
               }
-              note='Seeds ["position", owner, collateral mint]'
+              badge="Position PDA"
+              badgeTone="success"
+              seeds={["position", "wallet", "NVDAx_mint"]}
+              note={
+                publicKey
+                  ? "Isolated borrower account tracking deposited collateral and borrowed debt"
+                  : "Connect your wallet to inspect your on-chain position PDA"
+              }
             />
             <AddressCard
-              label="Collateral mint"
+              label="Collateral mint (NVDAx)"
               address={EQUITY_MINT}
-              note="SPL token accepted as collateral"
+              badge="SPL Token (6 dec)"
+              badgeTone="neutral"
+              note="Accepted collateral token mint representing tokenized equity"
             />
-            <AddressCard label="Quote mint" address={QUOTE_MINT} note="SPL token that is borrowed" />
+            <AddressCard
+              label="Quote mint (USDC)"
+              address={QUOTE_MINT}
+              badge="SPL Token (6 dec)"
+              badgeTone="neutral"
+              note="Lendable quote token mint issued on borrow and repaid to clear debt"
+            />
           </div>
         </Card>
 
@@ -148,12 +178,18 @@ export default function Verify() {
             <AddressCard
               label="Collateral vault"
               address={EQUITY_MINT ? vaultFor(EQUITY_MINT) : null}
-              note={`Holds ${formatMoney(toUi(s.vaultCollateral), 4)} collateral tokens`}
+              badge="Vault ATA"
+              badgeTone="neutral"
+              balance={`${formatMoney(toUi(s.vaultCollateral), 4)} NVDAx`}
+              note="Holds deposited collateral tokens, locked on-chain by the ProtocolConfig PDA"
             />
             <AddressCard
               label="Liquidity vault"
               address={QUOTE_MINT ? vaultFor(QUOTE_MINT) : null}
-              note={`Holds $${formatMoney(toUi(s.vaultLiquidity))} lendable`}
+              badge="Vault ATA"
+              badgeTone="success"
+              balance={`$${formatMoney(toUi(s.vaultLiquidity))} USDC`}
+              note="Holds lendable capital to fund user borrow operations"
             />
           </div>
         </Card>
@@ -178,16 +214,22 @@ export default function Verify() {
             <AddressCard
               label="Price account"
               address={priceAccount}
+              badge="PriceUpdateV2"
+              badgeTone="neutral"
               note="PriceUpdateV2 read by the program"
             />
             <AddressCard
               label="Receiver program"
               address={PYTH_RECEIVER_ID}
+              badge="Pyth Receiver"
+              badgeTone="accent"
               note="Required owner of the price account"
             />
             <AddressCard
               label="Push oracle program"
               address={PYTH_PUSH_ORACLE_ID}
+              badge="Push Oracle"
+              badgeTone="neutral"
               note="Owns sponsored price feed accounts"
             />
             <div
