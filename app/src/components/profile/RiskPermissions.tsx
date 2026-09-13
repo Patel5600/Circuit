@@ -4,6 +4,8 @@ import { Card, Icon, Pill, Tone } from "../ui";
 interface PermissionRow {
   action: string;
   allowed: boolean;
+  statusText?: string;
+  tone?: Tone;
   reason?: string;
   alwaysAllowed?: boolean;
 }
@@ -15,6 +17,7 @@ export interface RiskPermissionsProps {
   withdrawReason?: string;
   liquidationActive: boolean;
   healthFactorBps: number | null;
+  riskState?: "SAFE" | "RESTRICTED" | "DEFENSIVE" | "EMERGENCY";
 }
 
 export function RiskPermissions({
@@ -24,33 +27,71 @@ export function RiskPermissions({
   withdrawReason,
   liquidationActive,
   healthFactorBps,
+  riskState = "SAFE",
 }: RiskPermissionsProps) {
+  const isEmergency = riskState === "EMERGENCY";
+  const isRestricted = riskState === "RESTRICTED" || riskState === "DEFENSIVE";
+
+  const borrowStatus = borrowAllowed
+    ? "✓ Allowed"
+    : isRestricted
+    ? "⚠ Restricted"
+    : "✗ Blocked";
+
+  const borrowTone: Tone = borrowAllowed
+    ? "success"
+    : isRestricted
+    ? "warning"
+    : "danger";
+
   const rows: PermissionRow[] = [
     {
       action: "Borrow",
       allowed: borrowAllowed,
-      reason: borrowBlockers.length > 0 ? borrowBlockers[0] : undefined,
+      statusText: borrowStatus,
+      tone: borrowTone,
+      reason:
+        borrowBlockers.length > 0
+          ? borrowBlockers[0]
+          : !borrowAllowed
+          ? isEmergency
+            ? "Blocked by Hard Risk: Stale oracle or custody settlement halt"
+            : "Capacity restricted by Risk Ratchet (Concentration penalty active)"
+          : "Full capacity unlocked under active risk posture",
     },
     {
       action: "Withdraw",
       allowed: withdrawAllowed,
-      reason: withdrawReason,
+      statusText: withdrawAllowed ? "✓ Allowed" : "✗ Blocked",
+      tone: withdrawAllowed ? "success" : "danger",
+      reason: withdrawReason || (withdrawAllowed ? "Withdrawals permitted while position remains solvent" : "Risk-increasing withdrawals halted in Emergency state"),
     },
     {
       action: "Repay",
       allowed: true,
       alwaysAllowed: true,
+      statusText: "Always Allowed",
+      tone: "success",
+      reason: "Deleveraging paths remain open under all protocol states",
     },
     {
       action: "Liquidation",
       allowed: !liquidationActive,
-      reason: liquidationActive
+      statusText: isEmergency
+        ? "Protected"
+        : liquidationActive
+        ? "⚠ Active"
+        : "Not Active",
+      tone: isEmergency ? "neutral" : liquidationActive ? "danger" : "neutral",
+      reason: isEmergency
+        ? "Dutch auction safeguard damping cascading selloffs"
+        : liquidationActive
         ? `Health factor below safety threshold${
             healthFactorBps !== null
               ? ` (${(healthFactorBps / 10_000).toFixed(2)})`
               : ""
           }`
-        : undefined,
+        : "Collateral comfortably exceeds liquidation threshold",
     },
   ];
 
@@ -69,17 +110,9 @@ export function RiskPermissions({
         </span>
       }
     >
-      <div style={{ display: "grid", gap: 2 }}>
+      <div style={{ display: "grid", gap: 6 }}>
         {rows.map((row) => {
-          const tone: Tone = row.alwaysAllowed
-            ? "success"
-            : row.allowed
-            ? "success"
-            : row.action === "Liquidation"
-            ? row.allowed
-              ? "neutral"
-              : "danger"
-            : "danger";
+          const tone = row.tone || "neutral";
 
           return (
             <div
@@ -88,33 +121,40 @@ export function RiskPermissions({
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                padding: "10px 14px",
+                padding: "11px 14px",
                 borderRadius: 8,
                 background:
                   !row.allowed && !row.alwaysAllowed
-                    ? "rgba(224, 108, 108, 0.04)"
-                    : "transparent",
+                    ? tone === "danger"
+                      ? "rgba(224, 108, 108, 0.06)"
+                      : "rgba(207, 173, 116, 0.06)"
+                    : "rgba(255, 255, 255, 0.02)",
+                border: "1px solid var(--border)",
                 gap: 12,
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <span
                   style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: 7,
+                    width: 30,
+                    height: 30,
+                    borderRadius: 8,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     background:
                       tone === "success"
-                        ? "rgba(127, 195, 154, 0.1)"
+                        ? "rgba(127, 195, 154, 0.12)"
+                        : tone === "warning"
+                        ? "rgba(207, 173, 116, 0.12)"
                         : tone === "danger"
-                        ? "rgba(224, 108, 108, 0.1)"
+                        ? "rgba(224, 108, 108, 0.12)"
                         : "var(--surface-3)",
                     color:
                       tone === "success"
                         ? "var(--success)"
+                        : tone === "warning"
+                        ? "var(--warning)"
                         : tone === "danger"
                         ? "var(--danger)"
                         : "var(--text-3)",
@@ -135,7 +175,7 @@ export function RiskPermissions({
                   />
                 </span>
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>
+                  <div style={{ fontWeight: 650, fontSize: 14 }}>
                     {row.action}
                   </div>
                   {row.reason && (
@@ -143,8 +183,8 @@ export function RiskPermissions({
                       style={{
                         fontSize: 11,
                         color: "var(--text-3)",
-                        marginTop: 1,
-                        maxWidth: 340,
+                        marginTop: 2,
+                        maxWidth: 420,
                       }}
                     >
                       {row.reason}
@@ -154,15 +194,7 @@ export function RiskPermissions({
               </div>
 
               <Pill tone={tone}>
-                {row.alwaysAllowed
-                  ? "Always Allowed"
-                  : row.action === "Liquidation"
-                  ? row.allowed
-                    ? "Not Active"
-                    : "⚠ Active"
-                  : row.allowed
-                  ? "✓ Allowed"
-                  : "✗ Blocked"}
+                {row.statusText || (row.allowed ? "✓ Allowed" : "✗ Blocked")}
               </Pill>
             </div>
           );

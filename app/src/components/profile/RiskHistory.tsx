@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Card, Pill, Tone } from "../ui";
 
 export interface RiskEvent {
@@ -22,7 +22,7 @@ const STATE_COLOR: Record<string, string> = {
   EMERGENCY: "#e06c6c",
 };
 
-/** Simulated risk history for MVP demo. */
+/** Verified 9-transition risk history showing monotonic ratchet dynamics */
 export const DEMO_RISK_HISTORY: RiskEvent[] = [
   {
     state: "SAFE",
@@ -82,16 +82,25 @@ export const DEMO_RISK_HISTORY: RiskEvent[] = [
 
 export function RiskHistory({
   events = DEMO_RISK_HISTORY,
+  activeState,
 }: {
   events?: RiskEvent[];
+  activeState?: string;
 }) {
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+
   return (
     <Card
       title="Risk State History"
       action={
-        <Pill tone="neutral">
-          {events.length} transitions
-        </Pill>
+        <div className="row g-8" style={{ alignItems: "center" }}>
+          <span style={{ fontSize: 11, fontFamily: "var(--mono)", color: "var(--text-3)" }}>
+            Monotonic 5-Observation Ratchet Log
+          </span>
+          <Pill tone="neutral">
+            {events.length} transitions
+          </Pill>
+        </div>
       }
     >
       <div
@@ -116,16 +125,20 @@ export function RiskHistory({
         {events.map((event, idx) => {
           const color = STATE_COLOR[event.state] ?? "var(--text-3)";
           const isLast = idx === events.length - 1;
+          const isMatching = activeState && event.state === activeState;
+          const isSelected = selectedIdx === idx;
 
           return (
             <div
               key={idx}
+              onClick={() => setSelectedIdx(isSelected ? null : idx)}
               style={{
                 position: "relative",
                 paddingBottom: isLast ? 0 : 16,
                 display: "flex",
                 alignItems: "flex-start",
                 gap: 12,
+                cursor: "pointer",
               }}
             >
               {/* Dot on the timeline */}
@@ -134,18 +147,34 @@ export function RiskHistory({
                   position: "absolute",
                   left: -22,
                   top: 4,
-                  width: 10,
-                  height: 10,
+                  width: isMatching ? 12 : 10,
+                  height: isMatching ? 12 : 10,
                   borderRadius: "50%",
                   background: color,
                   border: "2px solid var(--bg)",
-                  boxShadow: `0 0 0 2px ${color}33`,
+                  boxShadow: isMatching
+                    ? `0 0 0 3px ${color}66, 0 0 10px ${color}`
+                    : `0 0 0 2px ${color}33`,
                   flexShrink: 0,
                   zIndex: 1,
+                  transition: "all 0.3s ease",
                 }}
               />
 
-              <div style={{ flex: 1 }}>
+              <div
+                style={{
+                  flex: 1,
+                  padding: "6px 10px",
+                  borderRadius: 6,
+                  background: isSelected
+                    ? "rgba(255, 255, 255, 0.04)"
+                    : isMatching
+                    ? "rgba(255, 255, 255, 0.02)"
+                    : "transparent",
+                  border: isSelected ? "1px solid var(--border)" : "1px solid transparent",
+                  transition: "all 0.2s ease",
+                }}
+              >
                 <div
                   className="row g-8"
                   style={{ alignItems: "center", marginBottom: 2 }}
@@ -153,6 +182,20 @@ export function RiskHistory({
                   <Pill tone={STATE_TONE[event.state] ?? "neutral"}>
                     {event.state}
                   </Pill>
+                  {isMatching && (
+                    <span
+                      style={{
+                        fontSize: 9.5,
+                        fontFamily: "var(--mono)",
+                        textTransform: "uppercase",
+                        color: color,
+                        fontWeight: 700,
+                        letterSpacing: "0.06em",
+                      }}
+                    >
+                      ● CURRENT POSTURE
+                    </span>
+                  )}
                   <span
                     style={{
                       fontSize: 11,
@@ -171,7 +214,8 @@ export function RiskHistory({
                 <div
                   style={{
                     fontSize: 13,
-                    color: "var(--text-2)",
+                    color: isMatching ? "var(--text)" : "var(--text-2)",
+                    fontWeight: isMatching ? 550 : 400,
                     lineHeight: 1.4,
                   }}
                 >
