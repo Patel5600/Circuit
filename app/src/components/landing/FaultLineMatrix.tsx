@@ -137,28 +137,87 @@ const DIMENSIONS: DimensionChapter[] = [
 ];
 
 /* -------------------------------------------------------------------------- */
+/* -------------------------------------------------------------------------- */
 /*  Main Component                                                            */
 /* -------------------------------------------------------------------------- */
 
+type BookAnimStage = "closed" | "bumping" | "opening_cover" | "ready" | "closing";
+
 export function FaultLineMatrix() {
   const [isOpen, setIsOpen] = useState(false);
+  const [animStage, setAnimStage] = useState<BookAnimStage>("closed");
   const [activeChapterIndex, setActiveChapterIndex] = useState(0);
+  const [previousChapterIndex, setPreviousChapterIndex] = useState(0);
+  const [isPageFlipping, setIsPageFlipping] = useState(false);
+  const [flipDirection, setFlipDirection] = useState<"forward" | "backward">("forward");
 
-  const chapter = DIMENSIONS[activeChapterIndex];
+  // Open Sequence: Bump size first, then flip cover open
+  const handleOpenBook = (chapterIdx = 0) => {
+    setActiveChapterIndex(chapterIdx);
+    setPreviousChapterIndex(chapterIdx);
+    setIsPageFlipping(false);
+    setAnimStage("bumping");
+    setIsOpen(true);
+  };
+
+  // Close Sequence: Swing cover shut, zoom down, unmount
+  const handleCloseBook = () => {
+    if (animStage === "closing" || animStage === "closed") return;
+    setAnimStage("closing");
+  };
+
+  useEffect(() => {
+    if (animStage === "bumping") {
+      // 1. Book scales up & bumps forward in 3D (380ms)
+      const t1 = setTimeout(() => {
+        setAnimStage("opening_cover");
+      }, 380);
+      return () => clearTimeout(t1);
+    } else if (animStage === "opening_cover") {
+      // 2. Front cover swings open 180deg (620ms)
+      const t2 = setTimeout(() => {
+        setAnimStage("ready");
+      }, 620);
+      return () => clearTimeout(t2);
+    } else if (animStage === "closing") {
+      // 3. Cover swings shut, unmounts after 440ms
+      const t3 = setTimeout(() => {
+        setAnimStage("closed");
+        setIsOpen(false);
+      }, 440);
+      return () => clearTimeout(t3);
+    }
+  }, [animStage]);
+
+  // Turn Pages with Real 3D Page Flip Animation
+  const goToChapter = (targetIdx: number) => {
+    if (isPageFlipping || animStage !== "ready" || targetIdx === activeChapterIndex) return;
+    if (targetIdx < 0 || targetIdx >= DIMENSIONS.length) return;
+
+    const dir = targetIdx > activeChapterIndex ? "forward" : "backward";
+    setFlipDirection(dir);
+    setPreviousChapterIndex(activeChapterIndex);
+    setActiveChapterIndex(targetIdx);
+    setIsPageFlipping(true);
+
+    setTimeout(() => {
+      setIsPageFlipping(false);
+    }, 650);
+  };
 
   const nextChapter = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     if (activeChapterIndex < DIMENSIONS.length - 1) {
-      setActiveChapterIndex((idx) => idx + 1);
+      goToChapter(activeChapterIndex + 1);
     } else {
-      setIsOpen(false);
+      handleCloseBook();
     }
   };
 
   const prevChapter = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     if (activeChapterIndex > 0) {
-      setActiveChapterIndex((idx) => idx - 1);
+      goToChapter(activeChapterIndex - 1);
     }
   };
 
@@ -167,20 +226,20 @@ export function FaultLineMatrix() {
     (e: KeyboardEvent) => {
       if (!isOpen) return;
       if (e.key === "Escape") {
-        setIsOpen(false);
+        handleCloseBook();
       } else if (e.key === "ArrowRight") {
         if (activeChapterIndex < DIMENSIONS.length - 1) {
-          setActiveChapterIndex((idx) => idx + 1);
+          goToChapter(activeChapterIndex + 1);
         } else {
-          setIsOpen(false);
+          handleCloseBook();
         }
       } else if (e.key === "ArrowLeft") {
         if (activeChapterIndex > 0) {
-          setActiveChapterIndex((idx) => idx - 1);
+          goToChapter(activeChapterIndex - 1);
         }
       }
     },
-    [isOpen, activeChapterIndex]
+    [isOpen, activeChapterIndex, animStage, isPageFlipping]
   );
 
   useEffect(() => {
@@ -200,66 +259,175 @@ export function FaultLineMatrix() {
     };
   }, [isOpen]);
 
-  const sectionRef = useRef<HTMLElement>(null);
-  const [isGentleStopped, setIsGentleStopped] = useState(false);
+  // Render Left Page (Verso)
+  const renderLeftPage = (ch: DimensionChapter, pageNum: number, canTurn = true) => (
+    <div className="spread-page spread-page-left">
+      <div className="spread-running-head">
+        <span>CIRCUIT ARCHITECTURAL CODEX</span>
+        <span>CHAPTER {ch.roman}</span>
+      </div>
 
-  // Small and gentle stop on book when user scrolls with speed
-  useEffect(() => {
-    let lastY = window.scrollY;
-    let lastTime = performance.now();
-    let hasTriggeredInPass = false;
-    let cooldownTimer: any = null;
+      <div className="spread-chapter-watermark">{ch.roman}</div>
 
-    const onScroll = () => {
-      if (isOpen) return;
+      <div className="spread-page-content">
+        <div style={{ marginBottom: 8 }}>
+          <span className="spread-chapter-badge">
+            DIMENSION {ch.roman} · {ch.badge}
+          </span>
+        </div>
 
-      const now = performance.now();
-      const currentY = window.scrollY;
-      const dt = Math.max(1, now - lastTime);
-      const dy = Math.abs(currentY - lastY);
-      const speed = dy / dt; // pixels per ms
+        <h3 className="spread-chapter-title">{ch.title}</h3>
+        <div className="spread-chapter-sub">{ch.subtitle}</div>
 
-      lastY = currentY;
-      lastTime = now;
+        <div className="spread-tagline-box">
+          “{ch.tagline}”
+        </div>
 
-      const el = sectionRef.current;
-      if (!el) return;
+        <div className="spread-formula-card">
+          <span className="spread-formula-label">On-Chain Mathematical Constraint</span>
+          <code>{ch.formula}</code>
+        </div>
+      </div>
 
-      const rect = el.getBoundingClientRect();
-      const vh = window.innerHeight;
-      const bookMid = rect.top + rect.height * 0.46;
-      const distFromCenter = Math.abs(bookMid - vh / 2);
+      <div className="spread-page-footer left-footer">
+        <button
+          type="button"
+          className="spread-turn-btn"
+          disabled={!canTurn || ch.number === 1}
+          onClick={prevChapter}
+          style={{ opacity: ch.number === 1 ? 0.35 : 1 }}
+        >
+          ◂ Turn Page (Prev)
+        </button>
+        <span className="spread-page-num">PAGE {pageNum}</span>
+      </div>
+    </div>
+  );
 
-      // When user scrolls fast (> 0.7 px/ms) approaching book center
-      if (!hasTriggeredInPass && speed > 0.7 && distFromCenter < vh * 0.38) {
-        hasTriggeredInPass = true;
-        setIsGentleStopped(true);
+  // Render Right Page (Recto)
+  const renderRightPage = (ch: DimensionChapter, pageNum: number, canTurn = true) => (
+    <div className="spread-page spread-page-right">
+      <div className="spread-running-head">
+        <span>ON-CHAIN SPECIFICATION</span>
+        <span>SOLANA DEVNET</span>
+      </div>
 
-        // Gentle smooth settling to center on the book
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      <div className="spread-page-content">
+        <div className="spread-spec-block">
+          <div className="spread-spec-head">
+            <span className="spread-spec-bullet" />
+            I. The Problem Thesis
+          </div>
+          <p className="spread-spec-text">{ch.thesis}</p>
+        </div>
 
-        clearTimeout(cooldownTimer);
-        cooldownTimer = setTimeout(() => {
-          setIsGentleStopped(false);
-          setTimeout(() => {
-            hasTriggeredInPass = false;
-          }, 800);
-        }, 1200);
-      } else if (distFromCenter > vh * 0.85) {
-        hasTriggeredInPass = false;
-        setIsGentleStopped(false);
-      }
-    };
+        <div className="spread-spec-block">
+          <div className="spread-spec-head">
+            <span className="spread-spec-bullet" />
+            II. On-Chain Circuit Mechanism
+          </div>
+          <p className="spread-spec-text">{ch.mechanism}</p>
+        </div>
 
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      clearTimeout(cooldownTimer);
-    };
-  }, [isOpen]);
+        <div className="spread-spec-block" style={{ marginBottom: 0 }}>
+          <div className="spread-spec-head">
+            <span className="spread-spec-bullet" />
+            III. Solvency & Economic Invariant
+          </div>
+          <p className="spread-spec-text">{ch.whyItMatters}</p>
+        </div>
+      </div>
+
+      <div className="spread-page-footer right-footer">
+        <span className="spread-page-num">PAGE {pageNum}</span>
+        {ch.number < DIMENSIONS.length ? (
+          <button
+            type="button"
+            className="spread-turn-btn active-turn-btn"
+            disabled={!canTurn}
+            onClick={nextChapter}
+          >
+            Turn Page (Chapter {DIMENSIONS[ch.number].roman}) ▸
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="spread-turn-btn active-turn-btn"
+            disabled={!canTurn}
+            onClick={handleCloseBook}
+          >
+            Finish Reading ✓
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
+  // Render Closed Cover Face (Only "circuit", theme polished)
+  const renderCoverFace = () => (
+    <div className="closed-cover-face">
+      <div className="closed-spine-ridge" />
+      <div className="closed-spine-groove" />
+
+      <div className="closed-inner-frame">
+        <div className="closed-corner corner-tl" />
+        <div className="closed-corner corner-tr" />
+        <div className="closed-corner corner-bl" />
+        <div className="closed-corner corner-br" />
+
+        <div className="closed-symbol-container">
+          <svg className="closed-circuit-svg" viewBox="0 0 160 160" width="130" height="130" fill="none">
+            <circle cx="80" cy="80" r="68" stroke="rgba(207, 173, 116, 0.22)" strokeWidth="1" strokeDasharray="4 5" />
+            <circle cx="80" cy="80" r="52" stroke="rgba(207, 173, 116, 0.35)" strokeWidth="1" />
+            <circle cx="80" cy="80" r="36" stroke="rgba(207, 173, 116, 0.22)" strokeWidth="0.8" strokeDasharray="2 3" />
+            <line x1="80" y1="6" x2="80" y2="18" stroke="rgba(207, 173, 116, 0.5)" strokeWidth="1" />
+            <line x1="80" y1="142" x2="80" y2="154" stroke="rgba(207, 173, 116, 0.5)" strokeWidth="1" />
+            <line x1="6" y1="80" x2="18" y2="80" stroke="rgba(207, 173, 116, 0.5)" strokeWidth="1" />
+            <line x1="142" y1="80" x2="154" y2="80" stroke="rgba(207, 173, 116, 0.5)" strokeWidth="1" />
+            <line x1="28" y1="28" x2="42" y2="42" stroke="rgba(207, 173, 116, 0.35)" strokeWidth="1" />
+            <circle cx="28" cy="28" r="2.2" fill="#cfad74" />
+            <line x1="132" y1="132" x2="118" y2="118" stroke="rgba(207, 173, 116, 0.35)" strokeWidth="1" />
+            <circle cx="132" cy="132" r="2.2" fill="#cfad74" />
+            <circle cx="80" cy="28" r="2.5" fill="#cfad74" />
+            <circle cx="132" cy="80" r="2.5" fill="#cfad74" />
+            <circle cx="80" cy="132" r="2" fill="#cfad74" opacity="0.8" />
+            <circle cx="28" cy="80" r="2" fill="#cfad74" opacity="0.8" />
+            <path d="M93 69.5a15.5 15.5 0 1 0 0 21" stroke="#cfad74" strokeWidth="3.2" strokeLinecap="round" />
+            <circle cx="94.5" cy="80" r="3.2" fill="#cfad74" />
+          </svg>
+        </div>
+
+        <div className="closed-brand-lockup">
+          <h3 className="closed-brand-title">circuit</h3>
+          <div className="closed-brand-accent">
+            <span className="closed-brand-bar" />
+            <span className="closed-brand-node" />
+            <span className="closed-brand-bar" />
+          </div>
+        </div>
+      </div>
+
+      <div className="closed-silk-ribbon" />
+    </div>
+  );
+
+  // Render Inside Cover Marbled Endpaper
+  const renderInsideEndpaper = () => (
+    <div className="book-inside-endpaper">
+      <div className="endpaper-badge">SOLANA PROTOCOL ARCHITECTURE</div>
+      <p className="endpaper-motto">
+        “Circuit does not merely calculate risk. It turns risk into on-chain credit permissions.”
+      </p>
+      <div className="endpaper-crest">
+        <span className="endpaper-line" />
+        <span>CODEX DIMENSIONS</span>
+        <span className="endpaper-line" />
+      </div>
+    </div>
+  );
 
   return (
-    <section className="sec" id="dimensions" ref={sectionRef} style={{ position: "relative", zIndex: 1 }}>
+    <section className="sec" id="dimensions" style={{ position: "relative", zIndex: 1 }}>
       <div className="sec__inner" style={{ textAlign: "center" }}>
         <Reveal>
           <p className="sec__index" style={{ justifyContent: "center" }}>
@@ -281,110 +449,20 @@ export function FaultLineMatrix() {
 
         {/* ── Center Book Display in Section 07 (Clean, Polished Closed Book with ONLY "circuit") ── */}
         <Reveal delay={80}>
-          <div className={`center-book-container ${isGentleStopped ? "gentle-active" : ""}`}>
+          <div className="center-book-container">
             <div
               className="book-mockup-closed"
               role="button"
               tabIndex={0}
               aria-label="Click to open the Architectural Codex book"
-              onClick={() => {
-                setActiveChapterIndex(0);
-                setIsOpen(true);
-              }}
+              onClick={() => handleOpenBook(0)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
-                  setActiveChapterIndex(0);
-                  setIsOpen(true);
+                  handleOpenBook(0);
                 }
               }}
             >
-              {/* Full Hardcover Front Cover */}
-              <div className="closed-cover-face">
-                <div className="closed-spine-ridge" />
-                <div className="closed-spine-groove" />
-
-                <div className="closed-inner-frame">
-                  {/* Four Gold Precision Corner Brackets */}
-                  <div className="closed-corner corner-tl" />
-                  <div className="closed-corner corner-tr" />
-                  <div className="closed-corner corner-bl" />
-                  <div className="closed-corner corner-br" />
-
-                  {/* Exquisite Geometric Circuit & Orbital Trace (Theme-Aligned, Anti-Boring) */}
-                  <div className="closed-symbol-container">
-                    <svg
-                      className="closed-circuit-svg"
-                      viewBox="0 0 160 160"
-                      width="130"
-                      height="130"
-                      fill="none"
-                    >
-                      {/* Outer dashed orbit */}
-                      <circle
-                        cx="80"
-                        cy="80"
-                        r="68"
-                        stroke="rgba(207, 173, 116, 0.22)"
-                        strokeWidth="1"
-                        strokeDasharray="4 5"
-                      />
-                      {/* Secondary fine orbit */}
-                      <circle
-                        cx="80"
-                        cy="80"
-                        r="52"
-                        stroke="rgba(207, 173, 116, 0.35)"
-                        strokeWidth="1"
-                      />
-                      {/* Inner micro orbit */}
-                      <circle
-                        cx="80"
-                        cy="80"
-                        r="36"
-                        stroke="rgba(207, 173, 116, 0.22)"
-                        strokeWidth="0.8"
-                        strokeDasharray="2 3"
-                      />
-                      {/* Precision Axis Register Ticks */}
-                      <line x1="80" y1="6" x2="80" y2="18" stroke="rgba(207, 173, 116, 0.5)" strokeWidth="1" />
-                      <line x1="80" y1="142" x2="80" y2="154" stroke="rgba(207, 173, 116, 0.5)" strokeWidth="1" />
-                      <line x1="6" y1="80" x2="18" y2="80" stroke="rgba(207, 173, 116, 0.5)" strokeWidth="1" />
-                      <line x1="142" y1="80" x2="154" y2="80" stroke="rgba(207, 173, 116, 0.5)" strokeWidth="1" />
-                      {/* Diagonal Trace Lines with Contact Nodes */}
-                      <line x1="28" y1="28" x2="42" y2="42" stroke="rgba(207, 173, 116, 0.35)" strokeWidth="1" />
-                      <circle cx="28" cy="28" r="2.2" fill="#cfad74" />
-                      <line x1="132" y1="132" x2="118" y2="118" stroke="rgba(207, 173, 116, 0.35)" strokeWidth="1" />
-                      <circle cx="132" cy="132" r="2.2" fill="#cfad74" />
-                      {/* Orbital Contact Points */}
-                      <circle cx="80" cy="28" r="2.5" fill="#cfad74" />
-                      <circle cx="132" cy="80" r="2.5" fill="#cfad74" />
-                      <circle cx="80" cy="132" r="2" fill="#cfad74" opacity="0.8" />
-                      <circle cx="28" cy="80" r="2" fill="#cfad74" opacity="0.8" />
-                      {/* Core Circuit Arc Mark */}
-                      <path
-                        d="M93 69.5a15.5 15.5 0 1 0 0 21"
-                        stroke="#cfad74"
-                        strokeWidth="3.2"
-                        strokeLinecap="round"
-                      />
-                      <circle cx="94.5" cy="80" r="3.2" fill="#cfad74" />
-                    </svg>
-                  </div>
-
-                  {/* ONLY "circuit" Written on the Book Cover */}
-                  <div className="closed-brand-lockup">
-                    <h3 className="closed-brand-title">circuit</h3>
-                    <div className="closed-brand-accent">
-                      <span className="closed-brand-bar" />
-                      <span className="closed-brand-node" />
-                      <span className="closed-brand-bar" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Silk Ribbon Marker Hanging at the Bottom */}
-                <div className="closed-silk-ribbon" />
-              </div>
+              {renderCoverFace()}
 
               {/* Realistic Paper Page Thickness on Right & Bottom Edge */}
               <div className="closed-paper-edge-right" />
@@ -400,7 +478,7 @@ export function FaultLineMatrix() {
         </Reveal>
       </div>
 
-      {/* ── React Portal: Real Two-Page Book Mode View with Center Curve & Light Shadow Curves ── */}
+      {/* ── React Portal: Bump Size, Flip Cover Open & 3D Two-Page Spread ── */}
       {isOpen &&
         createPortal(
           <div
@@ -408,193 +486,130 @@ export function FaultLineMatrix() {
             role="dialog"
             aria-modal="true"
             aria-label="Circuit Architectural Codex Two-Page Spread"
-            onClick={() => setIsOpen(false)}
+            onClick={handleCloseBook}
           >
             {/* Minimal, Quiet Close Button in Viewport Top-Right (No Header Touch) */}
             <button
               type="button"
               aria-label="Close book"
               className="book-quiet-close-btn"
-              onClick={() => setIsOpen(false)}
+              onClick={handleCloseBook}
             >
               ✕ Esc
             </button>
 
-            {/* ── The Real Two-Page Hardcover Book Spread ── */}
-            <div
-              className="real-two-page-spread"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Hanging Center Silk Ribbon */}
-              <div className="spread-center-silk-ribbon" />
-
-              {/* ── LEFT PAGE (Verso) with Center Curve & Light Shadow ── */}
-              <div className="spread-page spread-page-left">
-                {/* Running Head */}
-                <div className="spread-running-head">
-                  <span>CIRCUIT ARCHITECTURAL CODEX</span>
-                  <span>CHAPTER {chapter.roman}</span>
-                </div>
-
-                {/* Background Roman Watermark */}
-                <div className="spread-chapter-watermark">{chapter.roman}</div>
-
-                {/* Left Page Body Content */}
-                <div className="spread-page-content">
-                  <div style={{ marginBottom: 8 }}>
-                    <span className="spread-chapter-badge">
-                      DIMENSION {chapter.roman} · {chapter.badge}
-                    </span>
-                  </div>
-
-                  <h3 className="spread-chapter-title">{chapter.title}</h3>
-                  <div className="spread-chapter-sub">{chapter.subtitle}</div>
-
-                  {/* Illuminated Tagline Quote */}
-                  <div className="spread-tagline-box">
-                    “{chapter.tagline}”
-                  </div>
-
-                  {/* Mathematical Formula Card */}
-                  <div className="spread-formula-card">
-                    <span className="spread-formula-label">On-Chain Mathematical Constraint</span>
-                    <code>{chapter.formula}</code>
-                  </div>
-                </div>
-
-                {/* Left Page Footer Nav */}
-                <div className="spread-page-footer left-footer">
-                  <button
-                    type="button"
-                    className="spread-turn-btn"
-                    disabled={activeChapterIndex === 0}
-                    onClick={prevChapter}
-                    style={{ opacity: activeChapterIndex === 0 ? 0.35 : 1 }}
-                  >
-                    ◂ Turn Page (Prev)
-                  </button>
-                  <span className="spread-page-num">PAGE {activeChapterIndex * 2 + 1}</span>
+            {/* ── Stage 1: Bumping Size (Closed book zooming forward) ── */}
+            {animStage === "bumping" ? (
+              <div className="portal-bumping-container" onClick={(e) => e.stopPropagation()}>
+                <div className="book-mockup-closed" style={{ width: 280, height: 400 }}>
+                  {renderCoverFace()}
+                  <div className="closed-paper-edge-right" />
+                  <div className="closed-paper-edge-bottom" />
                 </div>
               </div>
+            ) : (
+              /* ── Stage 2 & 3: Real Two-Page Hardcover Spread with 3D Cover Flip & Page Flip ── */
+              <div
+                className={`real-two-page-spread ${animStage}`}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Hanging Center Silk Ribbon */}
+                <div className="spread-center-silk-ribbon" />
 
-              {/* ── CENTER SPINE CREASE GUTTER (Real Curve Depth & Shadow) ── */}
-              <div className="spread-spine-crease-gutter">
-                <div className="spine-light-shadow-left" />
-                <div className="spine-center-stitch-line" />
-                <div className="spine-light-shadow-right" />
+                {/* ── BASE LEFT PAGE (Verso) ── */}
+                {isPageFlipping && flipDirection === "forward"
+                  ? renderLeftPage(DIMENSIONS[previousChapterIndex], previousChapterIndex * 2 + 1, false)
+                  : renderLeftPage(DIMENSIONS[activeChapterIndex], activeChapterIndex * 2 + 1, !isPageFlipping)}
+
+                {/* ── CENTER SPINE CREASE GUTTER (Real Curve Depth & Shadow) ── */}
+                <div className="spread-spine-crease-gutter">
+                  <div className="spine-light-shadow-left" />
+                  <div className="spine-center-stitch-line" />
+                  <div className="spine-light-shadow-right" />
+                </div>
+
+                {/* ── BASE RIGHT PAGE (Recto) ── */}
+                {isPageFlipping && flipDirection === "backward"
+                  ? renderRightPage(DIMENSIONS[previousChapterIndex], previousChapterIndex * 2 + 2, false)
+                  : renderRightPage(DIMENSIONS[activeChapterIndex], activeChapterIndex * 2 + 2, !isPageFlipping)}
+
+                {/* ── 3D TURNING PAGE LEAF (When navigating between chapters) ── */}
+                {isPageFlipping && (
+                  <div className={`turning-page-leaf ${flipDirection}`}>
+                    {/* Front Face of Turning Leaf */}
+                    <div className="leaf-face leaf-face-front">
+                      {flipDirection === "forward"
+                        ? renderRightPage(DIMENSIONS[previousChapterIndex], previousChapterIndex * 2 + 2, false)
+                        : renderRightPage(DIMENSIONS[activeChapterIndex], activeChapterIndex * 2 + 2, false)}
+                    </div>
+                    {/* Back Face of Turning Leaf */}
+                    <div className="leaf-face leaf-face-back">
+                      {flipDirection === "forward"
+                        ? renderLeftPage(DIMENSIONS[activeChapterIndex], activeChapterIndex * 2 + 1, false)
+                        : renderLeftPage(DIMENSIONS[previousChapterIndex], previousChapterIndex * 2 + 1, false)}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── COVER SWING DOOR (During Flip Cover Open & Closing) ── */}
+                {(animStage === "opening_cover" || animStage === "closing") && (
+                  <div className={`book-cover-swing-door ${animStage}`}>
+                    <div className="door-face door-front">
+                      {renderCoverFace()}
+                    </div>
+                    <div className="door-face door-back">
+                      {renderInsideEndpaper()}
+                    </div>
+                  </div>
+                )}
               </div>
-
-              {/* ── RIGHT PAGE (Recto) with Center Curve & Light Shadow ── */}
-              <div className="spread-page spread-page-right">
-                {/* Running Head */}
-                <div className="spread-running-head">
-                  <span>ON-CHAIN SPECIFICATION</span>
-                  <span>SOLANA DEVNET</span>
-                </div>
-
-                {/* Right Page Body Content */}
-                <div className="spread-page-content">
-                  {/* Specification 1: The Problem Thesis */}
-                  <div className="spread-spec-block">
-                    <div className="spread-spec-head">
-                      <span className="spread-spec-bullet" />
-                      I. The Problem Thesis
-                    </div>
-                    <p className="spread-spec-text">{chapter.thesis}</p>
-                  </div>
-
-                  {/* Specification 2: On-Chain Circuit Mechanism */}
-                  <div className="spread-spec-block">
-                    <div className="spread-spec-head">
-                      <span className="spread-spec-bullet" />
-                      II. On-Chain Circuit Mechanism
-                    </div>
-                    <p className="spread-spec-text">{chapter.mechanism}</p>
-                  </div>
-
-                  {/* Specification 3: Solvency & Economic Invariant */}
-                  <div className="spread-spec-block" style={{ marginBottom: 0 }}>
-                    <div className="spread-spec-head">
-                      <span className="spread-spec-bullet" />
-                      III. Solvency & Economic Invariant
-                    </div>
-                    <p className="spread-spec-text">{chapter.whyItMatters}</p>
-                  </div>
-                </div>
-
-                {/* Right Page Footer Nav */}
-                <div className="spread-page-footer right-footer">
-                  <span className="spread-page-num">PAGE {activeChapterIndex * 2 + 2}</span>
-                  {activeChapterIndex < DIMENSIONS.length - 1 ? (
-                    <button
-                      type="button"
-                      className="spread-turn-btn active-turn-btn"
-                      onClick={nextChapter}
-                    >
-                      Turn Page (Chapter {DIMENSIONS[activeChapterIndex + 1].roman}) ▸
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="spread-turn-btn active-turn-btn"
-                      onClick={() => setIsOpen(false)}
-                    >
-                      Finish Reading ✓
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
+            )}
 
             {/* ── Under-Book Chapter Navigation Dots ── */}
-            <div className="spread-bottom-dots-bar" onClick={(e) => e.stopPropagation()}>
-              <button
-                type="button"
-                className="spread-dots-arrow"
-                disabled={activeChapterIndex === 0}
-                onClick={prevChapter}
-                style={{ opacity: activeChapterIndex === 0 ? 0.3 : 1 }}
-              >
-                ◂
-              </button>
+            {animStage !== "bumping" && (
+              <div className="spread-bottom-dots-bar" onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  className="spread-dots-arrow"
+                  disabled={activeChapterIndex === 0 || isPageFlipping || animStage !== "ready"}
+                  onClick={prevChapter}
+                  style={{ opacity: activeChapterIndex === 0 ? 0.3 : 1 }}
+                >
+                  ◂
+                </button>
 
-              <div className="row g-6" style={{ alignItems: "center" }}>
-                {DIMENSIONS.map((d, i) => (
-                  <button
-                    key={d.id}
-                    type="button"
-                    title={`Chapter ${d.roman}: ${d.title}`}
-                    className={`spread-dot-pill ${activeChapterIndex === i ? "active" : ""}`}
-                    onClick={() => setActiveChapterIndex(i)}
-                  >
-                    {d.roman}
-                  </button>
-                ))}
+                <div className="row g-6" style={{ alignItems: "center" }}>
+                  {DIMENSIONS.map((d, i) => (
+                    <button
+                      key={d.id}
+                      type="button"
+                      title={`Chapter ${d.roman}: ${d.title}`}
+                      className={`spread-dot-pill ${activeChapterIndex === i ? "active" : ""}`}
+                      disabled={isPageFlipping || animStage !== "ready"}
+                      onClick={() => goToChapter(i)}
+                    >
+                      {d.roman}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  className="spread-dots-arrow"
+                  disabled={activeChapterIndex === DIMENSIONS.length - 1 || isPageFlipping || animStage !== "ready"}
+                  onClick={nextChapter}
+                  style={{ opacity: activeChapterIndex === DIMENSIONS.length - 1 ? 0.3 : 1 }}
+                >
+                  ▸
+                </button>
               </div>
-
-              <button
-                type="button"
-                className="spread-dots-arrow"
-                disabled={activeChapterIndex === DIMENSIONS.length - 1}
-                onClick={nextChapter}
-                style={{ opacity: activeChapterIndex === DIMENSIONS.length - 1 ? 0.3 : 1 }}
-              >
-                ▸
-              </button>
-            </div>
+            )}
           </div>,
           document.body
         )}
 
       {/* ── Precision CSS for Closed Book & Real Two-Page Mode Spread with Center Curve ── */}
       <style>{`
-        /* Dimensions Section Scroll Snap */
-        #dimensions {
-          scroll-snap-align: center;
-          scroll-snap-stop: normal;
-          scroll-margin-top: calc(var(--nav-h, 58px) + 20px);
-        }
-
         /* Center Book Container on Main Page */
         .center-book-container {
           display: flex;
@@ -603,27 +618,6 @@ export function FaultLineMatrix() {
           justify-content: center;
           padding: 24px 0 36px;
           position: relative;
-        }
-
-        .center-book-container.gentle-active::after {
-          content: '';
-          position: absolute;
-          top: 45%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          width: 360px;
-          height: 360px;
-          border-radius: 50%;
-          background: radial-gradient(circle, rgba(207, 173, 116, 0.18) 0%, transparent 70%);
-          pointer-events: none;
-          animation: gentlePulse 1.2s ease-out forwards;
-          z-index: 1;
-        }
-
-        @keyframes gentlePulse {
-          0% { transform: translate(-50%, -50%) scale(0.85); opacity: 0; }
-          45% { transform: translate(-50%, -50%) scale(1.12); opacity: 1; }
-          100% { transform: translate(-50%, -50%) scale(1.02); opacity: 0.5; }
         }
 
         /* ── The Clean, Pristine Closed Hardcover Book ── */
@@ -878,7 +872,30 @@ export function FaultLineMatrix() {
           border-color: var(--accent);
         }
 
-        /* ── REAL TWO-PAGE HARDCOVER SPREAD WITH CENTER CURVE ── */
+        /* ── Stage 1: Bumping Closed Book ── */
+        .portal-bumping-container {
+          perspective: 2000px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          animation: bookBumpZoom 0.38s cubic-bezier(0.18, 0.9, 0.3, 1.1) forwards;
+        }
+        @keyframes bookBumpZoom {
+          0% {
+            transform: scale(0.55) translateY(50px) rotateY(-10deg);
+            opacity: 0.3;
+          }
+          70% {
+            transform: scale(1.04) translateY(-6px) rotateY(1deg);
+            opacity: 1;
+          }
+          100% {
+            transform: scale(1) translateY(0) rotateY(0deg);
+            opacity: 1;
+          }
+        }
+
+        /* ── Stage 2 & 3: Real Two-Page Hardcover Spread with 3D Depth ── */
         .real-two-page-spread {
           width: 920px;
           max-width: 95vw;
@@ -893,19 +910,196 @@ export function FaultLineMatrix() {
             0 36px 90px rgba(0, 0, 0, 0.9),
             0 0 40px rgba(207, 173, 116, 0.15),
             inset 0 0 40px rgba(0, 0, 0, 0.85);
-          overflow: hidden;
-          perspective: 2000px;
-          animation: spreadOpenBump 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+          perspective: 2400px;
+          transform-style: preserve-3d;
         }
-        @keyframes spreadOpenBump {
+
+        .real-two-page-spread.closing {
+          animation: spreadZoomDown 0.44s cubic-bezier(0.35, 0, 0.25, 1) forwards;
+        }
+        @keyframes spreadZoomDown {
           0% {
-            opacity: 0;
-            transform: scale(0.88) translateY(28px);
+            transform: scale(1) translateY(0);
+            opacity: 1;
           }
           100% {
-            opacity: 1;
-            transform: scale(1) translateY(0);
+            transform: scale(0.55) translateY(40px);
+            opacity: 0;
           }
+        }
+
+        /* ── Cover Swing Door (Opens cover 180deg) ── */
+        .book-cover-swing-door {
+          position: absolute;
+          top: 0;
+          bottom: 0;
+          left: 50%;
+          width: 50%;
+          transform-origin: left center;
+          transform-style: preserve-3d;
+          z-index: 60;
+          pointer-events: none;
+        }
+
+        .book-cover-swing-door.opening_cover {
+          animation: coverFlipOpen 0.62s cubic-bezier(0.35, 0, 0.25, 1) forwards;
+        }
+        @keyframes coverFlipOpen {
+          0% {
+            transform: rotateY(0deg);
+          }
+          45% {
+            transform: rotateY(-85deg) skewY(-1.2deg);
+          }
+          100% {
+            transform: rotateY(-180deg) skewY(0deg);
+          }
+        }
+
+        .book-cover-swing-door.closing {
+          animation: coverFlipClose 0.42s cubic-bezier(0.35, 0, 0.25, 1) forwards;
+        }
+        @keyframes coverFlipClose {
+          0% {
+            transform: rotateY(-180deg);
+          }
+          100% {
+            transform: rotateY(0deg);
+          }
+        }
+
+        .door-face {
+          position: absolute;
+          inset: 0;
+          backface-visibility: hidden;
+          -webkit-backface-visibility: hidden;
+          overflow: hidden;
+        }
+
+        .door-front {
+          border-radius: 2px 12px 12px 2px;
+          transform: rotateY(0deg);
+        }
+
+        .door-back {
+          transform: rotateY(180deg);
+          border-radius: 12px 2px 2px 12px;
+          background: radial-gradient(ellipse at 50% 50%, #161a25 0%, #0c0e14 80%, #07090e 100%);
+          border: 1.5px solid rgba(207, 173, 116, 0.35);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 36px 28px;
+          text-align: center;
+        }
+
+        /* Inside Cover Endpaper Details */
+        .book-inside-endpaper {
+          width: 100%;
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          position: relative;
+        }
+        .endpaper-badge {
+          font-family: var(--mono);
+          font-size: 9px;
+          letter-spacing: 0.16em;
+          color: var(--accent);
+          text-transform: uppercase;
+          margin-bottom: 20px;
+        }
+        .endpaper-motto {
+          font-size: 15px;
+          font-style: italic;
+          color: var(--text-2);
+          line-height: 1.6;
+          max-width: 320px;
+          margin: 0 0 24px;
+        }
+        .endpaper-crest {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-family: var(--mono);
+          font-size: 8.5px;
+          letter-spacing: 0.14em;
+          color: var(--text-3);
+        }
+        .endpaper-line {
+          width: 24px;
+          height: 1px;
+          background: rgba(207, 173, 116, 0.4);
+        }
+
+        /* ── 3D Turning Page Leaf (When reading) ── */
+        .turning-page-leaf {
+          position: absolute;
+          top: 0;
+          bottom: 0;
+          left: 50%;
+          width: 50%;
+          transform-origin: left center;
+          transform-style: preserve-3d;
+          z-index: 45;
+          pointer-events: none;
+        }
+
+        .turning-page-leaf.forward {
+          animation: leafTurnForward 0.65s cubic-bezier(0.35, 0, 0.25, 1) forwards;
+        }
+        @keyframes leafTurnForward {
+          0% {
+            transform: rotateY(0deg);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+          }
+          45% {
+            transform: rotateY(-85deg) skewY(-1.5deg) scale(1.015);
+            box-shadow: 20px 0 35px rgba(0,0,0,0.7);
+          }
+          100% {
+            transform: rotateY(-180deg) skewY(0deg) scale(1);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+          }
+        }
+
+        .turning-page-leaf.backward {
+          animation: leafTurnBackward 0.65s cubic-bezier(0.35, 0, 0.25, 1) forwards;
+        }
+        @keyframes leafTurnBackward {
+          0% {
+            transform: rotateY(-180deg);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+          }
+          45% {
+            transform: rotateY(-95deg) skewY(1.5deg) scale(1.015);
+            box-shadow: -20px 0 35px rgba(0,0,0,0.7);
+          }
+          100% {
+            transform: rotateY(0deg) skewY(0deg) scale(1);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+          }
+        }
+
+        .leaf-face {
+          position: absolute;
+          inset: 0;
+          backface-visibility: hidden;
+          -webkit-backface-visibility: hidden;
+          overflow: hidden;
+        }
+
+        .leaf-face-front {
+          transform: rotateY(0deg);
+          border-radius: 2px 10px 10px 2px;
+        }
+
+        .leaf-face-back {
+          transform: rotateY(180deg);
+          border-radius: 10px 2px 2px 10px;
         }
 
         /* Silk Ribbon Hanging Down the Center Fold */
