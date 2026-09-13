@@ -1,8 +1,10 @@
 import { useCallback, useMemo, useState } from "react";
-import { TransactionInstruction } from "@solana/web3.js";
+import { PublicKey, TransactionInstruction } from "@solana/web3.js";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 
 import { EQUITY_MINT, QUOTE_MINT } from "../config";
+import { DeployedMarket } from "../data/markets";
+import { useMarket } from "../context/MarketContext";
 import {
   ActionContext,
   buildErrorMap,
@@ -55,15 +57,28 @@ const PHASE_LABEL: Record<TxPhase, string> = {
   error: "Could not complete",
 };
 
-export function useTransaction() {
+export function useTransaction(overrideMarket?: DeployedMarket) {
   const { connection } = useConnection();
   const { publicKey, signTransaction } = useWallet();
+  const marketCtx = useMarket();
+  const activeMarket = overrideMarket ?? marketCtx?.selectedMarket ?? null;
+
   const [state, setState] = useState<TxState>(IDLE);
   const errorMap = useMemo(() => buildErrorMap(), []);
 
   const reset = useCallback(() => setState(IDLE), []);
 
-  const ready = Boolean(publicKey && signTransaction && EQUITY_MINT && QUOTE_MINT);
+  const defaultEquityMint = useMemo(() => {
+    return activeMarket ? new PublicKey(activeMarket.mint) : EQUITY_MINT;
+  }, [activeMarket]);
+
+  const defaultQuoteMint = useMemo(() => {
+    return activeMarket ? new PublicKey(activeMarket.quoteMint) : QUOTE_MINT;
+  }, [activeMarket]);
+
+  const ready = Boolean(
+    publicKey && signTransaction && defaultEquityMint && defaultQuoteMint
+  );
 
   const run = useCallback(
     async (opts: {
@@ -72,10 +87,15 @@ export function useTransaction() {
       /** Human summary shown on success. */
       summary: string;
       priceUpdate: ActionContext["priceUpdate"];
+      equityMint?: PublicKey;
+      quoteMint?: PublicKey;
       build: (ctx: ActionContext) => Promise<TransactionInstruction[]>;
       onSuccess?: () => void;
     }): Promise<boolean> => {
-      if (!publicKey || !signTransaction || !EQUITY_MINT || !QUOTE_MINT) {
+      const eqMint = opts.equityMint ?? defaultEquityMint;
+      const qtMint = opts.quoteMint ?? defaultQuoteMint;
+
+      if (!publicKey || !signTransaction || !eqMint || !qtMint) {
         setState({
           phase: "error",
           label: PHASE_LABEL.error,
@@ -95,8 +115,8 @@ export function useTransaction() {
         const ctx: ActionContext = {
           program: readOnlyProgram(connection),
           owner: publicKey,
-          equityMint: EQUITY_MINT,
-          quoteMint: QUOTE_MINT,
+          equityMint: eqMint,
+          quoteMint: qtMint,
           priceUpdate: opts.priceUpdate,
         };
         const ixs = await opts.build(ctx);
@@ -122,7 +142,7 @@ export function useTransaction() {
         return false;
       }
     },
-    [connection, publicKey, signTransaction, errorMap]
+    [connection, publicKey, signTransaction, errorMap, defaultEquityMint, defaultQuoteMint]
   );
 
   const busy =

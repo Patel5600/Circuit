@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Connection } from "@solana/web3.js";
+import { Connection, PublicKey } from "@solana/web3.js";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 
@@ -9,6 +9,8 @@ import {
   PYTH_FEED_ID,
   QUOTE_MINT,
 } from "../config";
+import { DeployedMarket } from "../data/markets";
+import { useMarket } from "../context/MarketContext";
 import { OracleSnapshot, fetchOracle } from "../lib/pyth";
 import {
   AssetConfigView,
@@ -54,6 +56,7 @@ export interface ProtocolState {
   guard: MarketGuardView | null;
   position: PositionView | null;
   oracle: OracleSnapshot | null;
+  market: DeployedMarket | null;
 
   walletEquity: bigint;
   walletQuote: bigint;
@@ -106,9 +109,11 @@ export function nyseSessionHint(unixSeconds: number): SessionHint {
   return { open: true, label: "Regular session" };
 }
 
-export function useProtocolState(): ProtocolState {
+export function useProtocolState(overrideMarket?: DeployedMarket): ProtocolState {
   const { connection } = useConnection();
   const { publicKey } = useWallet();
+  const marketCtx = useMarket();
+  const activeMarket = overrideMarket ?? marketCtx?.selectedMarket ?? null;
 
   // `risk`, `session` and `isAuthority` are derived below rather than stored,
   // so they are excluded from the fetched-state shape.
@@ -124,6 +129,7 @@ export function useProtocolState(): ProtocolState {
     guard: null,
     position: null,
     oracle: null,
+    market: activeMarket,
     walletEquity: 0n,
     walletQuote: 0n,
     vaultLiquidity: 0n,
@@ -149,9 +155,23 @@ export function useProtocolState(): ProtocolState {
         const blockTime = await conn.getBlockTime(slot).catch(() => null);
         const chainUnixTime = blockTime ?? Math.floor(Date.now() / 1000);
 
+        const equityMint = activeMarket
+          ? new PublicKey(activeMarket.mint)
+          : EQUITY_MINT;
+        const quoteMint = activeMarket
+          ? new PublicKey(activeMarket.quoteMint)
+          : QUOTE_MINT;
+        const feedId = activeMarket?.feedId ?? PYTH_FEED_ID;
+        const collateralVault = activeMarket
+          ? new PublicKey(activeMarket.collateralVault)
+          : (equityMint ? vaultFor(equityMint) : null);
+        const liquidityVault = activeMarket
+          ? new PublicKey(activeMarket.liquidityVault)
+          : (quoteMint ? vaultFor(quoteMint) : null);
+
         const [protocol, oracle] = await Promise.all([
           fetchProtocolConfig(program, conn),
-          fetchOracle(conn, chainUnixTime, PYTH_FEED_ID),
+          fetchOracle(conn, chainUnixTime, feedId),
         ]);
 
         let asset: AssetConfigView | null = null;
@@ -162,25 +182,27 @@ export function useProtocolState(): ProtocolState {
         let vaultLiquidity = 0n;
         let vaultCollateral = 0n;
 
-        if (EQUITY_MINT) {
-          asset = await fetchAssetConfig(program, conn, EQUITY_MINT);
-          guard = await fetchMarketGuard(program, conn, PYTH_FEED_ID);
-          vaultCollateral = await fetchTokenAmount(conn, vaultFor(EQUITY_MINT));
+        if (equityMint) {
+          asset = await fetchAssetConfig(program, conn, equityMint);
+          guard = await fetchMarketGuard(program, conn, feedId);
+          if (collateralVault) {
+            vaultCollateral = await fetchTokenAmount(conn, collateralVault);
+          }
         }
-        if (QUOTE_MINT) {
-          vaultLiquidity = await fetchTokenAmount(conn, vaultFor(QUOTE_MINT));
+        if (liquidityVault) {
+          vaultLiquidity = await fetchTokenAmount(conn, liquidityVault);
         }
-        if (publicKey && EQUITY_MINT) {
-          position = await fetchPosition(program, conn, publicKey, EQUITY_MINT);
+        if (publicKey && equityMint) {
+          position = await fetchPosition(program, conn, publicKey, equityMint);
           walletEquity = await fetchTokenAmount(
             conn,
-            getAssociatedTokenAddressSync(EQUITY_MINT, publicKey)
+            getAssociatedTokenAddressSync(equityMint, publicKey)
           );
         }
-        if (publicKey && QUOTE_MINT) {
+        if (publicKey && quoteMint) {
           walletQuote = await fetchTokenAmount(
             conn,
-            getAssociatedTokenAddressSync(QUOTE_MINT, publicKey)
+            getAssociatedTokenAddressSync(quoteMint, publicKey)
           );
         }
 
@@ -195,6 +217,7 @@ export function useProtocolState(): ProtocolState {
           guard,
           position,
           oracle,
+          market: activeMarket,
           walletEquity,
           walletQuote,
           vaultLiquidity,
@@ -218,7 +241,14 @@ export function useProtocolState(): ProtocolState {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [connection, publicKey, nonce]);
+  }, [
+    connection,
+    publicKey,
+    nonce,
+    activeMarket?.mint,
+    activeMarket?.quoteMint,
+    activeMarket?.feedId,
+  ]);
 
   const risk = useMemo<RiskView | null>(() => {
     const { asset, protocol, position, oracle, chainUnixTime, vaultLiquidity } =

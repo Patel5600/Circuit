@@ -4,6 +4,7 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { AppShell } from "./components/layout/AppShell";
 import { IconKeyframes } from "./components/ui/Icon";
 import { Skeleton } from "./components/ui";
+import { MarketProvider } from "./context/MarketContext";
 
 /**
  * Route table.
@@ -70,9 +71,11 @@ function AppRoute({ children }: { children: React.ReactNode }) {
   return (
     <Suspense fallback={<ShellFallback />}>
       <SolanaProviders>
-        <AppShell>
-          <Suspense fallback={<PageFallback />}>{children}</Suspense>
-        </AppShell>
+        <MarketProvider>
+          <AppShell>
+            <Suspense fallback={<PageFallback />}>{children}</Suspense>
+          </AppShell>
+        </MarketProvider>
       </SolanaProviders>
     </Suspense>
   );

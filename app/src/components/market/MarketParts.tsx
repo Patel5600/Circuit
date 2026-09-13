@@ -71,18 +71,20 @@ export interface MarketRow {
   symbol: string;
   name: string;
   logo?: React.ReactNode;
-  /** True when this asset is the one registered on-chain right now. */
+  /** True when this asset is registered on-chain on devnet. */
   live: boolean;
   priceUsd: number | null;
   ltvBps: number | null;
+  quoteSymbol?: string;
+  marketSymbol?: string;
+  mint?: string;
 }
 
 /**
  * Market card.
  *
- * Only the registered asset shows live figures. Catalogue entries that are not
- * registered on-chain are explicitly marked "Not yet supported" rather than
- * displaying invented prices.
+ * Live registered markets display on-chain parameters, real Pyth feed status,
+ * and direct one-click actions to borrow quote tokens or deposit collateral.
  */
 export function MarketCard({
   row,
@@ -99,6 +101,8 @@ export function MarketCard({
   loading: boolean;
   onSelect?: () => void;
 }) {
+  const isSol = row.quoteSymbol === "WSOL";
+
   return (
     <Card>
       <div className="row g-12" style={{ marginBottom: 14 }}>
@@ -110,20 +114,27 @@ export function MarketCard({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            background: "var(--surface-2)",
-            border: "1px solid var(--border)",
+            background: isSol ? "#9945FF18" : "var(--surface-2)",
+            border: `1px solid ${isSol ? "#9945FF44" : "var(--border)"}`,
             flex: "none",
           }}
         >
           {row.logo ?? <Icon name="layers" size={18} />}
         </span>
         <div className="grow" style={{ minWidth: 0 }}>
-          <div className="t-title truncate">{row.symbol}</div>
+          <div className="row g-6" style={{ alignItems: "center" }}>
+            <span className="t-title truncate">{row.symbol}</span>
+            {row.quoteSymbol && (
+              <span className="t-meta" style={{ fontSize: 12 }}>
+                / {row.quoteSymbol}
+              </span>
+            )}
+          </div>
           <div className="t-meta truncate">{row.name}</div>
         </div>
         {row.live ? (
-          <Pill tone="success" withDot>
-            LIVE
+          <Pill tone={isSol ? "accent" : "success"} withDot>
+            {isSol ? "BORROW SOL" : "LIVE"}
           </Pill>
         ) : (
           <Pill>SOON</Pill>
@@ -136,11 +147,15 @@ export function MarketCard({
             <Skeleton height={28} width="50%" />
           ) : (
             <div className="stat__value" style={{ fontSize: 24 }}>
-              {row.priceUsd === null ? "--" : `$${formatMoney(row.priceUsd)}`}
+              {row.priceUsd === null ? (
+                row.ltvBps ? `--` : "--"
+              ) : (
+                `$${formatMoney(row.priceUsd)}`
+              )}
             </div>
           )}
           <div className="stat__sub" style={{ marginBottom: 12 }}>
-            Verified on-chain price
+            Verified on-chain price {row.quoteSymbol ? `· Quote: ${row.quoteSymbol}` : ""}
           </div>
 
           <DataRow
@@ -155,23 +170,28 @@ export function MarketCard({
             label="Borrowing limit"
             value={row.ltvBps === null ? "--" : formatPercent(row.ltvBps)}
           />
+
+          <div className="row g-8" style={{ marginTop: 14 }}>
+            <button
+              type="button"
+              className="btn btn--accent btn--sm grow"
+              onClick={onSelect}
+            >
+              Borrow {isSol ? "SOL" : (row.quoteSymbol || "USDC")}
+            </button>
+            <a
+              href={`/app/position?market=${row.marketSymbol || row.symbol}`}
+              className="btn btn--secondary btn--sm"
+            >
+              Deposit
+            </a>
+          </div>
         </>
       ) : (
         <p className="t-sm muted">
           Not yet supported as collateral. circuit only accepts assets that have
           been registered on-chain with a verified price feed.
         </p>
-      )}
-
-      {onSelect && row.live && (
-        <button
-          type="button"
-          className="btn btn--secondary btn--block btn--sm"
-          style={{ marginTop: 14 }}
-          onClick={onSelect}
-        >
-          View details
-        </button>
       )}
     </Card>
   );

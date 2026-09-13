@@ -24,9 +24,11 @@ import {
 } from "../components/position/PositionParts";
 import { TransactionModal } from "../components/transactions/TransactionModal";
 import { BlockedAction } from "../components/risk/SafetyStatus";
+import { MarketSelector } from "../components/market/MarketSelector";
 import { useProtocolState } from "../hooks/useProtocolState";
 import { useTransaction } from "../hooks/useTransaction";
-import { activeAssetDisplay, QUOTE_SYMBOL } from "../lib/asset";
+import { useMarket } from "../context/MarketContext";
+import { activeAssetDisplay } from "../lib/asset";
 import { formatPercent, formatTokens } from "../lib/format";
 import {
   buildDeposit,
@@ -67,10 +69,13 @@ const ACTION_META: Record<
 };
 
 export default function Position() {
+  const { selectedMarket, markets, selectMarket } = useMarket();
   const s = useProtocolState();
   const { connected } = useWallet();
   const tx = useTransaction();
-  const display = useMemo(activeAssetDisplay, []);
+
+  const display = useMemo(() => activeAssetDisplay(selectedMarket), [selectedMarket]);
+  const quoteSymbol = selectedMarket.quoteSymbol || "USDC";
 
   const [action, setAction] = useState<Action>("deposit");
   const [amount, setAmount] = useState("");
@@ -83,12 +88,12 @@ export default function Position() {
   const hasPosition = collateral > 0n || debt > 0n;
 
   const priceAccount = useMemo(
-    () => s.oracle?.address ?? derivePriceAccount(PYTH_FEED_ID, 0),
-    [s.oracle]
+    () => s.oracle?.address ?? derivePriceAccount(selectedMarket.feedId || PYTH_FEED_ID, 0),
+    [s.oracle, selectedMarket.feedId]
   );
 
   const meta = ACTION_META[action];
-  const unitSymbol = meta.unit === "collateral" ? display.symbol : QUOTE_SYMBOL;
+  const unitSymbol = meta.unit === "collateral" ? display.symbol : quoteSymbol;
 
   const max = useMemo<bigint>(() => {
     switch (action) {
@@ -131,8 +136,6 @@ export default function Position() {
     }
     if (action === "withdraw") {
       if (s.protocol.paused) out.push("Withdrawals are paused right now");
-      // With debt outstanding, withdrawing is risk-increasing and carries the
-      // full gate set plus a health check.
       if (debt > 0n && s.risk) {
         for (const b of s.risk.blockers) {
           if (b === "No remaining borrow capacity") continue;
@@ -190,7 +193,7 @@ export default function Position() {
   return (
     <PageContainer
       title="Your position"
-      subtitle="Collateral, borrowed funds and how much room you have before liquidation."
+      subtitle={`Collateral, borrowed funds and safety metrics for ${display.symbol} on Solana Devnet.`}
     >
       <ConfigNotice />
 
@@ -198,6 +201,73 @@ export default function Position() {
         <ConnectPrompt what="Your collateral and borrowing" />
       ) : (
         <div className="stack g-16">
+          {/* Active Market Selector header card */}
+          <Card>
+            <div className="row between g-12 wrap" style={{ alignItems: "center" }}>
+              <div className="row g-12" style={{ alignItems: "center" }}>
+                <span
+                  style={{
+                    width: 42,
+                    height: 42,
+                    borderRadius: 10,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: selectedMarket.quoteSymbol === "WSOL" ? "#9945FF22" : "var(--surface-2)",
+                    border: "1px solid var(--border)",
+                    flex: "none",
+                  }}
+                >
+                  {display.logo ?? <Icon name="layers" size={20} />}
+                </span>
+                <div>
+                  <div style={{ fontWeight: 750, fontSize: 16 }}>
+                    {display.symbol} / {quoteSymbol}
+                  </div>
+                  <div className="t-meta">{display.name}</div>
+                </div>
+              </div>
+
+              <div className="row g-8" style={{ alignItems: "center" }}>
+                <MarketSelector compact />
+                <Link
+                  to={`/app/borrow?market=${selectedMarket.symbol}`}
+                  className="btn btn--accent btn--sm"
+                >
+                  Borrow {quoteSymbol}
+                </Link>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 14 }}>
+              <div className="t-label" style={{ marginBottom: 6 }}>
+                Switch asset position
+              </div>
+              <div className="chips wrap">
+                {markets.map((m) => {
+                  const active =
+                    m.symbol === selectedMarket.symbol &&
+                    m.quoteSymbol === selectedMarket.quoteSymbol;
+                  return (
+                    <button
+                      key={`${m.symbol}-${m.quoteSymbol}`}
+                      type="button"
+                      className={`chip ${active ? "chip--active" : ""}`}
+                      onClick={() => selectMarket(m.symbol, m.quoteSymbol)}
+                      style={{
+                        borderColor: active ? "var(--accent)" : undefined,
+                        background: active ? "var(--surface-3)" : undefined,
+                        fontWeight: active ? 700 : 500,
+                      }}
+                    >
+                      {m.tokenSymbol} ({m.quoteSymbol})
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </Card>
+
           <PositionSummary
             loading={s.loading}
             position={s.position}
@@ -206,7 +276,14 @@ export default function Position() {
             minBps={minBps}
           />
 
-          {!s.loading && !hasPosition && <NoPositionPrompt />}
+          {!s.loading && !hasPosition ? (
+            <Card>
+              <Notice tone="neutral" title={`No ${display.symbol} position yet`}>
+                You currently have 0 {display.symbol} deposited and 0 {quoteSymbol} borrowed.
+                Use the form below to deposit {display.symbol} as collateral.
+              </Notice>
+            </Card>
+          ) : null}
 
           {hasPosition && (
             <Card title="Risk">
@@ -218,183 +295,147 @@ export default function Position() {
                     <HealthFactor hfBps={s.risk?.healthFactorBps ?? null} minBps={minBps} />
                     <Pill
                       tone={
-                        (s.risk?.healthFactorBps ?? null) === null
-                          ? "success"
-                          : (s.risk!.healthFactorBps as number) < minBps
+                        ltvBps > (s.asset?.liquidationThresholdBps ?? 8000)
                           ? "danger"
+                          : ltvBps > (s.asset?.baseLtvBps ?? 7000)
+                          ? "warning"
                           : "success"
                       }
                     >
-                      {(s.risk?.healthFactorBps ?? null) === null ||
-                      (s.risk!.healthFactorBps as number) >= minBps
-                        ? "NOT LIQUIDATABLE"
-                        : "LIQUIDATABLE"}
+                      CURRENT LTV {(ltvBps / 100).toFixed(1)}%
                     </Pill>
                   </div>
-
                   <RiskBar hfBps={s.risk?.healthFactorBps ?? null} minBps={minBps} />
-
-                  <div style={{ marginTop: 18 }}>
-                    <DataRow label="Borrowed against collateral" value={formatPercent(ltvBps, 1)} />
-                    <DataRow
-                      label="Liquidation threshold"
-                      value={s.asset ? formatPercent(s.asset.liquidationThresholdBps) : "--"}
-                    />
-                    <DataRow
-                      label="Status"
-                      value={healthLabel(s.risk?.healthFactorBps ?? null, minBps)}
-                    />
-                  </div>
                 </>
               )}
             </Card>
           )}
 
-          <div className="grid grid--2">
-            <CollateralCard
-              loading={s.loading}
-              position={s.position}
-              risk={s.risk}
-              symbol={display.symbol}
-              name={display.name}
-              priceUsd={s.oracle?.priceUsd ?? null}
-              logo={display.logo}
+          {/* Action form: Deposit / Repay / Withdraw */}
+          <Card
+            title={meta.title}
+            action={
+              <Segmented<Action>
+                label="Position action"
+                value={action}
+                onChange={(a) => {
+                  setAction(a);
+                  setAmount("");
+                }}
+                options={[
+                  { value: "deposit", label: "Deposit" },
+                  { value: "repay", label: "Repay" },
+                  { value: "withdraw", label: "Withdraw" },
+                ]}
+              />
+            }
+          >
+            <p className="t-sm muted" style={{ marginTop: 0, marginBottom: 16 }}>
+              {meta.help}
+            </p>
+
+            <div className="field__top">
+              <label htmlFor="position-amount" className="t-sm muted">
+                {unitSymbol}
+              </label>
+              <span className="t-sm muted">
+                Available: {formatTokens(toUi(max))} {unitSymbol}
+              </span>
+            </div>
+
+            <input
+              id="position-amount"
+              className="input"
+              type="number"
+              min="0"
+              step="any"
+              inputMode="decimal"
+              placeholder="0.00"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
             />
 
-            <Card title="Manage position">
-              <div style={{ marginBottom: 14 }}>
-                <Segmented<Action>
-                  label="Choose an action"
-                  value={action}
-                  onChange={(a) => {
-                    setAction(a);
-                    setAmount("");
-                  }}
-                  options={[
-                    { value: "deposit", label: "Deposit" },
-                    { value: "repay", label: "Repay" },
-                    { value: "withdraw", label: "Withdraw" },
-                  ]}
-                />
-              </div>
-
-              <p className="t-meta" style={{ marginBottom: 12 }}>
-                {meta.help}
-              </p>
-
-              <div className="field__top">
-                <label htmlFor="pos-amount" className="t-sm muted">
-                  Amount in {unitSymbol}
-                </label>
+            <div className="chips">
+              {[0.25, 0.5, 0.75, 1].map((f) => (
                 <button
+                  key={f}
                   type="button"
-                  className="t-sm"
-                  style={{ color: max > 0n ? "var(--accent)" : "var(--text-3)" }}
+                  className="chip"
                   disabled={max === 0n}
-                  onClick={() => setAmount(String(toUi(max)))}
+                  onClick={() => setAmount(String(toUi(max) * f))}
                 >
-                  Max {formatTokens(toUi(max))}
+                  {f === 1 ? "Max" : `${f * 100}%`}
                 </button>
+              ))}
+            </div>
+
+            {valid && objections.length > 0 && (
+              <div style={{ marginTop: 16 }}>
+                <BlockedAction title="Cannot complete action" reasons={objections} />
               </div>
+            )}
 
-              <input
-                id="pos-amount"
-                className="input"
-                type="number"
-                min="0"
-                step="any"
-                inputMode="decimal"
-                placeholder="0.00"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-              />
-
-              {valid && projectedHf !== null && (
-                <p className="t-meta" style={{ marginTop: 10 }}>
-                  Health factor after this action:{" "}
-                  <strong
-                    style={{
-                      color: projectedHf < minBps ? "var(--danger)" : "var(--success)",
-                    }}
-                  >
-                    {(projectedHf / 10_000).toFixed(2)}
-                  </strong>
-                </p>
-              )}
-
-              {valid && objections.length > 0 && (
-                <div style={{ marginTop: 14 }}>
-                  <BlockedAction
-                    title={`${meta.verb} unavailable`}
-                    reasons={objections}
-                    note="Nothing has been submitted and your position is unchanged."
-                  />
-                </div>
-              )}
-
+            <div style={{ marginTop: 20 }}>
               <Button
-                variant={action === "withdraw" ? "secondary" : "primary"}
+                variant="accent"
                 block
-                disabled={blocked || tx.busy || !tx.ready}
+                disabled={blocked || !tx.ready || tx.busy}
                 loading={tx.busy}
-                onClick={() =>
-                  action === "deposit" ? submit() : setConfirmOpen(true)
-                }
-                style={{ marginTop: 16 }}
+                onClick={() => setConfirmOpen(true)}
               >
-                {meta.verb} {valid ? `${formatTokens(toUi(amountNative))} ${unitSymbol}` : unitSymbol}
+                {valid
+                  ? `${meta.verb} ${formatTokens(toUi(amountNative))} ${unitSymbol}`
+                  : meta.verb}
               </Button>
-            </Card>
-          </div>
-
-          <Card title="Borrow more" quiet>
-            <div className="row between g-12 wrap">
-              <p className="t-sm muted" style={{ maxWidth: "48ch" }}>
-                Borrowing has its own checks and a dedicated flow so you can see
-                the effect before confirming.
-              </p>
-              <Link to="/app/borrow" className="btn btn--accent btn--sm">
-                Go to borrow
-                <Icon name="arrowRight" size={15} />
-              </Link>
             </div>
           </Card>
         </div>
       )}
 
-      {/* Confirmation for the two actions that reduce safety or move funds out. */}
+      {/* Confirmation Modal */}
       <Modal
         open={confirmOpen}
         onClose={() => setConfirmOpen(false)}
-        title={`Confirm ${meta.verb.toLowerCase()}`}
+        title={`Confirm ${meta.verb}`}
       >
         <div className="stack g-16">
-          <p className="t-sm muted">{meta.help}</p>
-          <div>
-            <DataRow
-              label="Amount"
-              value={`${formatTokens(toUi(amountNative))} ${unitSymbol}`}
-            />
-            {projectedHf !== null && (
-              <DataRow
-                label="Health factor after"
-                value={(projectedHf / 10_000).toFixed(2)}
-                tone={projectedHf < minBps ? "danger" : "success"}
-              />
-            )}
-          </div>
-          {action === "withdraw" && debt > 0n && (
-            <Notice tone="warning" title="You still have borrowed funds">
-              Withdrawing collateral while you owe money reduces your safety
-              margin.
-            </Notice>
-          )}
-          <div className="row g-8">
-            <Button variant="ghost" block onClick={() => setConfirmOpen(false)}>
+          <p className="t-sm muted">
+            Please review the details below before submitting the transaction to Solana Devnet.
+          </p>
+          <DataRow label="Action" value={meta.verb} />
+          <DataRow
+            label="Amount"
+            value={`${formatTokens(toUi(amountNative))} ${unitSymbol}`}
+          />
+          <DataRow
+            label="Asset Pair"
+            value={`${display.symbol} / ${quoteSymbol}`}
+          />
+          <DataRow
+            label="Health Factor After"
+            value={
+              projectedHf !== null ? (
+                <HealthFactor hfBps={projectedHf} minBps={minBps} size="sm" />
+              ) : (
+                "Infinite (No Debt)"
+              )
+            }
+          />
+          <div className="row g-8" style={{ marginTop: 12 }}>
+            <Button
+              variant="secondary"
+              block
+              onClick={() => setConfirmOpen(false)}
+            >
               Cancel
             </Button>
-            <Button variant="primary" block onClick={submit}>
-              Confirm
+            <Button
+              variant="accent"
+              block
+              loading={tx.busy}
+              onClick={submit}
+            >
+              Confirm & Submit
             </Button>
           </div>
         </div>
@@ -403,7 +444,7 @@ export default function Position() {
       <TransactionModal
         open={txOpen}
         state={tx.state}
-        title={meta.verb}
+        title={meta.title}
         onClose={() => {
           setTxOpen(false);
           tx.reset();

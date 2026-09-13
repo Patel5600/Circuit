@@ -5,6 +5,7 @@ import { CircuitWordmark } from "../brand/CircuitLogo";
 import { WalletButton } from "../wallet/WalletButton";
 import { Icon, IconName, Pill } from "../ui";
 import { CLUSTER, CLUSTER_LABEL } from "../../env";
+import { MarketSelector } from "../market/MarketSelector";
 
 /** Primary destinations, shared by the sidebar and the mobile bottom bar. */
 const PRIMARY: { to: string; label: string; icon: IconName }[] = [
@@ -57,7 +58,8 @@ function Header() {
 
       <span className="grow" data-mobile-spacer />
 
-      <div className="row g-8">
+      <div className="row g-8" style={{ alignItems: "center" }}>
+        <MarketSelector compact />
         <span data-hide-narrow>
           <NetworkPill />
         </span>

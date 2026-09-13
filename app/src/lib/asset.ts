@@ -1,13 +1,12 @@
 import React from "react";
-import { MARKETS_DATA, MarketMetadata } from "../data/markets";
+import { MARKETS_DATA, MarketMetadata, DeployedMarket } from "../data/markets";
 
 /**
  * Display metadata for the asset that is actually registered on-chain.
  *
  * SPL mints carry no symbol on-chain here, so a label has to come from
- * somewhere. It is read from env first, then falls back to the catalogue entry
- * flagged as collateral-enabled, then to a neutral label. Only presentational
- * fields are taken from the catalogue - never price, mint or feed id.
+ * somewhere. It resolves from the active market, then falls back to env,
+ * then to the catalogue entry flagged as collateral-enabled, then to a neutral label.
  */
 export interface AssetDisplay {
   symbol: string;
@@ -20,18 +19,33 @@ function env(key: string): string {
   return v === undefined || v === "" ? "" : String(v);
 }
 
-export function activeAssetDisplay(): AssetDisplay {
-  const catalogue: MarketMetadata | undefined =
-    MARKETS_DATA.find((m) => m.collateralEnabled) ?? MARKETS_DATA[0];
+export function activeAssetDisplay(marketOrSymbol?: DeployedMarket | string): AssetDisplay {
+  const symbol =
+    typeof marketOrSymbol === "string"
+      ? marketOrSymbol
+      : marketOrSymbol?.symbol;
+
+  const catalogue: MarketMetadata | undefined = symbol
+    ? MARKETS_DATA.find((m) => m.symbol === symbol)
+    : (MARKETS_DATA.find((m) => m.collateralEnabled) ?? MARKETS_DATA[0]);
 
   return {
-    symbol: env("VITE_COLLATERAL_SYMBOL") || catalogue?.tokenSymbol || "Collateral",
+    symbol:
+      catalogue?.tokenSymbol ||
+      (typeof marketOrSymbol === "object" ? marketOrSymbol?.tokenSymbol : null) ||
+      env("VITE_COLLATERAL_SYMBOL") ||
+      "Collateral",
     name:
-      env("VITE_COLLATERAL_NAME") ||
       catalogue?.displayName ||
+      (typeof marketOrSymbol === "object" ? marketOrSymbol?.name : null) ||
+      env("VITE_COLLATERAL_NAME") ||
       "Tokenized equity",
     logo: catalogue?.logoSvg,
   };
+}
+
+export function activeQuoteSymbol(market?: DeployedMarket): string {
+  return market?.quoteSymbol || env("VITE_QUOTE_SYMBOL") || "USDC";
 }
 
 export const QUOTE_SYMBOL = env("VITE_QUOTE_SYMBOL") || "USDC";

@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { PublicKey } from "@solana/web3.js";
 import { useWallet } from "@solana/wallet-adapter-react";
 
 import { PageContainer } from "../components/layout/AppShell";
@@ -14,8 +15,10 @@ import {
 } from "../components/ui";
 import { AddressCard } from "../components/technical/AddressCard";
 import { TransactionModal } from "../components/transactions/TransactionModal";
+import { MarketSelector } from "../components/market/MarketSelector";
 import { useProtocolState } from "../hooks/useProtocolState";
 import { useTransaction } from "../hooks/useTransaction";
+import { useMarket } from "../context/MarketContext";
 import {
   CLUSTER,
   EQUITY_MINT,
@@ -25,6 +28,7 @@ import {
   PYTH_RECEIVER_ID,
   QUOTE_MINT,
   RPC_URL,
+  explorerUrl,
 } from "../config";
 import {
   CustodyState,
@@ -43,15 +47,26 @@ import { derivePriceAccount } from "../lib/pyth";
 import { formatMoney } from "../lib/format";
 
 export default function Verify() {
+  const { selectedMarket, markets, selectMarket } = useMarket();
   const s = useProtocolState();
   const { publicKey } = useWallet();
   const tx = useTransaction();
   const [txOpen, setTxOpen] = useState(false);
   const [txTitle, setTxTitle] = useState("Transaction");
 
+  const activeEquityMint = useMemo(
+    () => (selectedMarket.mint ? new PublicKey(selectedMarket.mint) : EQUITY_MINT),
+    [selectedMarket.mint]
+  );
+  const activeQuoteMint = useMemo(
+    () => (selectedMarket.quoteMint ? new PublicKey(selectedMarket.quoteMint) : QUOTE_MINT),
+    [selectedMarket.quoteMint]
+  );
+  const activeFeedId = selectedMarket.feedId || PYTH_FEED_ID;
+
   const priceAccount = useMemo(
-    () => s.oracle?.address ?? derivePriceAccount(PYTH_FEED_ID, 0),
-    [s.oracle]
+    () => s.oracle?.address ?? derivePriceAccount(activeFeedId, 0),
+    [s.oracle, activeFeedId]
   );
 
   const run = async (
@@ -73,7 +88,7 @@ export default function Verify() {
   return (
     <PageContainer
       title="On-chain verification"
-      subtitle="Verify the protocol state directly on Solana. Every address below can be opened in an explorer."
+      subtitle="Verify the protocol state directly on Solana Devnet across all 12 deployed tokenized equity markets."
     >
       <ConfigNotice />
 
@@ -104,7 +119,14 @@ export default function Verify() {
         </Card>
 
         {/* -- Program and accounts ------------------------------------ */}
-        <Card title="Program and accounts">
+        <Card
+          title={
+            <div className="row between g-12 wrap" style={{ alignItems: "center" }}>
+              <span>Program and accounts: {selectedMarket.tokenSymbol} / {selectedMarket.quoteSymbol}</span>
+              <MarketSelector compact />
+            </div>
+          }
+        >
           <div className="grid grid--2">
             <AddressCard
               label="Program"
@@ -122,29 +144,29 @@ export default function Verify() {
               note="Global singleton holding admin authority, pause switch, and min health factor"
             />
             <AddressCard
-              label="Asset config (NVDAx)"
-              address={EQUITY_MINT ? assetConfigPda(EQUITY_MINT) : null}
+              label={`Asset config (${selectedMarket.tokenSymbol})`}
+              address={selectedMarket.assetConfigPda ? new PublicKey(selectedMarket.assetConfigPda) : (activeEquityMint ? assetConfigPda(activeEquityMint) : null)}
               badge="Collateral PDA"
               badgeTone="neutral"
-              seeds={["asset", "NVDAx_mint"]}
-              note="Collateral parameters: 70% base LTV, 80% liquidation threshold, custody & liquidity state"
+              seeds={["asset", `${selectedMarket.tokenSymbol}_mint`]}
+              note={`Collateral parameters: ${(selectedMarket.baseLtvBps / 100).toFixed(0)}% base LTV, ${(selectedMarket.liqThresholdBps / 100).toFixed(0)}% liquidation threshold, custody & liquidity state`}
             />
             <AddressCard
-              label="Market guard"
-              address={marketGuardPda()}
+              label={`Market guard (${selectedMarket.symbol})`}
+              address={selectedMarket.marketGuardPda ? new PublicKey(selectedMarket.marketGuardPda) : marketGuardPda(activeFeedId)}
               badge="Circuit Breaker PDA"
               badgeTone="warning"
               seeds={["guard", "pyth_feed"]}
               note="Deterministic reference-market session gate, Pyth feed binding, and emergency price snapshot"
             />
             <AddressCard
-              label="Your position"
+              label={`Your position (${selectedMarket.tokenSymbol})`}
               address={
-                publicKey && EQUITY_MINT ? positionPda(publicKey, EQUITY_MINT) : null
+                publicKey && activeEquityMint ? positionPda(publicKey, activeEquityMint) : null
               }
               badge="Position PDA"
               badgeTone="success"
-              seeds={["position", "wallet", "NVDAx_mint"]}
+              seeds={["position", "wallet", `${selectedMarket.tokenSymbol}_mint`]}
               note={
                 publicKey
                   ? "Isolated borrower account tracking deposited collateral and borrowed debt"
@@ -152,15 +174,15 @@ export default function Verify() {
               }
             />
             <AddressCard
-              label="Collateral mint (NVDAx)"
-              address={EQUITY_MINT}
+              label={`Collateral mint (${selectedMarket.tokenSymbol})`}
+              address={activeEquityMint}
               badge="SPL Token (6 dec)"
               badgeTone="neutral"
-              note="Accepted collateral token mint representing tokenized equity"
+              note={`Accepted collateral token mint representing tokenized ${selectedMarket.name}`}
             />
             <AddressCard
-              label="Quote mint (USDC)"
-              address={QUOTE_MINT}
+              label={`Quote mint (${selectedMarket.quoteSymbol})`}
+              address={activeQuoteMint}
               badge="SPL Token (6 dec)"
               badgeTone="neutral"
               note="Lendable quote token mint issued on borrow and repaid to clear debt"
@@ -176,20 +198,20 @@ export default function Verify() {
           </p>
           <div className="grid grid--2">
             <AddressCard
-              label="Collateral vault"
-              address={EQUITY_MINT ? vaultFor(EQUITY_MINT) : null}
+              label={`Collateral vault (${selectedMarket.tokenSymbol})`}
+              address={selectedMarket.collateralVault ? new PublicKey(selectedMarket.collateralVault) : (activeEquityMint ? vaultFor(activeEquityMint) : null)}
               badge="Vault ATA"
               badgeTone="neutral"
-              balance={`${formatMoney(toUi(s.vaultCollateral), 4)} NVDAx`}
-              note="Holds deposited collateral tokens, locked on-chain by the ProtocolConfig PDA"
+              balance={`${formatMoney(toUi(s.vaultCollateral), 4)} ${selectedMarket.tokenSymbol}`}
+              note={`Holds deposited ${selectedMarket.tokenSymbol} collateral, locked on-chain by the ProtocolConfig PDA`}
             />
             <AddressCard
-              label="Liquidity vault"
-              address={QUOTE_MINT ? vaultFor(QUOTE_MINT) : null}
+              label={`Liquidity vault (${selectedMarket.quoteSymbol})`}
+              address={selectedMarket.liquidityVault ? new PublicKey(selectedMarket.liquidityVault) : (activeQuoteMint ? vaultFor(activeQuoteMint) : null)}
               badge="Vault ATA"
               badgeTone="success"
-              balance={`$${formatMoney(toUi(s.vaultLiquidity))} USDC`}
-              note="Holds lendable capital to fund user borrow operations"
+              balance={`${formatMoney(toUi(s.vaultLiquidity))} ${selectedMarket.quoteSymbol}`}
+              note={`Holds lendable ${selectedMarket.quoteSymbol} capital to fund user borrow operations`}
             />
           </div>
         </Card>
@@ -241,9 +263,9 @@ export default function Verify() {
                 background: "var(--bg-elevated)",
               }}
             >
-              <span className="t-label">Feed id</span>
+              <span className="t-label">Feed id ({selectedMarket.symbol})</span>
               <span className="mono" style={{ fontSize: 12, overflowWrap: "anywhere" }}>
-                {PYTH_FEED_ID}
+                {activeFeedId}
               </span>
             </div>
           </div>
@@ -394,6 +416,104 @@ export default function Verify() {
           ) : (
             <p className="t-sm muted">Asset configuration not available.</p>
           )}
+        </Card>
+
+        {/* -- All 12 Deployed Markets Directory ------------------------ */}
+        <Card
+          title="All 12 Live On-Chain Devnet Markets"
+          action={<Pill tone="success" withDot>12 LIVE MARKETS</Pill>}
+        >
+          <p className="t-sm muted" style={{ marginTop: 0, marginBottom: 14 }}>
+            Every market below is deployed and initialized on Solana Devnet with Anchor program{" "}
+            <code className="mono">{PROGRAM_ID.toBase58().slice(0, 8)}...</code>. Click &quot;Inspect&quot; to load that market&apos;s on-chain PDAs and price feed above.
+          </p>
+
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid var(--border-strong)", textAlign: "left", color: "var(--text-3)" }}>
+                  <th style={{ padding: "8px 10px" }}>Market</th>
+                  <th style={{ padding: "8px 10px" }}>Quote</th>
+                  <th style={{ padding: "8px 10px" }}>Collateral Mint</th>
+                  <th style={{ padding: "8px 10px" }}>AssetConfig PDA</th>
+                  <th style={{ padding: "8px 10px" }}>Collateral Vault</th>
+                  <th style={{ padding: "8px 10px", textAlign: "right" }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {markets.map((m) => {
+                  const active =
+                    m.symbol === selectedMarket.symbol &&
+                    m.quoteSymbol === selectedMarket.quoteSymbol;
+
+                  return (
+                    <tr
+                      key={`${m.symbol}-${m.quoteSymbol}`}
+                      style={{
+                        borderBottom: "1px solid var(--border)",
+                        background: active ? "var(--surface-2)" : "transparent",
+                      }}
+                    >
+                      <td style={{ padding: "10px 10px", fontWeight: 700 }}>
+                        <div className="row g-6" style={{ alignItems: "center" }}>
+                          <span>{m.tokenSymbol}</span>
+                          {active && <Pill tone="accent">ACTIVE</Pill>}
+                        </div>
+                        <div style={{ fontSize: 11, color: "var(--text-3)", fontWeight: 400 }}>
+                          {m.name}
+                        </div>
+                      </td>
+                      <td style={{ padding: "10px 10px" }}>
+                        <Pill tone={m.quoteSymbol === "WSOL" ? "accent" : "neutral"}>
+                          {m.quoteSymbol}
+                        </Pill>
+                      </td>
+                      <td style={{ padding: "10px 10px" }} className="mono">
+                        <a
+                          href={explorerUrl("address", m.mint)}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ color: "var(--accent)" }}
+                        >
+                          {m.mint.slice(0, 4)}...{m.mint.slice(-4)}
+                        </a>
+                      </td>
+                      <td style={{ padding: "10px 10px" }} className="mono">
+                        <a
+                          href={explorerUrl("address", m.assetConfigPda)}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ color: "var(--text-2)" }}
+                        >
+                          {m.assetConfigPda.slice(0, 4)}...{m.assetConfigPda.slice(-4)}
+                        </a>
+                      </td>
+                      <td style={{ padding: "10px 10px" }} className="mono">
+                        <a
+                          href={explorerUrl("address", m.collateralVault)}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ color: "var(--text-2)" }}
+                        >
+                          {m.collateralVault.slice(0, 4)}...{m.collateralVault.slice(-4)}
+                        </a>
+                      </td>
+                      <td style={{ padding: "10px 10px", textAlign: "right" }}>
+                        <button
+                          type="button"
+                          className={`btn ${active ? "btn--accent" : "btn--secondary"} btn--sm`}
+                          style={{ padding: "3px 8px", fontSize: 11.5 }}
+                          onClick={() => selectMarket(m.symbol, m.quoteSymbol)}
+                        >
+                          {active ? "Inspecting" : "Inspect"}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </Card>
 
         {/* -- Demo controls ------------------------------------------- */}

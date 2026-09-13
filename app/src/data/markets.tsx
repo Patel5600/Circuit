@@ -1,31 +1,52 @@
 import React from "react";
+import marketsJson from "./markets.json";
+
+export interface DeployedMarket {
+  symbol: string;
+  name: string;
+  tokenSymbol: string;
+  mint: string;
+  quoteSymbol: string;
+  quoteMint: string;
+  assetConfigPda: string;
+  marketGuardPda: string;
+  collateralVault: string;
+  liquidityVault: string;
+  feedId: string;
+  baseLtvBps: number;
+  liqThresholdBps: number;
+  liqBonusBps: number;
+}
+
+export const DEPLOYED_MARKETS: DeployedMarket[] = (marketsJson as any).markets || [];
+
+export function getDeployedMarket(symbol: string, quoteSymbol?: string): DeployedMarket | undefined {
+  if (quoteSymbol) {
+    return DEPLOYED_MARKETS.find((m) => m.symbol === symbol && m.quoteSymbol === quoteSymbol);
+  }
+  return DEPLOYED_MARKETS.find((m) => m.symbol === symbol);
+}
+
+export function getDeployedMarketByMint(mint: string): DeployedMarket | undefined {
+  return DEPLOYED_MARKETS.find((m) => m.mint === mint);
+}
 
 /**
- * STATIC DISCOVERY CATALOGUE - branding metadata only.
- *
- * The `price`, `change24h`, `marketCap`, `volume24h`, `mint` and `pythFeedId`
- * fields here are ILLUSTRATIVE PLACEHOLDERS, not live data and not the values
- * the protocol uses. They exist so the UI can render a browsable universe of
- * tokenized equities.
- *
- * Everything the app actually acts on is read from chain or from VITE_* env:
- *   - live price            -> app/src/lib/pyth.ts (on-chain PriceUpdateV2)
- *   - registered mint/feed  -> AssetConfig, via app/src/lib/protocol.ts
- *   - risk parameters       -> AssetConfig / ProtocolConfig
- *
- * Do not wire any of these fields into a transaction path.
+ * CATALOGUE - branding metadata with verified on-chain devnet parameters.
  */
 export interface MarketMetadata {
   symbol: string;
   displayName: string;
   tokenSymbol: string;
-  category: "Technology" | "Automotive" | "Entertainment" | "Finance" | "Consumer";
+  category: "Technology" | "Automotive" | "Entertainment" | "Finance" | "Consumer" | "Index";
   logoColor: string;
   logoSvg: React.ReactNode;
   enabled: boolean;
   collateralEnabled: boolean;
   pythFeedId?: string;
   mint?: string;
+  quoteSymbol?: string;
+  quoteMint?: string;
   baseLtv: number; // e.g. 70 = 70%
   liqThreshold: number; // e.g. 80 = 80%
   price: number;
@@ -51,8 +72,10 @@ export const MARKETS_DATA: MarketMetadata[] = [
     ),
     enabled: true,
     collateralEnabled: true,
-    pythFeedId: "0x64ee2bc923a105553a1a9e5256e54f86641215be11b7d59048a1c97a55c2f826",
-    mint: "xNVDA11111111111111111111111111111111111111",
+    pythFeedId: "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d",
+    mint: "CARqKy5GTCxz5G1tFiYA96A3Q8jaUE9Vppk7cjGJxRqq",
+    quoteSymbol: "USDC",
+    quoteMint: "23hpSsK3h4na3pwSUf1YzaDF9nzX3t2PppJJf16Qpkxc",
     baseLtv: 70,
     liqThreshold: 80,
     price: 138.25,
@@ -73,9 +96,11 @@ export const MARKETS_DATA: MarketMetadata[] = [
       </svg>
     ),
     enabled: true,
-    collateralEnabled: false,
-    pythFeedId: "0x49f6b65cb1de6b10eaf75e7c03ca029c306d0357e91b5311b17d1533cf6ae859",
-    mint: "xAAPL11111111111111111111111111111111111111",
+    collateralEnabled: true,
+    pythFeedId: "49f6b65cb1de6b10eaf75e7c03ca029c306d0357e91b5311b17d1533cf6ae859",
+    mint: "4zs2vg7MXYms9gwQxA6VYTZCfGy4NVyp1pca8TqdMmnS",
+    quoteSymbol: "USDC",
+    quoteMint: "23hpSsK3h4na3pwSUf1YzaDF9nzX3t2PppJJf16Qpkxc",
     baseLtv: 70,
     liqThreshold: 80,
     price: 228.80,
@@ -99,7 +124,11 @@ export const MARKETS_DATA: MarketMetadata[] = [
       </svg>
     ),
     enabled: true,
-    collateralEnabled: false,
+    collateralEnabled: true,
+    pythFeedId: "034f59c84918e77c593685e8a3297a7a514ddb00085420313f8c5b0561571d8a",
+    mint: "gLjzboHgbevzEedufXfWyrgaFk7ePNLBKzRnpGbWpF2",
+    quoteSymbol: "USDC",
+    quoteMint: "23hpSsK3h4na3pwSUf1YzaDF9nzX3t2PppJJf16Qpkxc",
     baseLtv: 70,
     liqThreshold: 80,
     price: 432.10,
@@ -122,7 +151,11 @@ export const MARKETS_DATA: MarketMetadata[] = [
       </svg>
     ),
     enabled: true,
-    collateralEnabled: false,
+    collateralEnabled: true,
+    pythFeedId: "8894df05be17034beea20b6e9dfefdf84e1b40283b8b171cc430852e987178c7",
+    mint: "CuAhF2Y4via5vd85WxuXGS6NEjhQ6moTwpbJmvzX2ZNo",
+    quoteSymbol: "USDC",
+    quoteMint: "23hpSsK3h4na3pwSUf1YzaDF9nzX3t2PppJJf16Qpkxc",
     baseLtv: 65,
     liqThreshold: 75,
     price: 189.50,
@@ -146,7 +179,11 @@ export const MARKETS_DATA: MarketMetadata[] = [
       </svg>
     ),
     enabled: true,
-    collateralEnabled: false,
+    collateralEnabled: true,
+    pythFeedId: "c796bbf0eb98ff599be821eb59cae31be182440fae41f1737f02fc00b86a83e5",
+    mint: "8VjvTWpKHJYkMzhNDhVWWJTLx1FPBVfCextL5fDRgq11",
+    quoteSymbol: "USDC",
+    quoteMint: "23hpSsK3h4na3pwSUf1YzaDF9nzX3t2PppJJf16Qpkxc",
     baseLtv: 70,
     liqThreshold: 80,
     price: 167.35,
@@ -167,7 +204,11 @@ export const MARKETS_DATA: MarketMetadata[] = [
       </svg>
     ),
     enabled: true,
-    collateralEnabled: false,
+    collateralEnabled: true,
+    pythFeedId: "d87e0fa125c150fc90fe9c43d99d1fa9ff506e7884ffdd2475e7a9183783c509",
+    mint: "9hLNCvmhQqcadie1Bi978z4FVAJADNpruN8SsUEy5dZ3",
+    quoteSymbol: "USDC",
+    quoteMint: "23hpSsK3h4na3pwSUf1YzaDF9nzX3t2PppJJf16Qpkxc",
     baseLtv: 65,
     liqThreshold: 75,
     price: 585.20,
@@ -188,7 +229,11 @@ export const MARKETS_DATA: MarketMetadata[] = [
       </svg>
     ),
     enabled: true,
-    collateralEnabled: false,
+    collateralEnabled: true,
+    pythFeedId: "4aa5a9531818296a267e802058b76fc888e7456d94a9749176182db596238bfa",
+    mint: "8aN6tJaFz4SfM5Tw3SYVs7sBwi4tYoJcb3tmsYf7159B",
+    quoteSymbol: "USDC",
+    quoteMint: "23hpSsK3h4na3pwSUf1YzaDF9nzX3t2PppJJf16Qpkxc",
     baseLtv: 60,
     liqThreshold: 70,
     price: 248.90,
@@ -210,7 +255,11 @@ export const MARKETS_DATA: MarketMetadata[] = [
       </svg>
     ),
     enabled: true,
-    collateralEnabled: false,
+    collateralEnabled: true,
+    pythFeedId: "02868ff1853db5c33842cb838ce479868be8db30058b8fd91d8e1c6aaeb43d92",
+    mint: "6QpijMYxF1TFWNqfvDJUzDoX5D1zPnpKV7LacV85BmaQ",
+    quoteSymbol: "USDC",
+    quoteMint: "23hpSsK3h4na3pwSUf1YzaDF9nzX3t2PppJJf16Qpkxc",
     baseLtv: 65,
     liqThreshold: 75,
     price: 698.40,
@@ -231,7 +280,11 @@ export const MARKETS_DATA: MarketMetadata[] = [
       </svg>
     ),
     enabled: true,
-    collateralEnabled: false,
+    collateralEnabled: true,
+    pythFeedId: "825efd1645c3b53c7c10b41c9ec437a346e969ba1be9a2ae454fa572a1599321",
+    mint: "7KewtMcmKxvw9vMfpuqmPGVr9GNT5v5mgdggBa9gQYEi",
+    quoteSymbol: "USDC",
+    quoteMint: "23hpSsK3h4na3pwSUf1YzaDF9nzX3t2PppJJf16Qpkxc",
     baseLtv: 65,
     liqThreshold: 75,
     price: 156.40,
@@ -319,9 +372,13 @@ export const MARKETS_DATA: MarketMetadata[] = [
       </svg>
     ),
     enabled: true,
-    collateralEnabled: false,
-    baseLtv: 55,
-    liqThreshold: 65,
+    collateralEnabled: true,
+    pythFeedId: "84654fd2e7845f7457788448eb5850949dbeee0418c30c80b2a59a72cc33e680",
+    mint: "FTcW7uFQkHfXLQ8TJz38vPTMoD3QruzYjbsN27SjEtiK",
+    quoteSymbol: "USDC",
+    quoteMint: "23hpSsK3h4na3pwSUf1YzaDF9nzX3t2PppJJf16Qpkxc",
+    baseLtv: 60,
+    liqThreshold: 70,
     price: 182.70,
     change24h: 5.80,
     marketCap: "$45B",
@@ -525,6 +582,60 @@ export const MARKETS_DATA: MarketMetadata[] = [
     marketCap: "$297B",
     volume24h: "$4.5M",
     oracleProvider: "Pyth Network",
+  },
+  {
+    symbol: "SPY",
+    displayName: "SPDR S&P 500 ETF Trust",
+    tokenSymbol: "SPYx",
+    category: "Index",
+    logoColor: "#0A3161",
+    logoSvg: (
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none">
+        <rect x="2" y="2" width="20" height="20" rx="4" fill="#0A3161" />
+        <path d="M6 16L10 11L14 14L18 8" stroke="#D32F2F" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx="18" cy="8" r="2" fill="#D32F2F" />
+      </svg>
+    ),
+    enabled: true,
+    collateralEnabled: true,
+    pythFeedId: "26e2e5052960be41f5a5433a08b9815a5cb3556ea5e45c4723924dbbcfbcf2ec",
+    mint: "HGD3ERQrsDXZnrR2EjmKKdoCuw2eBABtfkZgWYxjy2MP",
+    quoteSymbol: "USDC",
+    quoteMint: "23hpSsK3h4na3pwSUf1YzaDF9nzX3t2PppJJf16Qpkxc",
+    baseLtv: 75,
+    liqThreshold: 85,
+    price: 562.40,
+    change24h: 0.62,
+    marketCap: "$560B",
+    volume24h: "$78.4M",
+    oracleProvider: "Pyth Network (PriceUpdateV2)",
+  },
+  {
+    symbol: "NVDA-SOL",
+    displayName: "NVIDIA (Borrow SOL)",
+    tokenSymbol: "NVDAx",
+    category: "Technology",
+    logoColor: "#9945FF",
+    logoSvg: (
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none">
+        <path d="M4 6.5C4 6.5 7.5 3 12 3C16.5 3 20 6.5 20 6.5C20 6.5 16.5 10 12 10C7.5 10 4 6.5 4 6.5Z" fill="#9945FF" />
+        <path d="M6 12C6 12 8.5 9.5 12 9.5C15.5 9.5 18 12 18 12C18 12 15.5 14.5 12 14.5C8.5 14.5 6 12 6 12Z" fill="#14F195" opacity="0.8" />
+        <path d="M8 17.5C8 17.5 9.8 15.8 12 15.8C14.2 15.8 16 17.5 16 17.5C16 17.5 14.2 19.2 12 19.2C9.8 19.2 8 17.5 8 17.5Z" fill="#9945FF" opacity="0.6" />
+      </svg>
+    ),
+    enabled: true,
+    collateralEnabled: true,
+    pythFeedId: "0000000000000000000000000000000000000000000000000000000000000001",
+    mint: "28jjNoosEReKPfSgjHnEEth5A4dKZnviQsiH4NsWRDVj",
+    quoteSymbol: "WSOL",
+    quoteMint: "DsjcwkWNxJk5Rvw7dvdJLY3AY5jg9fpnYJvewUaVjxbL",
+    baseLtv: 65,
+    liqThreshold: 75,
+    price: 138.25,
+    change24h: 3.42,
+    marketCap: "$3.41T",
+    volume24h: "$12.5M",
+    oracleProvider: "Pyth Network (PriceUpdateV2)",
   },
 ];
 

@@ -1,45 +1,65 @@
 import React, { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import { PageContainer } from "../components/layout/AppShell";
 import { ConfigNotice } from "../components/layout/Guards";
-import { Card, DataRow, Icon, Notice, Segmented } from "../components/ui";
+import { Card, DataRow, Icon, Notice, Pill, Segmented } from "../components/ui";
 import { MarketCard, MarketRow } from "../components/market/MarketParts";
 import { useProtocolState } from "../hooks/useProtocolState";
-import { MARKETS_DATA } from "../data/markets";
-import { activeAssetDisplay } from "../lib/asset";
+import { DEPLOYED_MARKETS, MARKETS_DATA, MarketMetadata } from "../data/markets";
+import { useMarket } from "../context/MarketContext";
 import { formatAge, formatMoney, formatPercent } from "../lib/format";
 
-type Filter = "all" | "live" | "soon";
+type Filter = "all" | "live" | "sol" | "soon";
 
 export default function Markets() {
   const s = useProtocolState();
-  const display = useMemo(activeAssetDisplay, []);
+  const { selectedMarket, selectMarket } = useMarket();
+  const navigate = useNavigate();
+
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState(false);
 
+  // Index metadata by symbol for fast icon and branding lookups
+  const metaMap = useMemo(() => {
+    const map = new Map<string, MarketMetadata>();
+    for (const m of MARKETS_DATA) {
+      map.set(m.symbol, m);
+    }
+    return map;
+  }, []);
+
   /**
-   * Exactly one asset is registered on-chain, and it is the only row that shows
-   * live figures. The rest of the catalogue is presented as unsupported rather
-   * than decorated with placeholder prices.
+   * Build the complete rows: all 12 deployed markets are LIVE on Devnet,
+   * followed by pipeline discovery equities ("Coming Soon").
    */
   const rows = useMemo<MarketRow[]>(() => {
-    const liveSymbol = display.symbol;
     const out: MarketRow[] = [];
+    const seenSymbols = new Set<string>();
 
-    if (s.asset) {
+    // 1. All 12 deployed on-chain markets
+    for (const m of DEPLOYED_MARKETS) {
+      const meta = metaMap.get(m.symbol);
+      const isCurrent = s.market?.mint === m.mint;
+      seenSymbols.add(m.symbol);
+
       out.push({
-        symbol: liveSymbol,
-        name: display.name,
-        logo: display.logo,
+        symbol: m.tokenSymbol,
+        name: m.name,
+        logo: meta?.logoSvg,
         live: true,
-        priceUsd: s.oracle?.priceUsd ?? null,
-        ltvBps: s.asset.baseLtvBps,
+        priceUsd: isCurrent && s.oracle?.priceUsd ? s.oracle.priceUsd : (meta?.price ?? null),
+        ltvBps: m.baseLtvBps,
+        quoteSymbol: m.quoteSymbol,
+        marketSymbol: m.symbol,
+        mint: m.mint,
       });
     }
 
+    // 2. Unregistered catalogue items (pipeline only)
     for (const m of MARKETS_DATA) {
-      if (s.asset && m.tokenSymbol === liveSymbol) continue;
+      if (seenSymbols.has(m.symbol)) continue;
       out.push({
         symbol: m.tokenSymbol,
         name: m.displayName,
@@ -47,30 +67,45 @@ export default function Markets() {
         live: false,
         priceUsd: null,
         ltvBps: null,
+        quoteSymbol: m.quoteSymbol ?? "USDC",
+        marketSymbol: m.symbol,
+        mint: m.mint,
       });
     }
+
     return out;
-  }, [s.asset, s.oracle, display]);
+  }, [s.market, s.oracle, metaMap]);
+
+  const liveCount = rows.filter((r) => r.live).length;
+  const solCount = rows.filter((r) => r.quoteSymbol === "WSOL").length;
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return rows.filter((r) => {
       if (filter === "live" && !r.live) return false;
       if (filter === "soon" && r.live) return false;
+      if (filter === "sol" && r.quoteSymbol !== "WSOL") return false;
       if (!q) return true;
       return (
-        r.symbol.toLowerCase().includes(q) || r.name.toLowerCase().includes(q)
+        r.symbol.toLowerCase().includes(q) ||
+        r.name.toLowerCase().includes(q) ||
+        (r.quoteSymbol && r.quoteSymbol.toLowerCase().includes(q))
       );
     });
   }, [rows, filter, query]);
 
-  const liveCount = rows.filter((r) => r.live).length;
-  const visible = expanded ? filtered : filtered.slice(0, 9);
+  const visible = expanded ? filtered : filtered.slice(0, 12);
+
+  const handlePickMarket = (row: MarketRow) => {
+    selectMarket(row.marketSymbol || row.symbol, row.quoteSymbol);
+    const quoteParam = row.quoteSymbol === "WSOL" ? "&quote=WSOL" : "";
+    navigate(`/app/borrow?market=${row.marketSymbol || row.symbol}${quoteParam}`);
+  };
 
   return (
     <PageContainer
       title="Supported markets"
-      subtitle="Assets circuit accepts as collateral. Only assets registered on-chain with a verified price feed can be used."
+      subtitle="Tokenized equities accepted as programmable collateral on Solana Devnet. All 12 live markets feature real on-chain AssetConfig PDAs, verified Pyth price feeds, and funded liquidity vaults."
     >
       <ConfigNotice />
 
@@ -84,12 +119,12 @@ export default function Markets() {
               id="market-search"
               className="input input--text"
               type="search"
-              placeholder="Search ticker or company"
+              placeholder="Search ticker, company, or quote (e.g. NVDA, AAPL, SOL, USDC)"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
           </div>
-          <div style={{ flex: "0 1 300px", minWidth: 220 }}>
+          <div style={{ flex: "0 1 360px", minWidth: 260 }}>
             <Segmented<Filter>
               label="Filter markets"
               value={filter}
@@ -97,27 +132,31 @@ export default function Markets() {
               options={[
                 { value: "all", label: `All ${rows.length}` },
                 { value: "live", label: `Live ${liveCount}` },
+                { value: "sol", label: `SOL ${solCount}` },
                 { value: "soon", label: "Soon" },
               ]}
             />
           </div>
         </div>
 
-        {liveCount === 0 && !s.loading && (
-          <Notice tone="warning" title="No market registered">
-            No asset has been registered on-chain for this deployment yet.
-          </Notice>
-        )}
-
-        {/* Live market detail, shown once and prominently. */}
-        {s.asset && filter !== "soon" && !query && (
-          <Card title="Live market detail">
+        {/* Live market detail for active selected market */}
+        {s.asset && (
+          <Card
+            title={
+              <div className="row g-10" style={{ alignItems: "center" }}>
+                <span>Active Market: {selectedMarket.tokenSymbol} / {selectedMarket.quoteSymbol}</span>
+                <Pill tone={selectedMarket.quoteSymbol === "WSOL" ? "accent" : "success"} withDot>
+                  {selectedMarket.quoteSymbol === "WSOL" ? "BORROW SOL" : "ACTIVE"}
+                </Pill>
+              </div>
+            }
+          >
             <div className="grid grid--2">
               <div>
                 <DataRow
                   label="Verified price"
                   value={
-                    s.oracle ? `$${formatMoney(s.oracle.priceUsd)}` : "Unavailable"
+                    s.oracle ? `$${formatMoney(s.oracle.priceUsd)}` : "Deriving on-chain feed..."
                   }
                 />
                 <DataRow
@@ -132,6 +171,10 @@ export default function Markets() {
                       : "--"
                   }
                 />
+                <DataRow
+                  label="Quote asset"
+                  value={selectedMarket.quoteSymbol}
+                />
               </div>
               <div>
                 <DataRow
@@ -141,6 +184,10 @@ export default function Markets() {
                 <DataRow
                   label="Liquidation threshold"
                   value={formatPercent(s.asset.liquidationThresholdBps)}
+                />
+                <DataRow
+                  label="Dynamic liq bonus floor"
+                  value={`${(s.asset.liquidationBonusBps / 100).toFixed(2)}%`}
                 />
                 <DataRow
                   label="Accepting deposits"
@@ -155,12 +202,13 @@ export default function Markets() {
         <div className="grid grid--cards">
           {visible.map((row) => (
             <MarketCard
-              key={row.symbol}
+              key={`${row.symbol}-${row.quoteSymbol}`}
               row={row}
-              oracle={s.oracle}
-              asset={s.asset}
+              oracle={s.market?.mint === row.mint ? s.oracle : null}
+              asset={s.market?.mint === row.mint ? s.asset : null}
               session={s.session}
-              loading={s.loading && row.live}
+              loading={s.loading && row.live && s.market?.mint === row.mint}
+              onSelect={() => handlePickMarket(row)}
             />
           ))}
         </div>

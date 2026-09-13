@@ -136,7 +136,7 @@ export async function fetchOracle(
   referenceUnixSeconds: number,
   feedHex = PYTH_FEED_ID
 ): Promise<OracleSnapshot | null> {
-  if (PYTH_PRICE_ACCOUNT) {
+  if (PYTH_PRICE_ACCOUNT && feedHex === PYTH_FEED_ID) {
     const info = await conn.getAccountInfo(PYTH_PRICE_ACCOUNT);
     if (!info || !info.owner.equals(PYTH_RECEIVER_ID)) return null;
     const update = decodePriceUpdateV2(new Uint8Array(info.data));
