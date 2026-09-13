@@ -473,20 +473,31 @@ describe("Circuit Protocol", () => {
       expectAnchorError(res, "InvalidCustodyState");
     });
 
-    it("still allows borrowing when custody is only delayed", async () => {
-      h.sendOk([await h.ixSetCustody("delayed")], [h.admin]);
-      h.sendOk([await h.ixBorrow(100 * TOKEN)], [h.user]);
+    it("blocks borrow when custody is Delayed (Restricted state)", async () => {
+      // Delayed custody means settlement integrity is uncertain.
+      // Architecture doc §9 priority table: Delayed → Restricted → borrow blocked.
+      // This must be enforced in the instruction, not just the cached MarketGuard.
+      await h.sendOk([await h.ixSetCustody("delayed")], [h.admin]);
+      const res = h.send([await h.ixBorrow(100 * TOKEN)], [h.user]);
+      expectAnchorError(res, "InvalidCustodyState");
     });
 
     it("restores borrowing once custody returns to healthy", async () => {
-      h.sendOk([await h.ixSetCustody("impaired")], [h.admin]);
+      // Verify both Impaired and Delayed block, and Healthy restores access
+      await h.sendOk([await h.ixSetCustody("impaired")], [h.admin]);
       expectAnchorError(
         h.send([await h.ixBorrow(100 * TOKEN)], [h.user]),
         "InvalidCustodyState"
       );
 
-      h.sendOk([await h.ixSetCustody("healthy")], [h.admin]);
-      h.sendOk([await h.ixBorrow(100 * TOKEN)], [h.user]);
+      await h.sendOk([await h.ixSetCustody("delayed")], [h.admin]);
+      expectAnchorError(
+        h.send([await h.ixBorrow(100 * TOKEN)], [h.user]),
+        "InvalidCustodyState"
+      );
+
+      await h.sendOk([await h.ixSetCustody("healthy")], [h.admin]);
+      await h.sendOk([await h.ixBorrow(100 * TOKEN)], [h.user]);
     });
   });
 
@@ -685,9 +696,12 @@ describe("Circuit Protocol", () => {
       expectAnchorError(res, "NotLiquidatable");
     });
 
-    it("full-clears an unhealthy position and pays the liquidator a bonus", async () => {
+    it("full-clears an unhealthy position and pays the liquidator a dynamic severity-scaled bonus", async () => {
       // Price falls to $80: collateral value $800 backing $700 of debt.
       // HF = 800 * 0.80 / 700 = 0.9142 => 9142 bps, below the 10000 minimum.
+      // Shortfall = 10000 - 9142 = 858 bps.
+      // Dynamic bonus = 500 bps (floor) + (858 * 1000 / 10000) = 500 + 85 = 585 bps (5.85%).
+      // debt_with_bonus = 700 * 1.0585 = $740.95; at $80/token that is 9.261875 tokens.
       h.setPrice({ priceUsd: 80 });
 
       const liqQuoteBefore = h.tokenBalance(h.liquidatorQuoteAta);
@@ -695,8 +709,7 @@ describe("Circuit Protocol", () => {
 
       h.sendOk([await h.ixLiquidate()], [h.liquidator]);
 
-      // debt_with_bonus = 700 * 1.05 = $735; at $80/token that is 9.1875 tokens.
-      const expectedSeizure = BigInt(9_187_500);
+      const expectedSeizure = BigInt(9_261_875);
 
       const pos = h.fetch<any>("Position", h.position);
       assert.equal(pos.debtAmount.toNumber(), 0, "debt fully cleared");
@@ -705,7 +718,7 @@ describe("Circuit Protocol", () => {
         String(BigInt(COLLATERAL) - expectedSeizure)
       );
 
-      // Liquidator paid the debt and received the discounted collateral.
+      // Liquidator paid the debt and received the dynamic severity-discounted collateral.
       assert.equal(
         h.tokenBalance(h.liquidatorQuoteAta),
         liqQuoteBefore - BigInt(CAPACITY)
@@ -714,6 +727,23 @@ describe("Circuit Protocol", () => {
         h.tokenBalance(h.liquidatorEquityAta),
         liqCollBefore + expectedSeizure
       );
+    });
+
+    it("scales liquidation bonus dynamically with distress severity", async () => {
+      // Deeper crash ($60 instead of $80) yields a strictly higher liquidation bonus
+      // HF = 600 * 0.80 / 700 = 0.6857 => 6857 bps.
+      // Shortfall = 10000 - 6857 = 3143 bps.
+      // Dynamic bonus = 500 + (3143 * 1000 / 10000) = 500 + 314 = 814 bps (8.14%).
+      // debt_with_bonus = 700 * 1.0814 = $756.98.
+      // At $60/token, seizure = 756.98 / 60 = 12.616333 tokens (capped at available 10.0 tokens).
+      h.setPrice({ priceUsd: 60 });
+
+      h.sendOk([await h.ixLiquidate()], [h.liquidator]);
+
+      const pos = h.fetch<any>("Position", h.position);
+      assert.equal(pos.debtAmount.toNumber(), 0, "debt fully cleared");
+      // Seizure capped at total collateral (10.0 tokens)
+      assert.equal(pos.collateralAmount.toNumber(), 0, "entire collateral seized under severe crash");
     });
 
     it("is permitted while the protocol is paused (solvency protection)", async () => {

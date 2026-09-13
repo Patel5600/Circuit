@@ -97,9 +97,9 @@ Every item is marked with its readiness state, a description of the current MVP 
 - **Current MVP**: Volatility is not calculated; only Pyth spot confidence width is checked.
 - **Production Requirement**: Integrate historical realized volatility tracking (onchain TWAP volatility or signed volatility oracle) to dynamically expand margin requirements ahead of turbulent trading sessions.
 
-### [ ] 18. Dynamic Partial Liquidation Support
-- **Current MVP**: 100% full liquidation only via [`liquidate.rs`](file:///c:/Dev/Circuit/programs/circuit/src/instructions/liquidate.rs).
-- **Production Requirement**: Implement partial close factor (e.g., 20%–50% close factor per liquidation) to prevent cascading borrower losses and minimize market impact during minor health factor dips.
+### [x] 18. Dynamic Liquidation Bonus & Dutch Auction Roadmap
+- **Current MVP (Tier 1 Implemented)**: Dynamic severity-scaled liquidation bonus (`calculate_dynamic_liquidation_bonus`) scaling from base floor (`asset.effective_liquidation_bonus`, 500 BPS) up to 1,500 BPS based on health factor shortfall.
+- **Production Requirement (Tier 2)**: Deploy time-ramped Dutch auction liquidation mechanism (`mark_liquidatable` crank + slot-based discount ramp) to eliminate MEV bot latency races, along with partial liquidation (close factor 20%–50%) to prevent borrower over-penalization during flash market dips.
 
 ### [ ] 19. Exhaustive Liquidation Stress Tests
 - **Current MVP**: Single-position liquidation test scenarios in unit tests.

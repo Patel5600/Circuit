@@ -12,8 +12,25 @@ pub mod state;
 use instructions::*;
 use state::*;
 
-// Program ID - updated after first `anchor build`
+// Program ID — `anchor keys sync` keeps this in sync with target/deploy/circuit-keypair.json
 declare_id!("Cq4Lvd6Kgr3a2aP6ENPVGQ8tUpbkGmoWr9ZDBdXGiTs2");
+
+// On-chain security contact embedded in the deployed binary.
+// Solana Explorer and tooling can extract this without executing the program.
+// See: https://github.com/solana-labs/solana-security-txt
+#[cfg(not(feature = "no-entrypoint"))]
+use solana_security_txt::security_txt;
+
+#[cfg(not(feature = "no-entrypoint"))]
+security_txt! {
+    name: "Circuit Protocol",
+    project_url: "https://github.com/Patel5600/Circuit",
+    contacts: "github:Patel5600/Circuit/issues",
+    policy: "https://github.com/Patel5600/Circuit/blob/main/docs/SECURITY.md",
+    preferred_languages: "en",
+    source_code: "https://github.com/Patel5600/Circuit",
+    auditors: "None — devnet MVP, see MAINNET_READINESS.md before production"
+}
 
 /// Circuit Protocol - Programmable collateral for tokenized equities on Solana.
 ///

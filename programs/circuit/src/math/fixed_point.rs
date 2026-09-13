@@ -218,6 +218,58 @@ pub fn calculate_liquidation_collateral(
 }
 
 // --------------------------------------------------------------
+// Dynamic Severity-Scaled Liquidation Bonus
+// --------------------------------------------------------------
+
+/// Calculates the dynamic severity-scaled liquidation bonus in BPS.
+///
+/// Formula:
+///   shortfall = min_health_factor_bps.saturating_sub(hf_bps)
+///   additional_bonus = (shortfall * slope_bps) / BPS_SCALE
+///   bonus = min(max_bonus_bps, min_bonus_bps + additional_bonus)
+///
+/// Guaranteed Properties:
+/// - Strictly bounded: min_bonus_bps <= result <= max_bonus_bps
+/// - Zero arithmetic overflow/underflow via u128 intermediates
+/// - Monotonic: as HF decreases, bonus increases up to max_bonus_bps
+pub fn calculate_dynamic_liquidation_bonus(
+    hf_bps: u64,
+    min_health_factor_bps: u64,
+    min_bonus_bps: u64,
+    max_bonus_bps: u64,
+    slope_bps: u64,
+) -> Result<u64> {
+    require!(min_bonus_bps <= max_bonus_bps, CircuitError::MathOverflow);
+    require!(min_health_factor_bps > 0, CircuitError::HealthFactorTooLow);
+
+    // If HF >= min_health_factor_bps, position is healthy -> return floor bonus
+    if hf_bps >= min_health_factor_bps {
+        return Ok(min_bonus_bps);
+    }
+
+    // Shortfall: strictly > 0 and <= min_health_factor_bps
+    let shortfall = min_health_factor_bps
+        .checked_sub(hf_bps)
+        .ok_or(CircuitError::MathOverflow)?;
+
+    // additional_bonus = shortfall * slope_bps / 10_000
+    // Using u128 intermediate ensures zero overflow
+    let additional_bonus = (shortfall as u128)
+        .checked_mul(slope_bps as u128)
+        .ok_or(CircuitError::MathOverflow)?
+        / BPS_SCALE_U128;
+
+    let raw_bonus = (min_bonus_bps as u128)
+        .checked_add(additional_bonus)
+        .ok_or(CircuitError::MathOverflow)?;
+
+    let max_cap = max_bonus_bps as u128;
+    let clamped_bonus = raw_bonus.min(max_cap);
+
+    Ok(clamped_bonus as u64)
+}
+
+// --------------------------------------------------------------
 // Confidence Width Check
 // --------------------------------------------------------------
 
@@ -491,5 +543,167 @@ mod tests {
     #[test]
     fn test_pow10_overflow() {
         assert!(pow10(39).is_err());
+    }
+    // -- Liquidation Collateral: net_expo >= 0 branch (uncovered until now) --
+    //
+    // net_expo = quote_decimals + expo - collateral_decimals
+    // net_expo >= 0  →  price * scale is the denominator (ceiling-rounding branch)
+    // net_expo <  0  →  numerator * scale / price (the previously-tested branch)
+    //
+    // The net_expo >= 0 branch fires when expo is large enough relative to the
+    // decimal mismatch that the scale factor lives in the denominator, not the
+    // numerator. Concretely: expo=-2, quote_decimals=6, col_decimals=8 → net=-4 (<0),
+    // but expo=+2, quote_decimals=6, col_decimals=6 → net=+2 (>= 0).
+
+    #[test]
+    fn test_liquidation_collateral_net_expo_zero() {
+        // net_expo = 0: quote_decimals(6) + expo(-6) - col_decimals(6) = -6 + 6 - 6 = -6? No.
+        // Construct a case where net_expo == 0 exactly:
+        //   quote_decimals = 6, expo = -2, col_decimals = 4
+        //   net_expo = 6 + (-2) - 4 = 0
+        //
+        // price = 100 at expo=-2 means raw price = 10_000 (i.e., $100.00)
+        // debt  = 500_0000 (= $50 in 6-dec USDC)
+        // bonus = 1000 BPS = 10%
+        // debt_with_bonus = 500_0000 * 11000 / 10000 = 5_500_000 (= $55)
+        //
+        // net_expo = 0 → denominator = price * pow10(0) = 10_000 * 1 = 10_000
+        // collateral = ceil(5_500_000 / 10_000) = 550  (in 4-dec token units = 0.0550)
+        let col = calculate_liquidation_collateral(
+            5_000_000,    // $50 debt (6 dec USDC)
+            10_000,       // $100 price (expo=-2, so 10_000 raw = $100.00)
+            -2,           // expo
+            1000,         // 10% bonus
+            4,            // collateral_decimals = 4
+            6,            // quote_decimals = 6
+        ).unwrap();
+        // debt_with_bonus = 5_000_000 * 11_000 / 10_000 = 5_500_000
+        // denominator = 10_000 * pow10(0) = 10_000
+        // collateral  = ceil(5_500_000 / 10_000) = 550
+        assert_eq!(col, 550);
+    }
+
+    #[test]
+    fn test_liquidation_collateral_net_expo_positive() {
+        // net_expo = +2: quote_decimals(8) + expo(-2) - col_decimals(4) = +2
+        // price = 50_000 at expo=-2 → $500.00
+        // debt  = 500_000_000 ($5 in 8-dec quote)
+        // bonus = 500 BPS = 5%
+        // debt_with_bonus = 500_000_000 * 10_500 / 10_000 = 525_000_000
+        // denominator = 50_000 * pow10(2) = 50_000 * 100 = 5_000_000
+        // collateral = ceil(525_000_000 / 5_000_000) = ceil(105) = 105 (exact)
+        let col = calculate_liquidation_collateral(
+            500_000_000,  // $5 debt (8-dec quote)
+            50_000,       // $500 price (expo=-2, raw 50_000)
+            -2,           // expo
+            500,          // 5% bonus
+            4,            // collateral_decimals = 4
+            8,            // quote_decimals = 8  → net_expo = 8-2-4 = +2
+        ).unwrap();
+        assert_eq!(col, 105);
+    }
+
+    #[test]
+    fn test_liquidation_collateral_net_expo_positive_ceiling() {
+        // Same setup as above but debt_with_bonus is NOT evenly divisible by denominator.
+        // This explicitly tests the ceiling-rounding `+= denominator - 1` step.
+        // debt = 500_000_003 → debt_with_bonus = 525_000_003 (not divisible by 5_000_000)
+        // floor would be 105, ceil should be 106
+        let col = calculate_liquidation_collateral(
+            500_000_003,  // debt slightly above $5
+            50_000,       // $500 price
+            -2,
+            500,          // 5% bonus
+            4,            // col_decimals
+            8,            // quote_decimals  → net_expo = +2
+        ).unwrap();
+        // debt_with_bonus = 500_000_003 * 10_500 / 10_000 = 525_000_003 (integer)
+        // denominator = 5_000_000
+        // ceil(525_000_003 / 5_000_000) = ceil(105.0000006) = 106
+        assert_eq!(col, 106);
+    }
+
+    // -- Dynamic Liquidation Bonus Tests --
+
+    #[test]
+    fn test_dynamic_bonus_healthy_returns_min() {
+        // HF >= 10000 (healthy or at boundary) -> returns min_bonus (500)
+        let bonus_at_threshold = calculate_dynamic_liquidation_bonus(10_000, 10_000, 500, 1500, 1000).unwrap();
+        assert_eq!(bonus_at_threshold, 500);
+
+        let bonus_healthy = calculate_dynamic_liquidation_bonus(12_000, 10_000, 500, 1500, 1000).unwrap();
+        assert_eq!(bonus_healthy, 500);
+    }
+
+    #[test]
+    fn test_dynamic_bonus_slight_shortfall() {
+        // HF = 9900 (shortfall = 100 BPS = 1%)
+        // slope = 1000 BPS (0.10x) -> additional = 100 * 1000 / 10000 = 10 BPS
+        // bonus = 500 + 10 = 510 BPS
+        let bonus = calculate_dynamic_liquidation_bonus(9_900, 10_000, 500, 1500, 1000).unwrap();
+        assert_eq!(bonus, 510);
+    }
+
+    #[test]
+    fn test_dynamic_bonus_moderate_shortfall() {
+        // HF = 8000 (shortfall = 2000 BPS = 20%)
+        // slope = 1000 BPS -> additional = 2000 * 1000 / 10000 = 200 BPS
+        // bonus = 500 + 200 = 700 BPS
+        let bonus = calculate_dynamic_liquidation_bonus(8_000, 10_000, 500, 1500, 1000).unwrap();
+        assert_eq!(bonus, 700);
+    }
+
+    #[test]
+    fn test_dynamic_bonus_saturation_cap() {
+        // HF = 0 (shortfall = 10000 BPS)
+        // slope = 2000 BPS (0.20x) -> raw addition = 10000 * 2000 / 10000 = 2000 BPS
+        // raw bonus = 500 + 2000 = 2500 BPS -> clamped to max_bonus 1500 BPS
+        let bonus = calculate_dynamic_liquidation_bonus(0, 10_000, 500, 1500, 2000).unwrap();
+        assert_eq!(bonus, 1500);
+    }
+
+    #[test]
+    fn test_dynamic_bonus_zero_slope_fallback() {
+        // slope = 0 -> bonus remains fixed at min_bonus regardless of severity
+        let bonus = calculate_dynamic_liquidation_bonus(5_000, 10_000, 500, 1500, 0).unwrap();
+        assert_eq!(bonus, 500);
+    }
+
+    #[test]
+    fn test_dynamic_bonus_invalid_params_rejected() {
+        // min_bonus > max_bonus
+        let err1 = calculate_dynamic_liquidation_bonus(8_000, 10_000, 2000, 1500, 1000);
+        assert!(err1.is_err());
+
+        // min_health_factor = 0
+        let err2 = calculate_dynamic_liquidation_bonus(0, 0, 500, 1500, 1000);
+        assert!(err2.is_err());
+    }
+
+    #[test]
+    fn test_dynamic_bonus_large_values_no_panic() {
+        // Extreme values: max u64 inputs should not panic or overflow
+        let bonus = calculate_dynamic_liquidation_bonus(0, u64::MAX, 500, 1500, 1000).unwrap();
+        assert_eq!(bonus, 1500);
+    }
+
+    #[test]
+    fn test_dynamic_bonus_collateral_seizure_integration() {
+        // Compare collateral seized under mild vs severe distress
+        // Setup: $500 debt, price $100 (10B, expo -8), 6 decimals
+        // 1. Mild distress: HF = 9500 -> bonus = 500 + 50 = 550 BPS (5.5%)
+        //    debt_with_bonus = 500 * 1.055 = $527.50 -> 5.275 tokens = 5_275_000
+        let bonus_mild = calculate_dynamic_liquidation_bonus(9_500, 10_000, 500, 1500, 1000).unwrap();
+        assert_eq!(bonus_mild, 550);
+        let col_mild = calculate_liquidation_collateral(500_000_000, 10_000_000_000, -8, bonus_mild, 6, 6).unwrap();
+        assert_eq!(col_mild, 5_275_000);
+
+        // 2. Severe crash: HF = 5000 -> bonus = 500 + 500 = 1000 BPS (10.0%)
+        //    debt_with_bonus = 500 * 1.10 = $550.00 -> 5.500 tokens = 5_500_000
+        let bonus_severe = calculate_dynamic_liquidation_bonus(5_000, 10_000, 500, 1500, 1000).unwrap();
+        assert_eq!(bonus_severe, 1000);
+        let col_severe = calculate_liquidation_collateral(500_000_000, 10_000_000_000, -8, bonus_severe, 6, 6).unwrap();
+        assert_eq!(col_severe, 5_500_000);
+        assert!(col_severe > col_mild);
     }
 }

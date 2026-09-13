@@ -341,11 +341,24 @@ sequenceDiagram
   1. Read oracle via [`try_validate_pyth_price`](file:///c:/Dev/Circuit/programs/circuit/src/oracle/validation.rs#L89).
   2. If oracle is valid, use current price. If invalid or stale, activate **Emergency Price Policy** and use `position.last_valid_price`.
   3. Compute collateral value and health factor at reference price. Require `HF < min_health_factor_bps`.
-  4. Calculate collateral seizure: `collateral_to_seize = (debt * (10000 + bonus_bps)) / ref_price`.
-  5. Clamp seizure to `position.collateral_amount`.
-  6. Transfer total debt quote tokens from liquidator to `liquidity_vault`.
-  7. Transfer seized collateral from `collateral_vault` to liquidator via `ProtocolConfig` PDA signer seeds.
-  8. Clear `position.debt_amount = 0`, decrement collateral, and reset position to `Healthy`.
+  4. Compute dynamic severity-scaled liquidation bonus:
+     $$\text{shortfall} = \min(\text{min\_health\_factor\_bps} - \text{hf}, 10\,000)$$
+     $$\text{bonus\_bps} = \min\left(1\,500, \text{min\_bonus\_bps} + \frac{\text{shortfall} \times 1\,000}{10\,000}\right)$$
+     Where $\text{min\_bonus\_bps} = \text{asset.effective\_liquidation\_bonus(protocol)}$.
+  5. Calculate collateral seizure using dynamic bonus: $\text{collateral\_to\_seize} = \frac{\text{debt} \times (10\,000 + \text{bonus\_bps})}{\text{ref\_price}}$.
+  6. Clamp seizure to `position.collateral_amount`.
+  7. Transfer total debt quote tokens from liquidator to `liquidity_vault`.
+  8. Transfer seized collateral from `collateral_vault` to liquidator via `ProtocolConfig` PDA signer seeds.
+  9. Clear `position.debt_amount = 0`, decrement collateral, and reset position to `Healthy`.
+
+> [!TIP]
+> **Game-Theoretic Defense (Killing the Race)**: Unlike legacy lending protocols with a static bonus (which triggers priority gas wars and under-incentivizes liquidating severely underwater positions), Circuit's dynamic bonus scales rewards with distress severity:
+> - $HF = 0.99 \implies 5.10\%$ bonus (minimal liquidation penalty for minor dips)
+> - $HF = 0.80 \implies 7.00\%$ bonus
+> - $HF = 0.50 \implies 10.00\%$ bonus
+> - $HF \to 0.00 \implies 15.00\%$ bonus (maximum liquidation incentive)
+>
+> **Tier 2 Roadmap (Time-Ramped Dutch Auction)**: A slot-ramped Dutch auction mechanism (`mark_liquidatable` crank + slot-based discount ramp) will eliminate bot races entirely by making the discount a deterministic function of elapsed slots.
 
 ```mermaid
 sequenceDiagram

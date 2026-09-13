@@ -75,8 +75,21 @@ pub fn handler(ctx: Context<Liquidate>) -> Result<()> {
     // -- Full liquidation: repay entire debt --
     let debt_to_repay = position.debt_amount;
 
-    // Calculate collateral to seize (debt + liquidation bonus)
-    let bonus_bps = asset.effective_liquidation_bonus(protocol);
+    // Calculate collateral to seize with dynamic severity-scaled bonus.
+    // Floor is asset.effective_liquidation_bonus (e.g. 500 BPS = 5%).
+    // As shortfall (min_health_factor - hf) grows, bonus scales up to 1500 BPS (15%).
+    const MAX_LIQUIDATION_BONUS_BPS: u64 = 1_500;
+    const LIQUIDATION_SLOPE_BPS: u64 = 1_000;
+
+    let min_bonus_bps = asset.effective_liquidation_bonus(protocol);
+    let bonus_bps = math::calculate_dynamic_liquidation_bonus(
+        hf,
+        protocol.min_health_factor_bps,
+        min_bonus_bps,
+        MAX_LIQUIDATION_BONUS_BPS,
+        LIQUIDATION_SLOPE_BPS,
+    )?;
+
     let collateral_to_seize = math::calculate_liquidation_collateral(
         debt_to_repay,
         ref_price,

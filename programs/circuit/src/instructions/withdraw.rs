@@ -54,7 +54,11 @@ pub fn handler(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
         require!(market_open, CircuitError::MarketClosed);
 
         // Check custody and liquidity
-        require!(asset.custody_state != CustodyState::Impaired, CircuitError::InvalidCustodyState);
+        require!(
+            asset.custody_state != CustodyState::Impaired &&
+            asset.custody_state != CustodyState::Delayed,
+            CircuitError::InvalidCustodyState
+        );
         require!(
             asset.liquidity_state != LiquidityState::Critical &&
             asset.liquidity_state != LiquidityState::Thin,

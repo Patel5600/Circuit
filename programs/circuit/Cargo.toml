@@ -13,6 +13,7 @@ name = "circuit"
 anchor-lang = { version = "1.2.0", features = ["init-if-needed"] }
 anchor-spl = { version = "1.2.0", features = ["token", "associated_token"] }
 pyth-solana-receiver-sdk = "2.0.0"
+solana-security-txt = "1.1.1"
 
 [features]
 default = []

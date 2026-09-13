@@ -20,7 +20,10 @@ app/out/
 .env.production
 *.pem
 *-keypair.json
-!target/deploy/circuit-keypair.json
+*keypair*.json
+*.secret
+*.seed
+*.credentials
 
 # Local QA output (screenshots from app/scripts/shots.mjs)
 app/.shots/

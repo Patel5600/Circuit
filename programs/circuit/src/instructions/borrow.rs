@@ -45,7 +45,11 @@ pub fn handler(ctx: Context<Borrow>, amount: u64) -> Result<()> {
 
     // -- Step 10: Derive market state independently --
     // Check custody and liquidity conditions
-    require!(asset.custody_state != CustodyState::Impaired, CircuitError::InvalidCustodyState);
+    require!(
+        asset.custody_state != CustodyState::Impaired &&
+        asset.custody_state != CustodyState::Delayed,
+        CircuitError::InvalidCustodyState
+    );
     require!(
         asset.liquidity_state != LiquidityState::Critical &&
         asset.liquidity_state != LiquidityState::Thin,
