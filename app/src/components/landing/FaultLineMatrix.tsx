@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { Reveal } from "../ui/Reveal";
 import { Pill, Icon } from "../ui";
 
@@ -149,7 +150,7 @@ const DIMENSIONS: DimensionChapter[] = [
 
 export function FaultLineMatrix() {
   const [isExpanded, setIsExpanded] = useState(false);
-  // pageIndex: 0 = closed (cover on top), 1 = page 1 open, 2 = page 2 open, etc.
+  // pageIndex: 0 = closed cover, 1 = Chapter 1, 2 = Chapter 2, ..., 7 = Chapter 7
   const [pageIndex, setPageIndex] = useState(0);
 
   // Close and reset book
@@ -157,27 +158,24 @@ export function FaultLineMatrix() {
     setIsExpanded(false);
     setTimeout(() => {
       setPageIndex(0);
-    }, 400);
+    }, 350);
   }, []);
 
-  // Open book and expand
+  // Open book and expand to a specific chapter
   const expandBook = (targetPage = 1) => {
     setIsExpanded(true);
-    // Allow small delay for expansion to start, then flip cover to target page
     setTimeout(() => {
       setPageIndex(targetPage);
-    }, 280);
+    }, 200);
   };
 
   // Flip forward (next page)
   const flipNext = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    if (!isExpanded) {
-      expandBook(1);
-      return;
-    }
-    if (pageIndex <= DIMENSIONS.length) {
+    if (pageIndex < DIMENSIONS.length) {
       setPageIndex((p) => p + 1);
+    } else {
+      resetBook();
     }
   };
 
@@ -187,32 +185,19 @@ export function FaultLineMatrix() {
     if (pageIndex > 1) {
       setPageIndex((p) => p - 1);
     } else if (pageIndex === 1) {
-      // Close cover
       setPageIndex(0);
     }
   };
 
-  // Handle click on the book
-  const handleBookClick = () => {
-    if (!isExpanded) {
-      expandBook(1);
-    } else {
-      if (pageIndex < DIMENSIONS.length) {
-        setPageIndex((p) => p + 1);
-      } else {
-        resetBook();
-      }
-    }
-  };
-
-  // Keyboard controls
+  // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!isExpanded) return;
       if (e.key === "Escape") {
         resetBook();
       } else if (e.key === "ArrowRight") {
-        if (pageIndex <= DIMENSIONS.length) setPageIndex((p) => Math.min(DIMENSIONS.length, p + 1));
+        if (pageIndex < DIMENSIONS.length) setPageIndex((p) => p + 1);
+        else resetBook();
       } else if (e.key === "ArrowLeft") {
         if (pageIndex > 1) setPageIndex((p) => p - 1);
         else if (pageIndex === 1) setPageIndex(0);
@@ -257,10 +242,10 @@ export function FaultLineMatrix() {
           </div>
         </Reveal>
 
-        {/* ── Section 07 Container: Form / Chapter Index on Left, 3D Book on Right ── */}
+        {/* ── Section 07 In-Situ Studio Layout (Specification Sheet + Book Mockup) ── */}
         <Reveal delay={80}>
           <div className="dimensions-workshop-grid">
-            {/* Left Side: Chapter Index / Specification Sheet */}
+            {/* Left: Specification Sheet */}
             <div className="workshop-form-container">
               <div className="row between g-8" style={{ marginBottom: 16, alignItems: "center" }}>
                 <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, letterSpacing: "0.04em", color: "var(--text)" }}>
@@ -333,18 +318,19 @@ export function FaultLineMatrix() {
               </div>
             </div>
 
-            {/* Right Side: The Interactive 3D Book Mockup */}
+            {/* Right: In-Situ Book Mockup Stage */}
             <div className="workshop-book-stage">
               <div
-                className={`book-mockup ${isExpanded ? "expanded" : ""}`}
-                id="interactive-book"
-                onClick={handleBookClick}
+                className="book-mockup in-situ"
+                role="button"
+                tabIndex={0}
+                aria-label="Click to open the Architectural Codex book"
+                onClick={() => expandBook(1)}
+                onKeyDown={(e) => e.key === "Enter" && expandBook(1)}
               >
-                {/* ── Book Front Cover ── */}
-                <div className={`book-cover ${pageIndex > 0 ? "flipped" : ""}`}>
-                  {/* Left Spine Fold Line */}
+                {/* Book Cover */}
+                <div className="book-cover in-situ-cover">
                   <div className="cover-spine-crease" />
-
                   <div className="cover-inner-border">
                     <div className="cover-top-folio">
                       <span>CIRCUIT PROTOCOL</span>
@@ -369,11 +355,136 @@ export function FaultLineMatrix() {
                   </div>
                 </div>
 
-                {/* ── Chapter Pages (1 to 7) ── */}
+                {/* Page stack depth underneath */}
+                <div className="book-page page-depth-3" />
+                <div className="book-page page-depth-2" />
+                <div className="book-page page-depth-1" />
+              </div>
+            </div>
+          </div>
+        </Reveal>
+      </div>
+
+      {/* ── React Portal: Mounts directly on document.body to prevent parent CSS transform clipping! ── */}
+      {isExpanded &&
+        createPortal(
+          <div
+            className="book-portal-overlay"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Circuit Architectural Codex Reader"
+            onClick={resetBook}
+          >
+            {/* Safe Header Avoidance Toolbar (Positioned below the 58px site header) */}
+            <div
+              className="book-safe-toolbar"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="row g-10" style={{ alignItems: "center" }}>
+                <span className="toolbar-emblem">
+                  <Icon name="shield" size={16} />
+                </span>
+                <div>
+                  <span className="toolbar-title">CIRCUIT CODEX</span>
+                  <span className="toolbar-sub">
+                    {pageIndex === 0
+                      ? "Cover View · Click book to open"
+                      : `Chapter ${activeChapter.roman}: ${activeChapter.title}`}
+                  </span>
+                </div>
+              </div>
+
+              {/* Quick Chapter Selector Dots */}
+              <div className="toolbar-chapter-dots">
+                {DIMENSIONS.map((d, i) => (
+                  <button
+                    key={d.id}
+                    type="button"
+                    title={`Chapter ${d.roman}: ${d.title}`}
+                    className={`toolbar-dot-btn ${pageIndex === i + 1 ? "active" : ""}`}
+                    onClick={() => setPageIndex(i + 1)}
+                  >
+                    {d.roman}
+                  </button>
+                ))}
+              </div>
+
+              {/* Actions */}
+              <div className="row g-8" style={{ alignItems: "center" }}>
+                <button
+                  type="button"
+                  className="btn btn--secondary btn--sm"
+                  disabled={pageIndex <= 1}
+                  onClick={flipPrev}
+                  style={{ opacity: pageIndex <= 1 ? 0.4 : 1, padding: "3px 8px", fontSize: 11 }}
+                >
+                  ◂ Prev
+                </button>
+
+                <button
+                  type="button"
+                  className="btn btn--secondary btn--sm"
+                  disabled={pageIndex >= 7}
+                  onClick={flipNext}
+                  style={{ opacity: pageIndex >= 7 ? 0.4 : 1, padding: "3px 8px", fontSize: 11 }}
+                >
+                  Next ▸
+                </button>
+
+                <button
+                  type="button"
+                  className="btn btn--accent btn--sm"
+                  onClick={resetBook}
+                  style={{ padding: "3px 10px", fontSize: 11 }}
+                >
+                  ✕ Close (Esc)
+                </button>
+              </div>
+            </div>
+
+            {/* Centered Expanded 3D Book Stage (Safely below toolbar and header) */}
+            <div
+              className="book-expanded-stage"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div
+                className="book-mockup expanded-book"
+                onClick={flipNext}
+                role="button"
+                tabIndex={0}
+                aria-label="Click book to turn page"
+              >
+                {/* ── Book Front Cover ── */}
+                <div className={`book-cover ${pageIndex > 0 ? "flipped" : ""}`}>
+                  <div className="cover-spine-crease" />
+                  <div className="cover-inner-border">
+                    <div className="cover-top-folio">
+                      <span>CIRCUIT PROTOCOL</span>
+                      <span>SOLANA DEVNET</span>
+                    </div>
+
+                    <div className="cover-center-badge">
+                      <div className="cover-emblem-circle">
+                        <Icon name="shield" size={32} />
+                      </div>
+                      <h4 className="cover-title-text" style={{ fontSize: 17 }}>
+                        ARCHITECTURAL
+                        <br />
+                        <span>CODEX</span>
+                      </h4>
+                      <p className="cover-edition-text">VII CHAPTERS · ON-CHAIN</p>
+                    </div>
+
+                    <div className="cover-bottom-hint">
+                      <span>CLICK TO TURN PAGE ▸</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── 7 Chapter Pages Stacked Underneath ── */}
                 {DIMENSIONS.map((dim, idx) => {
                   const pageNum = idx + 1;
                   const isFlipped = pageIndex > pageNum;
-                  // zIndex decreases with page number so earlier pages sit on top
                   const zIndex = 9 - idx;
 
                   return (
@@ -382,30 +493,31 @@ export function FaultLineMatrix() {
                       className={`book-page page-${pageNum} ${isFlipped ? "flipped" : ""}`}
                       style={{ zIndex }}
                     >
-                      {/* Left Spine Crease Shadow */}
                       <div className="page-spine-shadow" />
 
-                      {/* Header Running Folio */}
+                      {/* Running Header */}
                       <div className="page-header-row">
-                        <span className="page-folio-label">CIRCUIT CODEX</span>
+                        <span className="page-folio-label">CIRCUIT ARCHITECTURAL CODEX</span>
                         <span className="page-folio-chapter">CHAPTER {dim.roman}</span>
                         <span className="page-number">{pageNum} / 7</span>
                       </div>
 
-                      {/* Chapter Body */}
+                      {/* Content Body */}
                       <div className="page-content-flow">
-                        <div className="page-chapter-tag" style={{ color: dim.accentColor }}>
-                          DIMENSION {dim.roman} · {dim.badge}
+                        <div>
+                          <div className="page-chapter-tag" style={{ color: dim.accentColor }}>
+                            DIMENSION {dim.roman} · {dim.badge}
+                          </div>
+
+                          <h4 className="page-chapter-title">{dim.title}</h4>
+                          <div className="page-chapter-subtitle">{dim.subtitle}</div>
+
+                          <div className="page-tagline-quote" style={{ borderLeftColor: dim.accentColor }}>
+                            “{dim.tagline}”
+                          </div>
                         </div>
 
-                        <h4 className="page-chapter-title">{dim.title}</h4>
-                        <div className="page-chapter-subtitle">{dim.subtitle}</div>
-
-                        <div className="page-tagline-quote" style={{ borderLeftColor: dim.accentColor }}>
-                          “{dim.tagline}”
-                        </div>
-
-                        {/* Detail Sections */}
+                        {/* Specification Blocks */}
                         <div className="page-spec-section">
                           <span className="page-spec-title">The Problem Thesis</span>
                           <p className="page-spec-text">{dim.thesis}</p>
@@ -416,17 +528,22 @@ export function FaultLineMatrix() {
                           <p className="page-spec-text">{dim.mechanism}</p>
                         </div>
 
-                        {/* Formula Badge */}
+                        {/* Mathematical Formula Constraint */}
                         <div className="page-formula-box">
-                          <span className="formula-tag">ON-CHAIN CONSTRAINT</span>
+                          <span className="formula-tag">ON-CHAIN CONSTRAINT SPECIFICATION</span>
                           <code style={{ color: dim.accentColor }}>{dim.formula}</code>
+                        </div>
+
+                        <div className="page-spec-section" style={{ marginBottom: 0 }}>
+                          <span className="page-spec-title">Why This Changes Everything</span>
+                          <p className="page-spec-text">{dim.whyItMatters}</p>
                         </div>
                       </div>
 
-                      {/* Page Footer Navigation */}
+                      {/* Bottom Page Footer Nav */}
                       <div className="page-bottom-nav">
                         <span className="page-hint-text">
-                          {pageNum < 7 ? "Click page to flip next ▸" : "Click page to close ✓"}
+                          {pageNum < 7 ? "Click page to flip next chapter ▸" : "Click page to finish reading ✓"}
                         </span>
                         <span className="page-footer-num">PAGE {pageNum}</span>
                       </div>
@@ -435,90 +552,16 @@ export function FaultLineMatrix() {
                 })}
               </div>
             </div>
-          </div>
-        </Reveal>
-      </div>
-
-      {/* ── Overlay Backdrop (Blurs & Dims Screen when Expanded) ── */}
-      <div
-        className={`book-overlay-backdrop ${isExpanded ? "active" : ""}`}
-        onClick={resetBook}
-      >
-        {/* Floating Top Nav Toolbar during Expanded Mode */}
-        {isExpanded && (
-          <div
-            className="book-expanded-toolbar"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="row g-10" style={{ alignItems: "center" }}>
-              <span className="toolbar-emblem">
-                <Icon name="shield" size={16} />
-              </span>
-              <div>
-                <span className="toolbar-title">THE CIRCUIT CODEX</span>
-                <span className="toolbar-sub">
-                  {pageIndex === 0
-                    ? "Cover View · Click to open"
-                    : `Chapter ${activeChapter.roman}: ${activeChapter.title}`}
-                </span>
-              </div>
-            </div>
-
-            {/* Chapter Dots Navigator */}
-            <div className="toolbar-chapter-dots">
-              {DIMENSIONS.map((d, i) => (
-                <button
-                  key={d.id}
-                  type="button"
-                  title={`Chapter ${d.roman}: ${d.title}`}
-                  className={`toolbar-dot-btn ${pageIndex === i + 1 ? "active" : ""}`}
-                  onClick={() => setPageIndex(i + 1)}
-                >
-                  {d.roman}
-                </button>
-              ))}
-            </div>
-
-            <div className="row g-8" style={{ alignItems: "center" }}>
-              <button
-                type="button"
-                className="btn btn--secondary btn--sm"
-                disabled={pageIndex <= 1}
-                onClick={flipPrev}
-                style={{ opacity: pageIndex <= 1 ? 0.4 : 1, padding: "3px 8px", fontSize: 11 }}
-              >
-                ◂ Prev
-              </button>
-
-              <button
-                type="button"
-                className="btn btn--secondary btn--sm"
-                disabled={pageIndex >= 7}
-                onClick={flipNext}
-                style={{ opacity: pageIndex >= 7 ? 0.4 : 1, padding: "3px 8px", fontSize: 11 }}
-              >
-                Next ▸
-              </button>
-
-              <button
-                type="button"
-                className="btn btn--accent btn--sm"
-                onClick={resetBook}
-                style={{ padding: "3px 10px", fontSize: 11 }}
-              >
-                ✕ Close (Esc)
-              </button>
-            </div>
-          </div>
+          </div>,
+          document.body
         )}
-      </div>
 
-      {/* ── Precise CSS matching Shade Book Mechanics + High-End Circuit Styling ── */}
+      {/* ── Precise CSS matching Shade Book Mechanics + Safe Header Avoidance ── */}
       <style>{`
-        /* Workshop Layout Grid */
+        /* Workshop Layout Grid in Section 07 */
         .dimensions-workshop-grid {
           display: grid;
-          grid-template-columns: 1.2fr 0.8fr;
+          grid-template-columns: 1.25fr 0.75fr;
           gap: 40px;
           align-items: center;
           background: var(--surface-1, rgba(16, 20, 28, 0.6));
@@ -563,42 +606,67 @@ export function FaultLineMatrix() {
           position: relative;
         }
 
-        /* ── Overlay Backdrop ── */
-        .book-overlay-backdrop {
-          position: fixed;
-          top: 0;
-          left: 0;
-          width: 100vw;
-          height: 100vh;
-          background: rgba(8, 10, 15, 0);
-          backdrop-filter: blur(0px);
-          z-index: 9990;
-          pointer-events: none;
-          transition: all 0.8s cubic-bezier(0.64, 0, 0.32, 1);
+        /* ── Base Book Mockup (In-Situ on Section 07) ── */
+        .book-mockup.in-situ {
+          width: 220px;
+          height: 320px;
+          position: relative;
+          background-color: transparent;
+          perspective: 1500px;
+          transform-style: preserve-3d;
+          transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+          cursor: pointer;
         }
-        .book-overlay-backdrop.active {
-          background: rgba(8, 10, 15, 0.85);
-          backdrop-filter: blur(10px);
-          pointer-events: auto;
+        .book-mockup.in-situ:hover {
+          transform: rotateY(-10deg) scale(1.03) translateY(-6px);
+        }
+        .book-mockup.in-situ::before {
+          content: '';
+          position: absolute;
+          bottom: -10px;
+          left: 5%;
+          width: 90%;
+          height: 24px;
+          background: rgba(0, 0, 0, 0.4);
+          filter: blur(12px);
+          transform: translateZ(-10px);
         }
 
-        /* Floating Toolbar */
-        .book-expanded-toolbar {
+        /* ── Portal Overlay (Mounted Directly to document.body) ── */
+        .book-portal-overlay {
           position: fixed;
-          top: 24px;
-          left: 50%;
-          transform: translateX(-50%);
-          width: 90%;
+          inset: 0;
+          z-index: 99999;
+          background: rgba(6, 8, 12, 0.88);
+          backdrop-filter: blur(12px);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: flex-start;
+          padding-top: 84px; /* AVOIDS HEADER TOUCH: site header is 58px */
+          padding-bottom: 24px;
+          overflow-y: auto;
+          animation: portalFadeIn 0.25s ease-out;
+        }
+        @keyframes portalFadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+
+        /* Safe Floating Toolbar (Below the site header) */
+        .book-safe-toolbar {
+          width: 92%;
           max-width: 820px;
-          background: rgba(18, 22, 30, 0.9);
+          background: rgba(16, 20, 28, 0.95);
           border: 1px solid var(--border);
           border-radius: 12px;
           padding: 10px 18px;
           display: flex;
           align-items: center;
           justify-content: space-between;
-          box-shadow: 0 12px 32px rgba(0, 0, 0, 0.7);
-          z-index: 10000;
+          box-shadow: 0 12px 32px rgba(0, 0, 0, 0.8);
+          margin-bottom: 24px;
+          flex-shrink: 0;
         }
         .toolbar-emblem {
           width: 28px;
@@ -629,14 +697,14 @@ export function FaultLineMatrix() {
           gap: 6px;
         }
         .toolbar-dot-btn {
-          width: 26px;
-          height: 26px;
+          width: 28px;
+          height: 28px;
           border-radius: 6px;
           border: 1px solid var(--border);
           background: rgba(255, 255, 255, 0.03);
           color: var(--text-3);
           font-family: var(--mono);
-          font-size: 10.5px;
+          font-size: 11px;
           font-weight: 700;
           cursor: pointer;
           transition: all 0.2s ease;
@@ -651,57 +719,45 @@ export function FaultLineMatrix() {
           color: var(--accent);
         }
 
-        /* ── The Book Mockup Container ── */
-        .book-mockup {
-          width: 220px;
-          height: 320px;
-          position: relative;
-          background-color: transparent;
-          perspective: 1500px;
-          transform-style: preserve-3d;
-          transition: all 0.8s cubic-bezier(0.64, 0, 0.32, 1);
-          cursor: pointer;
-          z-index: 10;
+        /* ── Centered Expanded 3D Book Stage ── */
+        .book-expanded-stage {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          perspective: 1800px;
+          margin: auto 0;
+          padding: 10px;
+          animation: bookStageBump 0.35s cubic-bezier(0.25, 1, 0.5, 1);
         }
-
-        /* Shadow for closed book */
-        .book-mockup::before {
-          content: '';
-          position: absolute;
-          bottom: -10px;
-          left: 5%;
-          width: 90%;
-          height: 24px;
-          background: rgba(0, 0, 0, 0.4);
-          filter: blur(12px);
-          transform: translateZ(-10px);
-          transition: opacity 0.5s;
-        }
-
-        /* Hover effect only when NOT expanded */
-        .book-mockup:not(.expanded):hover {
-          transform: rotateY(-10deg) scale(1.03) translateY(-6px);
-        }
-
-        /* ── BUMP ON SCREEN: Expanded State ── */
-        .book-mockup.expanded {
-          position: fixed;
-          top: 52%;
-          left: 50%;
-          transform: translate(-50%, -50%) scale(1.55);
-          z-index: 9995;
-        }
-        @media (max-width: 600px) {
-          .book-mockup.expanded {
-            transform: translate(-50%, -50%) scale(1.2);
+        @keyframes bookStageBump {
+          0% {
+            opacity: 0;
+            transform: scale(0.85) translateY(30px);
+          }
+          100% {
+            opacity: 1;
+            transform: scale(1) translateY(0);
           }
         }
 
-        .book-mockup.expanded::before {
-          opacity: 0;
+        /* The Scaled-Up 3D Book in Modal */
+        .book-mockup.expanded-book {
+          width: 360px;
+          height: 520px;
+          position: relative;
+          background-color: transparent;
+          perspective: 1800px;
+          transform-style: preserve-3d;
+          cursor: pointer;
+        }
+        @media (max-width: 520px) {
+          .book-mockup.expanded-book {
+            width: 300px;
+            height: 460px;
+          }
         }
 
-        /* Common sizing for cover and pages */
+        /* Common Sizing for Cover and Pages */
         .book-cover,
         .book-page {
           position: absolute;
@@ -709,11 +765,11 @@ export function FaultLineMatrix() {
           left: 0;
           width: 100%;
           height: 100%;
-          border-radius: 3px 8px 8px 3px;
+          border-radius: 4px 10px 10px 4px;
           transform-origin: left center;
           transition: transform 0.8s cubic-bezier(0.64, 0, 0.32, 1);
           backface-visibility: hidden;
-          box-shadow: inset 6px 0 14px rgba(0, 0, 0, 0.35);
+          box-shadow: inset 6px 0 16px rgba(0, 0, 0, 0.45);
           user-select: none;
         }
 
@@ -725,21 +781,26 @@ export function FaultLineMatrix() {
           display: flex;
           flex-direction: column;
           overflow: hidden;
+          box-shadow:
+            -8px 0 0 #080a0e,
+            -12px 0 20px rgba(0,0,0,0.7),
+            14px 20px 36px rgba(0,0,0,0.6),
+            inset 0 0 30px rgba(0,0,0,0.8);
         }
         .cover-spine-crease {
           position: absolute;
           left: 0;
           top: 0;
           bottom: 0;
-          width: 14px;
-          background: linear-gradient(90deg, rgba(0,0,0,0.65) 0%, rgba(255,255,255,0.08) 50%, rgba(0,0,0,0.4) 100%);
-          border-right: 1px solid rgba(207, 173, 116, 0.2);
+          width: 16px;
+          background: linear-gradient(90deg, rgba(0,0,0,0.7) 0%, rgba(255,255,255,0.08) 50%, rgba(0,0,0,0.4) 100%);
+          border-right: 1px solid rgba(207, 173, 116, 0.25);
         }
         .cover-inner-border {
           flex: 1;
-          margin: 12px 12px 12px 20px;
+          margin: 14px 14px 14px 22px;
           border: 1px solid rgba(207, 173, 116, 0.25);
-          padding: 16px 14px;
+          padding: 20px 16px;
           display: flex;
           flex-direction: column;
           justify-content: space-between;
@@ -749,16 +810,16 @@ export function FaultLineMatrix() {
           display: flex;
           justify-content: space-between;
           font-family: var(--mono);
-          font-size: 7.5px;
+          font-size: 8.5px;
           letter-spacing: 0.16em;
           color: var(--accent);
           opacity: 0.85;
           text-transform: uppercase;
         }
         .cover-emblem-circle {
-          width: 46px;
-          height: 46px;
-          margin: 0 auto 10px;
+          width: 52px;
+          height: 52px;
+          margin: 0 auto 12px;
           border-radius: 50%;
           border: 1.5px solid var(--accent);
           background: rgba(207, 173, 116, 0.12);
@@ -766,13 +827,13 @@ export function FaultLineMatrix() {
           display: flex;
           align-items: center;
           justify-content: center;
-          box-shadow: 0 0 16px rgba(207, 173, 116, 0.2);
+          box-shadow: 0 0 20px rgba(207, 173, 116, 0.25);
         }
         .cover-title-text {
           margin: 0;
-          font-size: 13.5px;
+          font-size: 15px;
           font-weight: 750;
-          letter-spacing: 0.06em;
+          letter-spacing: 0.08em;
           color: var(--text);
           text-transform: uppercase;
           line-height: 1.25;
@@ -783,13 +844,13 @@ export function FaultLineMatrix() {
         .cover-edition-text {
           margin: 6px 0 0;
           font-family: var(--mono);
-          font-size: 8px;
+          font-size: 9px;
           color: var(--text-3);
           letter-spacing: 0.08em;
         }
         .cover-bottom-hint {
           font-family: var(--mono);
-          font-size: 8px;
+          font-size: 9px;
           color: var(--accent);
           letter-spacing: 0.1em;
           opacity: 0.9;
@@ -799,30 +860,33 @@ export function FaultLineMatrix() {
         .book-page {
           background: #12161f;
           border: 1px solid rgba(255, 255, 255, 0.08);
-          padding: 16px 16px 14px 22px;
+          padding: 22px 22px 18px 28px;
           display: flex;
           flex-direction: column;
           justify-content: space-between;
           color: var(--text);
           overflow: hidden;
+          box-shadow:
+            0 16px 36px rgba(0, 0, 0, 0.6),
+            inset 8px 0 16px rgba(0, 0, 0, 0.4);
         }
         .page-spine-shadow {
           position: absolute;
           left: 0;
           top: 0;
           bottom: 0;
-          width: 16px;
-          background: linear-gradient(90deg, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0) 100%);
+          width: 18px;
+          background: linear-gradient(90deg, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0) 100%);
           pointer-events: none;
         }
         .page-header-row {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding-bottom: 6px;
+          padding-bottom: 8px;
           border-bottom: 1px solid rgba(255, 255, 255, 0.08);
           font-family: var(--mono);
-          font-size: 7.5px;
+          font-size: 8.5px;
           color: var(--text-3);
           letter-spacing: 0.1em;
           text-transform: uppercase;
@@ -830,52 +894,53 @@ export function FaultLineMatrix() {
         .page-number {
           font-weight: 700;
           color: var(--accent);
+          font-size: 9.5px;
         }
         .page-content-flow {
           flex: 1;
-          padding: 8px 0;
+          padding: 10px 0;
           display: flex;
           flex-direction: column;
           justify-content: space-between;
         }
         .page-chapter-tag {
           font-family: var(--mono);
-          font-size: 8px;
+          font-size: 9.5px;
           font-weight: 700;
           letter-spacing: 0.08em;
           margin-bottom: 4px;
         }
         .page-chapter-title {
           margin: 0;
-          font-size: 11px;
+          font-size: 14px;
           font-weight: 750;
           color: var(--text);
           line-height: 1.25;
         }
         .page-chapter-subtitle {
-          font-size: 8.5px;
+          font-size: 10px;
           color: var(--accent);
           font-family: var(--mono);
           margin-top: 2px;
-          margin-bottom: 6px;
+          margin-bottom: 8px;
         }
         .page-tagline-quote {
-          font-size: 8.5px;
-          line-height: 1.35;
+          font-size: 10px;
+          line-height: 1.45;
           color: var(--text-2);
           font-style: italic;
-          background: rgba(255, 255, 255, 0.02);
-          border-left: 2px solid;
-          padding: 4px 6px;
-          margin-bottom: 6px;
+          background: rgba(255, 255, 255, 0.025);
+          border-left: 2.5px solid;
+          padding: 6px 8px;
+          margin-bottom: 8px;
           border-radius: 0 4px 4px 0;
         }
         .page-spec-section {
-          margin-bottom: 6px;
+          margin-bottom: 8px;
         }
         .page-spec-title {
           font-family: var(--mono);
-          font-size: 7px;
+          font-size: 8px;
           text-transform: uppercase;
           letter-spacing: 0.08em;
           color: var(--text-3);
@@ -884,44 +949,62 @@ export function FaultLineMatrix() {
         }
         .page-spec-text {
           margin: 0;
-          font-size: 8px;
+          font-size: 9.5px;
           color: var(--text-2);
-          line-height: 1.35;
+          line-height: 1.45;
         }
         .page-formula-box {
-          background: rgba(8, 10, 14, 0.8);
+          background: rgba(8, 10, 14, 0.85);
           border: 1px solid var(--border);
-          border-radius: 4px;
-          padding: 4px 6px;
+          border-radius: 6px;
+          padding: 6px 8px;
           font-family: var(--mono);
-          font-size: 7.5px;
+          font-size: 9px;
+          margin-bottom: 8px;
         }
         .formula-tag {
-          font-size: 6px;
+          font-size: 7px;
           letter-spacing: 0.08em;
           color: var(--text-3);
           display: block;
-          margin-bottom: 1px;
+          margin-bottom: 2px;
         }
         .page-bottom-nav {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding-top: 6px;
+          padding-top: 8px;
           border-top: 1px solid rgba(255, 255, 255, 0.06);
           font-family: var(--mono);
-          font-size: 7px;
+          font-size: 8px;
           color: var(--text-3);
         }
         .page-hint-text {
           color: var(--accent);
-          opacity: 0.85;
+          opacity: 0.9;
         }
 
         /* ── Flipped State (0.8s smooth cubic-bezier physics) ── */
         .book-page.flipped,
         .book-cover.flipped {
           transform: rotateY(-150deg);
+        }
+
+        /* In-situ depth decoration pages */
+        .page-depth-1 {
+          z-index: 3;
+          background: #0f131a;
+          transform: rotateY(-2deg) translateZ(-4px);
+        }
+        .page-depth-2 {
+          z-index: 2;
+          background: #0d1016;
+          transform: rotateY(-4deg) translateZ(-8px);
+        }
+        .page-depth-3 {
+          z-index: 1;
+          background: #0a0d12;
+          transform: rotateY(-6deg) translateZ(-12px);
         }
       `}</style>
     </section>
