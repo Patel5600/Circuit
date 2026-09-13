@@ -97,9 +97,12 @@ Every item is marked with its readiness state, a description of the current MVP 
 - **Current MVP**: Volatility is not calculated; only Pyth spot confidence width is checked.
 - **Production Requirement**: Integrate historical realized volatility tracking (onchain TWAP volatility or signed volatility oracle) to dynamically expand margin requirements ahead of turbulent trading sessions.
 
-### [x] 18. Dynamic Liquidation Bonus & Dutch Auction Roadmap
-- **Current MVP (Tier 1 Implemented)**: Dynamic severity-scaled liquidation bonus (`calculate_dynamic_liquidation_bonus`) scaling from base floor (`asset.effective_liquidation_bonus`, 500 BPS) up to 1,500 BPS based on health factor shortfall.
-- **Production Requirement (Tier 2)**: Deploy time-ramped Dutch auction liquidation mechanism (`mark_liquidatable` crank + slot-based discount ramp) to eliminate MEV bot latency races, along with partial liquidation (close factor 20%–50%) to prevent borrower over-penalization during flash market dips.
+### [x] 18. Dynamic Liquidation Bonus & Time-Ramped Dutch Auction (Tier 1 & Tier 2)
+- **Current MVP (Tier 1 & Tier 2 Implemented)**:
+  - **Tier 1 (Severity-Scaled Dynamic Bonus)**: `calculate_dynamic_liquidation_bonus` scales bonus from floor (`asset.effective_liquidation_bonus`, 500 BPS) up to 1,500 BPS based on health factor shortfall.
+  - **Tier 2 (Time-Ramped Dutch Auction & Close Factor)**: Full continuous Dutch auction liquidation mechanism (`start_liquidation_auction`, `cancel_liquidation_auction`, `liquidate_auction`) with slot-ramped discount ($200$ BPS floor to $1,500$ BPS ceiling over 150 slots) and $50\%$ partial close factor (`calculate_close_factor_debt`) to eliminate MEV bot priority races and protect borrower equity.
+- **Production Requirement**: Governance parametrization for asset-specific auction durations and close factors.
+
 
 ### [ ] 19. Exhaustive Liquidation Stress Tests
 - **Current MVP**: Single-position liquidation test scenarios in unit tests.

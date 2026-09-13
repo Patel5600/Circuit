@@ -11,6 +11,7 @@ import { Nav } from "../components/landing/Nav";
 import { SafeState } from "../components/landing/SafeState";
 import { Storm } from "../components/landing/Storm";
 import { Technology } from "../components/landing/Technology";
+import { FaultLineMatrix } from "../components/landing/FaultLineMatrix";
 import { Icon } from "../components/ui";
 import { CLUSTER_LABEL } from "../env";
 
@@ -75,38 +76,67 @@ export default function Landing() {
             <div className="hero__copy">
               <p className="hero__eyebrow">
                 <span className="dot" aria-hidden="true" />
-                Solana · Tokenized equity credit
+                Solana Devnet · Programmable Risk Ratchet Primitive
               </p>
 
               <h1 className="hero__title">
-                Credit infrastructure
+                Tokenized stocks are assets.
                 <br />
-                for tokenized <em>equities.</em>
+                Circuit makes them
+                <br />
+                <em>programmable collateral.</em>
               </h1>
 
               <p className="hero__lede">
-                circuit turns tokenized equities into programmable collateral,
-                with on-chain market verification and risk-controlled credit.
+                Circuit does not merely calculate risk. It turns risk into on-chain permissions.
+                When market risk changes, credit permissions change with it.
               </p>
 
-              <div className="hero__cta">
-                <Link to="/app" className="btn btn--primary btn--lg">
-                  Launch circuit
-                  <Icon name="arrowRight" size={17} />
+              <div className="hero__cta stack g-10" style={{ maxWidth: 480 }}>
+                <Link
+                  to="/app/demo"
+                  className="btn btn--primary btn--lg"
+                  style={{
+                    background: "linear-gradient(135deg, #7fc39a 0%, #4ea373 100%)",
+                    color: "#0c130e",
+                    fontWeight: 650,
+                    boxShadow: "0 0 24px rgba(127, 195, 154, 0.25)",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <span className="row g-8" style={{ alignItems: "center" }}>
+                    <Icon name="gauge" size={18} />
+                    <span>Launch Interactive Risk Demo</span>
+                  </span>
+                  <span style={{ fontSize: 11, fontFamily: "var(--mono)", opacity: 0.85 }}>
+                    60s Proof &rarr;
+                  </span>
                 </Link>
-                <a href="#how" className="btn btn--ghost btn--lg">
-                  Explore how it works
-                </a>
+
+                <div className="row g-8 wrap">
+                  <Link to="/app/markets" className="btn btn--secondary btn--md grow" style={{ justifyContent: "center" }}>
+                    <Icon name="markets" size={15} />
+                    12 Live Markets
+                  </Link>
+                  <Link to="/app/verify" className="btn btn--ghost btn--md grow" style={{ justifyContent: "center" }}>
+                    <Icon name="verify" size={15} />
+                    Verify On-Chain
+                  </Link>
+                </div>
               </div>
 
               <ul className="hero__status">
                 <li>
                   <span className="dot" aria-hidden="true" />
-                  Built on Solana
+                  Deployed on Solana
                 </li>
                 <li>
                   <span className="dot" aria-hidden="true" />
                   {CLUSTER_LABEL}
+                </li>
+                <li>
+                  <span className="dot" aria-hidden="true" />
+                  4-State Ratchet
                 </li>
               </ul>
             </div>
@@ -122,6 +152,7 @@ export default function Landing() {
 
         <AssetUniverse />
         <CircuitFlow />
+        <FaultLineMatrix />
         <Storm />
         <SafeState />
         <Credit />

@@ -23,6 +23,7 @@ const Borrow = lazy(() => import("./pages/Borrow"));
 const Activity = lazy(() => import("./pages/Activity"));
 const Learn = lazy(() => import("./pages/Learn"));
 const Verify = lazy(() => import("./pages/Verify"));
+const Demo = lazy(() => import("./pages/Demo"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 /** Announce route changes so the page title stays meaningful. */
@@ -34,6 +35,7 @@ const TITLES: Record<string, string> = {
   "/app/activity": "Activity",
   "/app/learn": "How it works",
   "/app/verify": "Verification",
+  "/app/demo": "Interactive Demo",
 };
 
 function TitleSync() {
@@ -116,8 +118,7 @@ export default function App() {
         <Route path="/app/learn" element={<AppRoute><Learn /></AppRoute>} />
         <Route path="/app/verify" element={<AppRoute><Verify /></AppRoute>} />
 
-        {/* The simulator lives with the technical detail, not in the main flow. */}
-        <Route path="/app/demo" element={<Navigate to="/app/verify" replace />} />
+        <Route path="/app/demo" element={<AppRoute><Demo /></AppRoute>} />
 
         <Route
           path="*"

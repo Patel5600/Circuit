@@ -154,4 +154,23 @@ pub mod circuit {
     pub fn liquidate(ctx: Context<Liquidate>) -> Result<()> {
         instructions::liquidate::handler(ctx)
     }
+
+    /// Initiate a continuous time-ramped Dutch auction for an unhealthy position (Tier 2).
+    /// Permissionless crank. Creates the LiquidationAuction PDA.
+    pub fn start_liquidation_auction(ctx: Context<StartLiquidationAuction>) -> Result<()> {
+        instructions::start_liquidation_auction::handler(ctx)
+    }
+
+    /// Cancel an active auction if the position has returned to healthy territory (Tier 2).
+    /// Permissionless. Closes LiquidationAuction PDA and refunds rent.
+    pub fn cancel_liquidation_auction(ctx: Context<CancelLiquidationAuction>) -> Result<()> {
+        instructions::cancel_liquidation_auction::handler(ctx)
+    }
+
+    /// Liquidate an active Dutch auction position with partial close factor (Tier 2).
+    /// Discount scales smoothly with elapsed slots; repays up to 50% of debt.
+    pub fn liquidate_auction(ctx: Context<LiquidateAuction>, requested_repay: u64) -> Result<()> {
+        instructions::liquidate_auction::handler(ctx, requested_repay)
+    }
 }
+

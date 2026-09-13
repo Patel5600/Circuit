@@ -352,40 +352,36 @@ sequenceDiagram
   9. Clear `position.debt_amount = 0`, decrement collateral, and reset position to `Healthy`.
 
 > [!TIP]
-> **Game-Theoretic Defense (Killing the Race)**: Unlike legacy lending protocols with a static bonus (which triggers priority gas wars and under-incentivizes liquidating severely underwater positions), Circuit's dynamic bonus scales rewards with distress severity:
-> - $HF = 0.99 \implies 5.10\%$ bonus (minimal liquidation penalty for minor dips)
-> - $HF = 0.80 \implies 7.00\%$ bonus
-> - $HF = 0.50 \implies 10.00\%$ bonus
-> - $HF \to 0.00 \implies 15.00\%$ bonus (maximum liquidation incentive)
+> **Game-Theoretic Defense (Killing the Race)**: Unlike legacy lending protocols with a static bonus (which triggers priority gas wars and under-incentivizes liquidating severely underwater positions), Circuit implements a dual-tier game-theoretic liquidation engine:
+> - **Tier 1 (Severity-Scaled Dynamic Bonus)**: Scales rewards with distress severity ($HF = 0.99 \implies 5.10\%$, $HF \to 0.00 \implies 15.00\%$).
+> - **Tier 2 (Time-Ramped Dutch Auction & Close Factor)**: When a position becomes unhealthy ($HF < 1.0$), a permissionless crank opens a `LiquidationAuction` PDA. The liquidation bonus starts at $D_{\min} = 2.00\%$ (200 BPS) at slot $\Delta s = 0$ and ramps linearly toward $D_{\max} = 15.00\%$ (1500 BPS) over $150$ slots (~60s). Keepers execute when $D(\Delta s) \ge c_{\text{keeper}}$, completely eliminating the latency arms race. Liquidators repay up to a $50\%$ close factor ($5\,000$ BPS), preserving borrower equity and restoring position health.
 >
-> **Tier 2 Roadmap (Time-Ramped Dutch Auction)**: A slot-ramped Dutch auction mechanism (`mark_liquidatable` crank + slot-based discount ramp) will eliminate bot races entirely by making the discount a deterministic function of elapsed slots.
+> ```mermaid
+> sequenceDiagram
+>     autonumber
+>     actor Keeper as Keeper / Crank
+>     actor Liquidator as Liquidator Bot
+>     participant Circuit as Circuit Program
+>     participant Auc as LiquidationAuction PDA
+>     participant Pos as Position PDA
+>     participant LiqVault as Liquidity Vault ATA
+>     participant ColVault as Collateral Vault ATA
+> 
+>     Keeper->>Circuit: start_liquidation_auction()
+>     Circuit->>Circuit: Verify HF < 1.0
+>     Circuit->>Auc: Initialize PDA [b"auction", pos] (start_slot = clock.slot)
+>     Circuit->>Pos: state = Liquidatable
+>     Note over Keeper,Liquidator: Slots elapse: bonus ramps from 200 bps to 1500 bps
+>     Liquidator->>Circuit: liquidate_auction(requested_repay)
+>     Circuit->>Circuit: bonus = calculate_dutch_auction_bonus(elapsed_slots)
+>     Circuit->>Circuit: debt_to_repay = calculate_close_factor_debt(50%)
+>     Circuit->>LiqVault: Liquidator repays 50% debt
+>     Circuit->>ColVault: Protocol sends seized collateral [PDA Signed]
+>     Circuit->>Pos: Deduct debt & collateral; if HF >= 1.0 -> Healthy
+>     Circuit->>Auc: Close PDA & refund rent to Keeper/Initiator
+>     Circuit-->>Liquidator: Ok (Auction Complete)
+> ```
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Liquidator
-    participant Circuit as Circuit Program
-    participant Pyth as Pyth Receiver
-    participant Math as Math Engine
-    participant LiqVault as Liquidity Vault ATA
-    participant ColVault as Collateral Vault ATA
-    participant Pos as Position PDA
-
-    Liquidator->>Circuit: liquidate()
-    Circuit->>Pyth: try_validate_pyth_price()
-    alt Oracle Valid
-        Circuit->>Circuit: ref_price = oracle_price
-    else Oracle Invalid / Stale / Disrupted
-        Circuit->>Circuit: ref_price = position.last_valid_price (EMERGENCY)
-    end
-    Circuit->>Math: calculate_health_factor(collateral_val, debt)
-    Circuit->>Circuit: Require HF < min_health_factor_bps
-    Circuit->>Math: calculate_liquidation_collateral(debt, ref_price, bonus_bps)
-    Circuit->>LiqVault: CPI: Liquidator pays full debt (Quote ATA -> Vault)
-    Circuit->>ColVault: CPI: Protocol transfers seized collateral to Liquidator [PDA Signed]
-    Circuit->>Pos: debt_amount = 0, collateral_amount -= seized
-    Circuit-->>Liquidator: Ok (Liquidation Complete)
-```
 
 ### 4.6 `refresh_guard()`
 - **Target**: Update cached observability status on [`MarketGuard`](file:///c:/Dev/Circuit/programs/circuit/src/state/market_guard.rs#L16).

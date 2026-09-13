@@ -10,6 +10,8 @@ pub enum MarketState {
     Safe,
     /// One or more conditions degraded - borrowing blocked
     Restricted,
+    /// Elevated market stress - borrowing blocked, withdrawals restricted
+    Defensive,
     /// Critical condition - borrowing blocked, emergency liquidation rules apply
     Emergency,
 }
@@ -102,6 +104,10 @@ pub enum GuardReason {
     LiquidityCritical,
     /// Liquidity is thin
     LiquidityThin,
+    /// Risk ratchet is in defensive mode due to elevated volatility
+    RatchetDefensive,
+    /// Risk ratchet requires consecutive healthy observations before recovery
+    RatchetRecoveryPending,
 }
 
 impl Default for GuardReason {

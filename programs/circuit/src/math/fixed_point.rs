@@ -20,6 +20,22 @@ pub const TOKEN_DECIMALS: u8 = 6;
 /// Scale factor for token amounts (10^6)
 pub const TOKEN_SCALE: u128 = 1_000_000;
 
+/// Default Dutch auction duration in slots (150 slots ~ 60s at 400ms/slot)
+pub const DEFAULT_AUCTION_DURATION_SLOTS: u64 = 150;
+
+/// Floor bonus at start of Dutch auction (200 BPS = 2.00%)
+pub const DUTCH_AUCTION_MIN_BONUS_BPS: u64 = 200;
+
+/// Cap bonus at end of Dutch auction (1500 BPS = 15.00%)
+pub const DUTCH_AUCTION_MAX_BONUS_BPS: u64 = 1_500;
+
+/// Default close factor: 50% max debt repaid in a single partial liquidation
+pub const DEFAULT_CLOSE_FACTOR_BPS: u64 = 5_000;
+
+/// Dust debt threshold: positions with <= 100 USDC ($100) allow 100% full liquidation
+pub const DUST_DEBT_THRESHOLD: u64 = 100_000_000;
+
+
 // --------------------------------------------------------------
 // Collateral Value Calculation
 // --------------------------------------------------------------
@@ -270,6 +286,98 @@ pub fn calculate_dynamic_liquidation_bonus(
 }
 
 // --------------------------------------------------------------
+// Time-Ramped Dutch Auction Liquidation Bonus
+// --------------------------------------------------------------
+
+/// Calculates the time-ramped Dutch auction liquidation bonus in BPS.
+///
+/// In Tier 2, when a position becomes unhealthy, a continuous Dutch auction opens.
+/// The discount starts at `min_bonus_bps` (e.g. 200 BPS = 2.0%) at elapsed_slots = 0,
+/// protecting borrower equity against transient dips.
+/// Over `auction_duration_slots` (e.g. 150 slots ~60s), the discount ramps linearly
+/// up to `max_bonus_bps` (e.g. 1500 BPS = 15.0%).
+///
+/// Formula:
+///   if elapsed_slots >= auction_duration_slots {
+///       max_bonus_bps
+///   } else {
+///       min_bonus_bps + elapsed_slots * (max_bonus_bps - min_bonus_bps) / auction_duration_slots
+///   }
+///
+/// Guaranteed Properties:
+/// - Strictly bounded: min_bonus_bps <= result <= max_bonus_bps
+/// - Zero arithmetic overflow via u128 intermediates
+/// - Monotonically non-decreasing with elapsed slots
+pub fn calculate_dutch_auction_bonus(
+    elapsed_slots: u64,
+    auction_duration_slots: u64,
+    min_bonus_bps: u64,
+    max_bonus_bps: u64,
+) -> Result<u64> {
+    require!(min_bonus_bps <= max_bonus_bps, CircuitError::MathOverflow);
+    require!(auction_duration_slots > 0, CircuitError::MathOverflow);
+
+    if elapsed_slots >= auction_duration_slots {
+        return Ok(max_bonus_bps);
+    }
+
+    let bonus_range = (max_bonus_bps - min_bonus_bps) as u128;
+    let ramp = (elapsed_slots as u128)
+        .checked_mul(bonus_range)
+        .ok_or(CircuitError::MathOverflow)?
+        / (auction_duration_slots as u128);
+
+    let bonus = (min_bonus_bps as u128)
+        .checked_add(ramp)
+        .ok_or(CircuitError::MathOverflow)?;
+
+    Ok(bonus.min(max_bonus_bps as u128) as u64)
+}
+
+// --------------------------------------------------------------
+// Partial Liquidation (Close Factor) Calculation
+// --------------------------------------------------------------
+
+/// Calculates the allowable debt repayment under the partial close factor rule.
+///
+/// Under Tier 2:
+/// - Positions with total debt <= `dust_threshold` (e.g. $100) allow 100% full liquidation
+///   to prevent unliquidatable bad debt fragments.
+/// - Positions above `dust_threshold` allow up to `close_factor_bps` (e.g. 5000 BPS = 50%)
+///   of the total outstanding debt.
+/// - If `requested_repay` is 0 or exceeds `max_allowed`, `max_allowed` is returned.
+/// - Otherwise, `requested_repay` is returned.
+pub fn calculate_close_factor_debt(
+    total_debt: u64,
+    requested_repay: u64,
+    close_factor_bps: u64,
+    dust_threshold: u64,
+) -> Result<u64> {
+    require!(total_debt > 0, CircuitError::NotLiquidatable);
+    require!(close_factor_bps <= BPS_SCALE, CircuitError::MathOverflow);
+
+    let max_allowed = if total_debt <= dust_threshold {
+        total_debt
+    } else {
+        let max = (total_debt as u128)
+            .checked_mul(close_factor_bps as u128)
+            .ok_or(CircuitError::MathOverflow)?
+            / BPS_SCALE_U128;
+        max as u64
+    };
+
+    let actual_repay = if requested_repay == 0 || requested_repay > max_allowed {
+        max_allowed
+    } else {
+        requested_repay
+    };
+
+    require!(actual_repay > 0, CircuitError::MathOverflow);
+    Ok(actual_repay)
+}
+
+
+// --------------------------------------------------------------
 // Confidence Width Check
 // --------------------------------------------------------------
 
@@ -295,6 +403,111 @@ pub fn is_confidence_acceptable(
         / abs_price;
 
     Ok(conf_ratio_bps <= max_conf_bps as u128)
+}
+
+// --------------------------------------------------------------
+// Conservative Pyth Price Calculation
+// --------------------------------------------------------------
+
+/// Calculates the conservative price from a Pyth price and confidence interval.
+///
+/// Official Pyth Network guidance for lending protocols states that when evaluating
+/// collateral, protocols should use the conservative lower bound:
+///   p_conservative = max(0, price - conf)
+///
+/// This ensures that during periods of market volatility or publisher disagreement
+/// (wide confidence intervals), collateral is not overvalued, protecting the protocol
+/// against underwater loans.
+pub fn calculate_conservative_pyth_price(price: i64, conf: u64) -> Result<i64> {
+    require!(price > 0, CircuitError::InvalidPrice);
+    let conf_i64 = i64::try_from(conf).map_err(|_| CircuitError::MathOverflow)?;
+    let conservative = price.saturating_sub(conf_i64);
+    require!(conservative > 0, CircuitError::InvalidPrice);
+    Ok(conservative)
+}
+
+// --------------------------------------------------------------
+// Oracle Confidence Ratio Calculation
+// --------------------------------------------------------------
+
+/// Computes the relative confidence ratio in basis points:
+///   ratio_bps = (conf * 10_000) / price
+///
+/// Used by the Risk Ratchet state machine to classify volatility:
+/// - <= 50 BPS: Nominal (Safe)
+/// - > 50 BPS: Widening (Restricted)
+/// - > 150 BPS: Severe (Defensive)
+/// - > 300 BPS: Critical (Emergency)
+pub fn calculate_confidence_ratio_bps(price: i64, conf: u64) -> Result<u64> {
+    require!(price > 0, CircuitError::InvalidPrice);
+    let conf_u128 = conf as u128;
+    let price_u128 = price as u128;
+    let ratio = conf_u128
+        .checked_mul(BPS_SCALE_U128)
+        .ok_or(CircuitError::MathOverflow)?
+        / price_u128;
+    Ok(ratio.min(u64::MAX as u128) as u64)
+}
+
+// --------------------------------------------------------------
+// Multi-Asset Concentration Penalty Math
+// --------------------------------------------------------------
+
+/// Calculates the concentration penalty in BPS for concentrated portfolios.
+///
+/// When a single collateral asset's weight exceeds `threshold_bps` (e.g. 4000 BPS = 40%),
+/// Circuit applies a progressive concentration penalty to prevent single-asset crash vulnerability.
+///
+/// Formula:
+///   if concentration_bps <= threshold_bps {
+///       0
+///   } else {
+///       excess = concentration_bps - threshold_bps
+///       penalty = excess * slope_bps / 10_000
+///   }
+///
+/// Example:
+///   threshold = 4000 BPS (40%)
+///   slope = 3600 BPS (0.36)
+///   At 90% concentration (9000 BPS):
+///     excess = 5000 BPS
+///     penalty = 5000 * 3600 / 10000 = 1800 BPS (18.00%)
+///     Effective LTV drops from 70% to 52%!
+///   At 50/50 balanced (5000 BPS):
+///     excess = 1000 BPS
+///     penalty = 1000 * 3600 / 10000 = 360 BPS (3.60%)
+///     Effective LTV is 66.4%
+pub fn calculate_concentration_penalty(
+    concentration_bps: u64,
+    threshold_bps: u64,
+    slope_bps: u64,
+) -> Result<u64> {
+    if concentration_bps <= threshold_bps {
+        return Ok(0);
+    }
+    let excess = concentration_bps
+        .checked_sub(threshold_bps)
+        .ok_or(CircuitError::MathOverflow)?;
+    let penalty = (excess as u128)
+        .checked_mul(slope_bps as u128)
+        .ok_or(CircuitError::MathOverflow)?
+        / BPS_SCALE_U128;
+    Ok(penalty.min(BPS_SCALE_U128) as u64)
+}
+
+/// Calculates the Effective LTV in BPS after applying concentration haircut.
+///
+/// Effective LTV = max(min_ltv_floor, base_ltv - concentration_penalty)
+pub fn calculate_effective_ltv_with_concentration(
+    base_ltv_bps: u64,
+    concentration_bps: u64,
+    threshold_bps: u64,
+    slope_bps: u64,
+    min_ltv_floor_bps: u64,
+) -> Result<u64> {
+    let penalty = calculate_concentration_penalty(concentration_bps, threshold_bps, slope_bps)?;
+    let reduced_ltv = base_ltv_bps.saturating_sub(penalty);
+    Ok(reduced_ltv.max(min_ltv_floor_bps))
 }
 
 // --------------------------------------------------------------
@@ -706,4 +919,146 @@ mod tests {
         assert_eq!(col_severe, 5_500_000);
         assert!(col_severe > col_mild);
     }
+
+    // -- Tier 2 Dutch Auction Unit Tests --
+
+    #[test]
+    fn test_dutch_auction_bonus_slot_zero() {
+        // At elapsed_slots = 0, bonus is exact min_bonus_bps (200 BPS = 2.0%)
+        let bonus = calculate_dutch_auction_bonus(0, 150, 200, 1500).unwrap();
+        assert_eq!(bonus, 200);
+    }
+
+    #[test]
+    fn test_dutch_auction_bonus_midpoint() {
+        // At elapsed_slots = 75 (halfway of 150), bonus = 200 + (75 * 1300 / 150) = 200 + 650 = 850 BPS (8.5%)
+        let bonus = calculate_dutch_auction_bonus(75, 150, 200, 1500).unwrap();
+        assert_eq!(bonus, 850);
+    }
+
+    #[test]
+    fn test_dutch_auction_bonus_saturation() {
+        // At elapsed_slots == duration (150) -> max_bonus_bps (1500)
+        let bonus_at_end = calculate_dutch_auction_bonus(150, 150, 200, 1500).unwrap();
+        assert_eq!(bonus_at_end, 1500);
+
+        // At elapsed_slots > duration (e.g. 500) -> stays clamped at max_bonus_bps (1500)
+        let bonus_past_end = calculate_dutch_auction_bonus(500, 150, 200, 1500).unwrap();
+        assert_eq!(bonus_past_end, 1500);
+    }
+
+    #[test]
+    fn test_dutch_auction_bonus_monotonicity() {
+        // Ensure strictly non-decreasing ramp across entire auction duration
+        let mut prev = 0u64;
+        for slot in 0..=150 {
+            let b = calculate_dutch_auction_bonus(slot, 150, 200, 1500).unwrap();
+            assert!(b >= prev);
+            assert!(b >= 200 && b <= 1500);
+            prev = b;
+        }
+    }
+
+    #[test]
+    fn test_dutch_auction_invalid_params() {
+        // min > max
+        assert!(calculate_dutch_auction_bonus(10, 150, 1600, 1500).is_err());
+        // duration == 0
+        assert!(calculate_dutch_auction_bonus(10, 0, 200, 1500).is_err());
+    }
+
+    // -- Tier 2 Close Factor Unit Tests --
+
+    #[test]
+    fn test_close_factor_normal_debt_capped() {
+        // Debt: $1,000 (1_000_000_000), close factor: 50% (5000 BPS), dust: $100
+        let total_debt = 1_000_000_000;
+        let dust = 100_000_000;
+        let close_factor = 5_000;
+
+        // Requested 0 (default max) -> 50% = $500
+        let repay_default = calculate_close_factor_debt(total_debt, 0, close_factor, dust).unwrap();
+        assert_eq!(repay_default, 500_000_000);
+
+        // Requested $800 (> $500 max allowed) -> clamped to $500
+        let repay_clamped = calculate_close_factor_debt(total_debt, 800_000_000, close_factor, dust).unwrap();
+        assert_eq!(repay_clamped, 500_000_000);
+
+        // Requested $300 (<= $500 max allowed) -> approved as $300
+        let repay_partial = calculate_close_factor_debt(total_debt, 300_000_000, close_factor, dust).unwrap();
+        assert_eq!(repay_partial, 300_000_000);
+    }
+
+    #[test]
+    fn test_close_factor_dust_debt_allows_full() {
+        // Debt: $50 (50_000_000) <= $100 dust threshold -> permits 100% full liquidation
+        let total_debt = 50_000_000;
+        let dust = 100_000_000;
+        let close_factor = 5_000;
+
+        let repay_dust = calculate_close_factor_debt(total_debt, 0, close_factor, dust).unwrap();
+        assert_eq!(repay_dust, 50_000_000);
+    }
+
+    // -- Conservative Pyth Pricing & Concentration Unit Tests --
+
+    #[test]
+    fn test_conservative_pyth_price() {
+        // Price: $140.00 (14_000_000_000), conf: $2.00 (200_000_000)
+        let price = 14_000_000_000i64;
+        let conf = 200_000_000u64;
+        let conservative = calculate_conservative_pyth_price(price, conf).unwrap();
+        assert_eq!(conservative, 13_800_000_000i64); // $138.00
+
+        // Zero confidence -> conservative price == reported price
+        let zero_conf = calculate_conservative_pyth_price(price, 0).unwrap();
+        assert_eq!(zero_conf, price);
+
+        // Conf >= price -> error (invalid price)
+        assert!(calculate_conservative_pyth_price(price, 15_000_000_000u64).is_err());
+    }
+
+    #[test]
+    fn test_confidence_ratio_bps() {
+        // Price: $100.00 (10_000_000_000), conf: $0.50 (50_000_000) -> 50 BPS (0.50%)
+        let ratio = calculate_confidence_ratio_bps(10_000_000_000, 50_000_000).unwrap();
+        assert_eq!(ratio, 50);
+
+        // Price: $140.00, conf: 285 BPS (approx 2.85%)
+        // conf = 140 * 285 / 10000 = 3.99 -> 399_000_000
+        let ratio2 = calculate_confidence_ratio_bps(14_000_000_000, 399_000_000).unwrap();
+        assert_eq!(ratio2, 285);
+    }
+
+    #[test]
+    fn test_concentration_penalty_and_effective_ltv() {
+        // Base LTV: 7000 BPS (70.0%), Threshold: 4000 BPS (40.0%), Slope: 3600 BPS (0.36)
+        let base_ltv = 7_000;
+        let threshold = 4_000;
+        let slope = 3_600;
+        let floor = 3_000;
+
+        // 1. Under or at threshold (30% or 40% concentration) -> 0 penalty, full 70% LTV
+        let penalty_low = calculate_concentration_penalty(3_000, threshold, slope).unwrap();
+        assert_eq!(penalty_low, 0);
+        let ltv_low = calculate_effective_ltv_with_concentration(base_ltv, 3_000, threshold, slope, floor).unwrap();
+        assert_eq!(ltv_low, 7_000);
+
+        // 2. 50/50 Balanced Portfolio (50% = 5000 BPS)
+        // excess = 1000 BPS, penalty = 1000 * 3600 / 10000 = 360 BPS (3.60%)
+        // Effective LTV = 7000 - 360 = 6640 BPS (66.4%)
+        let penalty_50 = calculate_concentration_penalty(5_000, threshold, slope).unwrap();
+        assert_eq!(penalty_50, 360);
+        let ltv_50 = calculate_effective_ltv_with_concentration(base_ltv, 5_000, threshold, slope, floor).unwrap();
+        assert_eq!(ltv_50, 6_640);
+
+        // 3. 90/10 Concentrated Portfolio (90% = 9000 BPS)
+        // excess = 5000 BPS, penalty = 5000 * 3600 / 10000 = 1800 BPS (18.00%)
+        // Effective LTV = 7000 - 1800 = 5200 BPS (52.00%)! Exactly matching user spec!
+        let penalty_90 = calculate_concentration_penalty(9_000, threshold, slope).unwrap();
+        assert_eq!(penalty_90, 1_800);
+        let ltv_90 = calculate_effective_ltv_with_concentration(base_ltv, 9_000, threshold, slope, floor).unwrap();
+        assert_eq!(ltv_90, 5_200);
+    }
 }
+

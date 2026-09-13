@@ -111,4 +111,41 @@ pub enum CircuitError {
     /// Withdraw amount exceeds collateral balance
     #[msg("Withdraw exceeds collateral")]
     WithdrawExceedsCollateral,
+
+    /// Liquidation auction is already active for this position
+    #[msg("Liquidation auction already active")]
+    AuctionAlreadyActive,
+
+    /// Liquidation auction is not active for this position
+    #[msg("Liquidation auction not active")]
+    AuctionNotActive,
+
+    /// Position is still underwater; cannot cancel active auction
+    #[msg("Position is still unhealthy, cannot cancel auction")]
+    AuctionStillActive,
+
+    /// Risk Ratchet is in Restricted state
+    #[msg("Operation rejected: Risk Ratchet is in Restricted state")]
+    RiskRestricted,
+
+    /// Risk Ratchet is in Defensive state
+    #[msg("Operation rejected: Risk Ratchet is in Defensive state")]
+    RiskDefensive,
+
+    /// Risk Ratchet is in Emergency state
+    #[msg("Operation rejected: Risk Ratchet is in Emergency state")]
+    RiskEmergency,
+
+    /// Collateral withdrawal with active debt is prohibited during defensive or emergency risk states
+    #[msg("Collateral withdrawal with active debt is prohibited during defensive or emergency risk states")]
+    WithdrawRestrictedInStress,
+
+    /// Oracle confidence interval is invalid or exceeds allowable threshold
+    #[msg("Oracle confidence interval is invalid or exceeds allowable threshold")]
+    InvalidConfidenceInterval,
+
+    /// Illegal risk ratchet recovery transition attempted
+    #[msg("Illegal risk ratchet recovery transition attempted")]
+    IllegalStateTransition,
 }
+

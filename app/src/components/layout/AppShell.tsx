@@ -12,6 +12,7 @@ const PRIMARY: { to: string; label: string; icon: IconName }[] = [
   { to: "/app", label: "Dashboard", icon: "dashboard" },
   { to: "/app/markets", label: "Markets", icon: "markets" },
   { to: "/app/position", label: "Position", icon: "position" },
+  { to: "/app/demo", label: "Risk Demo", icon: "gauge" },
   { to: "/app/activity", label: "Activity", icon: "activity" },
 ];
 

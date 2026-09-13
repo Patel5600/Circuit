@@ -16,6 +16,9 @@ pub mod borrow;
 pub mod repay;
 pub mod withdraw;
 pub mod liquidate;
+pub mod start_liquidation_auction;
+pub mod cancel_liquidation_auction;
+pub mod liquidate_auction;
 pub mod pause;
 
 pub use initialize_protocol::*;
@@ -28,4 +31,8 @@ pub use borrow::*;
 pub use repay::*;
 pub use withdraw::*;
 pub use liquidate::*;
+pub use start_liquidation_auction::*;
+pub use cancel_liquidation_auction::*;
+pub use liquidate_auction::*;
 pub use pause::*;
+

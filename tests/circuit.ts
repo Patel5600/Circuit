@@ -870,4 +870,174 @@ describe("Circuit Protocol", () => {
       expectAnchorError(res, "MarketClosed");
     });
   });
+
+  // -----------------------------------------------------------------------
+  // 18. Tier 2 Dutch Auction & Partial Liquidation
+  // -----------------------------------------------------------------------
+  describe("18. Tier 2 Dutch Auction & Partial Liquidation", () => {
+    let h: Harness;
+    beforeEach(async () => {
+      h = await setupHarness();
+      await h.bootstrapProtocol();
+      h.sendOk([await h.ixDeposit(COLLATERAL)], [h.user]);
+      h.sendOk([await h.ixBorrow(CAPACITY)], [h.user]);
+    });
+
+    it("rejects starting an auction on a healthy position", async () => {
+      // Price is $100, HF = 1000 * 0.8 / 700 = 1.1428 (healthy)
+      const res = h.send([await h.ixStartLiquidationAuction()], [h.liquidator]);
+      expectAnchorError(res, "NotLiquidatable");
+    });
+
+    it("permissionlessly starts an auction when HF < 1.0 and records start slot", async () => {
+      // Price falls to $80 -> HF = 0.9142 < 1.0
+      h.setPrice({ priceUsd: 80 });
+
+      h.sendOk([await h.ixStartLiquidationAuction()], [h.liquidator]);
+
+      const auction = h.fetch<any>("LiquidationAuction", h.auction);
+      assert.equal(auction.position.toBase58(), h.position.toBase58());
+      assert.equal(auction.initialDebt.toNumber(), CAPACITY);
+      assert.equal(auction.startPrice.toString(), "8000000000");
+
+      const pos = h.fetch<any>("Position", h.position);
+      assert.property(pos.state, "liquidatable");
+    });
+
+    it("rejects starting a duplicate auction on an already active auction", async () => {
+      h.setPrice({ priceUsd: 80 });
+      h.sendOk([await h.ixStartLiquidationAuction()], [h.liquidator]);
+
+      // Second start attempt fails because account already initialized
+      const res = h.send([await h.ixStartLiquidationAuction(h.outsider)], [h.outsider]);
+      assert.isTrue(isFailure(res));
+    });
+
+    it("executes liquidation at slot 0 with floor bonus (200 bps) and 50% close factor", async () => {
+      h.setPrice({ priceUsd: 80 });
+      h.sendOk([await h.ixStartLiquidationAuction()], [h.liquidator]);
+
+      const liqQuoteBefore = h.tokenBalance(h.liquidatorQuoteAta);
+      const liqCollBefore = h.tokenBalance(h.liquidatorEquityAta);
+
+      // Execute at elapsed_slots = 0: bonus is 200 bps (2.0%)
+      // Debt to repay (50% close factor): 700 / 2 = $350 (350_000_000)
+      // Debt with 2% bonus: $350 * 1.02 = $357.00
+      // Collateral seized at $80: 357 / 80 = 4.4625 tokens = 4_462_500 units
+      const res = h.sendOk([await h.ixLiquidateAuction(0)], [h.liquidator]);
+      const logs = logsOf(res).join("\n");
+      assert.include(logs, "Bonus: 200 bps (elapsed: 0 slots)");
+      assert.include(logs, "Resolved: true");
+
+      const expectedRepay = BigInt(350 * TOKEN);
+      const expectedSeizure = BigInt(4_462_500);
+
+      const pos = h.fetch<any>("Position", h.position);
+      assert.equal(pos.debtAmount.toString(), String(BigInt(CAPACITY) - expectedRepay));
+      assert.equal(
+        pos.collateralAmount.toString(),
+        String(BigInt(COLLATERAL) - expectedSeizure)
+      );
+      assert.property(pos.state, "healthy");
+
+      assert.equal(
+        h.tokenBalance(h.liquidatorQuoteAta),
+        liqQuoteBefore - expectedRepay
+      );
+      assert.equal(
+        h.tokenBalance(h.liquidatorEquityAta),
+        liqCollBefore + expectedSeizure
+      );
+
+      // Auction PDA closed and refunded
+      assert.isNull(h.maybeFetch<any>("LiquidationAuction", h.auction));
+    });
+
+
+    it("ramps discount over elapsed slots (75 slots yields 850 bps)", async () => {
+      h.setPrice({ priceUsd: 80 });
+      h.sendOk([await h.ixStartLiquidationAuction()], [h.liquidator]);
+
+      // Advance 75 slots (half of 150 slot duration)
+      h.advanceSlots(75);
+
+      // Expected bonus at 75 slots: 200 + (75 * 1300 / 150) = 850 bps (8.50%)
+      // Debt repay (50%): $350
+      // Debt with 8.5% bonus: $350 * 1.085 = $379.75
+      // Collateral seized at $80: 379.75 / 80 = 4.746875 tokens = 4_746_875 units
+      const res = h.sendOk([await h.ixLiquidateAuction(0)], [h.liquidator]);
+      const logs = logsOf(res).join("\n");
+      assert.include(logs, "Bonus: 850 bps (elapsed: 75 slots)");
+
+      const expectedSeizure = BigInt(4_746_875);
+      const pos = h.fetch<any>("Position", h.position);
+      assert.equal(
+        pos.collateralAmount.toString(),
+        String(BigInt(COLLATERAL) - expectedSeizure)
+      );
+    });
+
+    it("saturates discount at max cap (1500 bps) at or beyond auction duration", async () => {
+      h.setPrice({ priceUsd: 80 });
+      h.sendOk([await h.ixStartLiquidationAuction()], [h.liquidator]);
+
+      // Advance 200 slots (> 150 slot window)
+      h.advanceSlots(200);
+
+      // Expected bonus: 1500 bps max cap (15.0%)
+      // Debt repay: $350
+      // Debt with 15% bonus: $350 * 1.15 = $402.50
+      // Collateral seized at $80: 402.50 / 80 = 5.031250 tokens = 5_031_250 units
+      const res = h.sendOk([await h.ixLiquidateAuction(0)], [h.liquidator]);
+      const logs = logsOf(res).join("\n");
+      assert.include(logs, "Bonus: 1500 bps (elapsed: 200 slots)");
+
+      const expectedSeizure = BigInt(5_031_250);
+      const pos = h.fetch<any>("Position", h.position);
+      assert.equal(
+        pos.collateralAmount.toString(),
+        String(BigInt(COLLATERAL) - expectedSeizure)
+      );
+    });
+
+    it("cancels auction and refunds rent when position is restored to health", async () => {
+      h.setPrice({ priceUsd: 80 });
+      h.sendOk([await h.ixStartLiquidationAuction()], [h.liquidator]);
+
+      // Borrower repays $250 of debt
+      // Remaining debt: $450. Collateral: 10 tokens ($800 value).
+      // HF: 800 * 0.80 / 450 = 1.4222 > 1.0 (healed!)
+      h.sendOk(
+        [
+          createMintToInstruction(
+            h.quoteMint,
+            h.userQuoteAta,
+            h.admin.publicKey,
+            BigInt(300 * TOKEN)
+          ),
+          await h.ixRepay(250 * TOKEN),
+        ],
+        [h.admin, h.user]
+      );
+
+      // Now cancel the auction
+      h.sendOk([await h.ixCancelLiquidationAuction()], [h.user]);
+
+      // Auction is closed
+      assert.isNull(h.maybeFetch<any>("LiquidationAuction", h.auction));
+
+      const pos = h.fetch<any>("Position", h.position);
+      assert.property(pos.state, "healthy");
+    });
+
+    it("rejects cancelling auction while position is still underwater", async () => {
+      h.setPrice({ priceUsd: 80 });
+      h.sendOk([await h.ixStartLiquidationAuction()], [h.liquidator]);
+
+      // Position is still underwater at $80, cancel attempt fails
+      const res = h.send([await h.ixCancelLiquidationAuction()], [h.user]);
+      expectAnchorError(res, "AuctionStillActive");
+    });
+  });
 });
+

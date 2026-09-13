@@ -253,6 +253,167 @@
       ]
     },
     {
+      "name": "cancel_liquidation_auction",
+      "docs": [
+        "Cancel an active auction if the position has returned to healthy territory (Tier 2).",
+        "Permissionless. Closes LiquidationAuction PDA and refunds rent."
+      ],
+      "discriminator": [
+        166,
+        8,
+        159,
+        250,
+        100,
+        241,
+        158,
+        59
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "docs": [
+            "Any caller can cancel a healed auction"
+          ],
+          "signer": true
+        },
+        {
+          "name": "protocol_config",
+          "docs": [
+            "ProtocolConfig PDA"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "asset_config",
+          "docs": [
+            "AssetConfig PDA"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  115,
+                  115,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "asset_config.mint",
+                "account": "AssetConfig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "position",
+          "docs": [
+            "Position PDA"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "position.owner",
+                "account": "Position"
+              },
+              {
+                "kind": "account",
+                "path": "asset_config.mint",
+                "account": "AssetConfig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "price_update",
+          "docs": [
+            "Pyth PriceUpdateV2"
+          ]
+        },
+        {
+          "name": "collateral_mint",
+          "docs": [
+            "Collateral token mint"
+          ]
+        },
+        {
+          "name": "quote_mint",
+          "docs": [
+            "Quote token mint"
+          ]
+        },
+        {
+          "name": "auction",
+          "docs": [
+            "LiquidationAuction PDA to close"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  117,
+                  99,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "auction_initiator",
+          "docs": [
+            "Original initiator of the auction receiving rent refund"
+          ],
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "deposit",
       "docs": [
         "Deposit equity tokens as collateral.",
@@ -892,6 +1053,377 @@
       "args": []
     },
     {
+      "name": "liquidate_auction",
+      "docs": [
+        "Liquidate an active Dutch auction position with partial close factor (Tier 2).",
+        "Discount scales smoothly with elapsed slots; repays up to 50% of debt."
+      ],
+      "discriminator": [
+        9,
+        36,
+        3,
+        0,
+        175,
+        57,
+        160,
+        26
+      ],
+      "accounts": [
+        {
+          "name": "liquidator",
+          "docs": [
+            "Liquidator paying debt and receiving discounted collateral"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "protocol_config",
+          "docs": [
+            "ProtocolConfig PDA"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "asset_config",
+          "docs": [
+            "AssetConfig PDA"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  115,
+                  115,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "asset_config.mint",
+                "account": "AssetConfig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "position",
+          "docs": [
+            "Position PDA being liquidated"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "position.owner",
+                "account": "Position"
+              },
+              {
+                "kind": "account",
+                "path": "asset_config.mint",
+                "account": "AssetConfig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "auction",
+          "docs": [
+            "LiquidationAuction PDA"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  117,
+                  99,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "auction_initiator",
+          "docs": [
+            "Original initiator of the auction receiving rent refund if auction completes"
+          ],
+          "writable": true
+        },
+        {
+          "name": "price_update",
+          "docs": [
+            "Pyth PriceUpdateV2"
+          ]
+        },
+        {
+          "name": "collateral_mint",
+          "docs": [
+            "Collateral token mint"
+          ]
+        },
+        {
+          "name": "quote_mint",
+          "docs": [
+            "Quote token mint"
+          ]
+        },
+        {
+          "name": "liquidator_quote_ata",
+          "docs": [
+            "Liquidator's quote token account (pays debt)"
+          ],
+          "writable": true
+        },
+        {
+          "name": "liquidator_collateral_ata",
+          "docs": [
+            "Liquidator's collateral token account (receives seized collateral)"
+          ],
+          "writable": true
+        },
+        {
+          "name": "collateral_vault",
+          "docs": [
+            "Protocol collateral vault"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "protocol_config"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "collateral_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "liquidity_vault",
+          "docs": [
+            "Protocol liquidity vault"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "protocol_config"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "quote_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "requested_repay",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "pause_protocol",
       "docs": [
         "Pause the protocol (borrow/withdraw blocked)."
@@ -963,6 +1495,7 @@
           "docs": [
             "Anyone can call refresh_guard - permissionless"
           ],
+          "writable": true,
           "signer": true
         },
         {
@@ -998,10 +1531,22 @@
           "writable": true
         },
         {
+          "name": "risk_ratchet",
+          "docs": [
+            "Dedicated RiskRatchet PDA - one per Pyth feed.",
+            "Uses init_if_needed for zero-friction lazy activation across all 12 devnet markets."
+          ],
+          "writable": true
+        },
+        {
           "name": "price_update",
           "docs": [
             "Pyth PriceUpdateV2 account"
           ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": []
@@ -1743,6 +2288,165 @@
       ]
     },
     {
+      "name": "start_liquidation_auction",
+      "docs": [
+        "Initiate a continuous time-ramped Dutch auction for an unhealthy position (Tier 2).",
+        "Permissionless crank. Creates the LiquidationAuction PDA."
+      ],
+      "discriminator": [
+        32,
+        210,
+        115,
+        53,
+        58,
+        3,
+        225,
+        120
+      ],
+      "accounts": [
+        {
+          "name": "initiator",
+          "docs": [
+            "Initiator/crank paying rent for the LiquidationAuction account"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "protocol_config",
+          "docs": [
+            "ProtocolConfig PDA"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "asset_config",
+          "docs": [
+            "AssetConfig PDA"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  115,
+                  115,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "asset_config.mint",
+                "account": "AssetConfig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "position",
+          "docs": [
+            "The unhealthy position entering auction"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "position.owner",
+                "account": "Position"
+              },
+              {
+                "kind": "account",
+                "path": "asset_config.mint",
+                "account": "AssetConfig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "price_update",
+          "docs": [
+            "Pyth PriceUpdateV2"
+          ]
+        },
+        {
+          "name": "collateral_mint",
+          "docs": [
+            "Collateral token mint"
+          ]
+        },
+        {
+          "name": "quote_mint",
+          "docs": [
+            "Quote token mint"
+          ]
+        },
+        {
+          "name": "auction",
+          "docs": [
+            "LiquidationAuction PDA being initialized"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  117,
+                  99,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "unpause_protocol",
       "docs": [
         "Unpause the protocol."
@@ -2047,6 +2751,19 @@
       ]
     },
     {
+      "name": "LiquidationAuction",
+      "discriminator": [
+        114,
+        80,
+        77,
+        48,
+        79,
+        174,
+        24,
+        141
+      ]
+    },
+    {
       "name": "MarketGuard",
       "discriminator": [
         173,
@@ -2083,6 +2800,19 @@
         179,
         215,
         209
+      ]
+    },
+    {
+      "name": "RiskRatchet",
+      "discriminator": [
+        26,
+        13,
+        25,
+        173,
+        219,
+        247,
+        249,
+        188
       ]
     }
   ],
@@ -2221,6 +2951,51 @@
       "code": 6026,
       "name": "WithdrawExceedsCollateral",
       "msg": "Withdraw exceeds collateral"
+    },
+    {
+      "code": 6027,
+      "name": "AuctionAlreadyActive",
+      "msg": "Liquidation auction already active"
+    },
+    {
+      "code": 6028,
+      "name": "AuctionNotActive",
+      "msg": "Liquidation auction not active"
+    },
+    {
+      "code": 6029,
+      "name": "AuctionStillActive",
+      "msg": "Position is still unhealthy, cannot cancel auction"
+    },
+    {
+      "code": 6030,
+      "name": "RiskRestricted",
+      "msg": "Operation rejected: Risk Ratchet is in Restricted state"
+    },
+    {
+      "code": 6031,
+      "name": "RiskDefensive",
+      "msg": "Operation rejected: Risk Ratchet is in Defensive state"
+    },
+    {
+      "code": 6032,
+      "name": "RiskEmergency",
+      "msg": "Operation rejected: Risk Ratchet is in Emergency state"
+    },
+    {
+      "code": 6033,
+      "name": "WithdrawRestrictedInStress",
+      "msg": "Collateral withdrawal with active debt is prohibited during defensive or emergency risk states"
+    },
+    {
+      "code": 6034,
+      "name": "InvalidConfidenceInterval",
+      "msg": "Oracle confidence interval is invalid or exceeds allowable threshold"
+    },
+    {
+      "code": 6035,
+      "name": "IllegalStateTransition",
+      "msg": "Illegal risk ratchet recovery transition attempted"
     }
   ],
   "types": [
@@ -2402,6 +3177,79 @@
           },
           {
             "name": "LiquidityThin"
+          },
+          {
+            "name": "RatchetDefensive"
+          },
+          {
+            "name": "RatchetRecoveryPending"
+          }
+        ]
+      }
+    },
+    {
+      "name": "LiquidationAuction",
+      "docs": [
+        "Liquidation Auction PDA - one per active auction for a position.",
+        "",
+        "Seeds: [\"auction\", position.key().as_ref()]",
+        "",
+        "Tracks the opening of a continuous Dutch auction when a position becomes",
+        "unhealthy (HF < minimum). The auction enables continuous price discovery,",
+        "ramping the liquidation bonus linearly from min_bonus_bps to max_bonus_bps",
+        "over AUCTION_DURATION_SLOTS, eliminating the latency MEV race."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "position",
+            "docs": [
+              "The position PDA being liquidated"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "start_slot",
+            "docs": [
+              "The slot at which the liquidation auction was initiated"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "start_price",
+            "docs": [
+              "Oracle price at auction start"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "start_expo",
+            "docs": [
+              "Exponent for start_price"
+            ],
+            "type": "i32"
+          },
+          {
+            "name": "initial_debt",
+            "docs": [
+              "Debt amount at auction start (in quote token units)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "initiator",
+            "docs": [
+              "Caller/crank that initialized the auction (receives rent refund upon resolution)"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump seed"
+            ],
+            "type": "u8"
           }
         ]
       }
@@ -2527,6 +3375,9 @@
           },
           {
             "name": "Restricted"
+          },
+          {
+            "name": "Defensive"
           },
           {
             "name": "Emergency"
@@ -2798,6 +3649,91 @@
             "docs": [
               "Global liquidation bonus in BPS.",
               "Liquidators receive this % bonus on seized collateral."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump seed"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RiskRatchet",
+      "docs": [
+        "Dedicated Risk Ratchet state PDA - one per Pyth feed.",
+        "",
+        "Seeds: [ratchet, pyth_feed_id]",
+        "",
+        "Implements the 4-state risk machine (Safe, Restricted, Defensive, Emergency).",
+        "Enforces asymmetric fast tightening and monotonic staged recovery with hysteresis."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "feed_id",
+            "docs": [
+              "The Pyth feed ID this ratchet governs"
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "state",
+            "docs": [
+              "Current risk ratchet state"
+            ],
+            "type": {
+              "defined": {
+                "name": "MarketState"
+              }
+            }
+          },
+          {
+            "name": "reason",
+            "docs": [
+              "Reason for current risk state"
+            ],
+            "type": {
+              "defined": {
+                "name": "GuardReason"
+              }
+            }
+          },
+          {
+            "name": "risk_epoch",
+            "docs": [
+              "Cumulative counter of adverse condition breaches / stress events"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "consecutive_healthy_observations",
+            "docs": [
+              "Consecutive healthy crank observations at the current recovery tier"
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "last_stress_slot",
+            "docs": [
+              "Solana slot at which the most recent risk breach occurred"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "last_updated_slot",
+            "docs": [
+              "Solana slot at which ratchet was last updated"
             ],
             "type": "u64"
           },

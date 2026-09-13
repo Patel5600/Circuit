@@ -103,6 +103,8 @@ export class Harness {
   assetConfig!: PublicKey;
   marketGuard!: PublicKey;
   position!: PublicKey;
+  auction!: PublicKey;
+  riskRatchet!: PublicKey;
 
   collateralVault!: PublicKey;
   liquidityVault!: PublicKey;
@@ -149,6 +151,20 @@ export class Harness {
   now(): bigint {
     return this.svm.getClockUnixTimestamp();
   }
+
+  getSlot(): bigint {
+    return this.svm.inner.getClock().slot;
+  }
+
+  warpToSlot(slot: bigint | number): void {
+    this.svm.warpToSlot(BigInt(slot));
+  }
+
+  advanceSlots(delta: bigint | number): void {
+    const current = this.getSlot();
+    this.warpToSlot(current + BigInt(delta));
+  }
+
 
   /** Create or overwrite the forged Pyth price account. */
   setPrice(opts: SetPriceOpts = {}): void {
@@ -379,6 +395,71 @@ export class Harness {
       .instruction();
   }
 
+  async ixStartLiquidationAuction(
+    initiator = this.liquidator
+  ): Promise<TransactionInstruction> {
+    return this.program.methods
+      .startLiquidationAuction()
+      .accountsPartial({
+        initiator: initiator.publicKey,
+        protocolConfig: this.protocolConfig,
+        assetConfig: this.assetConfig,
+        position: this.position,
+        priceUpdate: this.priceUpdate,
+        collateralMint: this.equityMint,
+        quoteMint: this.quoteMint,
+        auction: this.auction,
+        systemProgram: SystemProgram.programId,
+      })
+      .instruction();
+  }
+
+  async ixCancelLiquidationAuction(
+    caller = this.user,
+    initiator = this.liquidator
+  ): Promise<TransactionInstruction> {
+    return this.program.methods
+      .cancelLiquidationAuction()
+      .accountsPartial({
+        caller: caller.publicKey,
+        protocolConfig: this.protocolConfig,
+        assetConfig: this.assetConfig,
+        position: this.position,
+        priceUpdate: this.priceUpdate,
+        collateralMint: this.equityMint,
+        quoteMint: this.quoteMint,
+        auction: this.auction,
+        auctionInitiator: initiator.publicKey,
+      })
+      .instruction();
+  }
+
+  async ixLiquidateAuction(
+    requestedRepay: number | bigint = 0,
+    liquidator = this.liquidator,
+    initiator = this.liquidator
+  ): Promise<TransactionInstruction> {
+    return this.program.methods
+      .liquidateAuction(new BN(requestedRepay.toString()))
+      .accountsPartial({
+        liquidator: liquidator.publicKey,
+        protocolConfig: this.protocolConfig,
+        assetConfig: this.assetConfig,
+        position: this.position,
+        auction: this.auction,
+        auctionInitiator: initiator.publicKey,
+        priceUpdate: this.priceUpdate,
+        collateralMint: this.equityMint,
+        quoteMint: this.quoteMint,
+        liquidatorQuoteAta: this.liquidatorQuoteAta,
+        liquidatorCollateralAta: this.liquidatorEquityAta,
+        collateralVault: this.collateralVault,
+        liquidityVault: this.liquidityVault,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .instruction();
+  }
+
   async ixRefreshGuard(caller = this.outsider): Promise<TransactionInstruction> {
     return this.program.methods
       .refreshGuard()
@@ -386,7 +467,9 @@ export class Harness {
         caller: caller.publicKey,
         assetConfig: this.assetConfig,
         marketGuard: this.marketGuard,
+        riskRatchet: this.riskRatchet,
         priceUpdate: this.priceUpdate,
+        systemProgram: SystemProgram.programId,
       })
       .instruction();
   }
@@ -622,6 +705,15 @@ export async function setupHarness(): Promise<Harness> {
     ],
     h.programId
   );
+  [h.auction] = PublicKey.findProgramAddressSync(
+    [Buffer.from("auction"), h.position.toBuffer()],
+    h.programId
+  );
+  [h.riskRatchet] = PublicKey.findProgramAddressSync(
+    [Buffer.from("ratchet"), Buffer.from(FEED_ID_HEX, "hex")],
+    h.programId
+  );
+
 
   h.collateralVault = getAssociatedTokenAddressSync(
     h.equityMint,
