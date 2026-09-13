@@ -20,8 +20,12 @@ export const PROGRAM_ID = new PublicKey(
   envVar("VITE_PROGRAM_ID", (idl as any).address)
 );
 
-export const EQUITY_MINT = maybeKey(envVar("VITE_EQUITY_MINT"));
-export const QUOTE_MINT = maybeKey(envVar("VITE_QUOTE_MINT"));
+export const EQUITY_MINT = maybeKey(
+  envVar("VITE_EQUITY_MINT", "CARqKy5GTCxz5G1tFiYA96A3Q8jaUE9Vppk7cjGJxRqq")
+);
+export const QUOTE_MINT = maybeKey(
+  envVar("VITE_QUOTE_MINT", "23hpSsK3h4na3pwSUf1YzaDF9nzX3t2PppJJf16Qpkxc")
+);
 
 export const PYTH_FEED_ID = envVar(
   "VITE_PYTH_FEED_ID",
@@ -43,7 +47,9 @@ export const PYTH_PUSH_ORACLE_ID = new PublicKey(
 );
 
 /** Explicit price account override; otherwise derived from the feed id. */
-export const PYTH_PRICE_ACCOUNT = maybeKey(envVar("VITE_PYTH_PRICE_ACCOUNT"));
+export const PYTH_PRICE_ACCOUNT = maybeKey(
+  envVar("VITE_PYTH_PRICE_ACCOUNT", "7UVimffxr9ow1uXYxsr4LHAcV58mLzhmwaeKvJ1pjLiE")
+);
 
 export const POLL_INTERVAL_MS = Number(envVar("VITE_POLL_INTERVAL_MS", "10000"));
 

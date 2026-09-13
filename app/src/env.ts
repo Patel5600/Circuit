@@ -41,8 +41,14 @@ export const CLUSTER_LABEL =
  * quoting a number that happens to read well. Same reason there are no prices
  * anywhere on the page: the build cannot substantiate them.
  */
-export const EQUITY_MINT_STRING = read("VITE_EQUITY_MINT");
-export const QUOTE_MINT_STRING = read("VITE_QUOTE_MINT");
+export const EQUITY_MINT_STRING = read(
+  "VITE_EQUITY_MINT",
+  "CARqKy5GTCxz5G1tFiYA96A3Q8jaUE9Vppk7cjGJxRqq"
+);
+export const QUOTE_MINT_STRING = read(
+  "VITE_QUOTE_MINT",
+  "23hpSsK3h4na3pwSUf1YzaDF9nzX3t2PppJJf16Qpkxc"
+);
 
 export const HAS_LIVE_MARKET = Boolean(
   EQUITY_MINT_STRING && QUOTE_MINT_STRING
