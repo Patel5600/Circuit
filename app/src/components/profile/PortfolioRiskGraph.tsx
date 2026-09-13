@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from "react";
-import { Card, Pill, Tone, Icon } from "../ui";
+import { Card, Pill, Tone } from "../ui";
 import { LOGOS, type LogoMark } from "../../data/logos";
 
 /* -------------------------------------------------------------------------- */
@@ -53,7 +53,11 @@ const USDC_LOGO: LogoMark = {
   optical: 1,
   hex: "#2775CA",
   onDark: "#2775CA",
-  d: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.5-13h-1v1.07c-1.39.22-2.5 1.1-2.5 2.43 0 1.55 1.34 2.15 2.7 2.47 1.45.34 1.8.69 1.8 1.43 0 .73-.59 1.3-1.6 1.3-1.07 0-1.67-.47-1.85-1.28l-1.35.45c.3 1.18 1.25 1.95 2.3 2.16V17h1v-1.06c1.39-.23 2.5-1.12 2.5-2.44 0-1.74-1.52-2.28-2.85-2.58-1.26-.29-1.65-.63-1.65-1.32 0-.71.57-1.2 1.5-1.2 1.01 0 1.52.48 1.7 1.13l1.35-.49c-.27-1.05-1.15-1.78-2.15-2.02V7z",
+  parts: [
+    { d: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z", fill: "#2775CA" },
+    { d: "M12.5 7h-1v1.07c-1.39.22-2.5 1.1-2.5 2.43 0 1.55 1.34 2.15 2.7 2.47 1.45.34 1.8.69 1.8 1.43 0 .73-.59 1.3-1.6 1.3-1.07 0-1.67-.47-1.85-1.28l-1.35.45c.3 1.18 1.25 1.95 2.3 2.16V17h1v-1.06c1.39-.23 2.5-1.12 2.5-2.44 0-1.74-1.52-2.28-2.85-2.58-1.26-.29-1.65-.63-1.65-1.32 0-.71.57-1.2 1.5-1.2 1.01 0 1.52.48 1.7 1.13l1.35-.49c-.27-1.05-1.15-1.78-2.15-2.02V7z", fill: "#FFFFFF" },
+  ],
+  d: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z",
 };
 
 export function getAssetMark(symbol: string): LogoMark | undefined {
@@ -63,12 +67,12 @@ export function getAssetMark(symbol: string): LogoMark | undefined {
 
 export function getAssetName(symbol: string): string {
   switch (symbol) {
-    case "NVDA": return "NVIDIA Corp.";
-    case "AAPL": return "Apple Inc.";
-    case "MSFT": return "Microsoft Corp.";
-    case "AMZN": return "Amazon.com";
-    case "TSLA": return "Tesla Inc.";
-    case "GOOGL": return "Alphabet Inc.";
+    case "NVDA": return "NVIDIA";
+    case "AAPL": return "Apple";
+    case "MSFT": return "Microsoft";
+    case "AMZN": return "Amazon";
+    case "TSLA": return "Tesla";
+    case "GOOGL": return "Alphabet";
     case "COIN": return "Coinbase";
     case "USDC": return "USD Coin";
     default: return symbol;
@@ -174,9 +178,9 @@ function AssetCardNode({
     ? "rgba(224, 108, 108, 0.08)"
     : "rgba(18, 22, 32, 0.85)";
 
-  const logoScale = 0.85;
-  const logoX = leftX + 10;
-  const logoY = topY + 12;
+  const cx = leftX + 22;
+  const cy = topY + 24;
+  const scale = (20 / 24) * (mark?.optical || 1);
 
   return (
     <g>
@@ -212,19 +216,19 @@ function AssetCardNode({
         </rect>
       )}
 
-      {/* Brand logo circular frame */}
+      {/* Brand logo circular badge frame */}
       <circle
-        cx={logoX + 12}
-        cy={logoY + 12}
+        cx={cx}
+        cy={cy}
         r={14}
         fill="rgba(255, 255, 255, 0.04)"
         stroke="rgba(255, 255, 255, 0.1)"
         strokeWidth={0.8}
       />
 
-      {/* Real SVG brand logo mark */}
+      {/* Real SVG brand logo mark with accurate optical centering */}
       {mark ? (
-        <g transform={`translate(${logoX}, ${logoY}) scale(${logoScale})`}>
+        <g transform={`translate(${cx}, ${cy}) scale(${scale}) translate(-12, -12)`}>
           {mark.parts ? (
             mark.parts.map((p, idx) => (
               <path key={idx} d={p.d} fill={p.fill} />
@@ -235,12 +239,13 @@ function AssetCardNode({
         </g>
       ) : (
         <text
-          x={logoX + 12}
-          y={logoY + 16}
+          x={cx}
+          y={cy + 4}
           textAnchor="middle"
-          fontSize={11}
+          fontSize={10.5}
           fontWeight={700}
           fill="var(--text)"
+          fontFamily="var(--mono)"
         >
           {symbol.slice(0, 2)}
         </text>
@@ -264,14 +269,14 @@ function AssetCardNode({
         fill="var(--text-3)"
         fontFamily="var(--font-sans)"
       >
-        {name.length > 11 ? name.slice(0, 10) + "…" : name}
+        {name.length > 9 ? name.slice(0, 8) + "…" : name}
       </text>
 
       {/* Weight Pill */}
       <rect
-        x={leftX + cardW - 44}
+        x={leftX + cardW - 46}
         y={topY + 13}
-        width={36}
+        width={38}
         height={22}
         rx={5}
         fill={
@@ -287,7 +292,7 @@ function AssetCardNode({
         strokeWidth={1}
       />
       <text
-        x={leftX + cardW - 26}
+        x={leftX + cardW - 27}
         y={topY + 28}
         textAnchor="middle"
         fontSize={10.5}
@@ -357,7 +362,7 @@ function PortfolioNode({
       <text x={x} y={y + 20} textAnchor="middle" fontSize={10} fontFamily="var(--mono)" fill={color}>
         / 100
       </text>
-      <text x={x} y={y + 40} textAnchor="middle" fontSize={11} fontWeight={650} fill={color}>
+      <text x={x} y={y + 38} textAnchor="middle" fontSize={11} fontWeight={650} fill={color}>
         {state}
       </text>
     </g>
@@ -458,36 +463,38 @@ export function PortfolioRiskGraph({
   const [internalMode, setInternalMode] = useState<"LIVE" | "HEALTHY" | "STRESS" | "EMERGENCY">("LIVE");
   const simMode = controlledSimMode ?? internalMode;
 
-  const handleModeChange = (m: "LIVE" | "HEALTHY" | "STRESS" | "EMERGENCY") => {
-    setInternalMode(m);
-    onSimModeChange?.(m);
-  };
-
-  // Interactive fine-tuning slider states
-  const [customPrimaryWeight, setCustomPrimaryWeight] = useState<number>(58);
-  const [customConfBps, setCustomConfBps] = useState<number>(18);
+  // Interactive fine-tuning slider states (initialized from live values)
+  const [customPrimaryWeight, setCustomPrimaryWeight] = useState<number>(liveAssets[0]?.weightPct ?? 58);
+  const [customConfBps, setCustomConfBps] = useState<number>(liveAssets[0]?.confBps ?? 18);
   const [custodyHalted, setCustodyHalted] = useState<boolean>(false);
   const [marketSessionClosed, setMarketSessionClosed] = useState<boolean>(false);
 
-  // Sync sliders when preset mode changes
-  useEffect(() => {
-    if (simMode === "HEALTHY") {
+  const handleModeChange = (m: "LIVE" | "HEALTHY" | "STRESS" | "EMERGENCY") => {
+    setInternalMode(m);
+    onSimModeChange?.(m);
+
+    if (m === "LIVE") {
+      setCustomPrimaryWeight(liveAssets[0]?.weightPct ?? 58);
+      setCustomConfBps(liveAssets[0]?.confBps ?? 18);
+      setCustodyHalted(liveHardOverride);
+      setMarketSessionClosed(false);
+    } else if (m === "HEALTHY") {
       setCustomPrimaryWeight(35);
       setCustomConfBps(18);
       setCustodyHalted(false);
       setMarketSessionClosed(false);
-    } else if (simMode === "STRESS") {
+    } else if (m === "STRESS") {
       setCustomPrimaryWeight(58);
       setCustomConfBps(285);
       setCustodyHalted(false);
       setMarketSessionClosed(false);
-    } else if (simMode === "EMERGENCY") {
+    } else if (m === "EMERGENCY") {
       setCustomPrimaryWeight(58);
       setCustomConfBps(520);
       setCustodyHalted(true);
       setMarketSessionClosed(false);
     }
-  }, [simMode]);
+  };
 
   // Primary symbol derived from liveAssets[0] or default NVDA
   const primarySymbol = liveAssets[0]?.symbol ?? "NVDA";
@@ -509,17 +516,14 @@ export function PortfolioRiskGraph({
     hardOverrideReason,
     whatChanged,
   } = useMemo(() => {
-    // 1. Determine weights
-    let w0 = customPrimaryWeight;
-    if (simMode === "LIVE") {
-      w0 = liveAssets[0]?.weightPct ?? 58;
-    }
+    // 1. Determine weights from interactive slider
+    const w0 = customPrimaryWeight;
     const remainingW = Math.max(0, 100 - w0);
     const w1 = Math.round(remainingW * 0.52);
     const w2 = Math.round(remainingW * 0.36);
     const w3 = Math.max(0, 100 - w0 - w1 - w2);
 
-    const activeConf = simMode === "LIVE" ? liveAssets[0]?.confBps ?? 18 : customConfBps;
+    const activeConf = customConfBps;
     const isOracleBlown = activeConf > 450;
     const isHardOverride =
       simMode === "EMERGENCY" ||
@@ -657,7 +661,6 @@ export function PortfolioRiskGraph({
     customConfBps,
     custodyHalted,
     marketSessionClosed,
-    liveAssets,
     primarySymbol,
     secondarySymbols,
     liveHardOverride,

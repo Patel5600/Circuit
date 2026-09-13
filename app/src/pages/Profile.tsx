@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useWallet } from "@solana/wallet-adapter-react";
 
@@ -100,13 +100,15 @@ export default function Profile() {
   // Mode and dynamic simulation synchronization
   const [simMode, setSimMode] = useState<"LIVE" | "HEALTHY" | "STRESS" | "EMERGENCY">("LIVE");
   const [dynamicPayload, setDynamicPayload] = useState<DynamicStatePayload | null>(null);
-  const [useDemoProof, setUseDemoProof] = useState<boolean>(false);
 
   const rawCollateralUi = toUi(s.position?.collateralAmount ?? 0n);
   const rawDebtUi = toUi(s.position?.debtAmount ?? 0n);
   const priceUsd = s.oracle?.priceUsd ?? 138.25;
 
   const hasLiveCollateral = rawCollateralUi > 0;
+  // Default to reference proof position if empty wallet to provide immediate live calculation
+  const [useDemoProof, setUseDemoProof] = useState<boolean>(!hasLiveCollateral);
+
   const isProofActive = useDemoProof || (!hasLiveCollateral && simMode !== "LIVE");
 
   const collateralUi = isProofActive ? 72.33 : rawCollateralUi;
@@ -117,7 +119,6 @@ export default function Profile() {
   const rawHfBps = s.risk?.healthFactorBps ?? null;
   const baseLtvBps = s.asset?.baseLtvBps ?? 7000;
   const capacityUsd = collateralValueUsd * (baseLtvBps / BPS);
-  const borrowPowerUsd = Math.max(0, capacityUsd - debtUi);
 
   const liveRiskState = riskStateFromGuard(s.guard?.reason, s.risk?.borrowAllowed ?? false);
   const liveBorrowAllowed = s.risk?.borrowAllowed ?? false;
@@ -192,6 +193,26 @@ export default function Profile() {
   const effectiveLtvBps = Math.max(3000, baseLtvBps - concentrationPenaltyBps);
   const adjustedBorrowPower = collateralValueUsd * (effectiveLtvBps / BPS) - debtUi;
 
+  // Callback with equality check to prevent infinite re-render loops
+  const handleDynamicStateChange = useCallback((payload: DynamicStatePayload) => {
+    setDynamicPayload((prev) => {
+      if (
+        prev &&
+        prev.riskState === payload.riskState &&
+        prev.effectiveLtvBps === payload.effectiveLtvBps &&
+        prev.borrowPowerUsd === payload.borrowPowerUsd &&
+        prev.borrowAllowed === payload.borrowAllowed &&
+        prev.concentrationPct === payload.concentrationPct &&
+        prev.confBps === payload.confBps &&
+        prev.hardOverride === payload.hardOverride &&
+        prev.hardOverrideReason === payload.hardOverrideReason
+      ) {
+        return prev;
+      }
+      return payload;
+    });
+  }, []);
+
   // Active synchronized values across the page
   const activeRiskState = dynamicPayload?.riskState ?? liveRiskState;
   const activeBorrowAllowed = dynamicPayload?.borrowAllowed ?? (liveBorrowAllowed || (isProofActive && activeRiskState !== "EMERGENCY"));
@@ -256,17 +277,17 @@ export default function Profile() {
               <Icon name="info" size={16} />
               <span style={{ fontSize: 12, color: "var(--text-2)" }}>
                 {isProofActive
-                  ? "Active Proof Simulation: $10,000 NVDA Collateral loaded for risk modeling."
-                  : "Wallet has 0 on-chain collateral. Load reference collateral to model real borrowing power."}
+                  ? "Active Proof Mode: Modeling with reference $10,000 NVDA collateral position."
+                  : "Wallet has $0 on-chain collateral. Modeling with real-time $0 balance."}
               </span>
             </div>
             <button
               type="button"
               className={`btn ${isProofActive ? "btn--secondary" : "btn--accent"} btn--sm`}
               style={{ fontSize: 11, padding: "4px 10px", height: 26 }}
-              onClick={() => setUseDemoProof(!isProofActive)}
+              onClick={() => setUseDemoProof(!useDemoProof)}
             >
-              {isProofActive ? "Use Live $0 Wallet" : "Load $10,000 NVDA Collateral"}
+              {isProofActive ? "Switch to Live $0 Balance" : "Load $10,000 Reference Collateral"}
             </button>
           </div>
         )}
@@ -434,7 +455,7 @@ export default function Profile() {
           hardOverrideReason={activeHardReason}
           simMode={simMode}
           onSimModeChange={(m) => setSimMode(m)}
-          onDynamicStateChange={(payload) => setDynamicPayload(payload)}
+          onDynamicStateChange={handleDynamicStateChange}
         />
 
         {/* ── Section 5: Risk Permissions ────────────────────────────── */}
