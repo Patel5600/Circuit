@@ -50,7 +50,7 @@ export function MarketSelector({ compact = false, onSelect }: MarketSelectorProp
           background: "var(--surface-2)",
           border: "1px solid var(--border-strong)",
           borderRadius: 10,
-          color: "var(--text-1)",
+          color: "var(--text)",
           cursor: "pointer",
           fontSize: compact ? 13 : 14,
           fontWeight: 600,
@@ -110,10 +110,11 @@ export function MarketSelector({ compact = false, onSelect }: MarketSelectorProp
             width: 320,
             maxHeight: 420,
             overflowY: "auto",
-            background: "var(--surface-1)",
+            backgroundColor: "#0d0f14",
+            background: "#0d0f14",
             border: "1px solid var(--border-strong)",
             borderRadius: 14,
-            boxShadow: "0 14px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05)",
+            boxShadow: "0 18px 48px rgba(0, 0, 0, 0.92), 0 0 0 1px rgba(255, 255, 255, 0.08)",
             zIndex: 1000,
             padding: 8,
           }}
@@ -156,7 +157,7 @@ export function MarketSelector({ compact = false, onSelect }: MarketSelectorProp
                     borderRadius: 8,
                     cursor: "pointer",
                     textAlign: "left",
-                    color: "var(--text-1)",
+                    color: "var(--text)",
                     transition: "background 0.12s ease",
                   }}
                   onMouseEnter={(e) => {

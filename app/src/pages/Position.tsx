@@ -278,9 +278,20 @@ export default function Position() {
 
           {!s.loading && !hasPosition ? (
             <Card>
-              <Notice tone="neutral" title={`No ${display.symbol} position yet`}>
+              <Notice
+                tone="neutral"
+                title={`No ${display.symbol} position yet`}
+                action={
+                  <div className="row g-8 wrap" style={{ marginTop: 6 }}>
+                    <Link to="/app/faucet" className="btn btn--accent btn--sm">
+                      <Icon name="faucet" size={14} />
+                      Mint {display.symbol} Collateral in Faucet
+                    </Link>
+                  </div>
+                }
+              >
                 You currently have 0 {display.symbol} deposited and 0 {quoteSymbol} borrowed.
-                Use the form below to deposit {display.symbol} as collateral.
+                Deposit {display.symbol} to unlock borrowing capacity.
               </Notice>
             </Card>
           ) : null}
@@ -340,6 +351,19 @@ export default function Position() {
               </label>
               <span className="t-sm muted">
                 Available: {formatTokens(toUi(max))} {unitSymbol}
+                {action === "deposit" && max === 0n && (
+                  <Link
+                    to="/app/faucet"
+                    style={{
+                      marginLeft: 8,
+                      color: "var(--accent)",
+                      textDecoration: "underline",
+                      fontSize: 12,
+                    }}
+                  >
+                    Get free test tokens &rarr;
+                  </Link>
+                )}
               </span>
             </div>
 

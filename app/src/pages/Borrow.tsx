@@ -257,12 +257,16 @@ export default function Borrow() {
               <Notice tone="warning" title={`No ${display.symbol} collateral deposited`}>
                 You need to deposit {display.symbol} before you can borrow {quoteSymbol} against it.
               </Notice>
-              <div className="row g-8">
+              <div className="row g-8 wrap">
                 <Link
                   to={`/app/position?market=${selectedMarket.symbol}`}
                   className="btn btn--accent btn--sm"
                 >
                   Deposit {display.symbol} now
+                </Link>
+                <Link to="/app/faucet" className="btn btn--secondary btn--sm">
+                  <Icon name="faucet" size={14} />
+                  Get Free Test {display.symbol}
                 </Link>
                 <Link to="/app/markets" className="btn btn--secondary btn--sm">
                   View other markets

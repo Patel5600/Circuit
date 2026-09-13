@@ -38,9 +38,18 @@ export type IconName =
   | "menu"
   | "close"
   | "layers"
-  | "gauge";
+  | "gauge"
+  | "faucet";
 
 const PATHS: Record<IconName, React.ReactNode> = {
+  faucet: (
+    <>
+      <path d="M4 10h11a3 3 0 0 1 3 3v2H4v-5Z" />
+      <path d="M7 10V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4" />
+      <path d="M15 15v3.5a1.5 1.5 0 0 1-3 0V15" />
+      <circle cx="13.5" cy="21.5" r="0.75" />
+    </>
+  ),
   dashboard: (
     <>
       <rect x="3" y="3" width="7" height="7" rx="1.5" />
