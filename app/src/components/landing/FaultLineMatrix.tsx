@@ -3,12 +3,13 @@ import { Reveal } from "../ui/Reveal";
 import { Pill, Icon } from "../ui";
 
 /* -------------------------------------------------------------------------- */
-/*  Dimensions Data                                                           */
+/*  Dimensions Data (7 Chapters)                                              */
 /* -------------------------------------------------------------------------- */
 
 export interface DimensionChapter {
   id: string;
   number: string;
+  roman: string;
   title: string;
   subtitle: string;
   tagline: string;
@@ -24,6 +25,7 @@ const DIMENSIONS: DimensionChapter[] = [
   {
     id: "custody",
     number: "01",
+    roman: "I",
     title: "Qualified Collateral Custody",
     subtitle: "Real Asset Backing vs Synthetic Debt",
     tagline: "Tokenized equities are legally enforceable shares held in regulated custody, not synthetic contracts.",
@@ -40,6 +42,7 @@ const DIMENSIONS: DimensionChapter[] = [
   {
     id: "oracle",
     number: "02",
+    roman: "II",
     title: "Conservative Pyth Valuation",
     subtitle: "Lower-Bound Confidence Interval Pricing",
     tagline: "Point estimates fail when spreads explode. Circuit evaluates collateral strictly at the confidence lower bound.",
@@ -56,6 +59,7 @@ const DIMENSIONS: DimensionChapter[] = [
   {
     id: "session",
     number: "03",
+    roman: "III",
     title: "Deterministic NYSE Session Guard",
     subtitle: "Market Calendar Aware Credit",
     tagline: "Equities do not trade 24/7. Credit generation must halt when underlying venues close.",
@@ -72,6 +76,7 @@ const DIMENSIONS: DimensionChapter[] = [
   {
     id: "ratchet",
     number: "04",
+    roman: "IV",
     title: "4-State Risk Ratchet",
     subtitle: "Asymmetric Fast-Tightening State Machine",
     tagline: "Binary risk states create liquidation cascades. Circuit introduces a 4-tier gradual defensive posture.",
@@ -88,6 +93,7 @@ const DIMENSIONS: DimensionChapter[] = [
   {
     id: "hysteresis",
     number: "05",
+    roman: "V",
     title: "Monotonic Hysteresis Recovery",
     subtitle: "Evidence-Based Monotonic Upgrades",
     tagline: "A single clean tick does not mean calm has returned. Recovery requires consecutive verified proofs.",
@@ -104,6 +110,7 @@ const DIMENSIONS: DimensionChapter[] = [
   {
     id: "concentration",
     number: "06",
+    roman: "VI",
     title: "Multi-Asset Concentration Penalty",
     subtitle: "Dynamic Leverage Throttling",
     tagline: "Single-stock concentration carries idiosyncratic crash risk. Circuit scales allowable LTV with diversification.",
@@ -120,6 +127,7 @@ const DIMENSIONS: DimensionChapter[] = [
   {
     id: "liquidation",
     number: "07",
+    roman: "VII",
     title: "Severity-Scaled Liquidation Game Theory",
     subtitle: "Dutch Auction vs Latency Arms Races",
     tagline: "Flat bonuses create MEV bot races. Continuous severity-scaled discounts eliminate fixed-prize wars.",
@@ -141,23 +149,42 @@ const DIMENSIONS: DimensionChapter[] = [
 
 export function FaultLineMatrix() {
   const [isOpen, setIsOpen] = useState(false);
-  const [activePage, setActivePage] = useState(0);
+  const [activeChapterIndex, setActiveChapterIndex] = useState(0);
+  const [flipDirection, setFlipDirection] = useState<"next" | "prev" | null>(null);
 
-  const currentChapter = DIMENSIONS[activePage];
+  const chapter = DIMENSIONS[activeChapterIndex];
 
-  // Keyboard navigation when book modal is open
+  const goToChapter = (index: number) => {
+    if (index === activeChapterIndex) return;
+    setFlipDirection(index > activeChapterIndex ? "next" : "prev");
+    setActiveChapterIndex(index);
+  };
+
+  const nextChapter = () => {
+    if (activeChapterIndex < DIMENSIONS.length - 1) {
+      goToChapter(activeChapterIndex + 1);
+    }
+  };
+
+  const prevChapter = () => {
+    if (activeChapterIndex > 0) {
+      goToChapter(activeChapterIndex - 1);
+    }
+  };
+
+  // Keyboard navigation when book is open
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (!isOpen) return;
       if (e.key === "Escape") {
         setIsOpen(false);
       } else if (e.key === "ArrowRight") {
-        setActivePage((p) => (p < DIMENSIONS.length - 1 ? p + 1 : p));
+        nextChapter();
       } else if (e.key === "ArrowLeft") {
-        setActivePage((p) => (p > 0 ? p - 1 : p));
+        prevChapter();
       }
     },
-    [isOpen]
+    [isOpen, activeChapterIndex]
   );
 
   useEffect(() => {
@@ -165,7 +192,7 @@ export function FaultLineMatrix() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
 
-  // Lock body scroll when modal is open
+  // Lock body scroll when book modal is open
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = "hidden";
@@ -177,10 +204,13 @@ export function FaultLineMatrix() {
     };
   }, [isOpen]);
 
-  const openAt = (idx: number) => {
-    setActivePage(idx);
-    setIsOpen(true);
-  };
+  // Clear flip animation flag after transition
+  useEffect(() => {
+    if (flipDirection) {
+      const timer = setTimeout(() => setFlipDirection(null), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [flipDirection, activeChapterIndex]);
 
   return (
     <section className="sec" id="dimensions" style={{ position: "relative", zIndex: 1 }}>
@@ -198,18 +228,18 @@ export function FaultLineMatrix() {
             </h2>
             <p className="t-base muted" style={{ maxWidth: 680, margin: "14px 0 0 0", fontSize: 16, lineHeight: 1.55 }}>
               Tokenized equities require fundamentally different primitives than crypto-native assets.
-              Click the handbook below to open the interactive codex detailing each architectural layer.
+              Click the book below to open the real 3D Architectural Codex and explore each chapter.
             </p>
           </div>
         </Reveal>
 
-        {/* ── Compact Interactive Book Preview + Chapter Index ── */}
+        {/* ── Compact Closed Book Showcase on the Page ── */}
         <Reveal delay={80}>
           <div
             style={{
               display: "grid",
               gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-              gap: 32,
+              gap: 36,
               alignItems: "center",
               background: "var(--surface-1, rgba(16, 20, 28, 0.6))",
               border: "1px solid var(--border)",
@@ -218,188 +248,89 @@ export function FaultLineMatrix() {
               boxShadow: "0 20px 48px rgba(0, 0, 0, 0.4)",
             }}
           >
-            {/* Left: The Small Tactile 3D Book */}
+            {/* Left: The Small Realistic Hardcover Book */}
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
               <div
                 role="button"
                 tabIndex={0}
-                aria-label="Open Architectural Codex"
-                onClick={() => openAt(0)}
-                onKeyDown={(e) => e.key === "Enter" && openAt(0)}
-                className="codex-book-trigger"
-                style={{
-                  width: 190,
-                  height: 260,
-                  position: "relative",
-                  cursor: "pointer",
-                  perspective: 1000,
-                  transition: "transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease",
+                aria-label="Open the Circuit Architectural Codex"
+                onClick={() => {
+                  setActiveChapterIndex(0);
+                  setIsOpen(true);
                 }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    setActiveChapterIndex(0);
+                    setIsOpen(true);
+                  }
+                }}
+                className="real-book-closed"
               >
-                {/* Book Cover Hardback */}
-                <div
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    background: "linear-gradient(135deg, #151a24 0%, #0d1117 100%)",
-                    border: "1px solid rgba(207, 173, 116, 0.35)",
-                    borderRadius: "4px 10px 10px 4px",
-                    boxShadow:
-                      "-6px 0 0 #090c10, -10px 0 16px rgba(0,0,0,0.6), 12px 16px 32px rgba(0,0,0,0.5), inset 0 0 20px rgba(0,0,0,0.6)",
-                    padding: "20px 16px",
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "space-between",
-                    position: "relative",
-                    overflow: "hidden",
-                  }}
-                >
-                  {/* Left Spine Texture */}
-                  <div
-                    style={{
-                      position: "absolute",
-                      left: 0,
-                      top: 0,
-                      bottom: 0,
-                      width: 14,
-                      background: "linear-gradient(90deg, rgba(0,0,0,0.6) 0%, rgba(255,255,255,0.08) 50%, rgba(0,0,0,0.4) 100%)",
-                      borderRight: "1px solid rgba(207, 173, 116, 0.2)",
-                    }}
-                  />
+                {/* Book Front Cover */}
+                <div className="real-book-cover">
+                  {/* Leather Spine Foil Edge */}
+                  <div className="real-book-spine-line" />
 
-                  {/* Gold Foil Header Border */}
-                  <div
-                    style={{
-                      borderBottom: "1px solid rgba(207, 173, 116, 0.3)",
-                      paddingBottom: 8,
-                      marginLeft: 8,
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontFamily: "var(--mono)",
-                        fontSize: 9,
-                        letterSpacing: "0.18em",
-                        textTransform: "uppercase",
-                        color: "var(--accent)",
-                        opacity: 0.9,
-                        display: "block",
-                      }}
-                    >
-                      CIRCUIT PROTOCOL
-                    </span>
-                    <span
-                      style={{
-                        fontFamily: "var(--mono)",
-                        fontSize: 8,
-                        letterSpacing: "0.12em",
-                        color: "var(--text-3)",
-                      }}
-                    >
-                      SPECIFICATION 01
-                    </span>
+                  {/* Header Foil */}
+                  <div style={{ borderBottom: "1px solid rgba(207, 173, 116, 0.3)", paddingBottom: 8 }}>
+                    <span className="gold-folio">CIRCUIT PROTOCOL</span>
+                    <span className="gold-sub-folio">SOLANA ARCHITECTURE</span>
                   </div>
 
-                  {/* Center Emblem & Title */}
-                  <div style={{ marginLeft: 8, textAlign: "center", margin: "auto 0" }}>
-                    <div
-                      style={{
-                        width: 42,
-                        height: 42,
-                        margin: "0 auto 10px",
-                        borderRadius: "50%",
-                        border: "1.5px solid var(--accent)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        color: "var(--accent)",
-                        background: "rgba(207, 173, 116, 0.08)",
-                      }}
-                    >
-                      <Icon name="shield" size={20} />
+                  {/* Center Gilded Emblem & Title */}
+                  <div style={{ textAlign: "center", margin: "auto 0" }}>
+                    <div className="gold-emblem">
+                      <Icon name="shield" size={22} />
                     </div>
-                    <div
-                      style={{
-                        fontSize: 14,
-                        fontWeight: 700,
-                        letterSpacing: "0.06em",
-                        color: "var(--text)",
-                        textTransform: "uppercase",
-                        lineHeight: 1.2,
-                      }}
-                    >
-                      Architectural
+                    <div className="gold-title">
+                      ARCHITECTURAL
                       <br />
-                      <span style={{ color: "var(--accent)" }}>Codex</span>
+                      <span>CODEX</span>
                     </div>
-                    <div
-                      style={{
-                        fontSize: 9,
-                        color: "var(--text-3)",
-                        fontFamily: "var(--mono)",
-                        marginTop: 4,
-                      }}
-                    >
-                      7 Core Dimensions
-                    </div>
+                    <div className="gold-chapters-meta">VII CHAPTERS · ON-CHAIN</div>
                   </div>
 
-                  {/* Ribbon bookmark sticking out */}
-                  <div
-                    style={{
-                      position: "absolute",
-                      bottom: -10,
-                      right: 28,
-                      width: 14,
-                      height: 22,
-                      background: "var(--accent)",
-                      clipPath: "polygon(0 0, 100% 0, 100% 100%, 50% 75%, 0 100%)",
-                      boxShadow: "0 2px 6px rgba(0,0,0,0.5)",
-                    }}
-                  />
+                  {/* Hanging Silk Ribbon */}
+                  <div className="silk-ribbon" />
 
-                  {/* Bottom Footer */}
-                  <div style={{ marginLeft: 8, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 6 }}>
-                    <span style={{ fontSize: 9, fontFamily: "var(--mono)", color: "var(--accent)", opacity: 0.8 }}>
+                  {/* Book Footer */}
+                  <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 6, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: 9, fontFamily: "var(--mono)", color: "var(--accent)" }}>
                       CLICK TO OPEN ↗
+                    </span>
+                    <span style={{ fontSize: 8, fontFamily: "var(--mono)", color: "var(--text-3)" }}>
+                      HARDCOVER
                     </span>
                   </div>
                 </div>
 
-                {/* Simulated Paper Edge Stack on Right */}
-                <div
-                  style={{
-                    position: "absolute",
-                    right: -7,
-                    top: 5,
-                    bottom: 5,
-                    width: 7,
-                    background: "repeating-linear-gradient(180deg, #d8d3c5 0px, #d8d3c5 1px, #b5af9f 1px, #b5af9f 2px)",
-                    borderRadius: "0 3px 3px 0",
-                    boxShadow: "2px 0 4px rgba(0,0,0,0.4)",
-                  }}
-                />
+                {/* 3D Paper Page Edges (Right & Bottom) */}
+                <div className="real-book-pages-right" />
+                <div className="real-book-pages-bottom" />
               </div>
 
-              <div style={{ marginTop: 16, textAlign: "center" }}>
+              <div style={{ marginTop: 18, textAlign: "center" }}>
                 <button
                   type="button"
                   className="btn btn--accent btn--sm"
-                  onClick={() => openAt(0)}
+                  onClick={() => {
+                    setActiveChapterIndex(0);
+                    setIsOpen(true);
+                  }}
                   style={{
-                    boxShadow: "0 0 16px rgba(207, 173, 116, 0.2)",
+                    boxShadow: "0 0 20px rgba(207, 173, 116, 0.25)",
                     fontWeight: 650,
                   }}
                 >
                   <Icon name="verify" size={14} />
-                  Open Architectural Codex (7 Pages)
+                  Open Real Book (7 Chapters)
                 </button>
               </div>
             </div>
 
-            {/* Right: Quick Chapter Directory */}
+            {/* Right: Chapter Directory Preview */}
             <div>
-              <div className="row between g-8" style={{ marginBottom: 16, alignItems: "center" }}>
+              <div className="row between g-8" style={{ marginBottom: 14, alignItems: "center" }}>
                 <span
                   style={{
                     fontFamily: "var(--mono)",
@@ -409,42 +340,30 @@ export function FaultLineMatrix() {
                     color: "var(--text-3)",
                   }}
                 >
-                  Codex Directory · Select Any Chapter
+                  Table of Contents · 7 Architectural Dimensions
                 </span>
                 <Pill tone="accent" withDot>
-                  7 DIMENSIONS
+                  OPEN TO READ
                 </Pill>
               </div>
 
-              <div style={{ display: "grid", gap: 8 }}>
+              <div style={{ display: "grid", gap: 7 }}>
                 {DIMENSIONS.map((dim, idx) => (
                   <div
                     key={dim.id}
-                    onClick={() => openAt(idx)}
+                    onClick={() => {
+                      setActiveChapterIndex(idx);
+                      setIsOpen(true);
+                    }}
                     role="button"
                     tabIndex={0}
-                    onKeyDown={(e) => e.key === "Enter" && openAt(idx)}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "10px 14px",
-                      borderRadius: 8,
-                      background: "rgba(255, 255, 255, 0.02)",
-                      border: "1px solid var(--border)",
-                      cursor: "pointer",
-                      transition: "background 0.2s ease, border-color 0.2s ease, transform 0.2s ease",
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        setActiveChapterIndex(idx);
+                        setIsOpen(true);
+                      }
                     }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = "rgba(207, 173, 116, 0.06)";
-                      e.currentTarget.style.borderColor = "var(--accent)";
-                      e.currentTarget.style.transform = "translateX(4px)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = "rgba(255, 255, 255, 0.02)";
-                      e.currentTarget.style.borderColor = "var(--border)";
-                      e.currentTarget.style.transform = "translateX(0)";
-                    }}
+                    className="chapter-item-row"
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                       <span
@@ -453,10 +372,10 @@ export function FaultLineMatrix() {
                           fontSize: 11,
                           fontWeight: 700,
                           color: dim.accentColor,
-                          width: 22,
+                          width: 24,
                         }}
                       >
-                        {dim.number}
+                        {dim.roman}.
                       </span>
                       <div>
                         <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text)" }}>
@@ -471,7 +390,7 @@ export function FaultLineMatrix() {
                     <div className="row g-8" style={{ alignItems: "center" }}>
                       <span
                         style={{
-                          fontSize: 10.5,
+                          fontSize: 10,
                           fontFamily: "var(--mono)",
                           color: dim.accentColor,
                           padding: "2px 6px",
@@ -491,63 +410,26 @@ export function FaultLineMatrix() {
         </Reveal>
       </div>
 
-      {/* ── Bump-On-Screen Expanded Book Modal ── */}
+      {/* ── Realistic 3D Open Book Modal (Bumps on Screen) ── */}
       {isOpen && (
         <div
           role="dialog"
           aria-modal="true"
-          aria-label="Architectural Codex Handbook"
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 10000,
-            background: "rgba(5, 7, 11, 0.85)",
-            backdropFilter: "blur(12px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "20px 16px",
-            animation: "fadeIn 0.2s ease-out",
-          }}
+          aria-label="Real 3D Open Book - Architectural Codex"
+          className="book-modal-backdrop"
           onClick={(e) => {
             if (e.target === e.currentTarget) setIsOpen(false);
           }}
         >
-          {/* Expanded Open Codex Reader */}
-          <div
-            className="codex-bump-modal"
-            style={{
-              width: "100%",
-              maxWidth: 820,
-              maxHeight: "92vh",
-              background: "linear-gradient(180deg, #161b26 0%, #0e121a 100%)",
-              border: "1px solid rgba(207, 173, 116, 0.4)",
-              borderRadius: 16,
-              boxShadow:
-                "0 24px 72px rgba(0, 0, 0, 0.8), 0 0 32px rgba(207, 173, 116, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
-              display: "flex",
-              flexDirection: "column",
-              overflow: "hidden",
-              position: "relative",
-              animation: "bumpScale 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)",
-            }}
-          >
-            {/* Modal Header Bar */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "16px 24px",
-                borderBottom: "1px solid var(--border)",
-                background: "rgba(10, 13, 18, 0.6)",
-              }}
-            >
+          {/* Main Book Casing & Perspective Container */}
+          <div className="open-book-perspective-wrapper">
+            {/* Top Navigation & Close Header */}
+            <div className="open-book-topbar">
               <div className="row g-10" style={{ alignItems: "center" }}>
                 <span
                   style={{
-                    width: 24,
-                    height: 24,
+                    width: 26,
+                    height: 26,
                     borderRadius: 6,
                     background: "rgba(207, 173, 116, 0.15)",
                     color: "var(--accent)",
@@ -556,312 +438,673 @@ export function FaultLineMatrix() {
                     justifyContent: "center",
                   }}
                 >
-                  <Icon name="shield" size={14} />
+                  <Icon name="shield" size={15} />
                 </span>
                 <div>
-                  <span
-                    style={{
-                      fontFamily: "var(--mono)",
-                      fontSize: 10,
-                      letterSpacing: "0.14em",
-                      textTransform: "uppercase",
-                      color: "var(--accent)",
-                      fontWeight: 650,
-                      display: "block",
-                    }}
-                  >
+                  <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--accent)", letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 700 }}>
                     THE CIRCUIT ARCHITECTURAL CODEX
                   </span>
-                  <span style={{ fontSize: 11, color: "var(--text-3)" }}>
-                    Dimension {activePage + 1} of {DIMENSIONS.length} · One Dimension per Page
+                  <span style={{ fontSize: 11, color: "var(--text-3)", marginLeft: 8 }}>
+                    Chapter {chapter.roman} of VII · One Dimension per Page
                   </span>
                 </div>
               </div>
 
               <div className="row g-10" style={{ alignItems: "center" }}>
                 <Pill tone="accent">
-                  CHAPTER {currentChapter.number} / 07
+                  CHAPTER {chapter.number} / 07
                 </Pill>
                 <button
                   type="button"
-                  aria-label="Close codex"
+                  aria-label="Close book"
                   className="btn btn--ghost btn--sm"
-                  style={{ padding: "4px 8px", fontSize: 12 }}
+                  style={{ padding: "4px 10px", fontSize: 12 }}
                   onClick={() => setIsOpen(false)}
                 >
-                  ✕ Close (Esc)
+                  ✕ Close Book (Esc)
                 </button>
               </div>
             </div>
 
-            {/* Quick Chapter Selector Dots / Pills */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "10px 24px",
-                background: "rgba(255, 255, 255, 0.015)",
-                borderBottom: "1px solid var(--border)",
-                overflowX: "auto",
-              }}
-            >
-              {DIMENSIONS.map((d, i) => (
-                <button
-                  key={d.id}
-                  type="button"
-                  onClick={() => setActivePage(i)}
-                  style={{
-                    padding: "4px 10px",
-                    borderRadius: 6,
-                    border: i === activePage ? "1px solid var(--accent)" : "1px solid transparent",
-                    background: i === activePage ? "rgba(207, 173, 116, 0.12)" : "transparent",
-                    color: i === activePage ? "var(--text)" : "var(--text-3)",
-                    fontSize: 11,
-                    fontFamily: "var(--mono)",
-                    cursor: "pointer",
-                    whiteSpace: "nowrap",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: "50%",
-                      background: i === activePage ? d.accentColor : "var(--border)",
-                    }}
-                  />
-                  <span>{d.number}</span>
-                  <span style={{ display: i === activePage ? "inline" : "none" }}>{d.title.split(" ")[0]}</span>
-                </button>
-              ))}
-            </div>
+            {/* The Real 3D Open Hardcover Volume */}
+            <div className="open-book-hardcover-casing">
+              {/* Silk ribbon hanging down the center fold */}
+              <div className="center-silk-ribbon" />
 
-            {/* Modal Body: The Active Dimension Page */}
-            <div
-              style={{
-                padding: "32px 36px",
-                overflowY: "auto",
-                flex: 1,
-              }}
-            >
-              {/* Page Number & Badge */}
-              <div className="row between g-12" style={{ marginBottom: 12, alignItems: "center" }}>
-                <span
-                  style={{
-                    fontFamily: "var(--mono)",
-                    fontSize: 12,
-                    fontWeight: 700,
-                    letterSpacing: "0.1em",
-                    color: currentChapter.accentColor,
-                  }}
-                >
-                  DIMENSION {currentChapter.number}
-                </span>
-                <span
-                  style={{
-                    fontSize: 11,
-                    fontFamily: "var(--mono)",
-                    padding: "3px 8px",
-                    borderRadius: 4,
-                    background: `${currentChapter.accentColor}18`,
-                    color: currentChapter.accentColor,
-                    border: `1px solid ${currentChapter.accentColor}44`,
-                  }}
-                >
-                  {currentChapter.badge}
-                </span>
-              </div>
-
-              {/* Title & Tagline */}
-              <h3
-                style={{
-                  fontSize: "clamp(1.4rem, 3vw, 1.85rem)",
-                  fontWeight: 650,
-                  color: "var(--text)",
-                  margin: "0 0 6px 0",
-                  lineHeight: 1.2,
-                }}
-              >
-                {currentChapter.title}
-              </h3>
-              <div
-                style={{
-                  fontSize: 14,
-                  fontWeight: 500,
-                  color: "var(--accent)",
-                  marginBottom: 16,
-                  fontFamily: "var(--mono)",
-                }}
-              >
-                {currentChapter.subtitle}
-              </div>
-
-              <div
-                style={{
-                  fontSize: 15,
-                  lineHeight: 1.55,
-                  color: "var(--text)",
-                  background: "rgba(255, 255, 255, 0.03)",
-                  borderLeft: `3px solid ${currentChapter.accentColor}`,
-                  padding: "12px 16px",
-                  borderRadius: "0 8px 8px 0",
-                  marginBottom: 24,
-                  fontStyle: "italic",
-                }}
-              >
-                “{currentChapter.tagline}”
-              </div>
-
-              {/* 3 Detail Blocks */}
-              <div style={{ display: "grid", gap: 18 }}>
-                {/* Thesis */}
-                <div>
-                  <h4
-                    style={{
-                      fontSize: 11,
-                      fontFamily: "var(--mono)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.08em",
-                      color: "var(--text-3)",
-                      margin: "0 0 6px 0",
-                    }}
-                  >
-                    The Problem Thesis
-                  </h4>
-                  <p style={{ margin: 0, fontSize: 14, color: "var(--text-2)", lineHeight: 1.6 }}>
-                    {currentChapter.thesis}
-                  </p>
+              {/* ── Left Page (Verso) ── */}
+              <div className={`open-book-page left-page ${flipDirection === "prev" ? "flip-page-anim-left" : ""}`}>
+                {/* Folio running head */}
+                <div className="page-running-head">
+                  <span>CIRCUIT ARCHITECTURAL CODEX</span>
+                  <span>CHAPTER {chapter.roman}</span>
                 </div>
 
-                {/* On-Chain Mechanism */}
-                <div>
-                  <h4
-                    style={{
-                      fontSize: 11,
-                      fontFamily: "var(--mono)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.08em",
-                      color: "var(--text-3)",
-                      margin: "0 0 6px 0",
-                    }}
-                  >
-                    On-Chain Circuit Primitive
-                  </h4>
-                  <p style={{ margin: 0, fontSize: 14, color: "var(--text-2)", lineHeight: 1.6 }}>
-                    {currentChapter.mechanism}
-                  </p>
-                </div>
+                {/* Chapter Roman Watermark */}
+                <div className="chapter-watermark">{chapter.roman}</div>
 
-                {/* Mathematical Specification Formula */}
-                {currentChapter.formula && (
-                  <div
-                    style={{
-                      background: "rgba(10, 13, 18, 0.8)",
-                      border: "1px solid var(--border)",
-                      borderRadius: 8,
-                      padding: "12px 16px",
-                      fontFamily: "var(--mono)",
-                      fontSize: 12.5,
-                      color: currentChapter.accentColor,
-                    }}
-                  >
-                    <span style={{ fontSize: 10, textTransform: "uppercase", color: "var(--text-3)", display: "block", marginBottom: 4 }}>
-                      On-Chain Constraint Specification
+                {/* Left Page Body */}
+                <div className="page-inner-content">
+                  <div style={{ marginBottom: 12 }}>
+                    <span className="chapter-pill-tag" style={{ color: chapter.accentColor, borderColor: `${chapter.accentColor}44` }}>
+                      DIMENSION {chapter.number} · {chapter.badge}
                     </span>
-                    <code>{currentChapter.formula}</code>
                   </div>
-                )}
 
-                {/* Why It Matters */}
-                <div>
-                  <h4
-                    style={{
-                      fontSize: 11,
-                      fontFamily: "var(--mono)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.08em",
-                      color: "var(--text-3)",
-                      margin: "0 0 6px 0",
-                    }}
-                  >
-                    Why This Changes Everything
-                  </h4>
-                  <p style={{ margin: 0, fontSize: 14, color: "var(--text-2)", lineHeight: 1.6 }}>
-                    {currentChapter.whyItMatters}
-                  </p>
+                  <h3 className="chapter-headline">{chapter.title}</h3>
+                  <div className="chapter-sub-headline">{chapter.subtitle}</div>
+
+                  {/* Illuminated Tagline Quote Box */}
+                  <div className="chapter-tagline-quote" style={{ borderLeftColor: chapter.accentColor }}>
+                    “{chapter.tagline}”
+                  </div>
+
+                  {/* Mathematical Formula / Spec Box */}
+                  {chapter.formula && (
+                    <div className="chapter-formula-card">
+                      <span className="formula-label">On-Chain Mathematical Constraint</span>
+                      <code style={{ color: chapter.accentColor }}>{chapter.formula}</code>
+                    </div>
+                  )}
                 </div>
+
+                {/* Left Page Number Footer */}
+                <div className="page-footer-nav left-footer">
+                  <button
+                    type="button"
+                    className="btn btn--secondary btn--sm"
+                    disabled={activeChapterIndex === 0}
+                    onClick={prevChapter}
+                    style={{ opacity: activeChapterIndex === 0 ? 0.35 : 1, padding: "3px 8px", fontSize: 11 }}
+                  >
+                    ◂ Turn Page (Prev Chapter)
+                  </button>
+                  <span className="page-number-text">PAGE {activeChapterIndex * 2 + 1}</span>
+                </div>
+              </div>
+
+              {/* Center Book Spine Crease & Shadow Gutter */}
+              <div className="book-spine-crease-gutter" />
+
+              {/* ── Right Page (Recto) ── */}
+              <div className={`open-book-page right-page ${flipDirection === "next" ? "flip-page-anim-right" : ""}`}>
+                {/* Folio running head */}
+                <div className="page-running-head">
+                  <span>ON-CHAIN CIRCUIT SPECIFICATION</span>
+                  <span>SOLANA DEVNET</span>
+                </div>
+
+                {/* Right Page Content */}
+                <div className="page-inner-content">
+                  {/* Thesis Section */}
+                  <div className="spec-section-block">
+                    <div className="spec-section-title">
+                      <span className="spec-step-dot" style={{ background: chapter.accentColor }} />
+                      I. The Problem Thesis
+                    </div>
+                    <p className="spec-section-body">{chapter.thesis}</p>
+                  </div>
+
+                  {/* Mechanism Section */}
+                  <div className="spec-section-block">
+                    <div className="spec-section-title">
+                      <span className="spec-step-dot" style={{ background: chapter.accentColor }} />
+                      II. On-Chain Circuit Mechanism
+                    </div>
+                    <p className="spec-section-body">{chapter.mechanism}</p>
+                  </div>
+
+                  {/* Why It Matters Section */}
+                  <div className="spec-section-block">
+                    <div className="spec-section-title">
+                      <span className="spec-step-dot" style={{ background: chapter.accentColor }} />
+                      III. Solvency & Economic Invariant
+                    </div>
+                    <p className="spec-section-body">{chapter.whyItMatters}</p>
+                  </div>
+                </div>
+
+                {/* Right Page Number Footer & Next Action */}
+                <div className="page-footer-nav right-footer">
+                  <span className="page-number-text">PAGE {activeChapterIndex * 2 + 2}</span>
+                  {activeChapterIndex < DIMENSIONS.length - 1 ? (
+                    <button
+                      type="button"
+                      className="btn btn--accent btn--sm"
+                      onClick={nextChapter}
+                      style={{ padding: "3px 10px", fontSize: 11 }}
+                    >
+                      Turn Page (Chapter {DIMENSIONS[activeChapterIndex + 1].roman}) ▸
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn btn--accent btn--sm"
+                      onClick={() => setIsOpen(false)}
+                      style={{ padding: "3px 10px", fontSize: 11 }}
+                    >
+                      Close Codex ✓
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* ── Gilded Bookmark Tabs on the Right Edge ── */}
+              <div className="book-edge-tabs">
+                {DIMENSIONS.map((d, idx) => {
+                  const isActive = idx === activeChapterIndex;
+                  return (
+                    <button
+                      key={d.id}
+                      type="button"
+                      aria-label={`Jump to Chapter ${d.roman}: ${d.title}`}
+                      onClick={() => goToChapter(idx)}
+                      className={`book-edge-tab ${isActive ? "active-tab" : ""}`}
+                      style={{
+                        borderLeftColor: isActive ? d.accentColor : "transparent",
+                        background: isActive ? "rgba(207, 173, 116, 0.22)" : "rgba(20, 24, 32, 0.9)",
+                        color: isActive ? "var(--text)" : "var(--text-3)",
+                      }}
+                    >
+                      <span className="tab-roman">{d.roman}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            {/* Modal Navigation Footer */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "16px 24px",
-                borderTop: "1px solid var(--border)",
-                background: "rgba(10, 13, 18, 0.8)",
-              }}
-            >
-              <button
-                type="button"
-                className="btn btn--secondary btn--sm"
-                disabled={activePage === 0}
-                onClick={() => setActivePage((p) => Math.max(0, p - 1))}
-                style={{ opacity: activePage === 0 ? 0.4 : 1 }}
-              >
-                ← Previous Page
-              </button>
-
-              <span style={{ fontSize: 12, fontFamily: "var(--mono)", color: "var(--text-3)" }}>
-                Use ← / → keys to flip pages
-              </span>
-
-              {activePage < DIMENSIONS.length - 1 ? (
-                <button
-                  type="button"
-                  className="btn btn--accent btn--sm"
-                  onClick={() => setActivePage((p) => Math.min(DIMENSIONS.length - 1, p + 1))}
-                >
-                  Next Page: {DIMENSIONS[activePage + 1].title.split(" ")[0]} →
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="btn btn--accent btn--sm"
-                  onClick={() => setIsOpen(false)}
-                >
-                  Finish Reading ✓
-                </button>
-              )}
+            {/* Bottom Keyboard Hint */}
+            <div className="open-book-bottom-hint">
+              <span>Tip: Use ← and → arrow keys on your keyboard to turn pages smoothly, or press Esc to close.</span>
             </div>
           </div>
         </div>
       )}
 
-      {/* Global styling for the 3D book hover and bump animation */}
+      {/* ── Real 3D Book Styles & Smooth Keyframe Animations ── */}
       <style>{`
-        .codex-book-trigger:hover {
-          transform: translateY(-8px) rotateY(-8deg) scale(1.03);
-          box-shadow: 0 24px 48px rgba(0,0,0,0.6);
+        /* Closed Book 3D Container */
+        .real-book-closed {
+          width: 200px;
+          height: 275px;
+          position: relative;
+          cursor: pointer;
+          perspective: 1200px;
+          transform-style: preserve-3d;
+          transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.4s ease;
         }
-        @keyframes fadeIn {
+        .real-book-closed:hover {
+          transform: translateY(-10px) rotateY(-12deg) rotateX(4deg) scale(1.04);
+        }
+
+        /* Closed Book Cover Styling */
+        .real-book-cover {
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(135deg, #181d28 0%, #0d1017 100%);
+          border: 1.5px solid rgba(207, 173, 116, 0.4);
+          border-radius: 4px 12px 12px 4px;
+          box-shadow:
+            -8px 0 0 #080a0e,
+            -12px 0 20px rgba(0,0,0,0.7),
+            14px 20px 36px rgba(0,0,0,0.6),
+            inset 0 0 30px rgba(0,0,0,0.8);
+          padding: 22px 18px;
+          display: flex;
+          flex-direction: column;
+          justifyContent: space-between;
+          position: relative;
+          overflow: hidden;
+        }
+
+        /* Leather Spine Line */
+        .real-book-spine-line {
+          position: absolute;
+          left: 0;
+          top: 0;
+          bottom: 0;
+          width: 16px;
+          background: linear-gradient(90deg, rgba(0,0,0,0.7) 0%, rgba(255,255,255,0.1) 45%, rgba(0,0,0,0.5) 100%);
+          border-right: 1px solid rgba(207, 173, 116, 0.25);
+        }
+
+        /* Foil Typography */
+        .gold-folio {
+          font-family: var(--mono);
+          font-size: 9.5px;
+          letter-spacing: 0.2em;
+          text-transform: uppercase;
+          color: var(--accent);
+          display: block;
+          font-weight: 700;
+        }
+        .gold-sub-folio {
+          font-family: var(--mono);
+          font-size: 8px;
+          letter-spacing: 0.12em;
+          color: var(--text-3);
+        }
+        .gold-emblem {
+          width: 44px;
+          height: 44px;
+          margin: 0 auto 10px;
+          border-radius: 50%;
+          border: 1.5px solid var(--accent);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: var(--accent);
+          background: rgba(207, 173, 116, 0.1);
+          box-shadow: 0 0 16px rgba(207, 173, 116, 0.15);
+        }
+        .gold-title {
+          font-size: 14.5px;
+          font-weight: 750;
+          letter-spacing: 0.08em;
+          color: var(--text);
+          text-transform: uppercase;
+          line-height: 1.25;
+        }
+        .gold-title span {
+          color: var(--accent);
+        }
+        .gold-chapters-meta {
+          font-size: 9px;
+          color: var(--text-3);
+          font-family: var(--mono);
+          margin-top: 6px;
+          letter-spacing: 0.05em;
+        }
+
+        /* Silk Hanging Ribbon */
+        .silk-ribbon {
+          position: absolute;
+          bottom: -12px;
+          right: 32px;
+          width: 14px;
+          height: 26px;
+          background: var(--accent);
+          clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%);
+          box-shadow: 0 3px 8px rgba(0,0,0,0.6);
+        }
+
+        /* 3D Paper Page Stack Edges */
+        .real-book-pages-right {
+          position: absolute;
+          right: -8px;
+          top: 6px;
+          bottom: 6px;
+          width: 8px;
+          background: repeating-linear-gradient(180deg, #ded9c7 0px, #ded9c7 1px, #b2ab96 1px, #b2ab96 2px);
+          border-radius: 0 3px 3px 0;
+          box-shadow: 3px 0 6px rgba(0,0,0,0.5);
+        }
+        .real-book-pages-bottom {
+          position: absolute;
+          bottom: -7px;
+          left: 10px;
+          right: -4px;
+          height: 7px;
+          background: repeating-linear-gradient(90deg, #ded9c7 0px, #ded9c7 1px, #b2ab96 1px, #b2ab96 2px);
+          border-radius: 0 0 3px 3px;
+          box-shadow: 0 3px 6px rgba(0,0,0,0.5);
+        }
+
+        /* Table of Contents Row */
+        .chapter-item-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 10px 14px;
+          border-radius: 8px;
+          background: rgba(255, 255, 255, 0.02);
+          border: 1px solid var(--border);
+          cursor: pointer;
+          transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+        }
+        .chapter-item-row:hover {
+          background: rgba(207, 173, 116, 0.08);
+          border-color: var(--accent);
+          transform: translateX(4px);
+        }
+
+        /* Modal Backdrop */
+        .book-modal-backdrop {
+          position: fixed;
+          inset: 0;
+          z-index: 10000;
+          background: rgba(4, 6, 10, 0.88);
+          backdrop-filter: blur(14px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 16px;
+          animation: bookModalFade 0.25s ease-out;
+        }
+
+        /* Perspective Wrapper */
+        .open-book-perspective-wrapper {
+          width: 100%;
+          max-width: 980px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          perspective: 2000px;
+          animation: bookOpenBump 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        /* Top Bar */
+        .open-book-topbar {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 12px 18px;
+          margin-bottom: 8px;
+          background: rgba(14, 18, 25, 0.85);
+          border: 1px solid var(--border);
+          border-radius: 10px;
+        }
+
+        /* Realistic Hardcover Book Casing (Two-Page Spread) */
+        .open-book-hardcover-casing {
+          width: 100%;
+          display: flex;
+          position: relative;
+          background: #090c12;
+          border: 2px solid rgba(207, 173, 116, 0.45);
+          border-radius: 12px;
+          box-shadow:
+            0 32px 80px rgba(0, 0, 0, 0.9),
+            0 0 40px rgba(207, 173, 116, 0.15),
+            inset 0 0 50px rgba(0, 0, 0, 0.9);
+          min-height: 520px;
+          max-height: 82vh;
+          overflow: hidden;
+        }
+
+        /* Center Silk Ribbon Marker */
+        .center-silk-ribbon {
+          position: absolute;
+          top: 0;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 16px;
+          height: 98%;
+          background: linear-gradient(180deg, var(--accent) 0%, rgba(207, 173, 116, 0.85) 85%, transparent 100%);
+          z-index: 10;
+          pointer-events: none;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+          border-radius: 0 0 4px 4px;
+        }
+
+        /* Individual Book Page */
+        .open-book-page {
+          flex: 1;
+          padding: 28px 34px 20px;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+          position: relative;
+          overflow-y: auto;
+          background: linear-gradient(180deg, #131720 0%, #0e1118 100%);
+          transform-style: preserve-3d;
+          transition: transform 0.4s ease, opacity 0.4s ease;
+        }
+
+        /* Left Page Styling & Shadow Fold on Right Edge */
+        .left-page {
+          border-right: 1px solid rgba(0, 0, 0, 0.5);
+          box-shadow: inset -20px 0 30px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Right Page Styling & Shadow Fold on Left Edge */
+        .right-page {
+          border-left: 1px solid rgba(255, 255, 255, 0.04);
+          box-shadow: inset 20px 0 30px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Center Book Spine Crease */
+        .book-spine-crease-gutter {
+          width: 8px;
+          background: linear-gradient(90deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.8) 100%);
+          z-index: 5;
+        }
+
+        /* Running Head */
+        .page-running-head {
+          display: flex;
+          justify-content: space-between;
+          padding-bottom: 10px;
+          margin-bottom: 16px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+          font-family: var(--mono);
+          font-size: 9.5px;
+          letter-spacing: 0.12em;
+          color: var(--text-3);
+          text-transform: uppercase;
+        }
+
+        /* Watermark Roman Numeral */
+        .chapter-watermark {
+          position: absolute;
+          top: 30px;
+          right: 30px;
+          font-size: 80px;
+          font-weight: 800;
+          font-family: serif;
+          color: rgba(255, 255, 255, 0.025);
+          line-height: 1;
+          pointer-events: none;
+          user-select: none;
+        }
+
+        .page-inner-content {
+          flex: 1;
+          position: relative;
+          z-index: 2;
+        }
+
+        .chapter-pill-tag {
+          font-family: var(--mono);
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          padding: 2px 8px;
+          border-radius: 4px;
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid;
+          display: inline-block;
+        }
+
+        .chapter-headline {
+          font-size: clamp(1.35rem, 2.6vw, 1.8rem);
+          font-weight: 700;
+          color: var(--text);
+          margin: 0 0 6px 0;
+          line-height: 1.22;
+        }
+
+        .chapter-sub-headline {
+          font-size: 13.5px;
+          font-family: var(--mono);
+          color: var(--accent);
+          margin-bottom: 16px;
+        }
+
+        .chapter-tagline-quote {
+          font-size: 14.5px;
+          line-height: 1.55;
+          color: var(--text);
+          background: rgba(255, 255, 255, 0.025);
+          border-left: 3.5px solid;
+          padding: 12px 16px;
+          border-radius: 0 8px 8px 0;
+          margin-bottom: 20px;
+          font-style: italic;
+        }
+
+        .chapter-formula-card {
+          background: rgba(8, 11, 16, 0.85);
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          padding: 12px 16px;
+          font-family: var(--mono);
+          font-size: 12px;
+        }
+        .formula-label {
+          font-size: 9.5px;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: var(--text-3);
+          display: block;
+          margin-bottom: 4px;
+        }
+
+        /* Right Page Sections */
+        .spec-section-block {
+          margin-bottom: 18px;
+        }
+        .spec-section-title {
+          font-family: var(--mono);
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: var(--text);
+          font-weight: 700;
+          margin-bottom: 5px;
+          display: flex;
+          align-items: center;
+          gap: 7px;
+        }
+        .spec-step-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+        }
+        .spec-section-body {
+          margin: 0;
+          font-size: 13.5px;
+          color: var(--text-2);
+          line-height: 1.58;
+        }
+
+        /* Page Footer Nav */
+        .page-footer-nav {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding-top: 14px;
+          margin-top: 14px;
+          border-top: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .page-number-text {
+          font-family: var(--mono);
+          font-size: 11px;
+          color: var(--text-3);
+        }
+
+        /* Gilded Edge Index Tabs */
+        .book-edge-tabs {
+          position: absolute;
+          right: 0;
+          top: 40px;
+          bottom: 40px;
+          width: 32px;
+          display: flex;
+          flex-direction: column;
+          justifyContent: space-around;
+          z-index: 15;
+          pointer-events: auto;
+        }
+        .book-edge-tab {
+          width: 100%;
+          height: 38px;
+          border: none;
+          border-left: 3px solid transparent;
+          border-radius: 4px 0 0 4px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          padding: 0;
+        }
+        .book-edge-tab:hover {
+          width: 36px;
+          margin-left: -4px;
+        }
+        .tab-roman {
+          font-family: var(--mono);
+          font-size: 10px;
+          font-weight: 750;
+        }
+
+        .open-book-bottom-hint {
+          margin-top: 8px;
+          font-size: 11px;
+          font-family: var(--mono);
+          color: var(--text-3);
+          text-align: center;
+        }
+
+        /* 3D Animations */
+        @keyframes bookModalFade {
           from { opacity: 0; }
           to { opacity: 1; }
         }
-        @keyframes bumpScale {
+        @keyframes bookOpenBump {
           0% {
             opacity: 0;
-            transform: scale(0.88) translateY(24px);
+            transform: scale(0.85) translateY(40px) rotateX(12deg);
           }
           100% {
             opacity: 1;
-            transform: scale(1) translateY(0);
+            transform: scale(1) translateY(0) rotateX(0deg);
+          }
+        }
+
+        .flip-page-anim-right {
+          animation: pageFlipRight 0.45s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+        .flip-page-anim-left {
+          animation: pageFlipLeft 0.45s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        @keyframes pageFlipRight {
+          0% {
+            opacity: 0.4;
+            transform: rotateY(-18deg);
+          }
+          100% {
+            opacity: 1;
+            transform: rotateY(0deg);
+          }
+        }
+        @keyframes pageFlipLeft {
+          0% {
+            opacity: 0.4;
+            transform: rotateY(18deg);
+          }
+          100% {
+            opacity: 1;
+            transform: rotateY(0deg);
+          }
+        }
+
+        /* Responsive Breakpoint for Mobile Single-Page Stack */
+        @media (max-width: 768px) {
+          .open-book-hardcover-casing {
+            flex-direction: column;
+            max-height: 85vh;
+          }
+          .book-spine-crease-gutter {
+            display: none;
+          }
+          .center-silk-ribbon {
+            display: none;
+          }
+          .book-edge-tabs {
+            display: none;
           }
         }
       `}</style>
