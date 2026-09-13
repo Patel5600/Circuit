@@ -12,7 +12,6 @@ const PRIMARY: { to: string; label: string; icon: IconName }[] = [
   { to: "/app", label: "Dashboard", icon: "dashboard" },
   { to: "/app/markets", label: "Markets", icon: "markets" },
   { to: "/app/position", label: "Position", icon: "position" },
-  { to: "/app/profile", label: "Profile", icon: "shield" },
   { to: "/app/demo", label: "Risk Demo", icon: "gauge" },
   { to: "/app/activity", label: "Activity", icon: "activity" },
 ];
@@ -37,15 +36,14 @@ function Header() {
         <CircuitWordmark size={24} />
       </NavLink>
 
-      {/* Desktop inline nav. The sidebar carries the full set; this is the
-          shortcut row the brief asked for beside the wordmark. */}
+      {/* Desktop inline nav without Profile option */}
       <nav
         aria-label="Primary"
         className="row g-4 grow"
         style={{ marginLeft: 12, display: "none" }}
         data-desktop-nav
       >
-        {PRIMARY.slice(0, 4).map((item) => (
+        {PRIMARY.slice(0, 3).map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
@@ -113,10 +111,54 @@ function Sidebar() {
 
       <div className="grow" />
 
+      {/* Bottom Left Corner: Connected to Profile + Network & Wallet */}
       <div
         className="stack g-10"
-        style={{ paddingTop: 16, borderTop: "1px solid var(--border)" }}
+        style={{ paddingTop: 14, borderTop: "1px solid var(--border)" }}
       >
+        <NavLink
+          to="/app/profile"
+          className="navlink"
+          style={({ isActive }) => ({
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "8px 10px",
+            borderRadius: "var(--r)",
+            background: isActive ? "var(--surface-3)" : "rgba(255, 255, 255, 0.03)",
+            border: `1px solid ${isActive ? "var(--accent)" : "var(--border)"}`,
+            color: "var(--text)",
+            textDecoration: "none",
+            transition: "all var(--t-fast)",
+            marginBottom: 2,
+          })}
+        >
+          <span
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: 7,
+              background: "rgba(127, 195, 154, 0.14)",
+              color: "var(--success)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <Icon name="shield" size={16} />
+          </span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 650, lineHeight: 1.2 }}>Profile</div>
+            <div style={{ fontSize: 10, color: "var(--text-3)", fontFamily: "var(--mono)" }}>
+              Risk Posture
+            </div>
+          </div>
+          <span style={{ opacity: 0.4, display: "flex", alignItems: "center" }}>
+            <Icon name="chevron" size={13} />
+          </span>
+        </NavLink>
+
         <div className="row between g-8">
           <span className="t-label">Network</span>
           <NetworkPill />
@@ -153,6 +195,22 @@ function BorrowFab() {
     <NavLink to="/app/borrow" className="btn btn--accent fab" aria-label="Borrow">
       <Icon name="borrow" size={16} />
       Borrow
+    </NavLink>
+  );
+}
+
+/** Bottom Left Corner Profile FAB on mobile */
+function ProfileFab() {
+  const { pathname } = useLocation();
+  if (pathname.startsWith("/app/profile")) return null;
+  return (
+    <NavLink
+      to="/app/profile"
+      className="profile-fab"
+      aria-label="Risk Profile"
+    >
+      <Icon name="shield" size={15} />
+      <span>Profile</span>
     </NavLink>
   );
 }
@@ -200,6 +258,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </main>
       </div>
       <MobileNav />
+      <ProfileFab />
       <BorrowFab />
     </div>
   );
