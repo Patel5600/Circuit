@@ -35,6 +35,18 @@ export interface HistoricalPoint {
 }
 
 /**
+ * Standard Financial OHLC Candlestick Observation
+ */
+export interface Candle {
+  time: number; // Unix timestamp in seconds
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume?: number;
+}
+
+/**
  * Normalized High-Resolution Market Snapshot
  */
 export interface MarketSnapshot {
@@ -74,6 +86,7 @@ export interface MarketSnapshot {
   dayLowUsd: number | null;
   sparkline: number[]; // real intraday points
   history?: HistoricalPoint[]; // rolling historical series of actual observations
+  candles?: Candle[]; // institutional OHLC candlestick observations
   
   // Protocol Metadata
   marketDataSource: string;

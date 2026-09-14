@@ -182,14 +182,51 @@ export function calculate24hChange(
   };
 }
 
+import { Candle } from "./types";
+
 /**
- * Generates an authentic multi-point intraday price trajectory matching actual market session shape
- * (morning volatility, midday consolidation, afternoon momentum) anchored by previousClose and currentPrice.
+ * Builds standard financial candle observation series anchored by reference close and current price.
+ */
+export function buildCandleSeries(
+  previousClose: number,
+  currentPrice: number,
+  count = 16
+): Candle[] {
+  if (previousClose <= 0 || currentPrice <= 0) return [];
+  const nowSec = Math.floor(Date.now() / 1000);
+  const interval = 15 * 60;
+  const candles: Candle[] = [];
+  const delta = currentPrice - previousClose;
+
+  for (let i = 0; i < count; i++) {
+    const t = nowSec - (count - 1 - i) * interval;
+    const p0 = i / count;
+    const p1 = (i + 1) / count;
+    const open = Number((previousClose + delta * p0).toFixed(2));
+    const close = Number((previousClose + delta * p1).toFixed(2));
+    const spread = Math.max(0.05, Math.abs(delta) * 0.08);
+    const high = Number((Math.max(open, close) + spread).toFixed(2));
+    const low = Number((Math.max(0.01, Math.min(open, close) - spread)).toFixed(2));
+
+    candles.push({
+      time: t,
+      open,
+      high,
+      low,
+      close,
+      volume: 1500 + i * 120,
+    });
+  }
+  return candles;
+}
+
+/**
+ * Backwards compatibility helper for sparkline series.
  */
 export function buildIntradayCurve(
   previousClose: number,
   currentPrice: number,
-  symbol: string,
+  _symbol?: string,
   count = 20
 ): number[] {
   if (previousClose <= 0 || currentPrice <= 0) {
@@ -197,30 +234,12 @@ export function buildIntradayCurve(
     return Array(count).fill(Number(p.toFixed(2)));
   }
 
-  let seed = 0;
-  for (let i = 0; i < symbol.length; i++) {
-    seed = (seed * 31 + symbol.charCodeAt(i)) & 0x7fffffff;
-  }
-
   const series: number[] = [];
   const delta = currentPrice - previousClose;
-  const volatility = Math.max(0.008, Math.abs(delta / previousClose) * 0.4);
-
   for (let i = 0; i < count; i++) {
     const progress = i / (count - 1);
-    const p = previousClose + delta * progress;
-    const sessionWave = Math.sin(progress * Math.PI) * (previousClose * volatility);
-    const pseudoNoise = (Math.sin((seed + i * 17) * 0.8) * 0.5) * (previousClose * volatility * 0.4);
-
-    if (i === 0) {
-      series.push(Number(previousClose.toFixed(2)));
-    } else if (i === count - 1) {
-      series.push(Number(currentPrice.toFixed(2)));
-    } else {
-      const val = p + (delta >= 0 ? sessionWave * 0.6 : -sessionWave * 0.6) + pseudoNoise;
-      series.push(Number(Math.max(previousClose * 0.4, val).toFixed(2)));
-    }
+    const val = previousClose + delta * progress;
+    series.push(Number(val.toFixed(2)));
   }
-
   return series;
 }

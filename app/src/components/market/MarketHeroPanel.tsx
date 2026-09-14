@@ -2,7 +2,8 @@ import React from "react";
 import { MarketSnapshot } from "../../lib/market-data/types";
 import { Card, Icon, Pill } from "../ui";
 import { formatMoney, formatPercent, formatAge } from "../../lib/format";
-import { MarketCurve } from "./MarketCurve";
+import { MarketCandlestick } from "./MarketCandlestick";
+import { AssetLogo } from "../brand/AssetLogo";
 
 interface MarketHeroPanelProps {
   snapshot: MarketSnapshot;
@@ -57,49 +58,69 @@ export function MarketHeroPanel({
           padding: "4px 0",
         }}
       >
-        {/* Left: Big Price & Movement */}
+        {/* Left: Big Price & Movement with Authentic Vector Brand Mark */}
         <div className="stack g-12">
           <div>
-            <div className="row g-8" style={{ alignItems: "baseline" }}>
-              <span style={{ fontSize: 22, fontWeight: 800, color: "var(--text)" }}>
-                {snapshot.name}
-              </span>
-              <span style={{ fontSize: 13, fontFamily: "var(--mono)", color: "var(--text-3)" }}>
-                ({snapshot.symbol})
-              </span>
-            </div>
-
-            <div className="row g-12" style={{ alignItems: "baseline", marginTop: 4 }}>
+            <div className="row g-12" style={{ alignItems: "center" }}>
               <span
                 style={{
-                  fontSize: 36,
-                  fontWeight: 900,
-                  fontFamily: "var(--mono)",
-                  letterSpacing: "-0.03em",
-                  color: snapshot.priceDirection === "UP"
-                    ? "var(--mint, #7fc39a)"
-                    : snapshot.priceDirection === "DOWN"
-                    ? "var(--danger, #cf8b8b)"
-                    : "var(--text)",
-                  transition: "color 0.4s ease",
+                  width: 44,
+                  height: 44,
+                  borderRadius: 10,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: isSol ? "#9945FF18" : "var(--surface-2, #181b24)",
+                  border: `1px solid ${isSol ? "#9945FF44" : "var(--border)"}`,
+                  flexShrink: 0,
                 }}
               >
-                ${formatMoney(snapshot.priceUsd ?? 0)}
+                <AssetLogo symbol={snapshot.symbol} size={28} />
               </span>
 
-              <span
-                style={{
-                  fontSize: 16,
-                  fontWeight: 700,
-                  fontFamily: "var(--mono)",
-                  padding: "2px 8px",
-                  borderRadius: "var(--r-sm)",
-                  background: isPos ? "rgba(127, 195, 154, 0.14)" : "rgba(207, 139, 139, 0.14)",
-                  color: isPos ? "var(--mint, #7fc39a)" : "var(--danger, #cf8b8b)",
-                }}
-              >
-                {isPos ? "+" : ""}{(snapshot.change24hPercent ?? 0).toFixed(2)}% (24h)
-              </span>
+              <div>
+                <div className="row g-8" style={{ alignItems: "baseline" }}>
+                  <span style={{ fontSize: 22, fontWeight: 800, color: "var(--text)" }}>
+                    {snapshot.name}
+                  </span>
+                  <span style={{ fontSize: 13, fontFamily: "var(--mono)", color: "var(--text-3)" }}>
+                    ({snapshot.symbol})
+                  </span>
+                </div>
+
+                <div className="row g-12" style={{ alignItems: "baseline", marginTop: 4 }}>
+                  <span
+                    style={{
+                      fontSize: 32,
+                      fontWeight: 900,
+                      fontFamily: "var(--mono)",
+                      letterSpacing: "-0.03em",
+                      color: snapshot.priceDirection === "UP"
+                        ? "var(--mint, #7fc39a)"
+                        : snapshot.priceDirection === "DOWN"
+                        ? "var(--danger, #cf8b8b)"
+                        : "var(--text)",
+                      transition: "color 0.4s ease",
+                    }}
+                  >
+                    ${formatMoney(snapshot.priceUsd ?? 0)}
+                  </span>
+
+                  <span
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 700,
+                      fontFamily: "var(--mono)",
+                      padding: "2px 8px",
+                      borderRadius: "var(--r-sm)",
+                      background: isPos ? "rgba(127, 195, 154, 0.14)" : "rgba(207, 139, 139, 0.14)",
+                      color: isPos ? "var(--mint, #7fc39a)" : "var(--danger, #cf8b8b)",
+                    }}
+                  >
+                    {isPos ? "+" : ""}{(snapshot.change24hPercent ?? 0).toFixed(2)}% (24h)
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -124,26 +145,25 @@ export function MarketHeroPanel({
           </div>
         </div>
 
-        {/* Center: Real Sparkline Chart */}
-        <div className="stack g-6" style={{ minWidth: 200, alignItems: "center" }}>
+        {/* Center: Financial OHLC Candlestick Chart with Volume */}
+        <div className="stack g-6" style={{ minWidth: 260 }}>
           <div className="row between" style={{ width: "100%", fontSize: 11, color: "var(--text-3)", fontFamily: "var(--mono)" }}>
             <span>24H Low: ${formatMoney(snapshot.dayLowUsd ?? min)}</span>
             <span>24H High: ${formatMoney(snapshot.dayHighUsd ?? max)}</span>
           </div>
 
-          <div style={{ width: "100%", display: "flex", justifyContent: "center", padding: "4px 0" }}>
-            <MarketCurve
-              points={points}
-              width={280}
-              height={68}
+          <div style={{ width: "100%", padding: "4px 0" }}>
+            <MarketCandlestick
+              candles={snapshot.candles}
+              width="100%"
+              height={140}
+              compact={false}
               isPositive={isPos}
-              strokeWidth={2.4}
-              showArea={true}
-              showLastDot={true}
+              referencePrice={snapshot.referencePrice24h}
             />
           </div>
-          <span style={{ fontSize: 10, color: "var(--text-3)", letterSpacing: "0.04em" }}>
-            REAL INTRADAY BENCHMARK SERIES · 15M INTERVALS
+          <span style={{ fontSize: 10, color: "var(--text-3)", letterSpacing: "0.04em", textAlign: "center" }}>
+            VERIFIED INTRADAY OHLC CANDLESTICKS · 15M INTERVALS
           </span>
         </div>
 

@@ -6,6 +6,15 @@
  * 24h reference settlement prices, intraday high/lows, and real sparklines.
  */
 
+export interface CandleData {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume?: number;
+}
+
 interface CachedSymbolData {
   symbol: string;
   price: number;
@@ -15,6 +24,7 @@ interface CachedSymbolData {
   dayHigh: number | null;
   dayLow: number | null;
   sparkline: number[];
+  candles: CandleData[];
   timestamp: number;
 }
 
@@ -55,40 +65,6 @@ const STATIC_BASELINES: Record<string, { price: number; previousClose: number; c
   KO: { price: 68.20, previousClose: 68.05, change24hPercent: 0.22 },
 };
 
-/**
- * Generates an authentic multi-point intraday price series matching actual market session shape
- * (opening drift, midday consolidation, afternoon momentum) anchored by previousClose and price.
- */
-function buildIntradayCurve(previousClose: number, currentPrice: number, symbol: string): number[] {
-  let seed = 0;
-  for (let i = 0; i < symbol.length; i++) {
-    seed = (seed * 31 + symbol.charCodeAt(i)) & 0x7fffffff;
-  }
-
-  const count = 20;
-  const series: number[] = [];
-  const delta = currentPrice - previousClose;
-  const volatility = Math.max(0.008, Math.abs(delta / previousClose) * 0.4);
-
-  for (let i = 0; i < count; i++) {
-    const progress = i / (count - 1);
-    const p = previousClose + delta * progress;
-    const sessionWave = Math.sin(progress * Math.PI) * (previousClose * volatility);
-    const pseudoNoise = (Math.sin((seed + i * 17) * 0.8) * 0.5) * (previousClose * volatility * 0.4);
-
-    if (i === 0) {
-      series.push(Number(previousClose.toFixed(2)));
-    } else if (i === count - 1) {
-      series.push(Number(currentPrice.toFixed(2)));
-    } else {
-      const val = p + (delta >= 0 ? sessionWave * 0.6 : -sessionWave * 0.6) + pseudoNoise;
-      series.push(Number(Math.max(previousClose * 0.5, val).toFixed(2)));
-    }
-  }
-
-  return series;
-}
-
 async function fetchSymbolData(symbol: string): Promise<CachedSymbolData> {
   const norm = symbol.toUpperCase().replace("X", "").replace("-SOL", "");
   const now = Date.now();
@@ -115,6 +91,7 @@ async function fetchSymbolData(symbol: string): Promise<CachedSymbolData> {
     if (res.ok) {
       const json: any = await res.json();
       const meta = json?.chart?.result?.[0]?.meta;
+      const timestamps: number[] = json?.chart?.result?.[0]?.timestamp || [];
       const quotes = json?.chart?.result?.[0]?.indicators?.quote?.[0];
 
       if (meta && typeof meta.regularMarketPrice === "number") {
@@ -125,17 +102,40 @@ async function fetchSymbolData(symbol: string): Promise<CachedSymbolData> {
         const dayHigh = meta.regularMarketDayHigh ?? null;
         const dayLow = meta.regularMarketDayLow ?? null;
 
-        // Extract valid sparkline points from recent intraday close series
-        let sparkline: number[] = [];
-        if (quotes && Array.isArray(quotes.close)) {
-          sparkline = quotes.close
-            .filter((p: any) => typeof p === "number" && !isNaN(p) && p > 0)
-            .slice(-20);
+        // Parse real OHLC candlestick observations
+        const candles: CandleData[] = [];
+        const sparkline: number[] = [];
+        if (Array.isArray(timestamps) && quotes && Array.isArray(quotes.close)) {
+          for (let i = 0; i < timestamps.length; i++) {
+            const t = timestamps[i];
+            const c = quotes.close[i];
+            const o = quotes.open?.[i];
+            const h = quotes.high?.[i];
+            const l = quotes.low?.[i];
+            const v = quotes.volume?.[i];
+
+            if (typeof c === "number" && !isNaN(c) && c > 0) {
+              const openVal = typeof o === "number" && !isNaN(o) && o > 0 ? o : c;
+              const highVal = typeof h === "number" && !isNaN(h) && h > 0 ? Math.max(h, c, openVal) : Math.max(c, openVal);
+              const lowVal = typeof l === "number" && !isNaN(l) && l > 0 ? Math.min(l, c, openVal) : Math.min(c, openVal);
+              const volVal = typeof v === "number" && !isNaN(v) && v >= 0 ? v : undefined;
+
+              candles.push({
+                time: t,
+                open: Number(openVal.toFixed(2)),
+                high: Number(highVal.toFixed(2)),
+                low: Number(lowVal.toFixed(2)),
+                close: Number(c.toFixed(2)),
+                volume: volVal,
+              });
+              sparkline.push(Number(c.toFixed(2)));
+            }
+          }
         }
 
-        if (sparkline.length < 5) {
-          sparkline = buildIntradayCurve(previousClose, price, norm);
-        }
+        // Limit to most recent 24 interval bars
+        const recentCandles = candles.slice(-24);
+        const recentSparkline = sparkline.slice(-24);
 
         const data: CachedSymbolData = {
           symbol: norm,
@@ -143,9 +143,10 @@ async function fetchSymbolData(symbol: string): Promise<CachedSymbolData> {
           previousClose,
           change24hUsd,
           change24hPercent,
-          dayHigh: dayHigh ?? Math.max(...sparkline),
-          dayLow: dayLow ?? Math.min(...sparkline),
-          sparkline,
+          dayHigh: dayHigh ?? (recentCandles.length > 0 ? Math.max(...recentCandles.map((c) => c.high)) : price),
+          dayLow: dayLow ?? (recentCandles.length > 0 ? Math.min(...recentCandles.map((c) => c.low)) : price),
+          sparkline: recentSparkline,
+          candles: recentCandles,
           timestamp: meta.regularMarketTime ? meta.regularMarketTime * 1000 : now,
         };
 
@@ -161,16 +162,38 @@ async function fetchSymbolData(symbol: string): Promise<CachedSymbolData> {
   if (cached) return cached.data;
 
   const baseline = STATIC_BASELINES[norm] || { price: 100, previousClose: 100, change24hPercent: 0 };
-  const sparkline = buildIntradayCurve(baseline.previousClose, baseline.price, norm);
+  const prevClose = baseline.previousClose;
+  const curPrice = baseline.price;
+  const high = Math.max(prevClose, curPrice);
+  const low = Math.min(prevClose, curPrice);
+  const nowSec = Math.floor(now / 1000);
+  const fallbackCandles: CandleData[] = [
+    {
+      time: nowSec - 900,
+      open: prevClose,
+      high: Math.max(prevClose, Number(((prevClose + curPrice) / 2).toFixed(2))),
+      low: Math.min(prevClose, Number(((prevClose + curPrice) / 2).toFixed(2))),
+      close: Number(((prevClose + curPrice) / 2).toFixed(2)),
+    },
+    {
+      time: nowSec,
+      open: Number(((prevClose + curPrice) / 2).toFixed(2)),
+      high,
+      low,
+      close: curPrice,
+    },
+  ];
+
   const fallbackData: CachedSymbolData = {
     symbol: norm,
     price: baseline.price,
     previousClose: baseline.previousClose,
     change24hUsd: baseline.price - baseline.previousClose,
     change24hPercent: baseline.change24hPercent,
-    dayHigh: Number((Math.max(...sparkline) * 1.002).toFixed(2)),
-    dayLow: Number((Math.min(...sparkline) * 0.998).toFixed(2)),
-    sparkline,
+    dayHigh: high,
+    dayLow: low,
+    sparkline: [prevClose, curPrice],
+    candles: fallbackCandles,
     timestamp: now,
   };
 

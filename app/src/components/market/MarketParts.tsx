@@ -1,12 +1,13 @@
 import React from "react";
 import { Card, DataRow, Icon, Pill, Skeleton, Tone } from "../ui";
 import { LOGOS } from "../../data/logos";
+import { AssetLogo } from "../brand/AssetLogo";
 import { formatMoney, formatPercent, formatAge } from "../../lib/format";
-import { MarketCurve } from "./MarketCurve";
+import { MarketCandlestick } from "./MarketCandlestick";
 import { AssetConfigView } from "../../lib/protocol";
 import { OracleSnapshot } from "../../lib/pyth";
 import { SessionHint } from "../../hooks/useProtocolState";
-import { MarketSnapshot, UnderlyingSession, OracleStatus as OracleStatusType } from "../../lib/market-data/types";
+import { MarketSnapshot, UnderlyingSession, OracleStatus as OracleStatusType, Candle } from "../../lib/market-data/types";
 
 /** Oracle freshness / certainty summary, reusable across pages. */
 export function OracleStatus({
@@ -85,6 +86,8 @@ export interface MarketRow {
   onchainAvailability?: string;
   collateralStatus?: string;
   sparkline?: number[];
+  candles?: Candle[];
+  referencePrice24h?: number | null;
   ltvBps: number | null;
   quoteSymbol?: string;
   marketSymbol?: string;
@@ -155,7 +158,7 @@ export function MarketCard({
             flex: "none",
           }}
         >
-          {row.logo ?? <Icon name="layers" size={18} />}
+          {row.logo ?? <AssetLogo symbol={row.marketSymbol || row.symbol} size={22} />}
         </span>
 
         <div className="grow" style={{ minWidth: 0 }}>
@@ -183,7 +186,7 @@ export function MarketCard({
         )}
       </div>
 
-      {/* 2. Main Price & 24h Movement with Sparkline */}
+      {/* 2. Main Price & 24h Movement with Institutional Candlesticks */}
       <div style={{ marginBottom: 14 }}>
         {loading ? (
           <Skeleton height={32} width="60%" />
@@ -227,16 +230,15 @@ export function MarketCard({
               </div>
             </div>
 
-            {/* Real Smooth Market Curve */}
-            <div style={{ width, height, display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
-              <MarketCurve
-                points={points}
-                width={width}
-                height={height}
+            {/* Financial OHLC Micro-Candlestick Chart */}
+            <div style={{ width: 124, height: 32, display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+              <MarketCandlestick
+                candles={row.candles}
+                width={120}
+                height={30}
+                compact={true}
                 isPositive={isPos}
-                strokeWidth={1.8}
-                showArea={true}
-                showLastDot={true}
+                referencePrice={row.referencePrice24h}
               />
             </div>
           </div>

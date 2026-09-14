@@ -203,10 +203,50 @@ export const LOGOS: Record<string, LogoMark> = {
     onDark: "#F2F1EE",
     d: "M9.112 8.262L5.97 15.758H3.92L2.374 9.775c-.094-.368-.175-.503-.461-.658C1.447 8.864.677 8.627 0 8.479l.046-.217h3.3a.904.904 0 01.894.764l.817 4.338 2.018-5.102zm8.033 5.049c.008-1.979-2.736-2.088-2.717-2.972.006-.269.262-.555.822-.628a3.66 3.66 0 011.913.336l.34-1.59a5.207 5.207 0 00-1.814-.333c-1.917 0-3.266 1.02-3.278 2.479-.012 1.079.963 1.68 1.698 2.04.756.367 1.01.603 1.006.931-.005.504-.602.725-1.16.734-.975.015-1.54-.263-1.992-.473l-.351 1.642c.453.208 1.289.39 2.156.398 2.037 0 3.37-1.006 3.377-2.564m5.061 2.447H24l-1.565-7.496h-1.656a.883.883 0 00-.826.55l-2.909 6.946h2.036l.405-1.12h2.488zm-2.163-2.656l1.02-2.815.588 2.815zm-8.16-4.84l-1.603 7.496H8.34l1.605-7.496z",
   },
+  DIS: {
+    title: "Disney",
+    optical: 1.0,
+    hex: "#113CCF",
+    onDark: "#113CCF",
+    d: "M12 1.5l-.9 1.8v2.7h1.8V3.3L12 1.5zm-5.4 4.5l-.9 1.8v3.6h1.8V7.8l-.9-1.8zm10.8 0l-.9 1.8v3.6h1.8V7.8l-.9-1.8zM4 11.5v11h5.5v-3.5c0-1.4 1.1-2.5 2.5-2.5s2.5 1.1 2.5 2.5v3.5H20v-11H4zm3 3h2.5v3.5H7v-3.5zm7.5 0H17v3.5h-2.5v-3.5z",
+  },
+  PEP: {
+    title: "Pepsi",
+    optical: 1.02,
+    hex: "#004B93",
+    onDark: "#004B93",
+    parts: [
+      { d: "M12 2C6.48 2 2 6.48 2 12c0 .41.03.81.08 1.21 2.37-1.39 5.54-1.96 8.92-1.21 2.92.65 5.75.29 8.28-1.02.47-.24.91-.52 1.33-.82C19.78 6.13 16.22 2 12 2z", fill: "#E32934" },
+      { d: "M12 22c5.52 0 10-4.48 10-10 0-.41-.03-.81-.08-1.21-2.37 1.39-5.54 1.96-8.92 1.21-2.92-.65-5.75-.29-8.28 1.02-.47.24-.91.52-1.33.82C4.22 17.87 7.78 22 12 22z", fill: "#004B93" },
+      { d: "M2.08 13.21c-.05-.4-.08-.8-.08-1.21 0-.17.01-.34.02-.51 2.52-1.07 5.7-1.3 8.98-.57 3.28.73 6.36.42 9.08-.94.64-.32 1.25-.7 1.84-1.12.05.37.08.75.08 1.14 0 .17-.01.34-.02.51-2.52 1.07-5.7 1.3-8.98.57-3.28-.73-6.36-.42-9.08.94-.64.32-1.25.7-1.84 1.12z", fill: "#FFFFFF" },
+    ],
+    d: "M12 2C6.48 2 2 6.48 2 12c0 .41.03.81.08 1.21 2.37-1.39 5.54-1.96 8.92-1.21 2.92.65 5.75.29 8.28-1.02.47-.24.91-.52 1.33-.82C19.78 6.13 16.22 2 12 2zm-9.92 11.21c-.05-.4-.08-.8-.08-1.21 2.37-1.39 5.54-1.96 8.92-1.21 2.92.65 5.75.29 8.28-1.02.47-.24.91-.52 1.33-.82.88 1.54 1.39 3.32 1.39 5.22 0 .41-.03.81-.08 1.21-2.37 1.39-5.54 1.96-8.92 1.21-2.92-.65-5.75-.29-8.28 1.02-.47.24-.91.52-1.33.82-.88-1.54-1.39-3.32-1.39-5.22z",
+  },
+  MU: {
+    title: "Micron Technology",
+    optical: 1.04,
+    hex: "#005596",
+    onDark: "#005596",
+    d: "M2.5 4h4v16h-4V4zm5.5 0h4v9.2l4.5-9.2h4.5v16h-4v-9.2L12.5 20H8V4z",
+  },
+  MRVL: {
+    title: "Marvell Technology",
+    optical: 1.02,
+    hex: "#003A70",
+    onDark: "#00B5E2",
+    d: "M3 18.5L9.5 5.5h4.2L7.2 18.5H3zm7.3 0l6.5-13h4.2l-6.5 13h-4.2z",
+  },
+  SPY: {
+    title: "SPDR S&P 500",
+    optical: 0.98,
+    hex: "#C41230",
+    onDark: "#C41230",
+    d: "M12 1.5L4 7v10l8 5.5 8-5.5V7L12 1.5zm0 3.2l5.5 3.8-5.5 3.8-5.5-3.8L12 4.7zm-6 5.5l5 3.5v6.5l-5-3.5v-6.5zm12 0v6.5l-5 3.5v-6.5l5-3.5z",
+  },
 };
 
-/** Symbols with no reproducible mark; rendered typographically instead. */
-export const NO_MARK: readonly string[] = ["DIS","PEP","MU","MRVL"];
+/** All supported assets now have authentic vector marks. */
+export const NO_MARK: readonly string[] = [];
 
 export const USDC_LOGO: LogoMark = {
   title: "USD Coin",
@@ -220,13 +260,21 @@ export const USDC_LOGO: LogoMark = {
   d: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z",
 };
 
+/** Normalizes symbols for logo and metadata lookups (e.g. NVDAx -> NVDA, NVDA-SOL -> NVDA). */
+export function cleanSymbol(symbol: string): string {
+  if (!symbol) return "";
+  return symbol.toUpperCase().replace(/X$/, "").replace(/-SOL$/, "").replace(/-USDC$/, "").trim();
+}
+
 export function getAssetMark(symbol: string): LogoMark | undefined {
-  if (symbol === "USDC") return USDC_LOGO;
-  return LOGOS[symbol];
+  const norm = cleanSymbol(symbol);
+  if (norm === "USDC") return USDC_LOGO;
+  return LOGOS[norm];
 }
 
 export function getAssetName(symbol: string): string {
-  switch (symbol) {
+  const norm = cleanSymbol(symbol);
+  switch (norm) {
     case "NVDA": return "NVIDIA";
     case "AAPL": return "Apple";
     case "MSFT": return "Microsoft";
@@ -237,13 +285,26 @@ export function getAssetName(symbol: string): string {
     case "COIN": return "Coinbase";
     case "AMD": return "AMD";
     case "NFLX": return "Netflix";
+    case "INTC": return "Intel";
+    case "MU": return "Micron Technology";
+    case "MRVL": return "Marvell Technology";
+    case "HOOD": return "Robinhood";
+    case "MCD": return "McDonald's";
+    case "NKE": return "NIKE";
+    case "DIS": return "Walt Disney";
+    case "JPM": return "JPMorgan Chase";
+    case "V": return "Visa";
+    case "MA": return "Mastercard";
+    case "PEP": return "PepsiCo";
+    case "KO": return "Coca-Cola";
     case "SPY": return "S&P 500 ETF";
     case "USDC": return "USD Coin";
+    case "SOL": return "Solana";
     default: return symbol;
   }
 }
 
 export function logo(key: string): LogoMark | undefined {
-  return LOGOS[key];
+  return getAssetMark(key);
 }
 

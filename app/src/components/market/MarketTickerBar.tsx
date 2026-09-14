@@ -1,6 +1,7 @@
 import React from "react";
 import { MarketSnapshot } from "../../lib/market-data/types";
 import { formatMoney } from "../../lib/format";
+import { AssetLogo } from "../brand/AssetLogo";
 
 interface MarketTickerBarProps {
   snapshots: Record<string, MarketSnapshot>;
@@ -88,6 +89,8 @@ export function MarketTickerBar({
                 transition: "all var(--t-fast)",
               }}
             >
+              <AssetLogo symbol={item.symbol} size={15} />
+
               <span
                 style={{
                   fontSize: 12,

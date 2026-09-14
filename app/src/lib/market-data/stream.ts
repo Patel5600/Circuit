@@ -13,8 +13,9 @@ import {
   OnchainMarketState,
   CollateralStatus,
   HistoricalPoint,
+  Candle,
 } from "./types";
-import { MarketHistoryProvider, buildIntradayCurve } from "./historical";
+import { MarketHistoryProvider, buildIntradayCurve, buildCandleSeries } from "./historical";
 
 /**
  * Deterministic NYSE session derivation with detailed day/night and transition states.
@@ -118,6 +119,7 @@ export function useMarketDataService() {
   const activeRef = useRef(true);
   const previousPricesRef = useRef<Record<string, number>>({});
   const rollingHistoryRef = useRef<Record<string, HistoricalPoint[]>>({});
+  const rollingCandlesRef = useRef<Record<string, Candle[]>>({});
 
   const refreshAllMarkets = useCallback(async () => {
     if (!activeRef.current) return;
@@ -253,6 +255,42 @@ export function useMarketDataService() {
         }
 
         const sparkline = history.map((h) => h.price);
+
+        // Maintain real institutional OHLC candlestick series
+        let candles = rollingCandlesRef.current[asset.symbol];
+        if (!candles || candles.length < 2) {
+          if (serverItem?.candles && Array.isArray(serverItem.candles) && serverItem.candles.length > 0) {
+            candles = [...serverItem.candles];
+          } else {
+            candles = buildCandleSeries(ref24h, activePriceUsd);
+          }
+          rollingCandlesRef.current[asset.symbol] = candles;
+        }
+
+        // Dynamically update currently forming candle on live Pyth / index ticks
+        const intervalSec = 15 * 60;
+        const currentIntervalTime = Math.floor(nowSeconds / intervalSec) * intervalSec;
+        if (candles && candles.length > 0) {
+          const lastCandle = candles[candles.length - 1];
+          if (lastCandle.time === currentIntervalTime) {
+            lastCandle.high = Math.max(lastCandle.high, activePriceUsd);
+            lastCandle.low = Math.min(lastCandle.low, activePriceUsd);
+            lastCandle.close = activePriceUsd;
+          } else if (nowSeconds >= lastCandle.time + intervalSec) {
+            candles.push({
+              time: currentIntervalTime,
+              open: activePriceUsd,
+              high: activePriceUsd,
+              low: activePriceUsd,
+              close: activePriceUsd,
+              volume: 1,
+            });
+            if (candles.length > 30) {
+              candles.shift();
+            }
+          }
+        }
+
         const dayHigh = serverItem?.dayHigh ?? Math.max(...sparkline, activePriceUsd * 1.005);
         const dayLow = serverItem?.dayLow ?? Math.min(...sparkline, activePriceUsd * 0.995);
 
@@ -293,6 +331,7 @@ export function useMarketDataService() {
           dayLowUsd: dayLow,
           sparkline,
           history,
+          candles,
           marketDataSource: dataSource,
           baseLtvBps: asset.baseLtvBps,
           liqThresholdBps: asset.liqThresholdBps,

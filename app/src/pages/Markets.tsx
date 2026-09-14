@@ -13,6 +13,7 @@ import { useMarket } from "../context/MarketContext";
 import { useMarketDataService } from "../lib/market-data/stream";
 import { MarketSnapshot } from "../lib/market-data/types";
 import { CANONICAL_ASSET_REGISTRY } from "../lib/market-data/registry";
+import { AssetLogo } from "../components/brand/AssetLogo";
 
 type FilterTab = "all" | "live" | "gainers" | "losers" | "collateral" | "recent" | "soon";
 type SortOption = "default" | "gainers" | "losers" | "price_high" | "price_low" | "ltv";
@@ -48,7 +49,7 @@ export default function Markets() {
       return {
         symbol: asset.tokenSymbol,
         name: asset.name,
-        logo: asset.logoSvg,
+        logo: <AssetLogo symbol={asset.symbol} size={22} />,
         live: asset.collateralSupported,
         priceUsd,
         previousPriceUsd: snap?.previousPriceUsd,
@@ -61,6 +62,8 @@ export default function Markets() {
         onchainAvailability: snap?.onchainAvailability ?? (asset.collateralSupported ? "TRADEABLE" : "UNAVAILABLE"),
         collateralStatus: snap?.collateralStatus ?? (asset.collateralSupported ? "AVAILABLE" : "COMING_SOON"),
         sparkline: snap?.sparkline,
+        candles: snap?.candles,
+        referencePrice24h: snap?.referencePrice24h,
         ltvBps: asset.baseLtvBps,
         quoteSymbol: asset.quoteSymbol,
         marketSymbol: asset.symbol,

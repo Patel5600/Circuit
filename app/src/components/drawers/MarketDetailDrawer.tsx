@@ -12,6 +12,8 @@ import { formatMoney, formatPercent, formatAge } from "../../lib/format";
 import { useNavigate } from "react-router-dom";
 import { MarketSnapshot } from "../../lib/market-data/types";
 import { MarketRow } from "../market/MarketParts";
+import { AssetLogo } from "../brand/AssetLogo";
+import { MarketCandlestick } from "../market/MarketCandlestick";
 
 export function MarketDetailDrawer({
   market,
@@ -23,7 +25,7 @@ export function MarketDetailDrawer({
   snapshot?: MarketSnapshot | null;
   open: boolean;
   onClose: () => void;
-  }) {
+}) {
   const navigate = useNavigate();
   const [copiedFeed, setCopiedFeed] = useState(false);
 
@@ -74,16 +76,34 @@ export function MarketDetailDrawer({
             borderRadius: "var(--r, 10px)",
             border: "1px solid var(--border, #1a1d26)",
             display: "flex",
-            alignItems: "baseline",
+            alignItems: "center",
             justifyContent: "space-between",
           }}
         >
-          <div>
-            <div style={{ fontSize: 11, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-              Current Verified Price
-            </div>
-            <div style={{ fontSize: 28, fontWeight: 900, fontFamily: "var(--mono)", color: "var(--text)", marginTop: 4 }}>
-              {priceUsd !== null ? `$${formatMoney(priceUsd)}` : "--"}
+          <div className="row g-12" style={{ alignItems: "center" }}>
+            <span
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 10,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "var(--surface-3, #181b24)",
+                border: "1px solid var(--border, #262b3a)",
+                flexShrink: 0,
+              }}
+            >
+              <AssetLogo symbol={activeSymbol} size={28} />
+            </span>
+
+            <div>
+              <div style={{ fontSize: 11, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                Current Verified Price
+              </div>
+              <div style={{ fontSize: 26, fontWeight: 900, fontFamily: "var(--mono)", color: "var(--text)", marginTop: 2 }}>
+                {priceUsd !== null ? `$${formatMoney(priceUsd)}` : "--"}
+              </div>
             </div>
           </div>
 
@@ -97,12 +117,34 @@ export function MarketDetailDrawer({
                 fontWeight: 700,
                 fontFamily: "var(--mono)",
                 color: isPos ? "var(--mint, #7fc39a)" : "var(--danger, #cf8b8b)",
-                marginTop: 4,
+                marginTop: 2,
               }}
             >
               {isPos ? "+" : ""}{change24h.toFixed(2)}%
             </div>
           </div>
+        </div>
+
+        {/* Real OHLC Candlestick Chart */}
+        <div
+          style={{
+            padding: "16px 18px",
+            background: "var(--surface-2, #0d0f15)",
+            borderRadius: "var(--r, 10px)",
+            border: "1px solid var(--border, #1a1d26)",
+          }}
+        >
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-3)", textTransform: "uppercase", marginBottom: 12 }}>
+            Intraday Candlestick Chart · 15M Intervals
+          </div>
+          <MarketCandlestick
+            candles={snapshot?.candles}
+            width="100%"
+            height={160}
+            compact={false}
+            isPositive={isPos}
+            referencePrice={snapshot?.referencePrice24h}
+          />
         </div>
 
         {/* 4 Semantic Dimensions Matrix */}
