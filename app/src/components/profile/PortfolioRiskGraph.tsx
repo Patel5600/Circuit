@@ -994,21 +994,21 @@ export function PortfolioRiskGraph({
               </defs>
               <rect width={W} height={H} fill="url(#graph-grid-pattern)" />
 
-              {/* Column header titles */}
+              {/* Column header titles - Canonical 5-Stage Architecture */}
               <text x={COL_ASSET} y={26} textAnchor="middle" fontSize={10} fontFamily="var(--mono)" fill="var(--text-3)" letterSpacing="0.1em">
-                DEPOSITED ASSETS
+                01 ASSETS
               </text>
               <text x={COL_RISK} y={26} textAnchor="middle" fontSize={10} fontFamily="var(--mono)" fill="var(--text-3)" letterSpacing="0.1em">
-                RISK FACTORS
+                02 ORACLE &amp; GUARDS
               </text>
               <text x={COL_PORTFOLIO} y={26} textAnchor="middle" fontSize={10} fontFamily="var(--mono)" fill="var(--text-3)" letterSpacing="0.1em">
-                RISK RATCHET
+                03 RISK RATCHET
               </text>
               <text x={COL_CREDIT} y={26} textAnchor="middle" fontSize={10} fontFamily="var(--mono)" fill="var(--text-3)" letterSpacing="0.1em">
-                CREDIT POWER
+                04 CREDIT OUTPUT
               </text>
               <text x={COL_PERM} y={26} textAnchor="middle" fontSize={10} fontFamily="var(--mono)" fill="var(--text-3)" letterSpacing="0.1em">
-                PERMISSIONS
+                05 PERMISSIONS
               </text>
 
               {/* ── Causal Edges: Asset -> Risk Factors ── */}

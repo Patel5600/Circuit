@@ -13,6 +13,7 @@ import {
   PositionSummary,
 } from "../components/position/PositionParts";
 import { useProtocolState } from "../hooks/useProtocolState";
+import { useCircuitDomain } from "../lib/domain/context";
 import { useMarket } from "../context/MarketContext";
 import { activeAssetDisplay } from "../lib/asset";
 import { greeting, formatMoney, formatPercent } from "../lib/format";
@@ -21,6 +22,7 @@ import { toUi } from "../lib/protocol";
 export default function Dashboard() {
   const { selectedMarket, markets, selectMarket } = useMarket();
   const s = useProtocolState();
+  const domain = useCircuitDomain();
   const { connected } = useWallet();
   const navigate = useNavigate();
 
@@ -86,6 +88,87 @@ export default function Dashboard() {
       ) : (
         <div className="stack g-16">
           {s.loading && <LoadingRegion label="Loading position data" />}
+
+          {/* Top: PORTFOLIO RISK STATE (Protocol Risk is Primary) */}
+          <div
+            style={{
+              padding: "16px 20px",
+              background: "rgba(18, 20, 26, 0.85)",
+              border: `1px solid ${
+                domain.risk.riskState === "SAFE"
+                  ? "rgba(127, 195, 154, 0.4)"
+                  : domain.risk.riskState === "RESTRICTED"
+                  ? "rgba(207, 173, 116, 0.4)"
+                  : "rgba(207, 139, 139, 0.4)"
+              }`,
+              borderRadius: "var(--r)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: "14px",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <span
+                style={{
+                  width: "10px",
+                  height: "10px",
+                  borderRadius: "50%",
+                  background:
+                    domain.risk.riskState === "SAFE"
+                      ? "#7fc39a"
+                      : domain.risk.riskState === "RESTRICTED"
+                      ? "#cfad74"
+                      : "#cf8b8b",
+                  boxShadow: `0 0 10px ${
+                    domain.risk.riskState === "SAFE"
+                      ? "#7fc39a88"
+                      : domain.risk.riskState === "RESTRICTED"
+                      ? "#cfad7488"
+                      : "#cf8b8b88"
+                  }`,
+                }}
+              />
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span style={{ fontSize: "11px", fontFamily: "var(--mono)", color: "var(--text-3)", letterSpacing: "0.08em" }}>
+                    PORTFOLIO RISK STATE
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "11px",
+                      fontFamily: "var(--mono)",
+                      fontWeight: 700,
+                      color:
+                        domain.risk.riskState === "SAFE"
+                          ? "#7fc39a"
+                          : domain.risk.riskState === "RESTRICTED"
+                          ? "#cfad74"
+                          : "#cf8b8b",
+                    }}
+                  >
+                    {domain.risk.riskState}
+                  </span>
+                </div>
+                <p style={{ margin: "2px 0 0", fontSize: "12.5px", color: "var(--text-2)" }}>
+                  {domain.risk.hardOverride && domain.risk.hardOverrideReason
+                    ? `Hard Safety Gate: ${domain.risk.hardOverrideReason}`
+                    : domain.risk.riskState === "SAFE"
+                    ? "Normal market condition. Borrowing and withdrawals permitted."
+                    : domain.risk.riskState === "RESTRICTED"
+                    ? "Reference equity market closed or elevated uncertainty. Borrowing constrained."
+                    : "High market stress. New borrowing blocked to protect solvency."}
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <Link to="/app/profile" className="btn btn--secondary btn--sm">
+                View Risk Topology
+              </Link>
+            </div>
+          </div>
 
           <PositionSummary
             loading={s.loading}

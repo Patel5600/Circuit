@@ -282,6 +282,7 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
 
     return {
       ratchetState: derivedRatchetState,
+      riskState: derivedRatchetState,
       maxConfSpreadBps: maxConf,
       isStaleOracle: isStale,
       isMarketOpen: nyse.isOpen,

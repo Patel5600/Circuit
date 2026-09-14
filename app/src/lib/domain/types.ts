@@ -81,6 +81,7 @@ export type RiskRatchetState = "SAFE" | "RESTRICTED" | "DEFENSIVE" | "EMERGENCY"
 
 export interface RiskDomainState {
   ratchetState: RiskRatchetState;
+  riskState: RiskRatchetState;
   maxConfSpreadBps: number;
   isStaleOracle: boolean;
   isMarketOpen: boolean;

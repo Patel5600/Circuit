@@ -1782,6 +1782,34 @@ svg {
   }
 }
 
+/* -- Cinematic Hero Pipeline ---------------------------------------------- */
+.hero--cinematic {
+  min-height: auto;
+  padding: calc(var(--nav-h) + 24px) var(--gutter) 60px;
+  overflow: visible;
+  display: block;
+}
+.hero--cinematic .hero__inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.hero--cinematic .hero__copy {
+  max-width: 860px;
+}
+.hero__pipeline-container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 40px auto 0;
+}
+@media (min-width: 1024px) {
+  .hero--cinematic {
+    padding-top: calc(var(--nav-h) + 36px);
+  }
+}
+
 /* ==========================================================================
    HERO ORBIT
 

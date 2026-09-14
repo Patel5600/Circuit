@@ -1,45 +1,40 @@
 import React, { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 
-import { AssetUniverse } from "../components/landing/AssetUniverse";
-import { CircuitFlow } from "../components/landing/CircuitFlow";
-import { Credit } from "../components/landing/Credit";
-import { FinalCTA } from "../components/landing/FinalCTA";
-import { HeroOrbit } from "../components/landing/HeroOrbit";
-import { LandingFooter } from "../components/landing/LandingFooter";
 import { Nav } from "../components/landing/Nav";
-import { SafeState } from "../components/landing/SafeState";
-import { Storm } from "../components/landing/Storm";
-import { Technology } from "../components/landing/Technology";
-import { FaultLineMatrix } from "../components/landing/FaultLineMatrix";
+import { HeroPipeline } from "../components/landing/HeroPipeline";
+import { AssetUniverse } from "../components/landing/AssetUniverse";
+import { PythEvidenceGate } from "../components/landing/PythEvidenceGate";
+import { MarketGuardSection } from "../components/landing/MarketGuardSection";
+import { RiskRatchetSection } from "../components/landing/RiskRatchetSection";
+import { ProgrammableCreditSection } from "../components/landing/ProgrammableCreditSection";
+import { LiveProofSection } from "../components/landing/LiveProofSection";
+import { WhyCircuitSection } from "../components/landing/WhyCircuitSection";
+import { FinalCTA } from "../components/landing/FinalCTA";
+import { LandingFooter } from "../components/landing/LandingFooter";
 import { Icon } from "../components/ui";
 import { CLUSTER_LABEL } from "../env";
 
 /**
- * The public landing page.
- *
- * LAYOUT CONTRACT
- * The hero is two regions that never negotiate. The copy is a normal block of
- * fixed width starting at the page gutter, and the orbit is a separate layer
- * masked so it paints nothing across that column - see --veil-clear in
- * styles.css. Because the overlap region is literally unpainted rather than
- * merely behind, the text cannot be obscured and no z-index is load-bearing.
- *
- * ALIGNMENT
- * The hero alone is flush left, which is what makes its asymmetry read. Every
- * section below it uses the normal centred measure.
- *
- * BUNDLE
- * Nothing here is lazy and nothing here is heavy. The hero visual is DOM and CSS,
- * so the page has no WebGL dependency and no 800KB deferred chunk; and nothing on
- * this page imports config.ts, which keeps web3.js and the IDL out too.
+ * Public Landing Page for Circuit Protocol.
+ * 
+ * CORE PRINCIPLE:
+ * "CREDIT IS THE LAST STEP, NEVER THE FIRST."
+ * 
+ * SECTION 01: Hero & Cinematic 5-Stage Architecture Pipeline
+ * SECTION 02: The Input (Tokenized Equity)
+ * SECTION 03: The Evidence (Pyth Conservative Price: p - conf)
+ * SECTION 04: The Guard (MarketGuard Session: NYSE Calendar Decoupled)
+ * SECTION 05: The Ratchet (4-State Risk Ratchet Flagship State Machine)
+ * SECTION 06: The Consequence (Programmable Credit: Downstream Output)
+ * SECTION 07: Live Proof & Failure Path (Pure Live Devnet Telemetry)
+ * SECTION 08: Why Circuit ("Risk determines what capital is allowed to do")
+ * SECTION 09: Final Call to Action (Explore Circuit / Launch App)
  */
 
 export default function Landing() {
   const hero = useRef<HTMLElement>(null);
 
-  // Anchor links must not land underneath the floating header. Read from --nav-h
-  // rather than hardcoded, so this cannot drift out of step with the nav's height.
   useEffect(() => {
     const root = document.documentElement;
     const prev = root.style.scrollPaddingTop;
@@ -54,8 +49,7 @@ export default function Landing() {
 
   return (
     <div className="lp">
-      {/* Background layer: void, haze and grain. Fixed, so the atmosphere does
-          not scroll away from the content. */}
+      {/* Background layer: void, atmospheric depth */}
       <div className="lp__void" aria-hidden="true" />
 
       <a href="#main" className="lp__skip">
@@ -65,13 +59,8 @@ export default function Landing() {
       <Nav />
 
       <main id="main">
-        <section className="hero" ref={hero as any}>
-          {/* The visual region. Clipped and feathered on its left edge so the
-              mechanism can never reach the copy column. */}
-          <div className="hero__visual">
-            <HeroOrbit />
-          </div>
-
+        {/* SECTION 01: HERO & CINEMATIC PIPELINE */}
+        <section className="hero hero--cinematic" id="pipeline" ref={hero as any}>
           <div className="hero__inner">
             <div className="hero__copy">
               <p className="hero__eyebrow">
@@ -80,26 +69,23 @@ export default function Landing() {
               </p>
 
               <h1 className="hero__title">
-                Tokenized stocks are assets.
+                CREDIT IS THE LAST STEP,
                 <br />
-                Circuit makes them
-                <br />
-                <em>programmable collateral.</em>
+                <em>NEVER THE FIRST.</em>
               </h1>
 
               <p className="hero__lede">
-                Circuit does not merely calculate risk. It turns risk into on-chain permissions.
-                When market risk changes, credit permissions change with it.
+                circuit turns tokenized equities into risk-aware programmable collateral, where market conditions determine what capital is allowed to do.
               </p>
 
               <div className="hero__cta">
-                <Link to="/app" className="btn btn--primary btn--lg">
-                  Launch App
+                <a href="#equity" className="btn btn--primary btn--lg">
+                  Explore Circuit
                   <Icon name="arrowRight" size={17} />
-                </Link>
-                <a href="#dimensions" className="btn btn--ghost btn--lg">
-                  Explore Architecture
                 </a>
+                <Link to="/app" className="btn btn--secondary btn--lg">
+                  Launch App
+                </Link>
               </div>
 
               <ul className="hero__status">
@@ -117,23 +103,36 @@ export default function Landing() {
                 </li>
               </ul>
             </div>
-          </div>
 
-          <p className="hero__vlabel" aria-hidden="true">
-            Stock universe
-          </p>
-          <p className="hero__scroll" aria-hidden="true">
-            Scroll
-          </p>
+            {/* Semantic SVG 5-Stage Architecture Visual Pipeline */}
+            <div className="hero__pipeline-container">
+              <HeroPipeline />
+            </div>
+          </div>
         </section>
 
+        {/* SECTION 02: THE INPUT (Tokenized Equity) */}
         <AssetUniverse />
-        <CircuitFlow />
-        <FaultLineMatrix />
-        <Storm />
-        <SafeState />
-        <Credit />
-        <Technology />
+
+        {/* SECTION 03: THE EVIDENCE (Pyth Conservative Price) */}
+        <PythEvidenceGate />
+
+        {/* SECTION 04: THE GUARD (MarketGuard Session) */}
+        <MarketGuardSection />
+
+        {/* SECTION 05: THE RATCHET (4-State Risk Ratchet) */}
+        <RiskRatchetSection />
+
+        {/* SECTION 06: THE CONSEQUENCE (Programmable Credit) */}
+        <ProgrammableCreditSection />
+
+        {/* SECTION 07: LIVE PROOF (Current Devnet System & Failure Path) */}
+        <LiveProofSection />
+
+        {/* SECTION 08: WHY CIRCUIT */}
+        <WhyCircuitSection />
+
+        {/* SECTION 09: FINAL CTA */}
         <FinalCTA />
       </main>
 
