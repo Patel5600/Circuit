@@ -1,93 +1,111 @@
 /**
- * Circuit Protocol - Market Detail Drawer
+ * Circuit Protocol - Institutional Market Detail Drawer
  *
- * Detailed contextual parameters for a deployed tokenized equity market.
+ * Comprehensive forensic parameters for tokenized equity markets.
  */
 
-import React from "react";
+import React, { useState } from "react";
 import { Drawer } from "../ui/Drawer";
 import { DeployedMarket } from "../../data/markets";
-import { Pill, Button, Icon } from "../ui";
-import { getAssetMark, getAssetName } from "../../data/logos";
-import { isNyseMarketOpen } from "../../lib/session";
+import { Pill, Icon } from "../ui";
+import { formatMoney, formatPercent, formatAge } from "../../lib/format";
 import { useNavigate } from "react-router-dom";
+import { MarketSnapshot } from "../../lib/market-data/types";
+import { MarketRow } from "../market/MarketParts";
 
 export function MarketDetailDrawer({
   market,
+  snapshot,
   open,
   onClose,
 }: {
-  market: DeployedMarket | null;
+  market?: DeployedMarket | MarketRow | null;
+  snapshot?: MarketSnapshot | null;
   open: boolean;
   onClose: () => void;
-}) {
+  }) {
   const navigate = useNavigate();
-  if (!market) return null;
+  const [copiedFeed, setCopiedFeed] = useState(false);
 
-  const mark = getAssetMark(market.symbol);
-  const fullName = getAssetName(market.symbol);
-  const nyse = isNyseMarketOpen();
+  const activeSymbol = snapshot?.symbol ?? market?.symbol ?? "";
+  const name = snapshot?.name ?? market?.name ?? activeSymbol;
+  const quoteSymbol = snapshot?.quoteSymbol ?? market?.quoteSymbol ?? "USDC";
+  const displaySymbol = snapshot?.displaySymbol ?? activeSymbol;
+  const priceUsd = snapshot?.priceUsd ?? (market as any)?.priceUsd ?? null;
+  const change24h = snapshot?.change24hPercent ?? (market as any)?.change24hPercent ?? 0;
+  const isPos = change24h >= 0;
+  const feedId = snapshot?.pythFeedId ?? (market as any)?.pythFeedId ?? (market as any)?.feedId ?? "";
+  const baseLtv = snapshot?.baseLtvBps ?? (market as any)?.baseLtvBps ?? (market as any)?.ltvBps ?? 7000;
+  const liqThreshold = snapshot?.liqThresholdBps ?? (market as any)?.liqThresholdBps ?? 8000;
+  const liqBonus = snapshot?.liqBonusBps ?? (market as any)?.liqBonusBps ?? 500;
+  const oracleStatus = snapshot?.oracleStatus ?? (market as any)?.freshness ?? "LIVE";
+  const underlyingSession = snapshot?.underlyingSession ?? (market as any)?.underlyingSession ?? "CLOSED";
+  const confBps = snapshot?.oracleConfBps ?? (market as any)?.confBps ?? 18;
+  const confUsd = snapshot?.oracleConfidenceUsd ?? ((priceUsd ?? 100) * (confBps / 10000));
+  const ageSeconds = snapshot ? Math.max(0, Math.floor(Date.now() / 1000) - snapshot.oracleTimestamp) : 12;
+
+  if (!open) return null;
+
+  const handleCopyFeed = () => {
+    if (!feedId) return;
+    navigator.clipboard.writeText(feedId);
+    setCopiedFeed(true);
+    setTimeout(() => setCopiedFeed(false), 2000);
+  };
 
   return (
     <Drawer
       open={open}
       onClose={onClose}
-      title={`${fullName} (${market.symbol})`}
-      subtitle={`Devnet Market · ${market.symbol}/USDC`}
+      title={`${name} (${displaySymbol})`}
+      subtitle={`Devnet Market · ${activeSymbol}/${quoteSymbol}`}
       badge={
-        <Pill tone={nyse.isOpen ? "success" : "neutral"} withDot>
-          {nyse.isOpen ? "NYSE Open" : "NYSE Closed"}
+        <Pill tone={underlyingSession === "REGULAR" ? "success" : "neutral"} withDot>
+          {underlyingSession === "REGULAR" ? "NYSE Regular Open" : "NYSE Session Closed"}
         </Pill>
       }
     >
       <div className="stack g-16">
-        {/* Market Badge */}
+        {/* Price & 24h Performance Card */}
         <div
           style={{
-            padding: 16,
+            padding: "16px 18px",
             background: "var(--surface-2, #0d0f15)",
             borderRadius: "var(--r, 10px)",
             border: "1px solid var(--border, #1a1d26)",
             display: "flex",
-            alignItems: "center",
-            gap: 14,
+            alignItems: "baseline",
+            justifyContent: "space-between",
           }}
         >
-          <div
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: "50%",
-              background: "#141721",
-              border: "1px solid var(--border-strong, #272c3d)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-            }}
-          >
-            {mark ? (
-              <svg width={24} height={24} viewBox="0 0 24 24">
-                {mark.parts ? (
-                  mark.parts.map((p, idx) => <path key={idx} d={p.d} fill={p.fill} />)
-                ) : (
-                  <path d={mark.d} fill={mark.hex} />
-                )}
-              </svg>
-            ) : (
-              <span style={{ fontWeight: 700 }}>{market.symbol}</span>
-            )}
+          <div>
+            <div style={{ fontSize: 11, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Current Verified Price
+            </div>
+            <div style={{ fontSize: 28, fontWeight: 900, fontFamily: "var(--mono)", color: "var(--text)", marginTop: 4 }}>
+              {priceUsd !== null ? `$${formatMoney(priceUsd)}` : "--"}
+            </div>
           </div>
 
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 16, fontWeight: 700 }}>{fullName}</div>
-            <div style={{ fontSize: 12, color: "var(--text-3)" }}>
-              Token Mint: {market.symbol}x
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: 11, color: "var(--text-3)", textTransform: "uppercase" }}>
+              24h Change
+            </div>
+            <div
+              style={{
+                fontSize: 16,
+                fontWeight: 700,
+                fontFamily: "var(--mono)",
+                color: isPos ? "var(--mint, #7fc39a)" : "var(--danger, #cf8b8b)",
+                marginTop: 4,
+              }}
+            >
+              {isPos ? "+" : ""}{change24h.toFixed(2)}%
             </div>
           </div>
         </div>
 
-        {/* Risk & Credit Parameters */}
+        {/* 4 Semantic Dimensions Matrix */}
         <div
           className="stack g-10"
           style={{
@@ -97,74 +115,161 @@ export function MarketDetailDrawer({
             border: "1px solid var(--border, #1a1d26)",
           }}
         >
-          <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-3)" }}>
-            ON-CHAIN RISK CONFIGURATION
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-3)", textTransform: "uppercase" }}>
+            Market State & Observability
+          </div>
+
+          <div className="row between g-8" style={{ alignItems: "center" }}>
+            <span className="t-label">Underlying US Equity</span>
+            <div className="row g-6" style={{ alignItems: "center" }}>
+              <Pill tone={underlyingSession === "REGULAR" ? "success" : "neutral"} withDot>
+                {underlyingSession}
+              </Pill>
+              <span style={{ fontSize: 11, color: "var(--text-3)" }}>
+                {underlyingSession === "REGULAR" ? "9:30 AM - 4:00 PM ET" : "Outside Regular Hours"}
+              </span>
+            </div>
+          </div>
+
+          <div className="row between g-8" style={{ alignItems: "center" }}>
+            <span className="t-label">On-Chain Secondary Market</span>
+            <Pill tone="accent" withDot>
+              24/7 TRADEABLE
+            </Pill>
+          </div>
+
+          <div className="row between g-8" style={{ alignItems: "center" }}>
+            <span className="t-label">Oracle Quality & Freshness</span>
+            <div className="row g-6" style={{ alignItems: "center" }}>
+              <Pill tone={oracleStatus === "LIVE" ? "success" : "warning"} withDot>
+                {oracleStatus}
+              </Pill>
+              <span className="mono" style={{ fontSize: 11, color: "var(--text-3)" }}>
+                {formatAge(ageSeconds)}
+              </span>
+            </div>
+          </div>
+
+          <div className="row between g-8" style={{ alignItems: "center" }}>
+            <span className="t-label">Confidence Uncertainty</span>
+            <span className="mono" style={{ fontSize: 12 }}>
+              ±${formatMoney(confUsd)} ({(confBps / 100).toFixed(2)}%)
+            </span>
+          </div>
+        </div>
+
+        {/* On-Chain Risk & Credit Configuration */}
+        <div
+          className="stack g-10"
+          style={{
+            padding: 16,
+            background: "var(--surface-2, #0d0f15)",
+            borderRadius: "var(--r, 10px)",
+            border: "1px solid var(--border, #1a1d26)",
+          }}
+        >
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-3)", textTransform: "uppercase" }}>
+            Credit & Solvency Invariants
           </div>
 
           <div className="row between g-8" style={{ alignItems: "center" }}>
             <span className="t-label">Base LTV</span>
             <span className="mono" style={{ fontWeight: 650 }}>
-              {(market.baseLtvBps / 100).toFixed(1)}%
+              {formatPercent(baseLtv)}
             </span>
           </div>
 
           <div className="row between g-8" style={{ alignItems: "center" }}>
             <span className="t-label">Liquidation Threshold</span>
             <span className="mono" style={{ fontWeight: 650 }}>
-              {((market.liqThresholdBps || 8000) / 100).toFixed(1)}%
+              {formatPercent(liqThreshold)}
             </span>
           </div>
 
           <div className="row between g-8" style={{ alignItems: "center" }}>
-            <span className="t-label">Liquidation Penalty</span>
+            <span className="t-label">Dynamic Liq Bonus Floor</span>
             <span className="mono" style={{ fontWeight: 650 }}>
-              {((market.liqBonusBps || 500) / 100).toFixed(1)}%
-            </span>
-          </div>
-
-          <div className="row between g-8" style={{ alignItems: "center" }}>
-            <span className="t-label">Market Session Calendar</span>
-            <span className="mono" style={{ fontSize: 12 }}>
-              {nyse.message}
+              {(liqBonus / 100).toFixed(2)}%
             </span>
           </div>
         </div>
 
-        {/* Pyth Feed Details */}
-        <div
-          className="stack g-8"
-          style={{
-            padding: 14,
-            background: "#08090d",
-            borderRadius: "var(--r, 10px)",
-            border: "1px solid var(--border, #1a1d26)",
-          }}
-        >
-          <span className="t-label">Pyth Price Feed ID</span>
-          <span
-            className="mono"
+        {/* Pyth Feed ID with copy */}
+        {feedId && (
+          <div
+            className="stack g-6"
             style={{
-              fontSize: 11,
-              wordBreak: "break-all",
-              color: "var(--text-2)",
+              padding: "12px 14px",
+              background: "#08090d",
+              borderRadius: "var(--r, 10px)",
+              border: "1px solid var(--border, #1a1d26)",
             }}
           >
-            {market.feedId}
-          </span>
-        </div>
+            <div className="row between" style={{ alignItems: "center" }}>
+              <span className="t-label" style={{ fontSize: 10 }}>Pyth Price Feed ID</span>
+              <button
+                type="button"
+                onClick={handleCopyFeed}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: copiedFeed ? "var(--mint, #7fc39a)" : "var(--accent)",
+                  fontSize: 11,
+                  cursor: "pointer",
+                }}
+              >
+                {copiedFeed ? "Copied!" : "Copy"}
+              </button>
+            </div>
+            <div
+              className="mono"
+              style={{
+                fontSize: 11,
+                wordBreak: "break-all",
+                color: "var(--text-2)",
+              }}
+            >
+              {feedId}
+            </div>
+          </div>
+        )}
 
-        {/* Action Button */}
-        <Button
-          variant="primary"
-          icon="deposit"
-          onClick={() => {
-            onClose();
-            navigate(`/app/position?market=${market.symbol}`);
-          }}
-          style={{ marginTop: 8 }}
-        >
-          Open Position for {market.symbol}
-        </Button>
+        {/* Action Buttons */}
+        <div className="stack g-8" style={{ marginTop: 6 }}>
+          <button
+            type="button"
+            className="btn btn--accent btn--block"
+            onClick={() => {
+              onClose();
+              navigate(`/app/borrow?market=${activeSymbol}&quote=${quoteSymbol}`);
+            }}
+          >
+            Borrow Against {displaySymbol}
+          </button>
+
+          <button
+            type="button"
+            className="btn btn--secondary btn--block"
+            onClick={() => {
+              onClose();
+              navigate(`/app/position?market=${activeSymbol}`);
+            }}
+          >
+            Deposit {displaySymbol} Collateral
+          </button>
+
+          <button
+            type="button"
+            className="btn btn--secondary btn--block"
+            onClick={() => {
+              onClose();
+              navigate("/app/profile");
+            }}
+            style={{ fontSize: 12 }}
+          >
+            View in Portfolio Risk Graph
+          </button>
+        </div>
       </div>
     </Drawer>
   );

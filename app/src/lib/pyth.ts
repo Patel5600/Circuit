@@ -1,10 +1,10 @@
 import { Connection, PublicKey } from "@solana/web3.js";
-import {
-  PYTH_FEED_ID,
-  PYTH_PRICE_ACCOUNT,
-  PYTH_PUSH_ORACLE_ID,
-  PYTH_RECEIVER_ID,
-} from "../config";
+
+export const DEFAULT_FEED_ID = "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d";
+export const PYTH_FEED_ID = DEFAULT_FEED_ID;
+export const PUSH_ORACLE_ID = new PublicKey("pythWSnswVUd12oZpeFP8e9CVaEqJg25g1Vtc2biRsT");
+export const PYTH_RECEIVER_ID = new PublicKey("rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ");
+export const PYTH_PRICE_ACCOUNT: PublicKey | null = new PublicKey("7UVimffxr9ow1uXYxsr4LHAcV58mLzhmwaeKvJ1pjLiE");
 
 /**
  * Client-side Pyth integration.
@@ -64,13 +64,13 @@ function bytesToHex(b: Uint8Array): string {
  * Derives a sponsored price-feed address.
  * Seeds: little endian u16 shard id, then the 32-byte feed id.
  */
-export function derivePriceAccount(feedHex = PYTH_FEED_ID, shard = 0): PublicKey {
+export function derivePriceAccount(feedHex = DEFAULT_FEED_ID, shard = 0): PublicKey {
   const shardBytes = new Uint8Array(2);
   shardBytes[0] = shard & 0xff;
   shardBytes[1] = (shard >> 8) & 0xff;
   return PublicKey.findProgramAddressSync(
     [shardBytes, feedIdBytes(feedHex)],
-    PYTH_PUSH_ORACLE_ID
+    PUSH_ORACLE_ID
   )[0];
 }
 

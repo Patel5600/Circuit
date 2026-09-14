@@ -18,7 +18,8 @@ export interface DeployedMarket {
   liqBonusBps: number;
 }
 
-export const DEPLOYED_MARKETS: DeployedMarket[] = (marketsJson as any).markets || [];
+export const DEPLOYED_MARKETS: DeployedMarket[] =
+  (marketsJson as any)?.markets || (marketsJson as any)?.default?.markets || [];
 
 export function getDeployedMarket(symbol: string, quoteSymbol?: string): DeployedMarket | undefined {
   if (quoteSymbol) {

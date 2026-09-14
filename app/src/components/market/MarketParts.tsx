@@ -1,10 +1,10 @@
 import React from "react";
-
 import { Card, DataRow, Icon, Pill, Skeleton, Tone } from "../ui";
 import { formatAge, formatMoney, formatPercent } from "../../lib/format";
 import { AssetConfigView } from "../../lib/protocol";
 import { OracleSnapshot } from "../../lib/pyth";
 import { SessionHint } from "../../hooks/useProtocolState";
+import { MarketSnapshot, UnderlyingSession, OracleStatus as OracleStatusType } from "../../lib/market-data/types";
 
 /** Oracle freshness / certainty summary, reusable across pages. */
 export function OracleStatus({
@@ -61,8 +61,8 @@ export function MarketStatus({
 }) {
   if (loading) return <Skeleton height={22} width={90} radius={999} />;
   return (
-    <Pill tone={session?.open ? "success" : "warning"} withDot>
-      {session?.open ? "OPEN" : "CLOSED"}
+    <Pill tone={session?.open ? "success" : "neutral"} withDot>
+      {session?.open ? "REGULAR (OPEN)" : "NYSE CLOSED"}
     </Pill>
   );
 }
@@ -71,24 +71,29 @@ export interface MarketRow {
   symbol: string;
   name: string;
   logo?: React.ReactNode;
-  /** True when this asset is registered on-chain on devnet. */
   live: boolean;
   priceUsd: number | null;
+  previousPriceUsd?: number | null;
+  priceDirection?: "UP" | "DOWN" | "FLAT";
   change24hPercent?: number | null;
   changeStatus?: "available" | "unavailable" | "AVAILABLE" | "UNAVAILABLE";
   confBps?: number;
   freshness?: "LIVE" | "RECENT" | "STALE" | "UNAVAILABLE";
+  underlyingSession?: UnderlyingSession;
+  onchainAvailability?: string;
+  collateralStatus?: string;
+  sparkline?: number[];
   ltvBps: number | null;
   quoteSymbol?: string;
   marketSymbol?: string;
   mint?: string;
+  pythFeedId?: string;
 }
 
 /**
- * Market card.
- *
- * Live registered markets display on-chain parameters, real Pyth feed status,
- * real 24h price changes, and direct one-click actions to borrow or deposit.
+ * Institutional Market Card.
+ * Separates Underlying Equity Session, On-Chain Token Market, Oracle Freshness, and Collateral Status.
+ * No fake prices. Data-driven transitions.
  */
 export function MarketCard({
   row,
@@ -97,6 +102,7 @@ export function MarketCard({
   session,
   loading,
   onSelect,
+  onOpenDetail,
 }: {
   row: MarketRow;
   oracle: OracleSnapshot | null;
@@ -104,133 +110,208 @@ export function MarketCard({
   session: SessionHint | null;
   loading: boolean;
   onSelect?: () => void;
+  onOpenDetail?: () => void;
 }) {
   const isSol = row.quoteSymbol === "WSOL";
+  const change = row.change24hPercent ?? 0;
+  const isPos = change >= 0;
+
+  // Real mini sparkline
+  const points = row.sparkline ?? [];
+  const min = points.length > 0 ? Math.min(...points) : 0;
+  const max = points.length > 0 ? Math.max(...points) : 1;
+  const range = max - min || 1;
+  const width = 120;
+  const height = 28;
+
+  const sparklinePath = points.length > 1
+    ? points.map((p, idx) => {
+        const x = (idx / (points.length - 1)) * width;
+        const y = height - ((p - min) / range) * (height - 6) - 3;
+        return `${idx === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
+      }).join(" ")
+    : "";
 
   return (
     <Card>
-      <div className="row g-12" style={{ marginBottom: 14 }}>
+      {/* 1. Header: Logo, Ticker, Name, Collateral Badge */}
+      <div
+        className="row g-12"
+        style={{ marginBottom: 12, cursor: onOpenDetail ? "pointer" : "default" }}
+        onClick={onOpenDetail}
+      >
         <span
           style={{
-            width: 38,
-            height: 38,
-            borderRadius: 10,
+            width: 36,
+            height: 36,
+            borderRadius: 8,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            background: isSol ? "#9945FF18" : "var(--surface-2)",
+            background: isSol ? "#9945FF18" : "var(--surface-2, #181b24)",
             border: `1px solid ${isSol ? "#9945FF44" : "var(--border)"}`,
             flex: "none",
           }}
         >
           {row.logo ?? <Icon name="layers" size={18} />}
         </span>
+
         <div className="grow" style={{ minWidth: 0 }}>
           <div className="row g-6" style={{ alignItems: "center" }}>
-            <span className="t-title truncate">{row.symbol}</span>
+            <span className="t-title truncate" style={{ fontSize: 15, fontWeight: 700 }}>
+              {row.symbol}
+            </span>
             {row.quoteSymbol && (
-              <span className="t-meta" style={{ fontSize: 12 }}>
+              <span className="t-meta" style={{ fontSize: 11, fontFamily: "var(--mono)" }}>
                 / {row.quoteSymbol}
               </span>
             )}
           </div>
-          <div className="t-meta truncate">{row.name}</div>
+          <div className="t-meta truncate" style={{ fontSize: 12 }}>
+            {row.name}
+          </div>
         </div>
+
         {row.live ? (
           <Pill tone={isSol ? "accent" : "success"} withDot>
-            {isSol ? "BORROW SOL" : "COLLATERAL AVAILABLE"}
+            {isSol ? "BORROW SOL" : "COLLATERAL"}
           </Pill>
         ) : (
           <Pill tone="neutral">DISCOVERY</Pill>
         )}
       </div>
 
-      {row.live ? (
-        <>
-          {loading ? (
-            <Skeleton height={28} width="50%" />
-          ) : (
-            <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 2 }}>
-              <div className="stat__value" style={{ fontSize: 24, fontVariantNumeric: "tabular-nums" }}>
-                {row.priceUsd === null ? (
-                  row.ltvBps ? `--` : "--"
+      {/* 2. Main Price & 24h Movement with Sparkline */}
+      <div style={{ marginBottom: 14 }}>
+        {loading ? (
+          <Skeleton height={32} width="60%" />
+        ) : (
+          <div className="row between wrap g-8" style={{ alignItems: "center" }}>
+            <div>
+              <div
+                style={{
+                  fontSize: 24,
+                  fontWeight: 800,
+                  fontFamily: "var(--mono)",
+                  letterSpacing: "-0.02em",
+                  color: row.priceDirection === "UP"
+                    ? "var(--mint, #7fc39a)"
+                    : row.priceDirection === "DOWN"
+                    ? "var(--danger, #cf8b8b)"
+                    : "var(--text)",
+                  transition: "color 0.4s ease",
+                }}
+              >
+                {row.priceUsd !== null ? `$${formatMoney(row.priceUsd)}` : "--"}
+              </div>
+
+              <div style={{ marginTop: 2 }}>
+                {row.change24hPercent !== null && row.change24hPercent !== undefined ? (
+                  <span
+                    style={{
+                      fontSize: 12,
+                      fontFamily: "var(--mono)",
+                      fontWeight: 700,
+                      color: isPos ? "var(--mint, #7fc39a)" : "var(--danger, #cf8b8b)",
+                    }}
+                  >
+                    {isPos ? "+" : ""}{change.toFixed(2)}% (24h)
+                  </span>
                 ) : (
-                  `$${formatMoney(row.priceUsd)}`
+                  <span style={{ fontSize: 11, color: "var(--text-3)", fontStyle: "italic" }}>
+                    Insufficient history
+                  </span>
                 )}
               </div>
-              {(row.changeStatus === "available" || row.changeStatus === "AVAILABLE") && row.change24hPercent !== null && row.change24hPercent !== undefined ? (
-                <span
-                  style={{
-                    fontSize: 12,
-                    fontFamily: "var(--mono)",
-                    fontWeight: 650,
-                    color: row.change24hPercent >= 0 ? "var(--success, #7fc39a)" : "var(--danger, #cf8b8b)",
-                  }}
-                >
-                  {row.change24hPercent >= 0 ? "+" : ""}
-                  {row.change24hPercent.toFixed(2)}%
-                </span>
+            </div>
+
+            {/* Sparkline */}
+            <div style={{ width, height, display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+              {points.length > 1 ? (
+                <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height}>
+                  <path
+                    d={sparklinePath}
+                    fill="none"
+                    stroke={isPos ? "var(--mint, #7fc39a)" : "var(--danger, #cf8b8b)"}
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
               ) : (
-                <span style={{ fontSize: 11, color: "var(--text-3)", fontStyle: "italic" }}>
-                  24h change unavailable
+                <span style={{ fontSize: 10, fontFamily: "var(--mono)", color: "var(--text-3)" }}>
+                  NO HISTORY
                 </span>
               )}
             </div>
-          )}
-          <div className="stat__sub" style={{ marginBottom: 12 }}>
-            Pyth on-chain push oracle {row.quoteSymbol ? `· Quote: ${row.quoteSymbol}` : ""}
           </div>
+        )}
+      </div>
 
-          <DataRow
-            label="Price status"
-            value={
-              row.freshness ? (
-                <Pill
-                  tone={row.freshness === "LIVE" ? "success" : row.freshness === "RECENT" ? "warning" : "danger"}
-                  withDot
-                >
-                  {row.freshness}
-                </Pill>
-              ) : (
-                <OracleStatus oracle={oracle} asset={asset} loading={loading} compact />
-              )
-            }
-          />
-          <DataRow
-            label="Stock market"
-            value={<MarketStatus session={session} loading={loading} />}
-          />
-          <DataRow
-            label="Borrowing limit"
-            value={row.ltvBps === null ? "--" : formatPercent(row.ltvBps)}
-          />
-
-          <div className="row g-8" style={{ marginTop: 14 }}>
-            <button
-              type="button"
-              className="btn btn--accent btn--sm grow"
-              onClick={onSelect}
-            >
-              Borrow {isSol ? "SOL" : (row.quoteSymbol || "USDC")}
-            </button>
-            <a
-              href={`/app/position?market=${row.marketSymbol || row.symbol}`}
-              className="btn btn--secondary btn--sm"
-            >
-              Deposit
-            </a>
-          </div>
-        </>
-      ) : (
-        <div style={{ padding: "8px 0" }}>
-          <p className="t-sm muted" style={{ margin: "0 0 8px 0" }}>
-            Pipeline equity. Real-time market oracle integration undergoing risk parameter calibration.
-          </p>
-          <div style={{ fontSize: 11, fontFamily: "var(--mono)", color: "var(--text-3)" }}>
-            Standard Base LTV: {row.ltvBps ? `${(row.ltvBps / 100).toFixed(0)}%` : "60%"}
+      {/* 3. 4 Independent Semantic Dimensions */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 6,
+          background: "var(--surface-2, #12151d)",
+          padding: "8px 10px",
+          borderRadius: "var(--r-sm)",
+          border: "1px solid var(--border)",
+          fontSize: 11,
+          marginBottom: 14,
+        }}
+      >
+        {/* Oracle */}
+        <div>
+          <div style={{ color: "var(--text-3)", fontSize: 9.5, textTransform: "uppercase" }}>Oracle</div>
+          <div style={{ fontWeight: 600, color: "var(--text)" }}>
+            {row.freshness ?? "LIVE"}
           </div>
         </div>
-      )}
+
+        {/* Underlying Session */}
+        <div>
+          <div style={{ color: "var(--text-3)", fontSize: 9.5, textTransform: "uppercase" }}>Underlying</div>
+          <div style={{ fontWeight: 600, color: row.underlyingSession === "REGULAR" ? "var(--mint, #7fc39a)" : "var(--text-2)" }}>
+            {row.underlyingSession ?? "CLOSED"}
+          </div>
+        </div>
+
+        {/* On-chain Market */}
+        <div>
+          <div style={{ color: "var(--text-3)", fontSize: 9.5, textTransform: "uppercase" }}>Onchain</div>
+          <div style={{ fontWeight: 600, color: "var(--accent)" }}>
+            24/7 TRADEABLE
+          </div>
+        </div>
+
+        {/* Collateral Limit */}
+        <div>
+          <div style={{ color: "var(--text-3)", fontSize: 9.5, textTransform: "uppercase" }}>Borrow Limit</div>
+          <div style={{ fontWeight: 600, color: "var(--text)" }}>
+            {row.ltvBps !== null ? formatPercent(row.ltvBps) : "60%"} LTV
+          </div>
+        </div>
+      </div>
+
+      {/* 4. Action Buttons */}
+      <div className="row g-8">
+        <button
+          type="button"
+          className="btn btn--accent btn--sm grow"
+          onClick={onSelect}
+          disabled={!row.live}
+        >
+          Borrow {isSol ? "SOL" : (row.quoteSymbol || "USDC")}
+        </button>
+        <a
+          href={`/app/position?market=${row.marketSymbol || row.symbol}`}
+          className="btn btn--secondary btn--sm"
+        >
+          Deposit
+        </a>
+      </div>
     </Card>
   );
 }

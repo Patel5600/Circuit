@@ -1,31 +1,70 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { nodePolyfills } from "vite-plugin-node-polyfills";
+import path from "node:path";
 
 export default defineConfig({
+  server: {
+    watch: {
+      usePolling: true,
+      interval: 400,
+      ignored: ["**/node_modules/**", "**/dist/**", "**/.shots/**"],
+    },
+    proxy: {
+      // If external proxy needed, can be placed here
+    },
+  },
   plugins: [
     react(),
     nodePolyfills({
       include: ["buffer", "crypto", "stream", "util", "process"],
       globals: { Buffer: true, global: true, process: true },
     }),
-  ],
-  define: {
-    "process.env.ANCHOR_BROWSER": "true",
-  },
-  server: {
-    watch: {
-      /**
-       * Required when the dev server runs inside WSL against a project on the
-       * Windows filesystem: edits made from the Windows side never generate
-       * inotify events under /mnt/c, so the default watcher silently serves
-       * stale modules. Polling costs a little CPU and is dev-only.
-       */
-      usePolling: true,
-      interval: 400,
-      ignored: ["**/node_modules/**", "**/dist/**", "**/.shots/**"],
+    {
+      name: "dev-api-middleware",
+      configureServer(server) {
+        server.middlewares.use(async (req, res, next) => {
+          if (req.url?.startsWith("/api/market-data")) {
+            try {
+              // Dynamic import of serverless handler
+              const urlObj = new URL(req.url, "http://localhost");
+              const query: Record<string, string> = {};
+              urlObj.searchParams.forEach((val, key) => {
+                query[key] = val;
+              });
+              const mockReq = { method: req.method, query, body: {} };
+              const mockRes = {
+                statusCode: 200,
+                status(c: number) {
+                  this.statusCode = c;
+                  return this;
+                },
+                setHeader(k: string, v: string) {
+                  res.setHeader(k, v);
+                },
+                json(payload: any) {
+                  res.statusCode = this.statusCode;
+                  res.setHeader("Content-Type", "application/json");
+                  res.end(JSON.stringify(payload));
+                },
+              };
+              const apiFile = path.resolve(__dirname, "../api/market-data.ts");
+              const mod = await server.ssrLoadModule(apiFile);
+              const handler = mod.default;
+              await handler(mockReq, mockRes);
+              return;
+            } catch (err: any) {
+              res.statusCode = 500;
+              res.setHeader("Content-Type", "application/json");
+              res.end(JSON.stringify({ error: err?.message || "Internal server error" }));
+              return;
+            }
+          }
+          next();
+        });
+      },
     },
-  },
+  ],
   build: {
     target: "esnext",
   },
