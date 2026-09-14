@@ -208,6 +208,42 @@ export const LOGOS: Record<string, LogoMark> = {
 /** Symbols with no reproducible mark; rendered typographically instead. */
 export const NO_MARK: readonly string[] = ["DIS","PEP","MU","MRVL"];
 
+export const USDC_LOGO: LogoMark = {
+  title: "USD Coin",
+  optical: 1,
+  hex: "#2775CA",
+  onDark: "#2775CA",
+  parts: [
+    { d: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z", fill: "#2775CA" },
+    { d: "M12.5 7h-1v1.07c-1.39.22-2.5 1.1-2.5 2.43 0 1.55 1.34 2.15 2.7 2.47 1.45.34 1.8.69 1.8 1.43 0 .73-.59 1.3-1.6 1.3-1.07 0-1.67-.47-1.85-1.28l-1.35.45c.3 1.18 1.25 1.95 2.3 2.16V17h1v-1.06c1.39-.23 2.5-1.12 2.5-2.44 0-1.74-1.52-2.28-2.85-2.58-1.26-.29-1.65-.63-1.65-1.32 0-.71.57-1.2 1.5-1.2 1.01 0 1.52.48 1.7 1.13l1.35-.49c-.27-1.05-1.15-1.78-2.15-2.02V7z", fill: "#FFFFFF" },
+  ],
+  d: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z",
+};
+
+export function getAssetMark(symbol: string): LogoMark | undefined {
+  if (symbol === "USDC") return USDC_LOGO;
+  return LOGOS[symbol];
+}
+
+export function getAssetName(symbol: string): string {
+  switch (symbol) {
+    case "NVDA": return "NVIDIA";
+    case "AAPL": return "Apple";
+    case "MSFT": return "Microsoft";
+    case "AMZN": return "Amazon";
+    case "TSLA": return "Tesla";
+    case "GOOGL": return "Alphabet";
+    case "META": return "Meta";
+    case "COIN": return "Coinbase";
+    case "AMD": return "AMD";
+    case "NFLX": return "Netflix";
+    case "SPY": return "S&P 500 ETF";
+    case "USDC": return "USD Coin";
+    default: return symbol;
+  }
+}
+
 export function logo(key: string): LogoMark | undefined {
   return LOGOS[key];
 }
+

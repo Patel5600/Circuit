@@ -96,29 +96,35 @@ export function RiskHistory({
   events,
   activeState,
   isDemo = false,
+  allowDemo = false,
 }: {
   events?: RiskTransitionEvent[];
   activeState?: string;
   isDemo?: boolean;
+  allowDemo?: boolean;
 }) {
-  const [showSimulated, setShowSimulated] = useState<boolean>(isDemo);
+  const [showSimulated, setShowSimulated] = useState<boolean>(isDemo && allowDemo);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
 
-  const displayEvents = events && events.length > 0 ? events : showSimulated ? DEMO_RISK_HISTORY : [];
+  const displayEvents = events && events.length > 0 ? events : (showSimulated && allowDemo) ? DEMO_RISK_HISTORY : [];
 
   if (displayEvents.length === 0) {
     return (
       <Card
         title="Risk History"
         action={
-          <button
-            type="button"
-            className="btn btn--secondary btn--sm"
-            style={{ fontSize: 11, height: 26, padding: "0 10px" }}
-            onClick={() => setShowSimulated(true)}
-          >
-            Preview Demo Timeline (DEMO SIMULATION)
-          </button>
+          allowDemo ? (
+            <button
+              type="button"
+              className="btn btn--secondary btn--sm"
+              style={{ fontSize: 11, height: 26, padding: "0 10px" }}
+              onClick={() => setShowSimulated(true)}
+            >
+              Preview Demo Timeline (DEMO SIMULATION)
+            </button>
+          ) : (
+            <Pill tone="success">LIVE DEVNET</Pill>
+          )
         }
       >
         <div style={{ padding: "20px 0", textAlign: "center" }}>

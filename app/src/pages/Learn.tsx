@@ -8,6 +8,8 @@ import {
   AssetNode,
   getAssetMark,
 } from "../components/profile/PortfolioRiskGraph";
+import { StressScenarioPanel } from "../components/profile/StressScenarioPanel";
+import { useSimulationPortfolio } from "../lib/portfolio/simulation-provider";
 import { formatMoney } from "../lib/format";
 import { BPS } from "../lib/protocol";
 
@@ -641,7 +643,7 @@ function RiskRatchetNarrative() {
 
 export default function Learn() {
   const [mode, setMode] = useState<ExplMode>("BASIC");
-  const [simMode, setSimMode] = useState<"LIVE" | "HEALTHY" | "STRESS" | "EMERGENCY">("HEALTHY");
+  const { params, snapshot, updateParam, resetParams } = useSimulationPortfolio();
 
   return (
     <PageContainer
@@ -689,7 +691,7 @@ export default function Learn() {
         </div>
 
         {/* ── Interactive Risk Ratchet & Portfolio Simulator Section ── */}
-        <div className="stack g-8">
+        <div className="stack g-16">
           <div style={{ padding: "0 4px" }}>
             <div className="row between wrap g-8" style={{ alignItems: "center" }}>
               <div>
@@ -697,26 +699,132 @@ export default function Learn() {
                   Interactive Risk Ratchet & Portfolio Simulator
                 </h2>
                 <p style={{ fontSize: 12.5, color: "var(--text-3)", margin: "4px 0 0 0" }}>
-                  Experiment with hypothetical market shocks: adjust asset concentration, widen Pyth confidence spreads, or simulate upstream custody halts to watch Circuit's 5-stage risk DAG respond.
+                  Hypothetical multi-asset sandbox: adjust concentration, widen Pyth confidence spreads, or simulate market gap-downs to observe how Circuit turns risk into financial permissions.
                 </p>
               </div>
-              <Pill tone="accent">INTERACTIVE PLAYGROUND</Pill>
+              <div className="row g-8">
+                <Pill tone="warning">LEARNING SIMULATION</Pill>
+                <button
+                  type="button"
+                  className="btn btn--secondary btn--sm"
+                  style={{ fontSize: 11, height: 26, padding: "0 10px" }}
+                  onClick={resetParams}
+                >
+                  Reset Defaults
+                </button>
+              </div>
             </div>
           </div>
 
+          {/* Interactive Simulation Levers */}
+          <Card>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 }}>
+              {/* Slider 1: NVDA Concentration */}
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, marginBottom: 6 }}>
+                  <span style={{ color: "var(--text-3)", fontFamily: "var(--mono)" }}>NVDA WEIGHT</span>
+                  <span style={{ fontWeight: 700, color: params.nvdaWeightPct > 40 ? "var(--warning)" : "var(--text)" }}>
+                    {params.nvdaWeightPct}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={20}
+                  max={85}
+                  value={params.nvdaWeightPct}
+                  onChange={(e) => updateParam("nvdaWeightPct", Number(e.target.value))}
+                  style={{ width: "100%", accentColor: "var(--accent)" }}
+                />
+                <div style={{ fontSize: 10, color: "var(--text-3)", marginTop: 4 }}>
+                  {params.nvdaWeightPct > 40 ? `-${Math.round((params.nvdaWeightPct - 40) * 36)} bps penalty` : "Within 40% ceiling"}
+                </div>
+              </div>
+
+              {/* Slider 2: Pyth Confidence Spread */}
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, marginBottom: 6 }}>
+                  <span style={{ color: "var(--text-3)", fontFamily: "var(--mono)" }}>PYTH CONF SPREAD</span>
+                  <span style={{ fontWeight: 700, color: params.nvdaConfBps > 50 ? "var(--warning)" : "var(--text)" }}>
+                    ±{params.nvdaConfBps} bps
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={10}
+                  max={200}
+                  value={params.nvdaConfBps}
+                  onChange={(e) => updateParam("nvdaConfBps", Number(e.target.value))}
+                  style={{ width: "100%", accentColor: "var(--accent)" }}
+                />
+                <div style={{ fontSize: 10, color: "var(--text-3)", marginTop: 4 }}>
+                  {params.nvdaConfBps > 150 ? "Breaches 150 bps ceiling" : params.nvdaConfBps > 50 ? "Haircut applied" : "Nominal"}
+                </div>
+              </div>
+
+              {/* Slider 3: Market Gap Down */}
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, marginBottom: 6 }}>
+                  <span style={{ color: "var(--text-3)", fontFamily: "var(--mono)" }}>MARKET GAP-DOWN</span>
+                  <span style={{ fontWeight: 700, color: params.marketDropPct < 0 ? "var(--danger)" : "var(--text)" }}>
+                    {params.marketDropPct}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={-30}
+                  max={0}
+                  value={params.marketDropPct}
+                  onChange={(e) => updateParam("marketDropPct", Number(e.target.value))}
+                  style={{ width: "100%", accentColor: "var(--danger)" }}
+                />
+                <div style={{ fontSize: 10, color: "var(--text-3)", marginTop: 4 }}>
+                  Stressed equity valuation shock
+                </div>
+              </div>
+
+              {/* Toggle: NYSE Market Session */}
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, marginBottom: 6 }}>
+                  <span style={{ color: "var(--text-3)", fontFamily: "var(--mono)" }}>NYSE MARKET SESSION</span>
+                  <span style={{ fontWeight: 700, color: params.marketOpen ? "var(--success)" : "var(--danger)" }}>
+                    {params.marketOpen ? "OPEN" : "CLOSED"}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className={`btn btn--sm ${params.marketOpen ? "btn--secondary" : "btn--accent"}`}
+                  style={{ width: "100%", fontSize: 11, height: 32 }}
+                  onClick={() => updateParam("marketOpen", !params.marketOpen)}
+                >
+                  Toggle Session ({params.marketOpen ? "Close NYSE" : "Open NYSE"})
+                </button>
+                <div style={{ fontSize: 10, color: "var(--text-3)", marginTop: 4 }}>
+                  Closed session engages Defensive ratchet
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          {/* Full Canvas with Virtual Data */}
           <PortfolioRiskGraph
-            assets={SIMULATED_ASSETS}
-            riskState={simMode === "EMERGENCY" ? "EMERGENCY" : simMode === "STRESS" ? "RESTRICTED" : "SAFE"}
-            baseLtvBps={7000}
-            effectiveLtvBps={simMode === "EMERGENCY" ? 3000 : simMode === "STRESS" ? 5200 : 6400}
-            borrowPowerUsd={simMode === "EMERGENCY" ? 0 : simMode === "STRESS" ? 2700 : 3900}
-            totalCollateralUsd={10000}
-            borrowAllowed={simMode !== "EMERGENCY"}
-            hardOverride={simMode === "EMERGENCY"}
-            hardOverrideReason={simMode === "EMERGENCY" ? "Upstream custody settlement link impaired" : undefined}
-            uneditable={false}
-            simMode={simMode}
-            onSimModeChange={(m) => setSimMode(m)}
+            assets={snapshot.positions}
+            riskState={snapshot.riskState}
+            baseLtvBps={snapshot.weightedBaseLtvBps}
+            effectiveLtvBps={snapshot.effectiveLtvBps}
+            borrowPowerUsd={snapshot.borrowCapacityUsd}
+            totalCollateralUsd={snapshot.totalCollateralUsd}
+            borrowAllowed={snapshot.borrowAllowed}
+            hardOverride={snapshot.hardOverride}
+            hardOverrideReason={snapshot.hardOverrideReason}
+            uneditable={true}
+          />
+
+          {/* Stress Scenario Panel (Migrated from Profile) */}
+          <StressScenarioPanel
+            totalCollateralUsd={snapshot.totalCollateralUsd}
+            totalDebtUsd={snapshot.totalDebtUsd}
+            baseLtvBps={snapshot.weightedBaseLtvBps}
+            liqThresholdBps={8000}
           />
         </div>
 
