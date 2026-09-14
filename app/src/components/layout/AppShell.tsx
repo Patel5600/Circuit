@@ -8,6 +8,7 @@ import { CLUSTER, CLUSTER_LABEL } from "../../env";
 import { SystemHealthModal } from "../ui/SystemHealthModal";
 import { ToastProvider } from "../ui/Toaster";
 import { useCircuitDomain } from "../../lib/domain/context";
+import { NetworkSelector } from "./NetworkSelector";
 
 /** Primary destinations, shared by the sidebar and the mobile bottom bar. */
 const PRIMARY: { to: string; label: string; icon: IconName }[] = [
@@ -48,14 +49,6 @@ function SystemHealthPill({ onClick }: { onClick: () => void }) {
   );
 }
 
-function NetworkPill() {
-  return (
-    <Pill tone={CLUSTER === "devnet" ? "accent" : "neutral"} withDot>
-      {CLUSTER_LABEL}
-    </Pill>
-  );
-}
-
 function Header({ onOpenHealth }: { onOpenHealth: () => void }) {
   return (
     <header className="appbar">
@@ -70,7 +63,7 @@ function Header({ onOpenHealth }: { onOpenHealth: () => void }) {
       </div>
 
       <div className="row g-8" style={{ alignItems: "center" }}>
-        <NetworkPill />
+        <NetworkSelector />
         <WalletButton compact />
       </div>
     </header>
@@ -222,7 +215,7 @@ function Sidebar({
           <>
             <div className="row between g-8 sidebar__hide-collapsed">
               <span className="t-label">Network</span>
-              <NetworkPill />
+              <NetworkSelector />
             </div>
             <div className="sidebar__hide-collapsed">
               <WalletButton />

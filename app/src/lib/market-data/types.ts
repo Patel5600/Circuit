@@ -27,6 +27,14 @@ export interface HistoricalReference {
 }
 
 /**
+ * Single real observation point in rolling history
+ */
+export interface HistoricalPoint {
+  timestamp: number; // unix ms
+  price: number;
+}
+
+/**
  * Normalized High-Resolution Market Snapshot
  */
 export interface MarketSnapshot {
@@ -65,6 +73,7 @@ export interface MarketSnapshot {
   dayHighUsd: number | null;
   dayLowUsd: number | null;
   sparkline: number[]; // real intraday points
+  history?: HistoricalPoint[]; // rolling historical series of actual observations
   
   // Protocol Metadata
   marketDataSource: string;

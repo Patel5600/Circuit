@@ -113,7 +113,7 @@ export function AddressCard({
                 display: "inline-block",
                 flexShrink: 0,
               }}
-              title="Active on Devnet"
+              title="Active on-chain"
             />
           )}
           <span

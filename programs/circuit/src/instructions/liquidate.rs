@@ -141,6 +141,17 @@ pub fn handler(ctx: Context<Liquidate>) -> Result<()> {
         .ok_or(CircuitError::MathOverflow)?;
     position.state = PositionState::Healthy;
 
+    let clock = Clock::get()?;
+    emit!(crate::events::LiquidateEvent {
+        liquidator: ctx.accounts.liquidator.key(),
+        owner: position.owner,
+        asset: ctx.accounts.asset_config.mint,
+        debt_repaid: debt_to_repay,
+        collateral_seized: actual_seizure,
+        bonus_bps: dynamic_bonus_bps,
+        timestamp: clock.unix_timestamp,
+    });
+
     msg!(
         "LIQUIDATED. Debt repaid: {}. Collateral seized: {}. Remaining collateral: {}. Ref price: {} (expo: {})",
         debt_to_repay, actual_seizure, position.collateral_amount, ref_price, ref_expo

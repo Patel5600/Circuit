@@ -97,8 +97,14 @@ function CausalEdge({
   thickness?: number; color?: string; dashed?: boolean;
   highlighted?: boolean; dimmed?: boolean;
 }) {
-  const mx = (x1 + x2) / 2;
-  const d = `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`;
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  
+  // When y1 and y2 are on the same plane, introduce organic elevation tension
+  // to avoid artificial, rigid straight horizontal lines.
+  const d = Math.abs(dy) < 2
+    ? `M ${x1} ${y1} C ${x1 + dx * 0.35} ${y1 - 12}, ${x1 + dx * 0.65} ${y2 - 12}, ${x2} ${y2}`
+    : `M ${x1} ${y1} C ${x1 + dx * 0.5} ${y1}, ${x1 + dx * 0.5} ${y2}, ${x2} ${y2}`;
   
   return (
     <path
@@ -107,6 +113,7 @@ function CausalEdge({
       stroke={highlighted ? "var(--accent, #eceae6)" : color}
       strokeWidth={highlighted ? thickness + 1.5 : thickness}
       strokeDasharray={dashed ? "6 4" : undefined}
+      strokeLinecap="round"
       opacity={dimmed ? 0.15 : highlighted ? 1 : 0.65}
       style={{ transition: "stroke 0.25s ease, opacity 0.25s ease, stroke-width 0.25s ease" }}
     />
@@ -639,7 +646,7 @@ export function PortfolioRiskGraph({
     if (isLiveZero) {
       changePayload = {
         deltaScore: "Real-Time On-Chain Truth",
-        reason: "Connected wallet has 0 collateral deposited on Devnet",
+        reason: "Connected wallet has 0 collateral deposited",
         impact: "Borrow capacity is strictly $0.00 until equity collateral is deposited",
         tone: "neutral" as Tone,
       };
@@ -927,7 +934,7 @@ export function PortfolioRiskGraph({
           >
             <div style={{ width: 32, height: 32, border: "2px solid #7fc39a", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
             <div style={{ fontSize: 12, fontFamily: "var(--mono)", color: "var(--text-2)", letterSpacing: "0.08em" }}>
-              SYNCING DEVNET PORTFOLIO...
+              SYNCING ON-CHAIN PORTFOLIO...
             </div>
           </div>
         )}
@@ -965,11 +972,11 @@ export function PortfolioRiskGraph({
                 NO COLLATERAL POSITIONS DETECTED
               </div>
               <div style={{ fontSize: 12, color: "var(--text-3)", maxWidth: 440, margin: "6px auto 0", lineHeight: 1.5 }}>
-                Connected wallet holds zero deposited tokenized equities on Devnet. Collateral valuation and borrowing power are strictly $0.00.
+                Connected wallet holds zero deposited tokenized equities. Collateral valuation and borrowing power are strictly $0.00.
               </div>
             </div>
             <Link to="/app/position" className="btn btn--accent btn--sm" style={{ marginTop: 8 }}>
-              Deposit Collateral on Devnet →
+              Deposit Collateral →
             </Link>
           </div>
         ) : (

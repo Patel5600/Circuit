@@ -309,7 +309,7 @@ export function FaultLineMatrix() {
     <div className="spread-page spread-page-right">
       <div className="spread-running-head">
         <span>ON-CHAIN SPECIFICATION</span>
-        <span>SOLANA DEVNET</span>
+        <span>SOLANA ARCHITECTURE</span>
       </div>
 
       <div className="spread-page-content">

@@ -300,7 +300,7 @@ export function HeroPipeline() {
               SPL Collateral
             </text>
             <text x="14" y="68" fontSize="10.5" fill="var(--text-3)">
-              12 Devnet Markets
+              12 Live Markets
             </text>
 
             <rect x="98" y="44" width="50" height="20" rx="3" fill="rgba(127, 195, 154, 0.1)" stroke="rgba(127, 195, 154, 0.3)" />

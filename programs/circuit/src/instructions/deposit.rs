@@ -43,6 +43,15 @@ pub fn handler(ctx: Context<Deposit>, amount: u64) -> Result<()> {
         .checked_add(amount)
         .ok_or(CircuitError::MathOverflow)?;
 
+    let clock = Clock::get()?;
+    emit!(crate::events::DepositEvent {
+        owner: ctx.accounts.owner.key(),
+        asset: ctx.accounts.asset_config.mint,
+        amount,
+        total_collateral: position.collateral_amount,
+        timestamp: clock.unix_timestamp,
+    });
+
     msg!("Deposited {} tokens. Total collateral: {}", amount, position.collateral_amount);
     Ok(())
 }

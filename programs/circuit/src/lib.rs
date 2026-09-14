@@ -3,12 +3,14 @@
 use anchor_lang::prelude::*;
 
 pub mod errors;
+pub mod events;
 pub mod instructions;
 pub mod market;
 pub mod math;
 pub mod oracle;
 pub mod state;
 
+pub use events::*;
 use instructions::*;
 use state::*;
 

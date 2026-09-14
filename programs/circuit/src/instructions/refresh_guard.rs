@@ -60,11 +60,21 @@ pub fn handler(ctx: Context<RefreshGuard>) -> Result<()> {
 
         if candidate_severity > current_severity {
             // Asymmetric fast tightening: immediately degrade to candidate state
+            let prev_state = ratchet.state;
             ratchet.state = candidate_state;
             ratchet.reason = candidate_reason;
             ratchet.risk_epoch = ratchet.risk_epoch.saturating_add(1);
             ratchet.consecutive_healthy_observations = 0;
             ratchet.last_stress_slot = clock.slot;
+
+            emit!(crate::events::RiskStateChanged {
+                feed_id: ratchet.feed_id,
+                risk_epoch: ratchet.risk_epoch,
+                previous_state: prev_state,
+                new_state: candidate_state,
+                reason: candidate_reason,
+                timestamp: clock.unix_timestamp,
+            });
         } else if candidate_severity == current_severity {
             // Still at current severity level
             if ratchet.state == MarketState::Safe {
@@ -107,6 +117,7 @@ pub fn handler(ctx: Context<RefreshGuard>) -> Result<()> {
 
                 if ratchet.consecutive_healthy_observations >= RiskRatchet::REQUIRED_RECOVERY_OBSERVATIONS {
                     // Step up exactly ONE level
+                    let prev_state = ratchet.state;
                     let next_state = match ratchet.state {
                         MarketState::Emergency => MarketState::Defensive,
                         MarketState::Defensive => MarketState::Restricted,
@@ -120,9 +131,27 @@ pub fn handler(ctx: Context<RefreshGuard>) -> Result<()> {
                     } else {
                         candidate_reason
                     };
+
+                    emit!(crate::events::RiskStateChanged {
+                        feed_id: ratchet.feed_id,
+                        risk_epoch: ratchet.risk_epoch,
+                        previous_state: prev_state,
+                        new_state: next_state,
+                        reason: ratchet.reason,
+                        timestamp: clock.unix_timestamp,
+                    });
+
                     msg!("Ratchet stepped up to {:?} after 5 clean observations", next_state);
                 } else {
                     ratchet.reason = GuardReason::RatchetRecoveryPending;
+                    emit!(crate::events::RecoveryObserved {
+                        feed_id: ratchet.feed_id,
+                        risk_epoch: ratchet.risk_epoch,
+                        current_state: ratchet.state,
+                        consecutive_observations: ratchet.consecutive_healthy_observations,
+                        required_observations: RiskRatchet::REQUIRED_RECOVERY_OBSERVATIONS,
+                        timestamp: clock.unix_timestamp,
+                    });
                 }
             } else {
                 // Did not meet strict hysteresis recovery criteria

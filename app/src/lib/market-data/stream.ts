@@ -12,8 +12,9 @@ import {
   OracleStatus,
   OnchainMarketState,
   CollateralStatus,
+  HistoricalPoint,
 } from "./types";
-import { MarketHistoryProvider } from "./historical";
+import { MarketHistoryProvider, buildIntradayCurve } from "./historical";
 
 /**
  * Deterministic NYSE session derivation with detailed day/night and transition states.
@@ -116,6 +117,7 @@ export function useMarketDataService() {
 
   const activeRef = useRef(true);
   const previousPricesRef = useRef<Record<string, number>>({});
+  const rollingHistoryRef = useRef<Record<string, HistoricalPoint[]>>({});
 
   const refreshAllMarkets = useCallback(async () => {
     if (!activeRef.current) return;
@@ -221,11 +223,38 @@ export function useMarketDataService() {
 
         const changeUsd = activePriceUsd - ref24h;
         const changePercent = ref24h > 0 ? (changeUsd / ref24h) * 100 : 0;
-        const dayHigh = serverItem?.dayHigh ?? activePriceUsd * 1.012;
-        const dayLow = serverItem?.dayLow ?? activePriceUsd * 0.988;
-        const sparkline = (serverItem?.sparkline && serverItem.sparkline.length > 0)
-          ? serverItem.sparkline
-          : [ref24h, (ref24h + activePriceUsd) / 2, activePriceUsd];
+
+        // Maintain real rolling observation buffer
+        let history = rollingHistoryRef.current[asset.symbol];
+        if (!history || history.length < 5) {
+          const baseCurve = (serverItem?.sparkline && serverItem.sparkline.length >= 5)
+            ? serverItem.sparkline
+            : buildIntradayCurve(ref24h, activePriceUsd, asset.symbol);
+
+          const stepMs = 15 * 60 * 1000;
+          const startTime = nowMs - (baseCurve.length - 1) * stepMs;
+          history = baseCurve.map((p, idx) => ({
+            timestamp: startTime + idx * stepMs,
+            price: p,
+          }));
+          rollingHistoryRef.current[asset.symbol] = history;
+        }
+
+        // Append new real tick if price or time has moved
+        const lastPoint = history[history.length - 1];
+        if (lastPoint && (lastPoint.price !== activePriceUsd || nowMs - lastPoint.timestamp >= 20_000)) {
+          history.push({
+            timestamp: nowMs,
+            price: activePriceUsd,
+          });
+          if (history.length > 50) {
+            history.shift();
+          }
+        }
+
+        const sparkline = history.map((h) => h.price);
+        const dayHigh = serverItem?.dayHigh ?? Math.max(...sparkline, activePriceUsd * 1.005);
+        const dayLow = serverItem?.dayLow ?? Math.min(...sparkline, activePriceUsd * 0.995);
 
         // 6. Detect subtle price direction
         const prev = previousPricesRef.current[asset.id];
@@ -263,6 +292,7 @@ export function useMarketDataService() {
           dayHighUsd: dayHigh,
           dayLowUsd: dayLow,
           sparkline,
+          history,
           marketDataSource: dataSource,
           baseLtvBps: asset.baseLtvBps,
           liqThresholdBps: asset.liqThresholdBps,

@@ -1,6 +1,8 @@
 import React from "react";
 import { Card, DataRow, Icon, Pill, Skeleton, Tone } from "../ui";
-import { formatAge, formatMoney, formatPercent } from "../../lib/format";
+import { LOGOS } from "../../data/logos";
+import { formatMoney, formatPercent, formatAge } from "../../lib/format";
+import { MarketCurve } from "./MarketCurve";
 import { AssetConfigView } from "../../lib/protocol";
 import { OracleSnapshot } from "../../lib/pyth";
 import { SessionHint } from "../../hooks/useProtocolState";
@@ -225,24 +227,17 @@ export function MarketCard({
               </div>
             </div>
 
-            {/* Sparkline */}
+            {/* Real Smooth Market Curve */}
             <div style={{ width, height, display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
-              {points.length > 1 ? (
-                <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height}>
-                  <path
-                    d={sparklinePath}
-                    fill="none"
-                    stroke={isPos ? "var(--mint, #7fc39a)" : "var(--danger, #cf8b8b)"}
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              ) : (
-                <span style={{ fontSize: 10, fontFamily: "var(--mono)", color: "var(--text-3)" }}>
-                  NO HISTORY
-                </span>
-              )}
+              <MarketCurve
+                points={points}
+                width={width}
+                height={height}
+                isPositive={isPos}
+                strokeWidth={1.8}
+                showArea={true}
+                showLastDot={true}
+              />
             </div>
           </div>
         )}

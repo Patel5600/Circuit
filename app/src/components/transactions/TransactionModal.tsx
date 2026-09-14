@@ -138,7 +138,7 @@ export function TransactionModal({
                 {action.toUpperCase()} CONFIRMED
               </span>
               <Pill tone="success" withDot>
-                DEVNET ON-CHAIN
+                CONFIRMED ON-CHAIN
               </Pill>
             </div>
 

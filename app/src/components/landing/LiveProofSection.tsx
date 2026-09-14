@@ -39,7 +39,7 @@ export function LiveProofSection() {
         <Reveal>
           <p className="sec__index">
             <span className="sec__index__n">07</span>
-            <span className="sec__index__t">Live Proof · Devnet Verifiability</span>
+            <span className="sec__index__t">Live Proof · On-Chain Verifiability</span>
           </p>
           <h2 className="sec__title">
             The pipeline can stop.
@@ -88,11 +88,11 @@ export function LiveProofSection() {
                     }}
                   />
                   <span style={{ fontSize: "11px", fontFamily: "var(--mono)", color: "var(--text-3)", letterSpacing: "0.08em" }}>
-                    CURRENT DEVNET SYSTEM PROOF
+                    CURRENT PROTOCOL TELEMETRY
                   </span>
                 </div>
                 <h3 style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "var(--text)" }}>
-                  {activeMode === "LIVE" ? "Live Devnet Telemetry: NVDAx" : "Failure Path Demonstration: Circuit Halts"}
+                  {activeMode === "LIVE" ? "Live Telemetry: NVDAx" : "Failure Path Demonstration: Circuit Halts"}
                 </h3>
               </div>
 
@@ -102,7 +102,7 @@ export function LiveProofSection() {
                   onClick={() => setActiveMode("LIVE")}
                   className={`btn ${activeMode === "LIVE" ? "btn--accent" : "btn--ghost"} btn--sm`}
                 >
-                  Live Devnet Telemetry
+                  Live Telemetry
                 </button>
                 <button
                   type="button"
@@ -233,12 +233,12 @@ export function LiveProofSection() {
             >
               <p style={{ margin: 0, fontSize: "12.5px", color: "var(--text-2)", lineHeight: 1.5, maxWidth: "700px" }}>
                 {activeMode === "LIVE"
-                  ? `Live Devnet verdict: NVDAx Pyth PriceUpdateV2 is fresh and validated. Risk Ratchet evaluates current state as ${liveRisk}, resulting in ${liveCredit}.`
+                  ? `Live verdict: NVDAx Pyth PriceUpdateV2 is fresh and validated. Risk Ratchet evaluates current state as ${liveRisk}, resulting in ${liveCredit}.`
                   : "Failure Path verdict: Confidence ratio exceeded tolerance bound. Risk Ratchet shifted to RESTRICTED. Stage 05 immediately blocked borrow execution on-chain. Capital is protected."}
               </p>
 
               <Link to="/app" className="btn btn--primary btn--sm">
-                Verify on Devnet App
+                Inspect Live Market
               </Link>
             </div>
           </div>

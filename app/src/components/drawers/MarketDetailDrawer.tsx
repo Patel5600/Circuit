@@ -58,7 +58,7 @@ export function MarketDetailDrawer({
       open={open}
       onClose={onClose}
       title={`${name} (${displaySymbol})`}
-      subtitle={`Devnet Market · ${activeSymbol}/${quoteSymbol}`}
+      subtitle={`Market · ${activeSymbol}/${quoteSymbol}`}
       badge={
         <Pill tone={underlyingSession === "REGULAR" ? "success" : "neutral"} withDot>
           {underlyingSession === "REGULAR" ? "NYSE Regular Open" : "NYSE Session Closed"}

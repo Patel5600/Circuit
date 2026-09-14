@@ -209,7 +209,7 @@ export default function Activity() {
           </div>
         </Card>
       ) : !items || items.length === 0 ? (
-        <EmptyState icon="activity" title="No activity recorded on Devnet">
+        <EmptyState icon="activity" title="No transaction activity recorded">
           Once you deposit, borrow, repay, or withdraw on Circuit, those confirmed on-chain transactions will appear here with forensic diagnostics.
         </EmptyState>
       ) : (

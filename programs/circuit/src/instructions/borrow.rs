@@ -113,6 +113,16 @@ pub fn handler(ctx: Context<Borrow>, amount: u64) -> Result<()> {
     position.last_valid_price = validated_price.price;
     position.last_valid_expo = validated_price.expo;
 
+    emit!(crate::events::BorrowEvent {
+        owner: ctx.accounts.owner.key(),
+        asset: ctx.accounts.asset_config.mint,
+        quote_mint: ctx.accounts.quote_mint.key(),
+        amount,
+        new_debt: position.debt_amount,
+        health_factor_bps: hf,
+        timestamp: clock.unix_timestamp,
+    });
+
     msg!(
         "Borrowed {} quote tokens. Total debt: {}. HF: {} BPS",
         amount, position.debt_amount, hf

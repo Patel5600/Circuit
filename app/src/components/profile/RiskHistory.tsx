@@ -123,7 +123,7 @@ export function RiskHistory({
               Preview Demo Timeline (DEMO SIMULATION)
             </button>
           ) : (
-            <Pill tone="success">LIVE DEVNET</Pill>
+            <Pill tone="success">ON-CHAIN</Pill>
           )
         }
       >
@@ -148,7 +148,7 @@ export function RiskHistory({
             No historical risk events recorded yet.
           </div>
           <p style={{ fontSize: 12.5, color: "var(--text-3)", margin: "4px auto 0 auto", maxWidth: "46ch" }}>
-            Under nominal Devnet operating conditions, this account has not experienced Risk Ratchet state transitions.
+            Under nominal operating conditions, this account has not experienced Risk Ratchet state transitions.
           </p>
         </div>
       </Card>
@@ -161,7 +161,7 @@ export function RiskHistory({
       action={
         <div className="row g-8" style={{ alignItems: "center" }}>
           <Pill tone={isDemo || showSimulated ? "warning" : "success"}>
-            {isDemo || showSimulated ? "DEMO SIMULATION" : "LIVE DEVNET"}
+            {isDemo || showSimulated ? "DEMO SIMULATION" : "ON-CHAIN"}
           </Pill>
           {showSimulated && !isDemo && (
             <button

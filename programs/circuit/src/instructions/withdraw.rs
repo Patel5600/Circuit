@@ -107,6 +107,15 @@ pub fn handler(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
     // Update position
     position.collateral_amount = remaining_collateral;
 
+    let clock = Clock::get()?;
+    emit!(crate::events::WithdrawEvent {
+        owner: ctx.accounts.owner.key(),
+        asset: ctx.accounts.asset_config.mint,
+        amount,
+        remaining_collateral,
+        timestamp: clock.unix_timestamp,
+    });
+
     msg!(
         "Withdrew {} collateral tokens. Remaining: {}",
         amount, position.collateral_amount

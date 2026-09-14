@@ -41,6 +41,16 @@ pub fn handler(ctx: Context<Repay>, amount: u64) -> Result<()> {
         position.state = PositionState::Healthy;
     }
 
+    let clock = Clock::get()?;
+    emit!(crate::events::RepayEvent {
+        owner: ctx.accounts.owner.key(),
+        asset: ctx.accounts.asset_config.mint,
+        quote_mint: ctx.accounts.quote_mint.key(),
+        amount,
+        remaining_debt: position.debt_amount,
+        timestamp: clock.unix_timestamp,
+    });
+
     msg!("Repaid {} quote tokens. Remaining debt: {}", amount, position.debt_amount);
     Ok(())
 }
