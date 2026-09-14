@@ -1,7 +1,8 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { Card, Pill, Tone, Icon } from "../ui";
 import { LOGOS, type LogoMark } from "../../data/logos";
+import { formatMoney } from "../../lib/format";
 
 /* -------------------------------------------------------------------------- */
 /*  Types                                                                     */
@@ -16,6 +17,13 @@ export interface AssetNode {
   maxConfBps: number;
   marketOpen: boolean;
   mark?: LogoMark;
+  
+  // Real financial fields for detail panel
+  priceUsd?: number;
+  change24hPercent?: number | null;
+  collateralValueUsd?: number;
+  impactBorrowPowerUsd?: number;
+  explanation?: string;
 }
 
 export interface DynamicStatePayload {
@@ -44,6 +52,7 @@ export interface PortfolioRiskGraphProps {
   simMode?: "LIVE" | "HEALTHY" | "STRESS" | "EMERGENCY";
   onSimModeChange?: (mode: "LIVE" | "HEALTHY" | "STRESS" | "EMERGENCY") => void;
   onDynamicStateChange?: (payload: DynamicStatePayload) => void;
+  onSelectNodeDriver?: (nodeId: string) => void;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -76,228 +85,154 @@ export function getAssetName(symbol: string): string {
     case "TSLA": return "Tesla";
     case "GOOGL": return "Alphabet";
     case "COIN": return "Coinbase";
+    case "AMD": return "AMD";
+    case "NFLX": return "Netflix";
+    case "SPY": return "S&P 500 ETF";
     case "USDC": return "USD Coin";
     default: return symbol;
   }
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Colors & helpers                                                          */
+/*  Colors & constants                                                        */
 /* -------------------------------------------------------------------------- */
 
 const STATE_COLOR: Record<string, string> = {
   SAFE: "#7fc39a",
   RESTRICTED: "#cfad74",
   DEFENSIVE: "#e08c4e",
-  EMERGENCY: "#e06c6c",
+  EMERGENCY: "#cf8b8b",
 };
 
-const STATE_TONE: Record<string, Tone> = {
-  SAFE: "success",
-  RESTRICTED: "warning",
-  DEFENSIVE: "warning",
-  EMERGENCY: "danger",
-};
+const W = 1000;
+const COL_ASSET = 92;
+const COL_RISK = 282;
+const COL_PORTFOLIO = 480;
+const COL_CREDIT = 678;
+const COL_PERM = 878;
 
 /* -------------------------------------------------------------------------- */
-/*  SVG Layout Constants                                                      */
+/*  Causal Edge Component                                                     */
 /* -------------------------------------------------------------------------- */
 
-const W = 960;
-const H = 510;
-
-const COL_ASSET = 106;
-const COL_RISK = 320;
-const COL_PORTFOLIO = 560;
-const COL_CREDIT = 800;
-
-/* -------------------------------------------------------------------------- */
-/*  Edge component                                                            */
-/* -------------------------------------------------------------------------- */
-
-function Edge({
+function CausalEdge({
   x1, y1, x2, y2,
   thickness = 1.5,
   color = "var(--border)",
   dashed = false,
-  animated = false,
+  highlighted = false,
+  dimmed = false,
 }: {
   x1: number; y1: number; x2: number; y2: number;
-  thickness?: number; color?: string; dashed?: boolean; animated?: boolean;
+  thickness?: number; color?: string; dashed?: boolean;
+  highlighted?: boolean; dimmed?: boolean;
 }) {
   const mx = (x1 + x2) / 2;
   const d = `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`;
+  
   return (
     <path
       d={d}
       fill="none"
-      stroke={color}
-      strokeWidth={thickness}
+      stroke={highlighted ? "var(--accent, #eceae6)" : color}
+      strokeWidth={highlighted ? thickness + 1.5 : thickness}
       strokeDasharray={dashed ? "6 4" : undefined}
-      opacity={animated ? undefined : 0.65}
-      style={{ transition: "stroke 0.4s ease, stroke-width 0.4s ease" }}
-    >
-      {animated && (
-        <animate
-          attributeName="stroke-opacity"
-          values="0.4;1;0.4"
-          dur="1.8s"
-          repeatCount="indefinite"
-        />
-      )}
-    </path>
+      opacity={dimmed ? 0.18 : highlighted ? 1 : 0.65}
+      style={{
+        transition: "stroke 0.25s ease, stroke-width 0.25s ease, opacity 0.25s ease",
+      }}
+    />
   );
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Node components                                                           */
+/*  Node Components                                                           */
 /* -------------------------------------------------------------------------- */
 
 function AssetCardNode({
-  x, y, symbol, name, weightPct, stressed, mark,
+  x, y, symbol, name, weightPct, stressed, mark, isHovered, isDimmed, onClick, onMouseEnter, onMouseLeave,
 }: {
-  x: number;
-  y: number;
-  symbol: string;
-  name: string;
-  weightPct: number;
-  stressed: boolean;
-  mark?: LogoMark;
+  x: number; y: number; symbol: string; name: string; weightPct: number; stressed: boolean;
+  mark?: LogoMark; isHovered: boolean; isDimmed: boolean;
+  onClick: () => void; onMouseEnter: () => void; onMouseLeave: () => void;
 }) {
-  const cardW = 156;
-  const cardH = 48;
+  const cardW = 144;
+  const cardH = 46;
   const rx = 8;
   const leftX = x - cardW / 2;
   const topY = y - cardH / 2;
 
   const isConcentrated = weightPct > 40;
-  const borderColor = stressed
-    ? "#e06c6c"
+  const borderColor = isHovered
+    ? "var(--accent, #eceae6)"
+    : stressed
+    ? "#cf8b8b"
     : isConcentrated
     ? "#cfad74"
     : "var(--border)";
-  const bgColor = stressed
-    ? "rgba(224, 108, 108, 0.08)"
-    : "rgba(18, 22, 32, 0.85)";
 
   const cx = leftX + 22;
-  const cy = topY + 24;
+  const cy = topY + 23;
   const scale = (20 / 24) * (mark?.optical || 1);
 
   return (
-    <g>
-      {/* Background card */}
+    <g
+      onClick={onClick}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      style={{ cursor: "pointer", opacity: isDimmed ? 0.25 : 1, transition: "opacity 0.25s ease" }}
+    >
       <rect
         x={leftX}
         y={topY}
         width={cardW}
         height={cardH}
         rx={rx}
-        fill={bgColor}
+        fill={stressed ? "rgba(207, 139, 139, 0.08)" : "rgba(14, 14, 16, 0.9)"}
         stroke={borderColor}
-        strokeWidth={stressed ? 1.5 : 1}
+        strokeWidth={isHovered ? 2 : stressed ? 1.5 : 1}
       />
-      {stressed && (
-        <rect
-          x={leftX - 2}
-          y={topY - 2}
-          width={cardW + 4}
-          height={cardH + 4}
-          rx={rx + 2}
-          fill="none"
-          stroke="#e06c6c"
-          strokeWidth={1}
-          opacity={0.4}
-        >
-          <animate
-            attributeName="opacity"
-            values="0.2;0.7;0.2"
-            dur="2s"
-            repeatCount="indefinite"
-          />
-        </rect>
-      )}
+      {/* Brand logo frame */}
+      <circle cx={cx} cy={cy} r={13} fill="rgba(255, 255, 255, 0.04)" stroke="rgba(255, 255, 255, 0.1)" strokeWidth={0.8} />
 
-      {/* Brand logo circular badge frame */}
-      <circle
-        cx={cx}
-        cy={cy}
-        r={14}
-        fill="rgba(255, 255, 255, 0.04)"
-        stroke="rgba(255, 255, 255, 0.1)"
-        strokeWidth={0.8}
-      />
-
-      {/* Real SVG brand logo mark with accurate optical centering */}
       {mark ? (
         <g transform={`translate(${cx}, ${cy}) scale(${scale}) translate(-12, -12)`}>
           {mark.parts ? (
-            mark.parts.map((p, idx) => (
-              <path key={idx} d={p.d} fill={p.fill} />
-            ))
+            mark.parts.map((p, idx) => <path key={idx} d={p.d} fill={p.fill} />)
           ) : (
             <path d={mark.d} fill={mark.onDark || "#ffffff"} />
           )}
         </g>
       ) : (
-        <text
-          x={cx}
-          y={cy + 4}
-          textAnchor="middle"
-          fontSize={10.5}
-          fontWeight={700}
-          fill="var(--text)"
-          fontFamily="var(--mono)"
-        >
+        <text x={cx} y={cy + 4} textAnchor="middle" fontSize={10} fontWeight={700} fill="var(--text)" fontFamily="var(--mono)">
           {symbol.slice(0, 2)}
         </text>
       )}
 
       {/* Symbol & Name */}
-      <text
-        x={leftX + 44}
-        y={topY + 21}
-        fontSize={13}
-        fontWeight={700}
-        fill="var(--text)"
-        fontFamily="var(--font-sans)"
-      >
+      <text x={leftX + 42} y={topY + 20} fontSize={12.5} fontWeight={700} fill="var(--text)" fontFamily="var(--sans)">
         {symbol}
       </text>
-      <text
-        x={leftX + 44}
-        y={topY + 36}
-        fontSize={9.5}
-        fill="var(--text-3)"
-        fontFamily="var(--font-sans)"
-      >
-        {name.length > 9 ? name.slice(0, 8) + "…" : name}
+      <text x={leftX + 42} y={topY + 34} fontSize={9} fill="var(--text-3)" fontFamily="var(--sans)">
+        {name.length > 10 ? name.slice(0, 9) + "…" : name}
       </text>
 
       {/* Weight Pill */}
       <rect
-        x={leftX + cardW - 46}
-        y={topY + 13}
-        width={38}
+        x={leftX + cardW - 44}
+        y={topY + 12}
+        width={36}
         height={22}
-        rx={5}
-        fill={
-          isConcentrated
-            ? "rgba(207, 173, 116, 0.15)"
-            : "rgba(255, 255, 255, 0.05)"
-        }
-        stroke={
-          isConcentrated
-            ? "rgba(207, 173, 116, 0.4)"
-            : "rgba(255, 255, 255, 0.1)"
-        }
+        rx={4}
+        fill={isConcentrated ? "rgba(207, 173, 116, 0.15)" : "rgba(255, 255, 255, 0.05)"}
+        stroke={isConcentrated ? "rgba(207, 173, 116, 0.4)" : "rgba(255, 255, 255, 0.1)"}
         strokeWidth={1}
       />
       <text
-        x={leftX + cardW - 27}
-        y={topY + 28}
+        x={leftX + cardW - 26}
+        y={topY + 27}
         textAnchor="middle"
-        fontSize={10.5}
+        fontSize={10}
         fontFamily="var(--mono)"
         fontWeight={650}
         fill={isConcentrated ? "var(--warning)" : "var(--text)"}
@@ -309,25 +244,30 @@ function AssetCardNode({
 }
 
 function RiskFactorNode({
-  x, y, label, level, stressed, isHard,
+  x, y, label, level, stressed, isHard, isHovered, isDimmed, onMouseEnter, onMouseLeave,
 }: {
   x: number; y: number; label: string; level: "low" | "med" | "high"; stressed: boolean; isHard?: boolean;
+  isHovered: boolean; isDimmed: boolean; onMouseEnter: () => void; onMouseLeave: () => void;
 }) {
-  const color = stressed ? "#e06c6c" : level === "high" ? "#cfad74" : "var(--text-3)";
-  const pillW = 96;
-  const pillH = 20;
+  const color = stressed ? "#cf8b8b" : level === "high" ? "#cfad74" : "var(--text-3)";
+  const pillW = 92;
+  const pillH = 19;
 
   return (
-    <g>
+    <g
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      style={{ opacity: isDimmed ? 0.25 : 1, transition: "opacity 0.25s ease", cursor: "pointer" }}
+    >
       <rect
         x={x - pillW / 2} y={y - pillH / 2}
         width={pillW} height={pillH}
-        rx={5}
-        fill={stressed ? "rgba(224, 108, 108, 0.12)" : "rgba(22, 26, 36, 0.6)"}
-        stroke={stressed ? "#e06c6c" : "var(--border)"}
-        strokeWidth={stressed ? 1.5 : 1}
+        rx={4}
+        fill={stressed ? "rgba(207, 139, 139, 0.12)" : "rgba(18, 20, 26, 0.7)"}
+        stroke={isHovered ? "var(--accent)" : stressed ? "#cf8b8b" : "var(--border)"}
+        strokeWidth={isHovered ? 1.5 : stressed ? 1.2 : 1}
       />
-      <text x={x} y={y + 3.5} textAnchor="middle" fontSize={9.5} fontFamily="var(--mono)" fill={color} fontWeight={stressed ? 650 : 500}>
+      <text x={x} y={y + 3.5} textAnchor="middle" fontSize={9} fontFamily="var(--mono)" fill={color} fontWeight={stressed ? 650 : 500}>
         {label} {isHard ? "•" : ""}
       </text>
     </g>
@@ -335,36 +275,40 @@ function RiskFactorNode({
 }
 
 function PortfolioNode({
-  x, y, score, state,
+  x, y, score, state, isHovered, isDimmed, onMouseEnter, onMouseLeave,
 }: {
   x: number; y: number; score: number; state: string;
+  isHovered: boolean; isDimmed: boolean; onMouseEnter: () => void; onMouseLeave: () => void;
 }) {
   const color = STATE_COLOR[state] ?? "var(--text-3)";
   return (
-    <g>
-      <circle cx={x} cy={y} r={54} fill="none" stroke={color} strokeWidth={2} opacity={0.25} />
+    <g
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      style={{ opacity: isDimmed ? 0.25 : 1, transition: "opacity 0.25s ease", cursor: "pointer" }}
+    >
+      <circle cx={x} cy={y} r={52} fill="none" stroke={color} strokeWidth={isHovered ? 3 : 2} opacity={0.25} />
       <circle
-        cx={x} cy={y} r={54}
+        cx={x} cy={y} r={52}
         fill="none"
         stroke={color}
-        strokeWidth={4}
-        strokeDasharray={`${score * 3.39} ${339 - score * 3.39}`}
-        strokeDashoffset={85}
+        strokeWidth={isHovered ? 5 : 4}
+        strokeDasharray={`${score * 3.26} ${326 - score * 3.26}`}
+        strokeDashoffset={81}
         strokeLinecap="round"
-        style={{ transition: "stroke-dasharray 0.6s ease, stroke 0.4s ease" }}
+        style={{ transition: "stroke-dasharray 0.5s ease, stroke 0.3s ease" }}
       />
-      <circle cx={x} cy={y} r={44} fill={`${color}11`} />
-      <text x={x} y={y - 15} textAnchor="middle" fontSize={9} fontFamily="var(--mono)" fill="var(--text-3)"
-        letterSpacing="0.1em">
+      <circle cx={x} cy={y} r={42} fill={`${color}12`} />
+      <text x={x} y={y - 14} textAnchor="middle" fontSize={8.5} fontFamily="var(--mono)" fill="var(--text-3)" letterSpacing="0.1em">
         PORTFOLIO RISK
       </text>
-      <text x={x} y={y + 6} textAnchor="middle" fontSize={23} fontWeight={700} fill={color}>
+      <text x={x} y={y + 6} textAnchor="middle" fontSize={22} fontWeight={700} fill={color}>
         {score}
       </text>
-      <text x={x} y={y + 20} textAnchor="middle" fontSize={10} fontFamily="var(--mono)" fill={color}>
+      <text x={x} y={y + 19} textAnchor="middle" fontSize={9.5} fontFamily="var(--mono)" fill={color}>
         / 100
       </text>
-      <text x={x} y={y + 38} textAnchor="middle" fontSize={11} fontWeight={650} fill={color}>
+      <text x={x} y={y + 36} textAnchor="middle" fontSize={10.5} fontWeight={650} fill={color}>
         {state}
       </text>
     </g>
@@ -372,52 +316,112 @@ function PortfolioNode({
 }
 
 function CreditNode({
-  x, y, effectiveLtv, borrowPower, allowed, hardOverride, hardReason,
+  x, y, effectiveLtv, borrowPower, allowed, hardOverride, isHovered, isDimmed, onMouseEnter, onMouseLeave,
 }: {
   x: number; y: number; effectiveLtv: number; borrowPower: number;
-  allowed: boolean; hardOverride: boolean; hardReason?: string;
+  allowed: boolean; hardOverride: boolean;
+  isHovered: boolean; isDimmed: boolean; onMouseEnter: () => void; onMouseLeave: () => void;
 }) {
-  const color = hardOverride ? "#e06c6c" : allowed ? "#7fc39a" : "#cfad74";
-  const cardW = 146;
-  const cardH = 130;
+  const color = hardOverride ? "#cf8b8b" : allowed ? "#7fc39a" : "#cfad74";
+  const cardW = 132;
+  const cardH = 120;
 
   return (
-    <g>
+    <g
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      style={{ opacity: isDimmed ? 0.25 : 1, transition: "opacity 0.25s ease", cursor: "pointer" }}
+    >
       <rect
         x={x - cardW / 2} y={y - cardH / 2}
         width={cardW} height={cardH}
-        rx={12}
-        fill={hardOverride ? "rgba(224, 108, 108, 0.08)" : "rgba(127, 195, 154, 0.04)"}
-        stroke={color}
-        strokeWidth={1.5}
+        rx={10}
+        fill={hardOverride ? "rgba(207, 139, 139, 0.08)" : "rgba(127, 195, 154, 0.04)"}
+        stroke={isHovered ? "var(--accent)" : color}
+        strokeWidth={isHovered ? 2 : 1.5}
       />
-      <text x={x} y={y - 44} textAnchor="middle" fontSize={9} fontFamily="var(--mono)"
-        fill="var(--text-3)" letterSpacing="0.1em">
-        CREDIT CONSEQUENCE
+      <text x={x} y={y - 40} textAnchor="middle" fontSize={8.5} fontFamily="var(--mono)" fill="var(--text-3)" letterSpacing="0.1em">
+        CREDIT CAPACITY
       </text>
-      <text x={x} y={y - 22} textAnchor="middle" fontSize={10} fill="var(--text-3)">
+      <text x={x} y={y - 20} textAnchor="middle" fontSize={9.5} fill="var(--text-3)">
         Effective LTV
       </text>
-      <text x={x} y={y - 4} textAnchor="middle" fontSize={19} fontWeight={700} fill={color}>
+      <text x={x} y={y - 4} textAnchor="middle" fontSize={18} fontWeight={700} fill={color}>
         {(effectiveLtv / 100).toFixed(0)}%
       </text>
-      <text x={x} y={y + 15} textAnchor="middle" fontSize={10} fill="var(--text-3)">
-        Borrow Capacity
+      <text x={x} y={y + 14} textAnchor="middle" fontSize={9.5} fill="var(--text-3)">
+        Available Credit
       </text>
-      <text x={x} y={y + 31} textAnchor="middle" fontSize={15} fontWeight={650}
-        fill={color} fontFamily="var(--mono)">
-        ${borrowPower.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+      <text x={x} y={y + 29} textAnchor="middle" fontSize={14} fontWeight={650} fill={color} fontFamily="var(--mono)">
+        ${formatMoney(borrowPower)}
       </text>
-      <rect
-        x={x - 58} y={y + 41}
-        width={116} height={20}
-        rx={4}
-        fill={`${color}18`}
-      />
-      <text x={x} y={y + 54} textAnchor="middle" fontSize={9.5} fontWeight={650}
-        fontFamily="var(--mono)" fill={color}>
+      <rect x={x - 52} y={y + 38} width={104} height={18} rx={4} fill={`${color}18`} />
+      <text x={x} y={y + 50} textAnchor="middle" fontSize={9} fontWeight={650} fontFamily="var(--mono)" fill={color}>
         {hardOverride ? "BORROW BLOCKED" : allowed ? "BORROW ALLOWED" : "BORROW RESTRICTED"}
       </text>
+    </g>
+  );
+}
+
+function PermissionNode({
+  x, y, borrowAllowed, hardOverride, isDimmed, onMouseEnter, onMouseLeave,
+}: {
+  x: number; y: number; borrowAllowed: boolean; hardOverride: boolean;
+  isDimmed: boolean; onMouseEnter: () => void; onMouseLeave: () => void;
+}) {
+  const cardW = 126;
+  const cardH = 120;
+
+  return (
+    <g
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      style={{ opacity: isDimmed ? 0.25 : 1, transition: "opacity 0.25s ease", cursor: "pointer" }}
+    >
+      <rect
+        x={x - cardW / 2} y={y - cardH / 2}
+        width={cardW} height={cardH}
+        rx={10}
+        fill="rgba(14, 14, 16, 0.9)"
+        stroke="var(--border)"
+        strokeWidth={1}
+      />
+      <text x={x} y={y - 40} textAnchor="middle" fontSize={8.5} fontFamily="var(--mono)" fill="var(--text-3)" letterSpacing="0.1em">
+        ON-CHAIN PERMISSIONS
+      </text>
+
+      {/* 4 Discrete permissions */}
+      <g transform={`translate(${x - 50}, ${y - 25})`}>
+        <text x={0} y={10} fontSize={10} fill="var(--text-2)">Borrow</text>
+        <rect x={55} y={0} width={45} height={14} rx={3} fill={hardOverride ? "#cf8b8b22" : borrowAllowed ? "#7fc39a22" : "#cfad7422"} />
+        <text x={77.5} y={10.5} textAnchor="middle" fontSize={8} fontFamily="var(--mono)" fill={hardOverride ? "#cf8b8b" : borrowAllowed ? "#7fc39a" : "#cfad74"}>
+          {hardOverride ? "BLOCKED" : borrowAllowed ? "ALLOWED" : "RESTRICT"}
+        </text>
+      </g>
+
+      <g transform={`translate(${x - 50}, ${y - 7})`}>
+        <text x={0} y={10} fontSize={10} fill="var(--text-2)">Withdraw</text>
+        <rect x={55} y={0} width={45} height={14} rx={3} fill={hardOverride ? "#cf8b8b22" : "#7fc39a22"} />
+        <text x={77.5} y={10.5} textAnchor="middle" fontSize={8} fontFamily="var(--mono)" fill={hardOverride ? "#cf8b8b" : "#7fc39a"}>
+          {hardOverride ? "BLOCKED" : "ALLOWED"}
+        </text>
+      </g>
+
+      <g transform={`translate(${x - 50}, ${y + 11})`}>
+        <text x={0} y={10} fontSize={10} fill="var(--text-2)">Repay</text>
+        <rect x={55} y={0} width={45} height={14} rx={3} fill="#7fc39a22" />
+        <text x={77.5} y={10.5} textAnchor="middle" fontSize={8} fontFamily="var(--mono)" fill="#7fc39a">
+          ALLOWED
+        </text>
+      </g>
+
+      <g transform={`translate(${x - 50}, ${y + 29})`}>
+        <text x={0} y={10} fontSize={10} fill="var(--text-2)">Liquidate</text>
+        <rect x={55} y={0} width={45} height={14} rx={3} fill={hardOverride ? "#cf8b8b22" : "rgba(255,255,255,0.05)"} />
+        <text x={77.5} y={10.5} textAnchor="middle" fontSize={8} fontFamily="var(--mono)" fill={hardOverride ? "#cf8b8b" : "var(--text-3)"}>
+          {hardOverride ? "ACTIVE" : "INACTIVE"}
+        </text>
+      </g>
     </g>
   );
 }
@@ -425,18 +429,16 @@ function CreditNode({
 function HardOverrideLine({ y, reason }: { y: number; reason?: string }) {
   return (
     <g>
-      <line x1={40} y1={y} x2={W - 40} y2={y}
-        stroke="#e06c6c" strokeWidth={2} strokeDasharray="8 4">
+      <line x1={30} y1={y} x2={W - 30} y2={y} stroke="#cf8b8b" strokeWidth={1.5} strokeDasharray="8 4">
         <animate attributeName="stroke-opacity" values="0.3;0.9;0.3" dur="1.5s" repeatCount="indefinite" />
       </line>
-      <rect x={W / 2 - 120} y={y - 12} width={240} height={24} rx={5} fill="rgba(224,108,108,0.2)" stroke="#e06c6c" strokeWidth={1} />
-      <text x={W / 2} y={y + 4} textAnchor="middle" fontSize={10} fontWeight={700}
-        fontFamily="var(--mono)" fill="#e06c6c">
-        ⚠ HARD RISK OVERRIDE ACTIVE
+      <rect x={W / 2 - 130} y={y - 11} width={260} height={22} rx={4} fill="rgba(207,139,139,0.2)" stroke="#cf8b8b" strokeWidth={1} />
+      <text x={W / 2} y={y + 4} textAnchor="middle" fontSize={9.5} fontWeight={700} fontFamily="var(--mono)" fill="#cf8b8b">
+        ⚠️ HARD RISK OVERRIDE ACTIVE: BORROW BLOCKED
       </text>
       {reason && (
-        <text x={W / 2} y={y + 24} textAnchor="middle" fontSize={9.5} fill="#e06c6c" opacity={0.9}>
-          {reason} — Overrides soft score directly to BLOCKED
+        <text x={W / 2} y={y + 22} textAnchor="middle" fontSize={9} fill="#cf8b8b" opacity={0.9}>
+          {reason}
         </text>
       )}
     </g>
@@ -462,52 +464,21 @@ export function PortfolioRiskGraph({
   onSimModeChange,
   onDynamicStateChange,
 }: PortfolioRiskGraphProps) {
-  // Mode selection: 'LIVE' | 'HEALTHY' | 'STRESS' | 'EMERGENCY'
   const [internalMode, setInternalMode] = useState<"LIVE" | "HEALTHY" | "STRESS" | "EMERGENCY">("LIVE");
   const simMode = controlledSimMode ?? internalMode;
 
-  // Interactive fine-tuning slider states (initialized from live values)
-  const [customPrimaryWeight, setCustomPrimaryWeight] = useState<number>(liveAssets[0]?.weightPct ?? 58);
-  const [customConfBps, setCustomConfBps] = useState<number>(liveAssets[0]?.confBps ?? 18);
-  const [custodyHalted, setCustodyHalted] = useState<boolean>(false);
-  const [marketSessionClosed, setMarketSessionClosed] = useState<boolean>(false);
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  const [selectedAsset, setSelectedAsset] = useState<AssetNode | null>(null);
 
+  // Mode change handler for interactive / learn views
   const handleModeChange = (m: "LIVE" | "HEALTHY" | "STRESS" | "EMERGENCY") => {
     setInternalMode(m);
     onSimModeChange?.(m);
-
-    if (m === "LIVE") {
-      setCustomPrimaryWeight(liveAssets[0]?.weightPct ?? 58);
-      setCustomConfBps(liveAssets[0]?.confBps ?? 18);
-      setCustodyHalted(liveHardOverride);
-      setMarketSessionClosed(false);
-    } else if (m === "HEALTHY") {
-      setCustomPrimaryWeight(35);
-      setCustomConfBps(18);
-      setCustodyHalted(false);
-      setMarketSessionClosed(false);
-    } else if (m === "STRESS") {
-      setCustomPrimaryWeight(58);
-      setCustomConfBps(285);
-      setCustodyHalted(false);
-      setMarketSessionClosed(false);
-    } else if (m === "EMERGENCY") {
-      setCustomPrimaryWeight(58);
-      setCustomConfBps(520);
-      setCustodyHalted(true);
-      setMarketSessionClosed(false);
-    }
   };
 
-  // Primary symbol derived from liveAssets[0] or default NVDA
   const primarySymbol = liveAssets[0]?.symbol ?? "NVDA";
-  // Secondary assets deduplicated so primary is never repeated!
-  const secondarySymbols = useMemo(() => {
-    const pool = ["AAPL", "MSFT", "NVDA", "AMZN", "USDC"].filter((s) => s !== primarySymbol);
-    return [pool[0] || "AAPL", pool[1] || "MSFT", "USDC"];
-  }, [primarySymbol]);
 
-  // Compute dynamic assets & risk parameters
+  // Dynamic calculations
   const {
     assets,
     riskState,
@@ -519,7 +490,6 @@ export function PortfolioRiskGraph({
     hardOverrideReason,
     whatChanged,
   } = useMemo(() => {
-    // 0. In uneditable mode: Strictly preserve ALL live on-chain assets (N stocks) and live calculations!
     if (uneditable) {
       const isLiveZero = totalCollateralUsd === 0;
       const maxWeight = liveAssets.length > 0 ? Math.max(...liveAssets.map((a) => a.weightPct)) : 0;
@@ -535,7 +505,7 @@ export function PortfolioRiskGraph({
       let changePayload = {
         deltaScore: "Nominal (Safe)",
         reason: "All oracle and market checks nominal across deposited collateral",
-        impact: `Full borrow capacity available under Risk Ratchet ($${liveBorrowPower.toLocaleString(undefined, { maximumFractionDigits: 2 })})`,
+        impact: `Full borrow capacity available under Risk Ratchet ($${formatMoney(liveBorrowPower)})`,
         tone: "success" as Tone,
       };
 
@@ -577,243 +547,57 @@ export function PortfolioRiskGraph({
       };
     }
 
-    // 1. Determine weights from interactive slider (Simulation Mode)
-    const w0 = customPrimaryWeight;
-    const remainingW = Math.max(0, 100 - w0);
-    const w1 = Math.round(remainingW * 0.52);
-    const w2 = Math.round(remainingW * 0.36);
-    const w3 = Math.max(0, 100 - w0 - w1 - w2);
-
-    const activeConf = customConfBps;
-    const isOracleBlown = activeConf > 450;
-    const isHardOverride =
-      simMode === "EMERGENCY" ||
-      custodyHalted ||
-      marketSessionClosed ||
-      isOracleBlown ||
-      (simMode === "LIVE" && liveHardOverride);
-
-    const hardReason = custodyHalted
-      ? "Upstream custody settlement link impaired"
-      : isOracleBlown
-      ? `Pyth confidence blown (${activeConf} bps > 450 bps limit)`
-      : marketSessionClosed
-      ? "NYSE trading session closed (MarketGuard active)"
-      : liveHardReason || "Hard Risk override active";
-
-    const isLiveZero = simMode === "LIVE" && totalCollateralUsd === 0;
-
-    // Build assets based on mode
-    const dynAssets: AssetNode[] = simMode === "LIVE"
-      ? (totalCollateralUsd > 0
-          ? [
-              {
-                symbol: primarySymbol,
-                name: getAssetName(primarySymbol),
-                weightPct: 100,
-                oracleHealthy: !isOracleBlown,
-                confBps: activeConf,
-                maxConfBps: 150,
-                marketOpen: !marketSessionClosed,
-                mark: getAssetMark(primarySymbol),
-              },
-            ]
-          : [
-              {
-                symbol: primarySymbol,
-                name: getAssetName(primarySymbol),
-                weightPct: 0,
-                oracleHealthy: !isOracleBlown,
-                confBps: activeConf,
-                maxConfBps: 150,
-                marketOpen: !marketSessionClosed,
-                mark: getAssetMark(primarySymbol),
-              },
-            ])
-      : [
-          {
-            symbol: primarySymbol,
-            name: getAssetName(primarySymbol),
-            weightPct: w0,
-            oracleHealthy: !isOracleBlown,
-            confBps: activeConf,
-            maxConfBps: 150,
-            marketOpen: !marketSessionClosed,
-            mark: getAssetMark(primarySymbol),
-          },
-          {
-            symbol: secondarySymbols[0],
-            name: getAssetName(secondarySymbols[0]),
-            weightPct: w1,
-            oracleHealthy: true,
-            confBps: 18,
-            maxConfBps: 150,
-            marketOpen: true,
-            mark: getAssetMark(secondarySymbols[0]),
-          },
-          {
-            symbol: secondarySymbols[1],
-            name: getAssetName(secondarySymbols[1]),
-            weightPct: w2,
-            oracleHealthy: true,
-            confBps: 12,
-            maxConfBps: 150,
-            marketOpen: true,
-            mark: getAssetMark(secondarySymbols[1]),
-          },
-          {
-            symbol: "USDC",
-            name: "USD Coin",
-            weightPct: w3,
-            oracleHealthy: true,
-            confBps: 0,
-            maxConfBps: 150,
-            marketOpen: true,
-            mark: getAssetMark("USDC"),
-          },
-        ];
-
-    // Mathematical calculations
-    const maxWeight = isLiveZero ? 0 : Math.max(...dynAssets.map((a) => a.weightPct));
-    const penaltyBps = !isLiveZero && maxWeight > 40 ? Math.round((maxWeight - 40) * 100 * 0.36) : 0;
-    const dynEffectiveLtvBps = isLiveZero
-      ? 0
-      : isHardOverride
-      ? 4000
-      : Math.max(3000, baseLtvBps - penaltyBps);
-
-    // Collateral base: use real or $10,000 reference for simulation
-    const effectiveCollateral = isLiveZero ? 0 : (totalCollateralUsd > 0 ? totalCollateralUsd : 10000);
-    const debt = isLiveZero ? 0 : (totalCollateralUsd > 0 ? totalCollateralUsd * 0.25 : 2500);
-    const capacityUsd = effectiveCollateral * (dynEffectiveLtvBps / 10000);
-    const dynBorrowPower = isHardOverride || isLiveZero ? 0 : Math.max(0, capacityUsd - debt);
-
-    // Derive Risk Ratchet State
-    let derivedState: "SAFE" | "RESTRICTED" | "DEFENSIVE" | "EMERGENCY" = "SAFE";
-    let calculatedScore = 18;
-
-    if (isLiveZero) {
-      derivedState = "SAFE";
-      calculatedScore = 0;
-    } else if (isHardOverride) {
-      derivedState = "EMERGENCY";
-      calculatedScore = 94;
-    } else if (activeConf > 150 || maxWeight > 60) {
-      derivedState = "RESTRICTED";
-      calculatedScore = 48 + Math.min(20, Math.round((maxWeight - 40) * 0.5));
-    } else if (maxWeight > 40 || activeConf > 80) {
-      derivedState = "RESTRICTED";
-      calculatedScore = 32 + Math.round((maxWeight - 40) * 0.4);
-    } else {
-      derivedState = "SAFE";
-      calculatedScore = 18;
-    }
-
-    const dynAllowed = !isHardOverride && !isLiveZero && dynBorrowPower > 0 && derivedState !== "EMERGENCY";
-
-    // What changed callout payload
-    let changePayload = {
-      deltaScore: "Nominal (Safe)",
-      reason: "All oracle and market checks nominal",
-      impact: "Full capacity available under Risk Ratchet",
-      tone: "success" as Tone,
-    };
-
-    if (isLiveZero) {
-      changePayload = {
-        deltaScore: "Real-Time On-Chain Truth",
-        reason: "Connected wallet has 0 collateral deposited on Devnet",
-        impact: "Borrow capacity is strictly $0.00 until equity collateral is deposited",
-        tone: "neutral" as Tone,
-      };
-    } else if (isHardOverride) {
-      changePayload = {
-        deltaScore: "CRITICAL FAILURE (Emergency)",
-        reason: hardReason,
-        impact: "HARD OVERRIDE: All new borrow instructions rejected on-chain",
-        tone: "danger" as Tone,
-      };
-    } else if (derivedState === "RESTRICTED") {
-      changePayload = {
-        deltaScore: `+${calculatedScore - 18}% Portfolio Risk`,
-        reason:
-          maxWeight > 40
-            ? `${primarySymbol} concentration (${maxWeight}%) + Pyth confidence (${activeConf} bps)`
-            : `Pyth confidence widened (${activeConf} bps)`,
-        impact: `Soft Risk penalty reduced Effective LTV by -${(penaltyBps / 100).toFixed(1)}%`,
-        tone: "warning" as Tone,
-      };
-    }
-
+    // Interactive / Learn mode simulation
     return {
-      assets: dynAssets,
-      riskState: derivedState,
-      score: calculatedScore,
-      effectiveLtvBps: dynEffectiveLtvBps,
-      borrowPowerUsd: dynBorrowPower,
-      borrowAllowed: dynAllowed,
-      hardOverride: isHardOverride,
-      hardOverrideReason: hardReason,
-      whatChanged: changePayload,
+      assets: liveAssets,
+      riskState: liveState,
+      score: liveState === "EMERGENCY" ? 94 : liveState === "RESTRICTED" ? 48 : 18,
+      effectiveLtvBps: liveLtv,
+      borrowPowerUsd: liveBorrowPower,
+      borrowAllowed: liveAllowed,
+      hardOverride: liveHardOverride,
+      hardOverrideReason: liveHardReason,
+      whatChanged: {
+        deltaScore: liveState === "SAFE" ? "Nominal (Safe)" : "Risk Adjusted",
+        reason: "Simulation mode active",
+        impact: "Preview of dynamic risk adjustments",
+        tone: (liveState === "SAFE" ? "success" : "warning") as Tone,
+      },
     };
   }, [
-    simMode,
-    customPrimaryWeight,
-    customConfBps,
-    custodyHalted,
-    marketSessionClosed,
-    primarySymbol,
-    secondarySymbols,
+    uneditable,
+    liveAssets,
+    liveState,
+    liveLtv,
+    liveBorrowPower,
+    liveAllowed,
     liveHardOverride,
     liveHardReason,
-    baseLtvBps,
     totalCollateralUsd,
   ]);
 
-  // Inform parent Profile of dynamic calculation updates
-  useEffect(() => {
-    onDynamicStateChange?.({
-      riskState,
-      effectiveLtvBps,
-      borrowPowerUsd,
-      borrowAllowed,
-      concentrationPct: assets[0]?.weightPct ?? 58,
-      confBps: assets[0]?.confBps ?? 18,
-      hardOverride,
-      hardOverrideReason,
-    });
-  }, [
-    riskState,
-    effectiveLtvBps,
-    borrowPowerUsd,
-    borrowAllowed,
-    assets,
-    hardOverride,
-    hardOverrideReason,
-    onDynamicStateChange,
-  ]);
-
-  // Dynamically compute canvas height and centered vertical positions for N assets
+  // Dynamic vertical spacing for N assets
   const N = assets.length;
-  const assetSpacing = N <= 1 ? 0 : Math.max(76, Math.min(108, Math.floor(400 / N)));
+  const assetSpacing = N <= 1 ? 0 : Math.max(74, Math.min(106, Math.floor(400 / N)));
   const totalSpread = (N - 1) * assetSpacing;
-  const H = Math.max(380, totalSpread + 170);
+  const H = Math.max(380, totalSpread + 160);
   const centerY = Math.round(H / 2);
   const assetStartY = centerY - Math.round(totalSpread / 2);
 
   const portfolioY = centerY;
   const creditY = centerY;
+  const permY = centerY;
 
   const assetPositions = useMemo(() => {
     return assets.map((a, i) => ({
       ...a,
+      id: `asset-${i}`,
       x: COL_ASSET,
       y: N <= 1 ? centerY : assetStartY + i * assetSpacing,
       stressed: !a.oracleHealthy || a.confBps > a.maxConfBps || !a.marketOpen || a.weightPct > 60,
     }));
   }, [assets, N, centerY, assetStartY, assetSpacing]);
 
-  // Risk factor pills per asset
   const FACTORS = [
     { name: "Oracle", isHard: true },
     { name: "Confidence", isHard: false },
@@ -823,10 +607,10 @@ export function PortfolioRiskGraph({
 
   const riskFactorPositions = useMemo(() => {
     const result: {
-      x: number; y: number; label: string; level: "low" | "med" | "high";
-      stressed: boolean; isHard: boolean; parentIdx: number;
+      id: string; parentId: string; x: number; y: number; label: string;
+      level: "low" | "med" | "high"; stressed: boolean; isHard: boolean; parentIdx: number;
     }[] = [];
-    const factorOffsets = assetSpacing > 85 || N <= 2 ? [-28, -9, 9, 28] : [-22, -7, 7, 22];
+    const factorOffsets = assetSpacing > 85 || N <= 2 ? [-26, -8, 8, 26] : [-20, -6, 6, 20];
 
     assetPositions.forEach((asset, ai) => {
       FACTORS.forEach((f, fi) => {
@@ -840,13 +624,15 @@ export function PortfolioRiskGraph({
           level = ratio > 0.7 ? "high" : ratio > 0.4 ? "med" : "low";
           stressed = ratio > 0.7;
         } else if (f.name === "Market") {
-          stressed = !asset.marketOpen || custodyHalted;
+          stressed = !asset.marketOpen;
           level = stressed ? "high" : "low";
         } else if (f.name === "Concentration") {
           level = asset.weightPct > 60 ? "high" : asset.weightPct > 40 ? "med" : "low";
           stressed = asset.weightPct > 60;
         }
         result.push({
+          id: `rf-${ai}-${fi}`,
+          parentId: asset.id,
           x: COL_RISK,
           y: asset.y + factorOffsets[fi],
           label: f.name,
@@ -858,7 +644,27 @@ export function PortfolioRiskGraph({
       });
     });
     return result;
-  }, [assetPositions, custodyHalted, assetSpacing, N]);
+  }, [assetPositions, assetSpacing, N]);
+
+  // Hover causal path logic
+  const isHighlighted = useCallback(
+    (sourceId: string) => {
+      if (!hoveredNodeId) return false;
+      if (hoveredNodeId === sourceId) return true;
+      if (hoveredNodeId.startsWith("asset-") && sourceId.includes(hoveredNodeId)) return true;
+      if (sourceId.startsWith("rf-") && hoveredNodeId === sourceId) return true;
+      return false;
+    },
+    [hoveredNodeId]
+  );
+
+  const isDimmed = useCallback(
+    (sourceId: string) => {
+      if (!hoveredNodeId) return false;
+      return !isHighlighted(sourceId);
+    },
+    [hoveredNodeId, isHighlighted]
+  );
 
   return (
     <Card
@@ -883,7 +689,7 @@ export function PortfolioRiskGraph({
         ) : (
           <div className="row g-6 wrap" style={{ alignItems: "center" }}>
             <span style={{ fontSize: 11, color: "var(--text-3)", marginRight: 4 }}>Simulate:</span>
-            {(["LIVE", "HEALTHY", "STRESS", "EMERGENCY"] as const).map((m) => (
+            {(["HEALTHY", "STRESS", "EMERGENCY"] as const).map((m) => (
               <button
                 key={m}
                 type="button"
@@ -906,23 +712,14 @@ export function PortfolioRiskGraph({
           gap: 12,
           marginBottom: 16,
           padding: "12px 16px",
-          background: "var(--surface-2, rgba(20, 24, 33, 0.4))",
+          background: "rgba(10, 10, 12, 0.6)",
           borderRadius: 8,
           border: "1px solid var(--border)",
         }}
       >
-        {/* What changed callout */}
         <div>
           <div className="row between g-6" style={{ marginBottom: 4 }}>
-            <span
-              style={{
-                fontFamily: "var(--mono)",
-                fontSize: 10,
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-                color: "var(--text-3)",
-              }}
-            >
+            <span style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-3)" }}>
               What Changed?
             </span>
             <Pill tone={whatChanged.tone}>{whatChanged.deltaScore}</Pill>
@@ -935,18 +732,8 @@ export function PortfolioRiskGraph({
           </div>
         </div>
 
-        {/* Hard vs Soft Risk distinction */}
         <div style={{ borderLeft: "1px solid var(--border)", paddingLeft: 14 }}>
-          <div
-            style={{
-              fontFamily: "var(--mono)",
-              fontSize: 10,
-              textTransform: "uppercase",
-              letterSpacing: "0.08em",
-              color: "var(--text-3)",
-              marginBottom: 4,
-            }}
-          >
+          <div style={{ fontFamily: "var(--mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-3)", marginBottom: 4 }}>
             Hard vs. Soft Risk
           </div>
           <div style={{ fontSize: 11.5, color: "var(--text-2)", lineHeight: 1.4 }}>
@@ -957,12 +744,12 @@ export function PortfolioRiskGraph({
         </div>
       </div>
 
-      {/* ── Interactive SVG Flow Graph OR On-Chain Zero Collateral State ── */}
-      {simMode === "LIVE" && totalCollateralUsd === 0 ? (
+      {/* ── 5-Stage Causal Flow SVG Graph OR On-Chain Zero Collateral State ── */}
+      {uneditable && totalCollateralUsd === 0 ? (
         <div
           style={{
             padding: "36px 20px",
-            background: "rgba(0, 0, 0, 0.2)",
+            background: "rgba(0, 0, 0, 0.3)",
             borderRadius: 12,
             border: "1px dashed var(--border)",
             textAlign: "center",
@@ -970,8 +757,8 @@ export function PortfolioRiskGraph({
         >
           <div
             style={{
-              width: 50,
-              height: 50,
+              width: 48,
+              height: 48,
               borderRadius: "50%",
               background: "rgba(127, 195, 154, 0.08)",
               border: "1px solid rgba(127, 195, 154, 0.25)",
@@ -982,413 +769,365 @@ export function PortfolioRiskGraph({
               color: "var(--accent)",
             }}
           >
-            <Icon name="shield" size={24} />
+            <Icon name="shield" size={22} />
           </div>
           <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>
             No Active Collateral in Connected Wallet
           </h3>
-          <p
-            style={{
-              fontSize: 12.5,
-              color: "var(--text-3)",
-              maxWidth: 520,
-              margin: "0 auto 20px",
-              lineHeight: 1.5,
-            }}
-          >
-            Your connected wallet has no deposited tokens in the <strong>{primarySymbol}</strong> market on Solana Devnet.
-            Circuit evaluates credit directly from verified on-chain positions—no fake balances or synthetic graphs are displayed in Live mode.
+          <p style={{ fontSize: 12.5, color: "var(--text-3)", maxWidth: 520, margin: "0 auto 20px", lineHeight: 1.5 }}>
+            Your connected wallet has no deposited tokens on Solana Devnet. Circuit evaluates credit directly from verified on-chain positions—no fake balances or synthetic graphs are displayed in Live mode.
           </p>
 
-          {/* Real-time on-chain telemetry grid */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
-              gap: 12,
-              maxWidth: 680,
-              margin: "0 auto 24px",
-              textAlign: "left",
-            }}
-          >
-            <div style={{ padding: "10px 14px", background: "var(--surface-2)", borderRadius: 8, border: "1px solid var(--border)" }}>
-              <div style={{ fontSize: 10, color: "var(--text-3)", marginBottom: 2 }}>Collateral Deposited</div>
-              <div style={{ fontSize: 14, fontWeight: 700, fontFamily: "var(--mono)", color: "var(--text)" }}>0.00 {primarySymbol}</div>
-              <div style={{ fontSize: 10, color: "var(--text-3)" }}>$0.00 USD</div>
-            </div>
-            <div style={{ padding: "10px 14px", background: "var(--surface-2)", borderRadius: 8, border: "1px solid var(--border)" }}>
-              <div style={{ fontSize: 10, color: "var(--text-3)", marginBottom: 2 }}>Outstanding Debt</div>
-              <div style={{ fontSize: 14, fontWeight: 700, fontFamily: "var(--mono)", color: "var(--text)" }}>$0.00 USDC</div>
-              <div style={{ fontSize: 10, color: "var(--text-3)" }}>No leverage</div>
-            </div>
-            <div style={{ padding: "10px 14px", background: "var(--surface-2)", borderRadius: 8, border: "1px solid var(--border)" }}>
-              <div style={{ fontSize: 10, color: "var(--text-3)", marginBottom: 2 }}>Available Credit</div>
-              <div style={{ fontSize: 14, fontWeight: 700, fontFamily: "var(--mono)", color: "var(--text-3)" }}>$0.00</div>
-              <div style={{ fontSize: 10, color: "var(--text-3)" }}>Requires deposit</div>
-            </div>
-            <div style={{ padding: "10px 14px", background: "var(--surface-2)", borderRadius: 8, border: "1px solid var(--border)" }}>
-              <div style={{ fontSize: 10, color: "var(--text-3)", marginBottom: 2 }}>Pyth Price Feed</div>
-              <div style={{ fontSize: 14, fontWeight: 700, fontFamily: "var(--mono)", color: "var(--success)" }}>Live (Verified)</div>
-              <div style={{ fontSize: 10, color: "var(--text-3)" }}>Spread: {customConfBps} bps</div>
-            </div>
-          </div>
-
-          {/* Quick action buttons */}
           <div className="row g-12" style={{ justifyContent: "center", flexWrap: "wrap" }}>
             <Link to="/app/position" className="btn btn--accent btn--sm" style={{ height: 32, padding: "0 14px" }}>
               <Icon name="position" size={14} />
               Deposit Collateral
             </Link>
-            {uneditable ? (
-              <Link to="/app/faucet" className="btn btn--secondary btn--sm" style={{ height: 32, padding: "0 14px" }}>
-                <Icon name="faucet" size={14} />
-                Claim Test Tokens in Faucet
-              </Link>
-            ) : (
-              <button
-                type="button"
-                className="btn btn--secondary btn--sm"
-                style={{ height: 32, padding: "0 14px" }}
-                onClick={() => handleModeChange("HEALTHY")}
-              >
-                <Icon name="gauge" size={14} />
-                Simulate Risk Ratchet Scenarios
-              </button>
-            )}
+            <Link to="/app/faucet" className="btn btn--secondary btn--sm" style={{ height: 32, padding: "0 14px" }}>
+              <Icon name="faucet" size={14} />
+              Claim Test Tokens in Faucet
+            </Link>
           </div>
         </div>
       ) : (
-        <svg
-          viewBox={`0 0 ${W} ${H}`}
-          width="100%"
-          style={{ maxHeight: 510, display: "block" }}
-          aria-label="Portfolio risk flow graph"
-        >
-          {/* Layer Column Headers */}
-          <text x={COL_ASSET} y={26} textAnchor="middle" fontSize={10} fontFamily="var(--mono)"
-            fill="var(--text-3)" letterSpacing="0.08em" opacity={0.65}>
-            LAYER 1: ASSETS
-          </text>
-          <text x={COL_RISK} y={26} textAnchor="middle" fontSize={10} fontFamily="var(--mono)"
-            fill="var(--text-3)" letterSpacing="0.08em" opacity={0.65}>
-            LAYER 2: RISK FACTORS
-          </text>
-          <text x={COL_PORTFOLIO} y={26} textAnchor="middle" fontSize={10} fontFamily="var(--mono)"
-            fill="var(--text-3)" letterSpacing="0.08em" opacity={0.65}>
-            LAYER 3: PORTFOLIO RISK
-          </text>
-          <text x={COL_CREDIT} y={26} textAnchor="middle" fontSize={10} fontFamily="var(--mono)"
-            fill="var(--text-3)" letterSpacing="0.08em" opacity={0.65}>
-            LAYER 4: CREDIT
-          </text>
+        <div style={{ position: "relative", overflowX: "auto" }}>
+          <svg
+            viewBox={`0 0 ${W} ${H}`}
+            width="100%"
+            style={{ minWidth: 780, maxHeight: 520, display: "block" }}
+            aria-label="5-Stage Causal Risk Flow Graph"
+          >
+            {/* Layer Column Headers */}
+            <text x={COL_ASSET} y={24} textAnchor="middle" fontSize={9.5} fontFamily="var(--mono)" fill="var(--text-3)" letterSpacing="0.08em" opacity={0.65}>
+              LAYER 1: ASSETS
+            </text>
+            <text x={COL_RISK} y={24} textAnchor="middle" fontSize={9.5} fontFamily="var(--mono)" fill="var(--text-3)" letterSpacing="0.08em" opacity={0.65}>
+              LAYER 2: RISK FACTORS
+            </text>
+            <text x={COL_PORTFOLIO} y={24} textAnchor="middle" fontSize={9.5} fontFamily="var(--mono)" fill="var(--text-3)" letterSpacing="0.08em" opacity={0.65}>
+              LAYER 3: PORTFOLIO RISK
+            </text>
+            <text x={COL_CREDIT} y={24} textAnchor="middle" fontSize={9.5} fontFamily="var(--mono)" fill="var(--text-3)" letterSpacing="0.08em" opacity={0.65}>
+              LAYER 4: CREDIT
+            </text>
+            <text x={COL_PERM} y={24} textAnchor="middle" fontSize={9.5} fontFamily="var(--mono)" fill="var(--text-3)" letterSpacing="0.08em" opacity={0.65}>
+              LAYER 5: PERMISSIONS
+            </text>
 
-          {/* Edges: Asset Card Right Edge (x = 184) → Risk Factors Left Edge (x = 272) */}
-          {riskFactorPositions.map((rf, i) => {
-            const parent = assetPositions[rf.parentIdx];
-            if (!parent) return null;
-            const thickness = rf.stressed ? 2.5 : rf.level === "med" ? 1.8 : 1;
-            const color = rf.stressed ? "#e06c6c" : rf.level === "med" ? "#cfad74" : "var(--border)";
-            return (
-              <Edge
-                key={`a-r-${i}`}
-                x1={184} y1={parent.y}
-                x2={272} y2={rf.y}
-                thickness={thickness}
-                color={color}
-                animated={rf.stressed}
-              />
-            );
-          })}
+            {/* Edges: Asset (x=164) → Risk Factor (x=236) */}
+            {riskFactorPositions.map((rf, i) => {
+              const parent = assetPositions[rf.parentIdx];
+              if (!parent) return null;
+              const highlighted = isHighlighted(parent.id) || isHighlighted(rf.id);
+              const dimmed = Boolean(hoveredNodeId) && !highlighted;
+              const thickness = rf.stressed ? 2.5 : 1.2;
+              const color = rf.stressed ? "#cf8b8b" : "var(--border)";
 
-          {/* Edges: Risk Factors Right Edge (x = 368) → Portfolio Left Edge (x = 506) */}
-          {riskFactorPositions.map((rf, i) => {
-            const thickness = rf.stressed ? 2.5 : 1;
-            const color = rf.stressed ? "#e06c6c" : "var(--border)";
-            return (
-              <Edge
-                key={`r-p-${i}`}
-                x1={368} y1={rf.y}
-                x2={506} y2={portfolioY}
-                thickness={thickness}
-                color={color}
-                animated={rf.stressed}
-              />
-            );
-          })}
+              return (
+                <CausalEdge
+                  key={`e-ar-${i}`}
+                  x1={164} y1={parent.y}
+                  x2={236} y2={rf.y}
+                  thickness={thickness}
+                  color={color}
+                  highlighted={highlighted}
+                  dimmed={dimmed}
+                />
+              );
+            })}
 
-          {/* Edge: Portfolio Right Edge (x = 614) → Credit Left Edge (x = 727) */}
-          <Edge
-            x1={614} y1={portfolioY}
-            x2={727} y2={creditY}
-            thickness={hardOverride ? 3.5 : 2}
-            color={hardOverride ? "#e06c6c" : STATE_COLOR[riskState]}
-            animated={hardOverride || riskState !== "SAFE"}
-          />
+            {/* Edges: Risk Factor (x=328) → Portfolio Node (x=428) */}
+            {riskFactorPositions.map((rf, i) => {
+              const highlighted = isHighlighted(rf.parentId) || isHighlighted(rf.id);
+              const dimmed = Boolean(hoveredNodeId) && !highlighted;
+              const thickness = rf.stressed ? 2.5 : 1;
+              const color = rf.stressed ? "#cf8b8b" : "var(--border)";
 
-          {/* Hard-risk override banner line */}
-          {hardOverride && <HardOverrideLine y={H - 42} reason={hardOverrideReason} />}
+              return (
+                <CausalEdge
+                  key={`e-rp-${i}`}
+                  x1={328} y1={rf.y}
+                  x2={428} y2={portfolioY}
+                  thickness={thickness}
+                  color={color}
+                  highlighted={highlighted}
+                  dimmed={dimmed}
+                />
+              );
+            })}
 
-          {/* Layer 1: Asset nodes with brand logo, name, ticker, and weight pill */}
-          {assetPositions.map((a, i) => (
-            <AssetCardNode
-              key={`asset-${i}`}
-              x={a.x} y={a.y}
-              symbol={a.symbol}
-              name={a.name || a.symbol}
-              weightPct={a.weightPct}
-              stressed={a.stressed}
-              mark={a.mark}
+            {/* Edge: Portfolio (x=532) → Credit (x=612) */}
+            <CausalEdge
+              x1={532} y1={portfolioY}
+              x2={612} y2={creditY}
+              thickness={hardOverride ? 3 : 2}
+              color={hardOverride ? "#cf8b8b" : STATE_COLOR[riskState]}
+              highlighted={isHighlighted("portfolio") || isHighlighted("credit")}
             />
-          ))}
 
-          {/* Layer 2: Risk Factor nodes */}
-          {riskFactorPositions.map((rf, i) => (
-            <RiskFactorNode
-              key={`rf-${i}`}
-              x={rf.x} y={rf.y}
-              label={rf.label}
-              level={rf.level}
-              stressed={rf.stressed}
-              isHard={rf.isHard}
+            {/* Edge: Credit (x=744) → Permissions (x=815) */}
+            <CausalEdge
+              x1={744} y1={creditY}
+              x2={815} y2={permY}
+              thickness={hardOverride ? 3 : 2}
+              color={hardOverride ? "#cf8b8b" : borrowAllowed ? "#7fc39a" : "#cfad74"}
+              highlighted={isHighlighted("credit") || isHighlighted("perm")}
             />
-          ))}
 
-          {/* Layer 3: Portfolio node with circular ring */}
-          <PortfolioNode x={COL_PORTFOLIO} y={portfolioY} score={score} state={riskState} />
+            {/* Hard-risk override banner line */}
+            {hardOverride && <HardOverrideLine y={H - 36} reason={hardOverrideReason} />}
 
-          {/* Layer 4: Credit node */}
-          <CreditNode
-            x={COL_CREDIT} y={creditY}
-            effectiveLtv={effectiveLtvBps}
-            borrowPower={borrowPowerUsd}
-            allowed={borrowAllowed}
-            hardOverride={hardOverride}
-            hardReason={hardOverrideReason}
-          />
-        </svg>
+            {/* Layer 1: Asset nodes with brand logo, name, ticker, and weight pill */}
+            {assetPositions.map((a) => (
+              <AssetCardNode
+                key={a.id}
+                x={a.x} y={a.y}
+                symbol={a.symbol}
+                name={a.name || a.symbol}
+                weightPct={a.weightPct}
+                stressed={a.stressed}
+                mark={a.mark}
+                isHovered={hoveredNodeId === a.id}
+                isDimmed={isDimmed(a.id)}
+                onClick={() => setSelectedAsset(a)}
+                onMouseEnter={() => setHoveredNodeId(a.id)}
+                onMouseLeave={() => setHoveredNodeId(null)}
+              />
+            ))}
+
+            {/* Layer 2: Risk Factor nodes */}
+            {riskFactorPositions.map((rf) => (
+              <RiskFactorNode
+                key={rf.id}
+                x={rf.x} y={rf.y}
+                label={rf.label}
+                level={rf.level}
+                stressed={rf.stressed}
+                isHard={rf.isHard}
+                isHovered={hoveredNodeId === rf.id}
+                isDimmed={isDimmed(rf.id)}
+                onMouseEnter={() => setHoveredNodeId(rf.id)}
+                onMouseLeave={() => setHoveredNodeId(null)}
+              />
+            ))}
+
+            {/* Layer 3: Portfolio node with circular ring */}
+            <PortfolioNode
+              x={COL_PORTFOLIO} y={portfolioY}
+              score={score} state={riskState}
+              isHovered={hoveredNodeId === "portfolio"}
+              isDimmed={isDimmed("portfolio")}
+              onMouseEnter={() => setHoveredNodeId("portfolio")}
+              onMouseLeave={() => setHoveredNodeId(null)}
+            />
+
+            {/* Layer 4: Credit node */}
+            <CreditNode
+              x={COL_CREDIT} y={creditY}
+              effectiveLtv={effectiveLtvBps}
+              borrowPower={borrowPowerUsd}
+              allowed={borrowAllowed}
+              hardOverride={hardOverride}
+              isHovered={hoveredNodeId === "credit"}
+              isDimmed={isDimmed("credit")}
+              onMouseEnter={() => setHoveredNodeId("credit")}
+              onMouseLeave={() => setHoveredNodeId(null)}
+            />
+
+            {/* Layer 5: Permissions node */}
+            <PermissionNode
+              x={COL_PERM} y={permY}
+              borrowAllowed={borrowAllowed}
+              hardOverride={hardOverride}
+              isDimmed={isDimmed("perm")}
+              onMouseEnter={() => setHoveredNodeId("perm")}
+              onMouseLeave={() => setHoveredNodeId(null)}
+            />
+          </svg>
+        </div>
       )}
 
-      {/* ── Dynamic Risk Playground / Sliders Section (Only when interactive) ── */}
-      {!uneditable && (simMode !== "LIVE" || totalCollateralUsd > 0 ? (
+      {/* ── Risk Flow Ribbon ── */}
+      <div
+        style={{
+          marginTop: 12,
+          padding: "10px 14px",
+          background: "rgba(255, 255, 255, 0.02)",
+          borderRadius: 8,
+          border: "1px solid var(--border)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: 6,
+          fontSize: 11,
+          fontFamily: "var(--mono)",
+          color: "var(--text-3)",
+        }}
+      >
+        <span style={{ color: "var(--text-2)" }}>CAUSAL CHAIN:</span>
+        <span>MARKET DATA</span>
+        <span style={{ color: "var(--accent)" }}>→</span>
+        <span>ASSET RISK</span>
+        <span style={{ color: "var(--accent)" }}>→</span>
+        <span style={{ color: STATE_COLOR[riskState], fontWeight: 650 }}>PORTFOLIO ({riskState})</span>
+        <span style={{ color: "var(--accent)" }}>→</span>
+        <span>LTV ({(effectiveLtvBps / 100).toFixed(0)}%)</span>
+        <span style={{ color: "var(--accent)" }}>→</span>
+        <span>CREDIT (${formatMoney(borrowPowerUsd)})</span>
+        <span style={{ color: "var(--accent)" }}>→</span>
+        <span style={{ color: borrowAllowed ? "var(--success)" : "var(--danger)", fontWeight: 700 }}>
+          {hardOverride ? "BORROW BLOCKED" : borrowAllowed ? "BORROW ALLOWED" : "BORROW RESTRICTED"}
+        </span>
+      </div>
+
+      {/* ── Asset Detail Slide-out Inspector / Bottom Sheet Modal ── */}
+      {selectedAsset && (
         <div
           style={{
-            marginTop: 14,
-            padding: "12px 16px",
-            background: "rgba(255, 255, 255, 0.02)",
-            borderRadius: 8,
-            border: "1px solid var(--border)",
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0, 0, 0, 0.75)",
+            backdropFilter: "blur(6px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            padding: 16,
           }}
+          onClick={() => setSelectedAsset(null)}
         >
           <div
             style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: 12,
-              borderBottom: "1px solid rgba(255, 255, 255, 0.06)",
-              paddingBottom: 8,
+              background: "var(--surface, #0c0c0e)",
+              border: "1px solid var(--border-strong, #2e2e34)",
+              borderRadius: 14,
+              maxWidth: 480,
+              width: "100%",
+              padding: 24,
+              boxShadow: "0 24px 60px rgba(0, 0, 0, 0.8)",
             }}
+            onClick={(e) => e.stopPropagation()}
           >
-            <span
+            {/* Header */}
+            <div className="row between" style={{ alignItems: "center", marginBottom: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: "50%",
+                    background: "rgba(255, 255, 255, 0.05)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {selectedAsset.mark ? (
+                    <svg viewBox="0 0 24 24" width={22} height={22}>
+                      {selectedAsset.mark.parts ? (
+                        selectedAsset.mark.parts.map((p, idx) => (
+                          <path key={idx} d={p.d} fill={p.fill} />
+                        ))
+                      ) : (
+                        <path d={selectedAsset.mark.d} fill={selectedAsset.mark.onDark || "#ffffff"} />
+                      )}
+                    </svg>
+                  ) : (
+                    <span style={{ fontWeight: 700 }}>{selectedAsset.symbol.slice(0, 2)}</span>
+                  )}
+                </div>
+                <div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>
+                    {selectedAsset.symbol}
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--text-3)" }}>
+                    {selectedAsset.name || getAssetName(selectedAsset.symbol)}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn btn--ghost btn--sm"
+                style={{ padding: "4px 8px", fontSize: 14 }}
+                onClick={() => setSelectedAsset(null)}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Metrics grid */}
+            <div
               style={{
-                fontFamily: "var(--mono)",
-                fontSize: 10,
-                textTransform: "uppercase",
-                letterSpacing: "0.1em",
-                color: "var(--text-3)",
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 10,
+                marginBottom: 16,
               }}
             >
-              Interactive Sandbox Controls (Real-Time SVN Engine)
-            </span>
-            <span style={{ fontSize: 11, color: "var(--text-3)" }}>
-              Modulate concentration, oracle spread, and custody invariants
-            </span>
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
-            {/* Concentration slider */}
-            <div>
-              <div className="row between" style={{ marginBottom: 4 }}>
-                <span style={{ fontSize: 11.5, color: "var(--text-2)" }}>
-                  {primarySymbol} Concentration (C_max)
-                </span>
-                <span
-                  style={{
-                    fontFamily: "var(--mono)",
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: customPrimaryWeight > 40 ? "var(--warning)" : "var(--success)",
-                  }}
-                >
-                  {customPrimaryWeight}%
-                </span>
+              <div style={{ padding: "10px 12px", background: "var(--surface-2)", borderRadius: 8, border: "1px solid var(--border)" }}>
+                <div style={{ fontSize: 10, color: "var(--text-3)" }}>Portfolio Weight</div>
+                <div style={{ fontSize: 16, fontWeight: 700, fontFamily: "var(--mono)", color: selectedAsset.weightPct > 40 ? "var(--warning)" : "var(--text)" }}>
+                  {selectedAsset.weightPct}%
+                </div>
+                <div style={{ fontSize: 10, color: "var(--text-3)", marginTop: 2 }}>
+                  {selectedAsset.weightPct > 40 ? "Concentration Haircut Active" : "Nominal Weight"}
+                </div>
               </div>
-              <input
-                type="range"
-                min={20}
-                max={85}
-                value={customPrimaryWeight}
-                onChange={(e) => {
-                  setCustomPrimaryWeight(Number(e.target.value));
-                  if (simMode === "HEALTHY" && Number(e.target.value) > 40) {
-                    handleModeChange("STRESS");
-                  }
-                }}
-                style={{ width: "100%", accentColor: "var(--accent)" }}
-              />
-              <div style={{ fontSize: 10, color: "var(--text-3)", marginTop: 2 }}>
-                {customPrimaryWeight > 40
-                  ? `Penalty: -${Math.round((customPrimaryWeight - 40) * 36)} bps LTV (Threshold: 40%)`
-                  : "Nominal: 0 bps penalty on Effective LTV"}
+
+              <div style={{ padding: "10px 12px", background: "var(--surface-2)", borderRadius: 8, border: "1px solid var(--border)" }}>
+                <div style={{ fontSize: 10, color: "var(--text-3)" }}>Pyth Spread / Uncertainty</div>
+                <div style={{ fontSize: 16, fontWeight: 700, fontFamily: "var(--mono)", color: selectedAsset.confBps > 50 ? "var(--warning)" : "var(--success)" }}>
+                  ±{selectedAsset.confBps} bps
+                </div>
+                <div style={{ fontSize: 10, color: "var(--text-3)", marginTop: 2 }}>
+                  Max allowance: {selectedAsset.maxConfBps} bps
+                </div>
               </div>
             </div>
 
-            {/* Oracle confidence slider */}
-            <div>
-              <div className="row between" style={{ marginBottom: 4 }}>
-                <span style={{ fontSize: 11.5, color: "var(--text-2)" }}>
-                  Pyth Oracle Spread (Confidence Width)
-                </span>
-                <span
-                  style={{
-                    fontFamily: "var(--mono)",
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color:
-                      customConfBps > 350
-                        ? "var(--danger)"
-                        : customConfBps > 150
-                        ? "var(--warning)"
-                        : "var(--success)",
-                  }}
-                >
-                  {customConfBps} bps
-                </span>
-              </div>
-              <input
-                type="range"
-                min={10}
-                max={550}
-                value={customConfBps}
-                onChange={(e) => {
-                  setCustomConfBps(Number(e.target.value));
-                  if (Number(e.target.value) > 450) {
-                    handleModeChange("EMERGENCY");
-                  } else if (Number(e.target.value) > 150) {
-                    handleModeChange("STRESS");
-                  }
-                }}
-                style={{ width: "100%", accentColor: "var(--accent)" }}
-              />
-              <div style={{ fontSize: 10, color: "var(--text-3)", marginTop: 2 }}>
-                {customConfBps > 450
-                  ? "Blown spread (> 450 bps) triggers EMERGENCY Hard Risk"
-                  : customConfBps > 150
-                  ? "Widened spread triggers RESTRICTED risk state"
-                  : "Tight spread (<= 150 bps) nominal valuation"}
-              </div>
-            </div>
-
-            {/* Upstream Custody status */}
-            <div>
-              <div className="row between" style={{ marginBottom: 6 }}>
-                <span style={{ fontSize: 11.5, color: "var(--text-2)" }}>Upstream Custody Invariant</span>
-                <Pill tone={custodyHalted ? "danger" : "success"}>
-                  {custodyHalted ? "Halted (Hard Risk)" : "1:1 Isolated"}
-                </Pill>
-              </div>
-              <div className="row g-8">
-                <button
-                  type="button"
-                  className={`btn ${!custodyHalted ? "btn--secondary" : "btn--ghost"} btn--sm`}
-                  style={{ flex: 1, fontSize: 11, height: 26 }}
-                  onClick={() => {
-                    setCustodyHalted(false);
-                    if (simMode === "EMERGENCY") handleModeChange("LIVE");
-                  }}
-                >
-                  Nominal
-                </button>
-                <button
-                  type="button"
-                  className={`btn ${custodyHalted ? "btn--danger" : "btn--ghost"} btn--sm`}
-                  style={{ flex: 1, fontSize: 11, height: 26 }}
-                  onClick={() => {
-                    setCustodyHalted(true);
-                    handleModeChange("EMERGENCY");
-                  }}
-                >
-                  Impair Link
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div
-          style={{
-            marginTop: 12,
-            padding: "12px 16px",
-            background: "rgba(255, 255, 255, 0.02)",
-            borderRadius: 8,
-            border: "1px solid var(--border)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            flexWrap: "wrap",
-            gap: 10,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Icon name="gauge" size={16} />
-            <span style={{ fontSize: 12, color: "var(--text-2)" }}>
-              Test Risk Ratchet: Select <strong>HEALTHY</strong>, <strong>STRESS</strong>, or <strong>EMERGENCY</strong> above to test dynamic concentration and oracle shock simulations.
-            </span>
-          </div>
-          <div className="row g-6">
-            <button
-              type="button"
-              className="btn btn--secondary btn--sm"
-              style={{ fontSize: 11, height: 26 }}
-              onClick={() => handleModeChange("HEALTHY")}
+            {/* Causal Explanation Card */}
+            <div
+              style={{
+                padding: "12px 14px",
+                background: "rgba(207, 173, 116, 0.06)",
+                border: "1px solid rgba(207, 173, 116, 0.2)",
+                borderRadius: 8,
+                marginBottom: 18,
+              }}
             >
-              Simulate Healthy →
-            </button>
-            <button
-              type="button"
-              className="btn btn--secondary btn--sm"
-              style={{ fontSize: 11, height: 26 }}
-              onClick={() => handleModeChange("STRESS")}
-            >
-              Simulate Stress →
-            </button>
+              <div style={{ fontSize: 11, fontFamily: "var(--mono)", color: "var(--warning)", textTransform: "uppercase", marginBottom: 4 }}>
+                Causal Risk Contribution
+              </div>
+              <div style={{ fontSize: 12, color: "var(--text-2)", lineHeight: 1.5 }}>
+                {selectedAsset.explanation ||
+                  `Portfolio exposure is allocated at ${selectedAsset.weightPct}%. ` +
+                    (selectedAsset.weightPct > 40
+                      ? `Single-asset concentration penalty reduces Effective LTV by -${Math.round((selectedAsset.weightPct - 40) * 36)} bps.`
+                      : "Risk parameters nominal under on-chain Risk Ratchet checks.")}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="row g-10" style={{ justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                className="btn btn--secondary btn--sm"
+                onClick={() => setSelectedAsset(null)}
+              >
+                Close
+              </button>
+              <Link
+                to={`/app/position?market=${selectedAsset.symbol}`}
+                className="btn btn--accent btn--sm"
+                onClick={() => setSelectedAsset(null)}
+              >
+                Manage Collateral →
+              </Link>
+            </div>
           </div>
         </div>
-      ))}
-
-      {/* ── Visual Equation Footer ── */}
-      <div
-        style={{
-          borderTop: "1px solid var(--border)",
-          padding: "14px 0 4px",
-          marginTop: 12,
-          textAlign: "center",
-        }}
-      >
-        <div style={{ fontSize: 13, fontWeight: 650, color: "var(--text)", marginBottom: 4 }}>
-          Assets → Risk Factors → Portfolio State → Permissions → Credit
-        </div>
-        <p
-          style={{
-            fontSize: 12,
-            color: "var(--text-3)",
-            margin: 0,
-            fontStyle: "italic",
-          }}
-        >
-          “Your borrowing capacity is a consequence of portfolio risk, not a fixed number.”
-        </p>
-      </div>
+      )}
     </Card>
   );
 }

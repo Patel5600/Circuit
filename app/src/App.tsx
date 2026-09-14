@@ -35,9 +35,11 @@ const TITLES: Record<string, string> = {
   "/app/position": "Position",
   "/app/borrow": "Borrow",
   "/app/profile": "Risk Profile",
+  "/app/portfolio-risk": "Portfolio Risk Intelligence",
   "/app/faucet": "Devnet Faucet",
   "/app/activity": "Activity",
   "/app/learn": "How it works",
+  "/learn": "How it works",
   "/app/verify": "Verification",
   "/app/demo": "Interactive Demo",
 };
@@ -119,9 +121,11 @@ export default function App() {
         <Route path="/app/position" element={<AppRoute><Position /></AppRoute>} />
         <Route path="/app/borrow" element={<AppRoute><Borrow /></AppRoute>} />
         <Route path="/app/profile" element={<AppRoute><Profile /></AppRoute>} />
+        <Route path="/app/portfolio-risk" element={<AppRoute><Profile /></AppRoute>} />
         <Route path="/app/faucet" element={<AppRoute><Faucet /></AppRoute>} />
         <Route path="/app/activity" element={<AppRoute><Activity /></AppRoute>} />
         <Route path="/app/learn" element={<AppRoute><Learn /></AppRoute>} />
+        <Route path="/learn" element={<AppRoute><Learn /></AppRoute>} />
         <Route path="/app/verify" element={<AppRoute><Verify /></AppRoute>} />
 
         <Route path="/app/demo" element={<AppRoute><Demo /></AppRoute>} />

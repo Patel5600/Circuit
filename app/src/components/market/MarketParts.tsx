@@ -74,6 +74,10 @@ export interface MarketRow {
   /** True when this asset is registered on-chain on devnet. */
   live: boolean;
   priceUsd: number | null;
+  change24hPercent?: number | null;
+  changeStatus?: "available" | "unavailable" | "AVAILABLE" | "UNAVAILABLE";
+  confBps?: number;
+  freshness?: "LIVE" | "RECENT" | "STALE" | "UNAVAILABLE";
   ltvBps: number | null;
   quoteSymbol?: string;
   marketSymbol?: string;
@@ -84,7 +88,7 @@ export interface MarketRow {
  * Market card.
  *
  * Live registered markets display on-chain parameters, real Pyth feed status,
- * and direct one-click actions to borrow quote tokens or deposit collateral.
+ * real 24h price changes, and direct one-click actions to borrow or deposit.
  */
 export function MarketCard({
   row,
@@ -134,10 +138,10 @@ export function MarketCard({
         </div>
         {row.live ? (
           <Pill tone={isSol ? "accent" : "success"} withDot>
-            {isSol ? "BORROW SOL" : "LIVE"}
+            {isSol ? "BORROW SOL" : "COLLATERAL AVAILABLE"}
           </Pill>
         ) : (
-          <Pill>SOON</Pill>
+          <Pill tone="neutral">DISCOVERY</Pill>
         )}
       </div>
 
@@ -146,21 +150,51 @@ export function MarketCard({
           {loading ? (
             <Skeleton height={28} width="50%" />
           ) : (
-            <div className="stat__value" style={{ fontSize: 24 }}>
-              {row.priceUsd === null ? (
-                row.ltvBps ? `--` : "--"
+            <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 2 }}>
+              <div className="stat__value" style={{ fontSize: 24, fontVariantNumeric: "tabular-nums" }}>
+                {row.priceUsd === null ? (
+                  row.ltvBps ? `--` : "--"
+                ) : (
+                  `$${formatMoney(row.priceUsd)}`
+                )}
+              </div>
+              {(row.changeStatus === "available" || row.changeStatus === "AVAILABLE") && row.change24hPercent !== null && row.change24hPercent !== undefined ? (
+                <span
+                  style={{
+                    fontSize: 12,
+                    fontFamily: "var(--mono)",
+                    fontWeight: 650,
+                    color: row.change24hPercent >= 0 ? "var(--success, #7fc39a)" : "var(--danger, #cf8b8b)",
+                  }}
+                >
+                  {row.change24hPercent >= 0 ? "+" : ""}
+                  {row.change24hPercent.toFixed(2)}%
+                </span>
               ) : (
-                `$${formatMoney(row.priceUsd)}`
+                <span style={{ fontSize: 11, color: "var(--text-3)", fontStyle: "italic" }}>
+                  24h change unavailable
+                </span>
               )}
             </div>
           )}
           <div className="stat__sub" style={{ marginBottom: 12 }}>
-            Verified on-chain price {row.quoteSymbol ? `· Quote: ${row.quoteSymbol}` : ""}
+            Pyth on-chain push oracle {row.quoteSymbol ? `· Quote: ${row.quoteSymbol}` : ""}
           </div>
 
           <DataRow
             label="Price status"
-            value={<OracleStatus oracle={oracle} asset={asset} loading={loading} compact />}
+            value={
+              row.freshness ? (
+                <Pill
+                  tone={row.freshness === "LIVE" ? "success" : row.freshness === "RECENT" ? "warning" : "danger"}
+                  withDot
+                >
+                  {row.freshness}
+                </Pill>
+              ) : (
+                <OracleStatus oracle={oracle} asset={asset} loading={loading} compact />
+              )
+            }
           />
           <DataRow
             label="Stock market"
@@ -188,10 +222,14 @@ export function MarketCard({
           </div>
         </>
       ) : (
-        <p className="t-sm muted">
-          Not yet supported as collateral. circuit only accepts assets that have
-          been registered on-chain with a verified price feed.
-        </p>
+        <div style={{ padding: "8px 0" }}>
+          <p className="t-sm muted" style={{ margin: "0 0 8px 0" }}>
+            Pipeline equity. Real-time market oracle integration undergoing risk parameter calibration.
+          </p>
+          <div style={{ fontSize: 11, fontFamily: "var(--mono)", color: "var(--text-3)" }}>
+            Standard Base LTV: {row.ltvBps ? `${(row.ltvBps / 100).toFixed(0)}%` : "60%"}
+          </div>
+        </div>
       )}
     </Card>
   );

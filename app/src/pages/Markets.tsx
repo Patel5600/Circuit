@@ -9,12 +9,14 @@ import { useProtocolState } from "../hooks/useProtocolState";
 import { DEPLOYED_MARKETS, MARKETS_DATA, MarketMetadata } from "../data/markets";
 import { useMarket } from "../context/MarketContext";
 import { formatAge, formatMoney, formatPercent } from "../lib/format";
+import { useLiveQuotes } from "../lib/market-data/stream";
 
 type Filter = "all" | "live" | "sol" | "soon";
 
 export default function Markets() {
   const s = useProtocolState();
   const { selectedMarket, selectMarket } = useMarket();
+  const { quotes, loading: quotesLoading } = useLiveQuotes();
   const navigate = useNavigate();
 
   const [filter, setFilter] = useState<Filter>("all");
@@ -38,18 +40,29 @@ export default function Markets() {
     const out: MarketRow[] = [];
     const seenSymbols = new Set<string>();
 
-    // 1. All 12 deployed on-chain markets
+    // 1. All 12 deployed on-chain markets with live Pyth streaming & real 24h change
     for (const m of DEPLOYED_MARKETS) {
       const meta = metaMap.get(m.symbol);
+      const quote = quotes[m.symbol];
       const isCurrent = s.market?.mint === m.mint;
       seenSymbols.add(m.symbol);
+
+      const priceUsd = quote?.priceUsd ?? (isCurrent && s.oracle?.priceUsd ? s.oracle.priceUsd : (meta?.price ?? null));
+      const change24hPercent = quote ? quote.change24hPercent : (meta ? meta.change24h : null);
+      const changeStatus = quote ? quote.changeStatus : (meta ? "available" : "unavailable");
+      const freshness = quote?.freshness;
+      const confBps = quote?.confBps;
 
       out.push({
         symbol: m.tokenSymbol,
         name: m.name,
         logo: meta?.logoSvg,
         live: true,
-        priceUsd: isCurrent && s.oracle?.priceUsd ? s.oracle.priceUsd : (meta?.price ?? null),
+        priceUsd,
+        change24hPercent,
+        changeStatus,
+        freshness,
+        confBps,
         ltvBps: m.baseLtvBps,
         quoteSymbol: m.quoteSymbol,
         marketSymbol: m.symbol,
@@ -57,7 +70,7 @@ export default function Markets() {
       });
     }
 
-    // 2. Unregistered catalogue items (pipeline only)
+    // 2. Unregistered catalogue items (discovery pipeline)
     for (const m of MARKETS_DATA) {
       if (seenSymbols.has(m.symbol)) continue;
       out.push({
@@ -66,7 +79,9 @@ export default function Markets() {
         logo: m.logoSvg,
         live: false,
         priceUsd: null,
-        ltvBps: null,
+        change24hPercent: null,
+        changeStatus: "unavailable",
+        ltvBps: m.baseLtv * 100,
         quoteSymbol: m.quoteSymbol ?? "USDC",
         marketSymbol: m.symbol,
         mint: m.mint,
@@ -74,7 +89,7 @@ export default function Markets() {
     }
 
     return out;
-  }, [s.market, s.oracle, metaMap]);
+  }, [s.market, s.oracle, metaMap, quotes]);
 
   const liveCount = rows.filter((r) => r.live).length;
   const solCount = rows.filter((r) => r.quoteSymbol === "WSOL").length;
@@ -207,7 +222,7 @@ export default function Markets() {
               oracle={s.market?.mint === row.mint ? s.oracle : null}
               asset={s.market?.mint === row.mint ? s.asset : null}
               session={s.session}
-              loading={s.loading && row.live && s.market?.mint === row.mint}
+              loading={(quotesLoading && !row.priceUsd) || (s.loading && row.live && s.market?.mint === row.mint)}
               onSelect={() => handlePickMarket(row)}
             />
           ))}

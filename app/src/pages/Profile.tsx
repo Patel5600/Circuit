@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useWallet } from "@solana/wallet-adapter-react";
 
@@ -8,6 +8,8 @@ import { Card, Pill, Icon, Skeleton } from "../components/ui";
 import { RiskPosture } from "../components/profile/RiskPosture";
 import { RiskPermissions } from "../components/profile/RiskPermissions";
 import { RiskHistory } from "../components/profile/RiskHistory";
+import { WhyBorrowPowerChanged } from "../components/profile/WhyBorrowPowerChanged";
+import { StressScenarioPanel } from "../components/profile/StressScenarioPanel";
 import {
   PortfolioRiskGraph,
   AssetNode,
@@ -16,6 +18,7 @@ import {
 import { useAllUserPositions } from "../hooks/useAllUserPositions";
 import { shortenAddress, formatMoney, formatPercent } from "../lib/format";
 import { BPS } from "../lib/protocol";
+import { analyzePortfolioRisk } from "../lib/risk/portfolio";
 
 /* -------------------------------------------------------------------------- */
 /*  Helpers                                                                   */
@@ -94,6 +97,26 @@ export default function Profile() {
   const liquidationActive = port.healthFactorBps !== null && port.healthFactorBps < BPS;
   const withdrawAllowed = hasLiveCollateral && port.riskState !== "EMERGENCY";
 
+  const [selectedDriverNode, setSelectedDriverNode] = useState<string | null>(null);
+
+  const riskAnalysis = useMemo(() => {
+    return analyzePortfolioRisk(
+      port.positions.map((p) => ({
+        symbol: p.market.symbol,
+        name: p.market.name,
+        collateralUi: p.collateralUi,
+        priceUsd: p.priceUsd,
+        confidenceUsd: (p.priceUsd * p.confBps) / 10000,
+        confBps: p.confBps,
+        baseLtvBps: p.baseLtvBps,
+        liqThresholdBps: p.liqThresholdBps,
+        oracleHealthy: p.oracleHealthy,
+        marketOpen: p.marketOpen,
+      })),
+      port.totalDebtUsd
+    );
+  }, [port.positions, port.totalDebtUsd]);
+
   // Build N asset nodes for the uneditable canvas from real on-chain positions
   const graphAssets: AssetNode[] = useMemo(() => {
     if (port.positions.length === 0) {
@@ -107,21 +130,31 @@ export default function Profile() {
           maxConfBps: 150,
           marketOpen: true,
           mark: getAssetMark("NVDA"),
+          priceUsd: 0,
+          collateralValueUsd: 0,
+          explanation: "Zero collateral deposited. Borrow capacity is strictly $0.00.",
         },
       ];
     }
 
-    return port.positions.map((p) => ({
-      symbol: p.market.symbol,
-      name: p.market.name,
-      weightPct: Math.round(p.weightPct),
-      oracleHealthy: p.oracleHealthy,
-      confBps: p.confBps,
-      maxConfBps: p.maxConfBps,
-      marketOpen: p.marketOpen,
-      mark: getAssetMark(p.market.symbol),
-    }));
-  }, [port.positions]);
+    return port.positions.map((p) => {
+      const detail = riskAnalysis.assetDetails.find((d) => d.symbol === p.market.symbol);
+      return {
+        symbol: p.market.symbol,
+        name: p.market.name,
+        weightPct: Math.round(p.weightPct),
+        oracleHealthy: p.oracleHealthy,
+        confBps: p.confBps,
+        maxConfBps: p.maxConfBps,
+        marketOpen: p.marketOpen,
+        mark: getAssetMark(p.market.symbol),
+        priceUsd: p.priceUsd,
+        collateralValueUsd: p.collateralValueUsd,
+        impactBorrowPowerUsd: detail?.riskContributionUsd,
+        explanation: detail?.explanation,
+      };
+    });
+  }, [port.positions, riskAnalysis]);
 
   if (!connected) {
     return (
@@ -494,9 +527,25 @@ export default function Profile() {
           hardOverride={port.hardOverride}
           hardOverrideReason={port.hardOverrideReason}
           uneditable={true}
+          onSelectNodeDriver={(nodeId) => setSelectedDriverNode(nodeId)}
         />
 
-        {/* ── Section 6: Risk Permissions ────────────────────────────── */}
+        {/* ── Section 6: Causal Explainability Engine ────────────────── */}
+        <WhyBorrowPowerChanged
+          borrowPowerDiffUsd={riskAnalysis.borrowPowerDiffUsd}
+          causalExplanations={riskAnalysis.causalExplanations}
+          onSelectDriver={(targetNode) => setSelectedDriverNode(targetNode)}
+        />
+
+        {/* ── Section 7: Deterministic Stress Scenario Preview ──────── */}
+        <StressScenarioPanel
+          totalCollateralUsd={port.totalCollateralUsd}
+          totalDebtUsd={port.totalDebtUsd}
+          baseLtvBps={port.weightedBaseLtvBps}
+          liqThresholdBps={port.positions[0]?.liqThresholdBps ?? 8000}
+        />
+
+        {/* ── Section 8: Risk Permissions ────────────────────────────── */}
         <RiskPermissions
           borrowAllowed={port.borrowAllowed}
           borrowBlockers={
