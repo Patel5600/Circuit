@@ -239,16 +239,26 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
   const portfolioState: PortfolioDomainState = useMemo(() => {
     const positions = portfolioSnap?.positions ?? [];
     const hasPositions = positions.length > 0;
+    const healthFactor = portfolioSnap?.healthFactorBps
+      ? portfolioSnap.healthFactorBps / 10_000
+      : null;
+    const cMax = portfolioSnap?.maxWeightPct
+      ? portfolioSnap.maxWeightPct / 100
+      : hasPositions
+      ? 1
+      : 0;
+    const cMaxPenaltyBps = portfolioSnap?.concentrationPenaltyBps ?? 0;
+
     return {
       positions,
       totalCollateralUsd: portfolioSnap?.totalCollateralUsd ?? 0,
       totalDebtUsd: portfolioSnap?.totalDebtUsd ?? 0,
       borrowCapacityUsd: portfolioSnap?.borrowCapacityUsd ?? 0,
-      healthFactor: portfolioSnap?.healthFactor ?? null,
+      healthFactor,
       effectiveLtvBps: portfolioSnap?.effectiveLtvBps ?? 7000,
       weightedBaseLtvBps: portfolioSnap?.weightedBaseLtvBps ?? 7000,
-      cMax: portfolioSnap?.cMax ?? (hasPositions ? 1 : 0),
-      cMaxPenaltyBps: portfolioSnap?.cMaxPenaltyBps ?? 0,
+      cMax,
+      cMaxPenaltyBps,
       hasPositions,
       freshness: makeFreshness("onchain-pda", portfolioError),
     };
@@ -256,11 +266,27 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
 
   const riskState: RiskDomainState = useMemo(() => {
     const nyse = isNyseMarketOpen();
+    const positions = portfolioSnap?.positions ?? [];
+    const isStale = positions.some((p: any) => !p.oracleHealthy);
+    const maxConf =
+      positions.length > 0
+        ? Math.max(...positions.map((p: any) => p.confBps))
+        : 18;
+    const hardOverride = portfolioSnap?.hardOverride ?? isStale;
+    const hardOverrideReason =
+      portfolioSnap?.hardOverrideReason ??
+      (isStale ? "Oracle stale or confidence breached" : undefined);
+    const derivedRatchetState = hardOverride
+      ? "EMERGENCY"
+      : portfolioSnap?.riskState ?? (nyse.isOpen ? "SAFE" : "RESTRICTED");
+
     return {
-      ratchetState: portfolioSnap?.ratchetState ?? "SAFE",
-      maxConfSpreadBps: portfolioSnap?.positions?.[0]?.confBps ?? 18,
-      isStaleOracle: false,
+      ratchetState: derivedRatchetState,
+      maxConfSpreadBps: maxConf,
+      isStaleOracle: isStale,
       isMarketOpen: nyse.isOpen,
+      hardOverride,
+      hardOverrideReason,
       freshness: makeFreshness("risk-engine"),
     };
   }, [portfolioSnap]);
@@ -269,19 +295,25 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
     const rState = riskState.ratchetState;
     const hasCollat = portfolioState.totalCollateralUsd > 0;
     const hasDebt = portfolioState.totalDebtUsd > 0;
+    const hardOverride = riskState.hardOverride;
 
     let borrowStatus: "ALLOWED" | "RESTRICTED" | "BLOCKED" = "ALLOWED";
     let borrowReason: string | undefined;
 
-    if (rState === "EMERGENCY") {
+    if (hardOverride || rState === "EMERGENCY") {
       borrowStatus = "BLOCKED";
-      borrowReason = "Risk ratchet in EMERGENCY state. Borrowing locked by protocol.";
+      borrowReason =
+        riskState.hardOverrideReason ||
+        "Hard Safety Gate breached. Risk ratchet in EMERGENCY state. Borrowing locked by protocol.";
     } else if (rState === "DEFENSIVE") {
       borrowStatus = "BLOCKED";
-      borrowReason = "Risk ratchet in DEFENSIVE state. Market volatility exceeds safe threshold.";
+      borrowReason =
+        "Risk ratchet in DEFENSIVE state. Market volatility exceeds safe threshold.";
     } else if (rState === "RESTRICTED") {
       borrowStatus = "RESTRICTED";
-      borrowReason = "Risk ratchet in RESTRICTED state. Borrowing capacity constrained.";
+      borrowReason = !riskState.isMarketOpen
+        ? "NYSE reference session closed (MarketGuard active). Credit constrained."
+        : "Risk ratchet in RESTRICTED state. Borrowing capacity constrained.";
     } else if (!hasCollat) {
       borrowStatus = "BLOCKED";
       borrowReason = "Deposit collateral to activate borrowing power.";
@@ -292,9 +324,13 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
       : "INACTIVE";
     let withdrawReason: string | undefined;
 
-    if (hasCollat && (rState === "DEFENSIVE" || rState === "EMERGENCY")) {
+    if (
+      hasCollat &&
+      hasDebt &&
+      (hardOverride || rState === "DEFENSIVE" || rState === "EMERGENCY")
+    ) {
       withdrawStatus = "BLOCKED";
-      withdrawReason = `Withdrawal locked during ${rState} containment to protect pool solvency.`;
+      withdrawReason = `Withdrawal locked during ${rState} containment while holding debt to protect pool solvency.`;
     }
 
     const availableCreditUsd = portfolioState.borrowCapacityUsd;

@@ -43,6 +43,11 @@ export interface PortfolioRiskAnalysis {
   // Asset Breakdowns
   assetDetails: AssetRiskDetail[];
   
+  // Hard Safety & Risk Ratchet State
+  hardOverride: boolean;
+  hardOverrideReason?: string;
+  riskState: "SAFE" | "RESTRICTED" | "DEFENSIVE" | "EMERGENCY";
+
   // Explainability
   primaryRiskDriver: string;
   borrowPowerDiffUsd: number;
@@ -226,6 +231,36 @@ export function analyzePortfolioRisk(
   const unadjustedCapacity = totalCollateralUsd * (weightedBaseLtvBps / BPS);
   const borrowPowerDiffUsd = maxBorrowCapacityUsd - unadjustedCapacity;
 
+  // Hard Safety Gate checks (oracle stale, invalid, or blown confidence)
+  let hardOverride = false;
+  let hardOverrideReason: string | undefined = undefined;
+
+  for (const a of assets) {
+    if (!a.oracleHealthy) {
+      hardOverride = true;
+      hardOverrideReason = `${a.symbol} oracle confidence or freshness breached (Stale Oracle)`;
+      break;
+    }
+    if (a.confBps > 300) {
+      hardOverride = true;
+      hardOverrideReason = `${a.symbol} oracle confidence blown (${a.confBps} bps > 300 bps)`;
+      break;
+    }
+  }
+
+  let riskState: "SAFE" | "RESTRICTED" | "DEFENSIVE" | "EMERGENCY" = "SAFE";
+  if (hardOverride) {
+    riskState = "EMERGENCY";
+  } else if (maxConfBps > 150) {
+    riskState = "DEFENSIVE";
+  } else if (assets.some((a) => !a.marketOpen)) {
+    riskState = "RESTRICTED";
+  } else if (maxWeightPct > 40 || maxConfBps > 50) {
+    riskState = "RESTRICTED";
+  } else {
+    riskState = "SAFE";
+  }
+
   return {
     totalCollateralUsd,
     conservativeCollateralUsd,
@@ -240,6 +275,9 @@ export function analyzePortfolioRisk(
     oraclePenaltyBps,
     totalHaircutBps,
     assetDetails,
+    hardOverride,
+    hardOverrideReason,
+    riskState,
     primaryRiskDriver: concentrationPenaltyBps > 0 ? `${dominantAssetSymbol} Concentration` : "Nominal State",
     borrowPowerDiffUsd,
     causalExplanations,

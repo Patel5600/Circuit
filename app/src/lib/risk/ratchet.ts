@@ -92,53 +92,58 @@ export function evaluateRatchetState(
   transitionReason?: string;
   recoveryBufferActive: boolean;
 } {
-  // 1. Hard Overrides (Instant Emergency)
+  const severityRank: Record<RiskRatchetState, number> = {
+    SAFE: 0,
+    RESTRICTED: 1,
+    DEFENSIVE: 2,
+    EMERGENCY: 3,
+  };
+
+  // 1. Evaluate candidate instant state
+  let candidateState: RiskRatchetState = "SAFE";
+  let candidateReason = "All market and oracle conditions nominal";
+
   if (isCustodyHalted) {
+    candidateState = "EMERGENCY";
+    candidateReason = "Upstream custody settlement link impaired (Hard Override)";
+  } else if (confBps >= thresholds.enterEmergencyConfBps) {
+    candidateState = "EMERGENCY";
+    candidateReason = `Pyth oracle confidence blown (${confBps} bps >= ${thresholds.enterEmergencyConfBps} bps limit)`;
+  } else if (confBps >= thresholds.enterDefensiveConfBps) {
+    candidateState = "DEFENSIVE";
+    candidateReason = `Pyth oracle spread elevated (${confBps} bps >= ${thresholds.enterDefensiveConfBps} bps)`;
+  } else if (!isMarketOpen) {
+    candidateState = "RESTRICTED";
+    candidateReason = "NYSE reference market session closed (MarketGuard active)";
+  } else if (confBps >= thresholds.enterRestrictedConfBps || maxWeightPct > 60) {
+    candidateState = "RESTRICTED";
+    candidateReason = maxWeightPct > 60
+      ? `Single-asset concentration (${Math.round(maxWeightPct)}%) exceeds 60% stress limit`
+      : `Pyth confidence spread widened (${confBps} bps >= ${thresholds.enterRestrictedConfBps} bps)`;
+  }
+
+  const currentSeverity = severityRank[currentState];
+  const candidateSeverity = severityRank[candidateState];
+
+  // 2. Fast Asymmetric Deterioration (immediately degrade to worse state)
+  if (candidateSeverity > currentSeverity) {
     return {
-      nextState: "EMERGENCY",
-      transitionReason: "Upstream custody settlement link impaired (Hard Override)",
+      nextState: candidateState,
+      transitionReason: candidateReason,
       recoveryBufferActive: false,
     };
   }
 
-  if (confBps >= thresholds.enterEmergencyConfBps) {
+  if (candidateSeverity === currentSeverity) {
     return {
-      nextState: "EMERGENCY",
-      transitionReason: `Pyth oracle confidence blown (${confBps} bps >= ${thresholds.enterEmergencyConfBps} bps limit)`,
+      nextState: currentState,
+      transitionReason: candidateReason,
       recoveryBufferActive: false,
     };
   }
 
-  // 2. Fast Deterioration Checks
-  if (confBps >= thresholds.enterDefensiveConfBps) {
-    return {
-      nextState: "DEFENSIVE",
-      transitionReason: `Pyth oracle spread elevated (${confBps} bps >= ${thresholds.enterDefensiveConfBps} bps)`,
-      recoveryBufferActive: false,
-    };
-  }
-
-  if (!isMarketOpen) {
-    return {
-      nextState: "RESTRICTED",
-      transitionReason: "NYSE reference market session closed (MarketGuard active)",
-      recoveryBufferActive: false,
-    };
-  }
-
-  if (confBps >= thresholds.enterRestrictedConfBps || maxWeightPct > 60) {
-    return {
-      nextState: "RESTRICTED",
-      transitionReason: maxWeightPct > 60
-        ? `Single-asset concentration (${Math.round(maxWeightPct)}%) exceeds 60% stress limit`
-        : `Pyth confidence spread widened (${confBps} bps >= ${thresholds.enterRestrictedConfBps} bps)`,
-      recoveryBufferActive: false,
-    };
-  }
-
-  // 3. Monotonic Staged Recovery with Hysteresis
+  // 3. Monotonic Staged Recovery with Hysteresis (conditions cleaner than current state)
   if (currentState === "EMERGENCY") {
-    // Requires conf < recoverDefensiveConfBps to step down to DEFENSIVE
     if (confBps < thresholds.recoverDefensiveConfBps && consecutiveHealthyCranks >= thresholds.requiredHealthyCranks) {
       return {
         nextState: "DEFENSIVE",
@@ -161,7 +166,6 @@ export function evaluateRatchetState(
   }
 
   if (currentState === "RESTRICTED") {
-    // Requires conf < recoverSafeConfBps (30 bps < 50 bps hysteresis) AND concentration <= 40%
     if (
       confBps < thresholds.recoverSafeConfBps &&
       maxWeightPct <= 40 &&

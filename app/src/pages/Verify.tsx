@@ -602,6 +602,109 @@ export default function Verify() {
           </div>
         </Card>
 
+        {/* -- Emergency Liquidation & Frozen Price Policy ------------ */}
+        <Card
+          title="Emergency Liquidation & last_valid_price Protocol Invariant"
+          action={<Pill tone="accent">ON-CHAIN INVARIANT</Pill>}
+        >
+          <div className="stack g-12">
+            <p className="t-sm" style={{ margin: 0, color: "var(--text-2)" }}>
+              A critical vulnerability in DeFi lending protocols is oracle spoofing during liquidations. In Circuit, if a Pyth price feed becomes stale, missing, or confidence expands beyond safe parameters, the liquidation engine <strong>never reopens an unsafe price vector</strong>.
+            </p>
+            <div
+              style={{
+                padding: "12px 14px",
+                background: "rgba(20, 24, 34, 0.6)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--r)",
+                fontFamily: "var(--mono)",
+                fontSize: 11.5,
+              }}
+              className="stack g-6"
+            >
+              <div style={{ color: "var(--accent)" }}>
+                // programs/circuit/src/instructions/liquidate.rs:47-53
+              </div>
+              <div style={{ color: "var(--text-3)" }}>
+                let (ref_price, ref_expo) = match oracle::try_validate_pyth_price(...) &#123;
+              </div>
+              <div style={{ paddingLeft: 16 }}>
+                Some(validated) =&gt; (validated.price, validated.expo),
+              </div>
+              <div style={{ paddingLeft: 16, color: "var(--warning)" }}>
+                None =&gt; &#123;
+              </div>
+              <div style={{ paddingLeft: 32, color: "var(--warning)" }}>
+                require!(position.last_valid_price &gt; 0, CircuitError::InvalidPrice);
+              </div>
+              <div style={{ paddingLeft: 32, color: "var(--warning)" }}>
+                msg!(&quot;EMERGENCY: Using frozen last-valid price for liquidation&quot;);
+              </div>
+              <div style={{ paddingLeft: 32 }}>
+                (position.last_valid_price, position.last_valid_expo)
+              </div>
+              <div style={{ paddingLeft: 16 }}>&#125;</div>
+              <div>&#125;;</div>
+            </div>
+            <DataRow
+              label="Emergency Liquidation Reference"
+              value="position.last_valid_price (Frozen On-Chain Snapshot)"
+              mono
+            />
+            <DataRow
+              label="Off-Chain / Unverified Fallback"
+              value="STRICTLY REJECTED (Zero unverified oracle inputs)"
+            />
+          </div>
+        </Card>
+
+        {/* -- Risk Ratchet State Machine Specification ---------------- */}
+        <Card
+          title="Risk Ratchet State Machine Specification"
+          action={<Pill tone="success" withDot>DETERMINISTIC</Pill>}
+        >
+          <div className="stack g-12">
+            <p className="t-sm" style={{ margin: 0, color: "var(--text-2)" }}>
+              The Risk Ratchet operates as a formal state machine governed by the <code>RiskRatchet</code> PDA (<code>seeds = [b&quot;ratchet&quot;, pyth_feed_id]</code>). Deterioration tightens quickly, while recovery is staged and monotonic with hysteresis.
+            </p>
+            <div className="grid grid--stats" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
+              <div style={{ padding: "10px 12px", background: "rgba(127,195,154,0.08)", border: "1px solid rgba(127,195,154,0.3)", borderRadius: "var(--r)" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--success)" }}>SAFE</div>
+                <div style={{ fontSize: 10, color: "var(--text-3)", marginTop: 4 }}>Conf &lt; 50 bps, NYSE Open, Custody Deep. Full borrow permissions.</div>
+              </div>
+              <div style={{ padding: "10px 12px", background: "rgba(207,173,116,0.08)", border: "1px solid rgba(207,173,116,0.3)", borderRadius: "var(--r)" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--warning)" }}>RESTRICTED</div>
+                <div style={{ fontSize: 10, color: "var(--text-3)", marginTop: 4 }}>Conf &gt; 50 bps, C_max &gt; 40%, or NYSE Closed. Borrow constrained.</div>
+              </div>
+              <div style={{ padding: "10px 12px", background: "rgba(224,140,78,0.08)", border: "1px solid rgba(224,140,78,0.3)", borderRadius: "var(--r)" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#e08c4e" }}>DEFENSIVE</div>
+                <div style={{ fontSize: 10, color: "var(--text-3)", marginTop: 4 }}>Conf &gt; 150 bps. Borrow blocked, withdrawals constrained.</div>
+              </div>
+              <div style={{ padding: "10px 12px", background: "rgba(207,139,139,0.08)", border: "1px solid rgba(207,139,139,0.3)", borderRadius: "var(--r)" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--danger)" }}>EMERGENCY</div>
+                <div style={{ fontSize: 10, color: "var(--text-3)", marginTop: 4 }}>Conf &gt; 300 bps, Stale Oracle, Impaired Custody. Liquidations at last_valid_price.</div>
+              </div>
+            </div>
+            <DataRow
+              label="Deterioration Tightening"
+              value="Asymmetric & Instant (can jump to Emergency in 1 block)"
+            />
+            <DataRow
+              label="Staged Recovery Requirement"
+              value="5 Consecutive Healthy Crank Observations per step"
+            />
+            <DataRow
+              label="Hysteresis Deadband"
+              value="Safe: <30 bps | Restricted: <100 bps | Defensive: <250 bps"
+              mono
+            />
+            <DataRow
+              label="Direct EMERGENCY -> SAFE Jump"
+              value="STRICTLY PROHIBITED (Monotonic step recovery enforced)"
+            />
+          </div>
+        </Card>
+
         {/* -- Demo controls ------------------------------------------- */}
         <DemoControls
           isAuthority={s.isAuthority}

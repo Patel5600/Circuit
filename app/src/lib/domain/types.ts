@@ -84,6 +84,8 @@ export interface RiskDomainState {
   maxConfSpreadBps: number;
   isStaleOracle: boolean;
   isMarketOpen: boolean;
+  hardOverride: boolean;
+  hardOverrideReason?: string;
   freshness: FreshnessMeta;
 }
 

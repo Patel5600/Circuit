@@ -374,18 +374,20 @@ export async function fetchLivePortfolioSnapshot(
       hardOverrideReason = `${p.symbol} oracle confidence or freshness breached (${p.confBps} bps > ${p.maxConfBps} bps)`;
       break;
     }
-    if (!p.marketOpen) {
+    if (p.confBps > 300) {
       hardOverride = true;
-      hardOverrideReason = `${p.symbol} market session emergency`;
+      hardOverrideReason = `${p.symbol} oracle confidence blown (${p.confBps} bps > 300 bps)`;
       break;
     }
   }
 
-  // Risk state derivation
+  // Risk state derivation strictly matching on-chain refresh_guard.rs
   let riskState: "SAFE" | "RESTRICTED" | "DEFENSIVE" | "EMERGENCY" = "SAFE";
   if (hardOverride) {
     riskState = "EMERGENCY";
-  } else if (maxWeightPct > 60 || maxConfBps > 100) {
+  } else if (maxConfBps > 150) {
+    riskState = "DEFENSIVE";
+  } else if (!session.isOpen) {
     riskState = "RESTRICTED";
   } else if (maxWeightPct > 40 || maxConfBps > 50) {
     riskState = "RESTRICTED";
@@ -393,8 +395,15 @@ export async function fetchLivePortfolioSnapshot(
     riskState = "SAFE";
   }
 
-  const borrowAllowed = totalCollateralUsd > 0 && !hardOverride && borrowCapacityUsd > 0 && riskState !== "EMERGENCY";
-  const withdrawAllowed = totalCollateralUsd > 0 && riskState !== "EMERGENCY";
+  const borrowAllowed =
+    totalCollateralUsd > 0 &&
+    !hardOverride &&
+    borrowCapacityUsd > 0 &&
+    riskState === "SAFE";
+  const withdrawAllowed =
+    totalCollateralUsd > 0 &&
+    (totalDebtUsd === 0 ||
+      (!hardOverride && riskState !== "DEFENSIVE" && riskState !== "EMERGENCY"));
   const repayAllowed = totalDebtUsd > 0;
   const liquidationActive = healthFactorBps !== null && healthFactorBps < BPS;
 

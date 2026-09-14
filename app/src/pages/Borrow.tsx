@@ -84,7 +84,7 @@ export default function Borrow() {
   const { selectedMarket, markets, selectMarket } = useMarket();
   const s = useProtocolState();
   const { connected, publicKey } = useWallet();
-  const { invalidate } = useCircuitDomain();
+  const { invalidate, risk, credit } = useCircuitDomain();
   const tx = useTransaction();
 
   const display = useMemo(() => activeAssetDisplay(selectedMarket), [selectedMarket]);
@@ -130,6 +130,12 @@ export default function Borrow() {
   const objections = useMemo<string[]>(() => {
     const out: string[] = [];
     if (!valid) return out;
+    if (credit.permissions.borrow.status === "BLOCKED") {
+      out.push(
+        credit.permissions.borrow.reason ||
+          `Blocked by Circuit: Risk Ratchet in ${risk.ratchetState} state`
+      );
+    }
     if (amountNative > max) {
       out.push(
         `Above your current limit of ${isSolBorrow ? "" : "$"}${formatMoney(toUi(max))} ${quoteSymbol}`
@@ -148,7 +154,7 @@ export default function Borrow() {
       }
     }
     return Array.from(new Set(out));
-  }, [valid, amountNative, max, s.protocol, s.risk, projectedHf, minBps, isSolBorrow, quoteSymbol]);
+  }, [valid, amountNative, max, s.protocol, s.risk, projectedHf, minBps, isSolBorrow, quoteSymbol, credit, risk]);
 
   const canSubmit = valid && objections.length === 0 && tx.ready && !tx.busy;
 
@@ -185,6 +191,57 @@ export default function Borrow() {
       <ConfigNotice />
 
       <div className="stack g-16">
+        {/* Real Risk Ratchet State & Credit Policy Banner */}
+        <div
+          style={{
+            padding: "12px 16px",
+            background:
+              risk.ratchetState === "SAFE"
+                ? "rgba(127, 195, 154, 0.08)"
+                : risk.ratchetState === "RESTRICTED"
+                ? "rgba(207, 173, 116, 0.08)"
+                : "rgba(207, 139, 139, 0.12)",
+            border: `1px solid ${
+              risk.ratchetState === "SAFE"
+                ? "rgba(127, 195, 154, 0.3)"
+                : risk.ratchetState === "RESTRICTED"
+                ? "rgba(207, 173, 116, 0.3)"
+                : "rgba(207, 139, 139, 0.4)"
+            }`,
+            borderRadius: "var(--r)",
+          }}
+        >
+          <div className="row between g-12" style={{ alignItems: "center" }}>
+            <div className="row g-10" style={{ alignItems: "center" }}>
+              <Pill
+                tone={
+                  risk.ratchetState === "SAFE"
+                    ? "success"
+                    : risk.ratchetState === "RESTRICTED"
+                    ? "warning"
+                    : "danger"
+                }
+                withDot
+              >
+                RATCHET: {risk.ratchetState}
+              </Pill>
+              <span style={{ fontSize: 13, color: "var(--text-2)" }}>
+                {risk.ratchetState === "SAFE"
+                  ? "Market & oracle nominal. Full credit permissions active."
+                  : credit.permissions.borrow.reason ||
+                    `Credit constrained under ${risk.ratchetState} protocol policy.`}
+              </span>
+            </div>
+            <Link
+              to="/app/verify"
+              className="btn btn--secondary btn--sm"
+              style={{ fontSize: 11, padding: "2px 8px", height: 24, textDecoration: "none" }}
+            >
+              Inspect Proof &rarr;
+            </Link>
+          </div>
+        </div>
+
         {/* Step 1 - Market & Collateral Selection */}
         <Step
           n={1}
@@ -409,7 +466,9 @@ export default function Borrow() {
               loading={tx.busy}
               onClick={submit}
             >
-              {valid
+              {credit.permissions.borrow.status === "BLOCKED"
+                ? `Blocked by Circuit: ${risk.ratchetState}`
+                : valid
                 ? `Borrow ${formatMoney(toUi(amountNative))} ${quoteSymbol}`
                 : `Borrow ${quoteSymbol}`}
             </Button>

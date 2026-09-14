@@ -28,6 +28,10 @@ import { formatCurrency, formatMoney, formatPercent, formatTokens } from "../lib
 import { getAssetMark } from "../data/logos";
 import { Position as PositionModel } from "../lib/portfolio/provider";
 import {
+  PortfolioRiskGraph,
+  AssetNode,
+} from "../components/profile/PortfolioRiskGraph";
+import {
   buildDeposit,
   buildRepay,
   buildWithdraw,
@@ -54,9 +58,29 @@ export default function Position() {
   const [action, setAction] = useState<ActionType>("deposit");
   const [amount, setAmount] = useState("");
   const [txOpen, setTxOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"table" | "graph">("table");
 
   const positions = portfolio.positions;
   const hasPositions = portfolio.hasPositions;
+
+  const assetNodes: AssetNode[] = useMemo(() => {
+    return positions.map((p) => ({
+      symbol: p.symbol,
+      name: p.name,
+      mint: p.mint,
+      weightPct: Math.round(p.weightPct),
+      oracleHealthy: p.oracleHealthy,
+      confBps: p.confBps,
+      maxConfBps: p.maxConfBps,
+      marketOpen: p.marketOpen,
+      mark: getAssetMark(p.symbol),
+      priceUsd: p.priceUsd,
+      change24hPercent: p.change24hPercent,
+      collateralValueUsd: p.collateralValueUsd,
+      impactBorrowPowerUsd: p.riskContributionUsd,
+      explanation: p.explanation,
+    }));
+  }, [positions]);
 
   // Derive active asset for action form
   const activePosition = useMemo(() => {
@@ -207,14 +231,36 @@ export default function Position() {
             </Card>
           </div>
 
-          {/* POSITIONS SECTION: Professional Multi-Asset Table */}
+          {/* POSITIONS SECTION: Professional Multi-Asset Table & Live Risk Graph */}
           <Card
             title="Deposited Collateral Holdings"
             action={
-              <Link to="/app/faucet" className="btn btn--secondary btn--sm" style={{ textDecoration: "none" }}>
-                <Icon name="faucet" size={13} />
-                Get Test Equities
-              </Link>
+              <div className="row g-8" style={{ alignItems: "center" }}>
+                {hasPositions && (
+                  <div className="chips" style={{ margin: 0 }}>
+                    <button
+                      type="button"
+                      className={`chip ${viewMode === "table" ? "chip--active" : ""}`}
+                      onClick={() => setViewMode("table")}
+                      style={{ fontSize: 11, padding: "3px 10px", height: 26 }}
+                    >
+                      Table
+                    </button>
+                    <button
+                      type="button"
+                      className={`chip ${viewMode === "graph" ? "chip--active" : ""}`}
+                      onClick={() => setViewMode("graph")}
+                      style={{ fontSize: 11, padding: "3px 10px", height: 26 }}
+                    >
+                      Risk Graph
+                    </button>
+                  </div>
+                )}
+                <Link to="/app/faucet" className="btn btn--secondary btn--sm" style={{ textDecoration: "none" }}>
+                  <Icon name="faucet" size={13} />
+                  Get Test Equities
+                </Link>
+              </div>
             }
           >
             {!hasPositions ? (
@@ -228,6 +274,21 @@ export default function Position() {
                     Open Devnet Faucet &rarr;
                   </Link>
                 </div>
+              </div>
+            ) : viewMode === "graph" ? (
+              <div style={{ margin: "4px 0" }}>
+                <PortfolioRiskGraph
+                  assets={assetNodes}
+                  riskState={risk.ratchetState}
+                  baseLtvBps={portfolio.weightedBaseLtvBps}
+                  effectiveLtvBps={portfolio.effectiveLtvBps}
+                  borrowPowerUsd={portfolio.borrowCapacityUsd}
+                  totalCollateralUsd={portfolio.totalCollateralUsd}
+                  borrowAllowed={credit.permissions.borrow.status === "ALLOWED"}
+                  hardOverride={risk.hardOverride}
+                  hardOverrideReason={risk.hardOverrideReason}
+                  uneditable
+                />
               </div>
             ) : (
               <div style={{ overflowX: "auto" }}>
