@@ -1,8 +1,13 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
 
 import { PageContainer } from "../components/layout/AppShell";
 import { Card, Icon, Pill } from "../components/ui";
+import {
+  PortfolioRiskGraph,
+  AssetNode,
+  getAssetMark,
+} from "../components/profile/PortfolioRiskGraph";
 
 const FAQ: { q: string; a: React.ReactNode }[] = [
   {
@@ -96,17 +101,62 @@ const GATES: { title: string; plain: string; blocked: string }[] = [
   },
 ];
 
+const SIMULATED_ASSETS: AssetNode[] = [
+  {
+    symbol: "NVDA",
+    name: "NVIDIA",
+    weightPct: 58,
+    oracleHealthy: true,
+    confBps: 18,
+    maxConfBps: 150,
+    marketOpen: true,
+    mark: getAssetMark("NVDA"),
+  },
+  {
+    symbol: "AAPL",
+    name: "Apple",
+    weightPct: 22,
+    oracleHealthy: true,
+    confBps: 18,
+    maxConfBps: 150,
+    marketOpen: true,
+    mark: getAssetMark("AAPL"),
+  },
+  {
+    symbol: "MSFT",
+    name: "Microsoft",
+    weightPct: 15,
+    oracleHealthy: true,
+    confBps: 12,
+    maxConfBps: 150,
+    marketOpen: true,
+    mark: getAssetMark("MSFT"),
+  },
+  {
+    symbol: "USDC",
+    name: "USD Coin",
+    weightPct: 5,
+    oracleHealthy: true,
+    confBps: 0,
+    maxConfBps: 150,
+    marketOpen: true,
+    mark: getAssetMark("USDC"),
+  },
+];
+
 export default function Learn() {
+  const [simMode, setSimMode] = useState<"LIVE" | "HEALTHY" | "STRESS" | "EMERGENCY">("HEALTHY");
+
   return (
     <PageContainer
-      title="How circuit works"
-      subtitle="A short, plain-language guide. No blockchain knowledge needed."
-      narrow
+      title="How Circuit Works"
+      subtitle="A complete architectural and interactive guide to programmable collateral."
     >
-      <div className="stack g-16">
+      <div className="stack g-20" style={{ maxWidth: 1040, margin: "0 auto", paddingBottom: 60 }}>
+        {/* Concept Card */}
         <Card>
           <h2 className="t-title" style={{ marginBottom: 12 }}>
-            The idea in one line
+            The Idea in One Line
           </h2>
           <p className="t-body muted">
             Deposit tokenized stock, see how much you can safely borrow against
@@ -114,35 +164,71 @@ export default function Learn() {
           </p>
 
           <div className="stack g-8" style={{ marginTop: 18 }}>
-            {["Deposit tokenized equity", "circuit verifies market conditions", "Borrow within a safe limit", "Repay or withdraw at any time"].map(
-              (step, i) => (
-                <div key={step} className="row g-10">
-                  <span
-                    aria-hidden="true"
-                    style={{
-                      width: 22,
-                      height: 22,
-                      borderRadius: 999,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flex: "none",
-                      fontSize: 11,
-                      fontWeight: 700,
-                      background: "var(--surface-3)",
-                      color: "var(--text-2)",
-                    }}
-                  >
-                    {i + 1}
-                  </span>
-                  <span className="t-sm">{step}</span>
-                </div>
-              )
-            )}
+            {[
+              "Deposit tokenized equity (NVDA, AAPL, MSFT, etc.)",
+              "Circuit verifies market session, Pyth oracle freshness, and confidence spread",
+              "Borrow quote currency within a dynamic, risk-adjusted limit",
+              "Repay or withdraw at any time; repay is unconditionally available",
+            ].map((step, i) => (
+              <div key={step} className="row g-10">
+                <span
+                  aria-hidden="true"
+                  style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: 999,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flex: "none",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    background: "var(--surface-3)",
+                    color: "var(--text-2)",
+                  }}
+                >
+                  {i + 1}
+                </span>
+                <span className="t-sm">{step}</span>
+              </div>
+            ))}
           </div>
         </Card>
 
-        <Card title="The four safety checks">
+        {/* ── Interactive Risk Ratchet & Portfolio Simulator Section ── */}
+        <div className="stack g-8">
+          <div style={{ padding: "0 4px" }}>
+            <div className="row between wrap g-8" style={{ alignItems: "center" }}>
+              <div>
+                <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>
+                  Interactive Risk Ratchet & Portfolio Simulator
+                </h2>
+                <p style={{ fontSize: 12.5, color: "var(--text-3)", margin: "4px 0 0 0" }}>
+                  Experiment with hypothetical market shocks: adjust asset concentration, widen Pyth confidence spreads, or simulate upstream custody halts to watch Circuit's 4-layer risk DAG respond.
+                </p>
+              </div>
+              <Pill tone="accent">INTERACTIVE PLAYGROUND</Pill>
+            </div>
+          </div>
+
+          <PortfolioRiskGraph
+            assets={SIMULATED_ASSETS}
+            riskState={simMode === "EMERGENCY" ? "EMERGENCY" : simMode === "STRESS" ? "RESTRICTED" : "SAFE"}
+            baseLtvBps={7000}
+            effectiveLtvBps={simMode === "EMERGENCY" ? 3000 : simMode === "STRESS" ? 5200 : 6400}
+            borrowPowerUsd={simMode === "EMERGENCY" ? 0 : simMode === "STRESS" ? 2700 : 3900}
+            totalCollateralUsd={10000}
+            borrowAllowed={simMode !== "EMERGENCY"}
+            hardOverride={simMode === "EMERGENCY"}
+            hardOverrideReason={simMode === "EMERGENCY" ? "Upstream custody settlement link impaired" : undefined}
+            uneditable={false}
+            simMode={simMode}
+            onSimModeChange={(m) => setSimMode(m)}
+          />
+        </div>
+
+        {/* The Four Safety Checks */}
+        <Card title="The Four Safety Checks">
           <p className="t-sm muted" style={{ marginBottom: 16 }}>
             These run inside the program, in the same transaction as your borrow.
             They cannot be skipped by this or any other interface.
@@ -171,7 +257,8 @@ export default function Learn() {
           </div>
         </Card>
 
-        <Card title="Common questions">
+        {/* Common Questions */}
+        <Card title="Common Questions">
           <div className="stack g-4">
             {FAQ.map((f) => (
               <details
@@ -205,14 +292,15 @@ export default function Learn() {
           </div>
         </Card>
 
+        {/* Verification Link */}
         <Card quiet>
           <div className="row between g-12 wrap">
             <p className="t-sm muted" style={{ maxWidth: "44ch" }}>
-              Want the technical detail instead? Every account and price the
-              protocol uses is inspectable.
+              Want the technical detail instead? Every account, PDA, and Pyth price feed the
+              protocol uses is verifiable on Solana Devnet.
             </p>
             <Link to="/app/verify" className="btn btn--secondary btn--sm">
-              On-chain verification
+              On-Chain Verification
               <Icon name="arrowRight" size={15} />
             </Link>
           </div>

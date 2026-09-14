@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from "react";
+import React, { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useWallet } from "@solana/wallet-adapter-react";
 
@@ -11,14 +11,11 @@ import { RiskHistory } from "../components/profile/RiskHistory";
 import {
   PortfolioRiskGraph,
   AssetNode,
-  DynamicStatePayload,
   getAssetMark,
-  getAssetName,
 } from "../components/profile/PortfolioRiskGraph";
-import { useProtocolState } from "../hooks/useProtocolState";
-import { useMarket } from "../context/MarketContext";
+import { useAllUserPositions } from "../hooks/useAllUserPositions";
 import { shortenAddress, formatMoney, formatPercent } from "../lib/format";
-import { toUi, BPS } from "../lib/protocol";
+import { BPS } from "../lib/protocol";
 
 /* -------------------------------------------------------------------------- */
 /*  Helpers                                                                   */
@@ -36,20 +33,6 @@ function riskProfileTone(label: string): "neutral" | "success" | "warning" | "da
   if (label === "Conservative") return "success";
   if (label === "Moderate") return "warning";
   return "danger";
-}
-
-function riskStateFromGuard(
-  guardReason: string | undefined,
-  borrowAllowed: boolean,
-  hasCollateral: boolean = true
-): "SAFE" | "RESTRICTED" | "DEFENSIVE" | "EMERGENCY" {
-  if (!guardReason) return "SAFE";
-  const r = guardReason.toLowerCase();
-  if (r.includes("emergency") || r.includes("impaired")) return "EMERGENCY";
-  if (r.includes("defensive")) return "DEFENSIVE";
-  if (r.includes("restricted") || r.includes("closed") || r.includes("thin"))
-    return "RESTRICTED";
-  return "SAFE";
 }
 
 /* -------------------------------------------------------------------------- */
@@ -92,196 +75,53 @@ function StatBlock({
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Profile Page                                                              */
+/*  Profile Page - 100% Pure Live Devnet (No Simulation)                      */
 /* -------------------------------------------------------------------------- */
 
 export default function Profile() {
   const { publicKey, connected } = useWallet();
-  const { selectedMarket } = useMarket();
-  const s = useProtocolState();
+  const port = useAllUserPositions();
 
-  // Mode: "LIVE" (100% on-chain truth) or Simulation scenario modes
-  const [simMode, setSimMode] = useState<"LIVE" | "HEALTHY" | "STRESS" | "EMERGENCY">("LIVE");
-  const [dynamicPayload, setDynamicPayload] = useState<DynamicStatePayload | null>(null);
+  const hasLiveCollateral = port.totalCollateralUsd > 0;
+  const leverageRatio = port.totalCollateralUsd > 0 ? port.totalDebtUsd / port.totalCollateralUsd : 0;
+  const effectiveLtvPct = port.effectiveLtvBps / 100;
+  const profileLabel = riskProfile(leverageRatio, port.totalDebtUsd > 0);
 
-  const rawCollateralUi = toUi(s.position?.collateralAmount ?? 0n);
-  const rawDebtUi = toUi(s.position?.debtAmount ?? 0n);
-  const priceUsd = s.oracle?.priceUsd ?? 138.25;
+  const hfDisplay = port.healthFactorBps !== null
+    ? (port.healthFactorBps / BPS).toFixed(2)
+    : "No debt";
 
-  const hasLiveCollateral = rawCollateralUi > 0;
-  const isSimulation = simMode !== "LIVE";
+  const liquidationActive = port.healthFactorBps !== null && port.healthFactorBps < BPS;
+  const withdrawAllowed = hasLiveCollateral && port.riskState !== "EMERGENCY";
 
-  // In LIVE mode: Strictly use verified on-chain balances ($0 on empty wallet).
-  // In Simulation mode: Use reference modeling scenario position.
-  const collateralUi = isSimulation ? 72.33 : rawCollateralUi;
-  const debtUi = isSimulation ? 2500 : rawDebtUi;
-  const collateralValueUsd = collateralUi * priceUsd;
-  const leverageRatio = collateralValueUsd > 0 ? debtUi / collateralValueUsd : 0;
-
-  const rawHfBps = s.risk?.healthFactorBps ?? null;
-  const baseLtvBps = s.asset?.baseLtvBps ?? 7000;
-  const capacityUsd = collateralValueUsd * (baseLtvBps / BPS);
-
-  const liveRiskState = riskStateFromGuard(s.guard?.reason, s.risk?.borrowAllowed ?? false, hasLiveCollateral);
-  const liveBorrowAllowed = hasLiveCollateral && (s.risk?.borrowAllowed ?? false);
-
-  // Oracle posture
-  const confBps = s.oracle?.confBps ?? 18;
-  const maxConfBps = s.asset?.maxConfBps ?? 150;
-  const oracleAge = s.oracle?.ageSeconds ?? 12;
-  const maxOracleAge = s.asset?.maxOracleAge ?? 60;
-  const liveHardOverride = liveRiskState === "EMERGENCY" || (s.asset?.custodyState === "impaired");
-
-  // Primary symbol & clean deduplicated secondary symbols
-  const primarySymbol = selectedMarket?.symbol ?? "NVDA";
-  const secondaryPool = useMemo(() => {
-    return ["AAPL", "MSFT", "NVDA", "AMZN", "USDC"].filter((sym) => sym !== primarySymbol);
-  }, [primarySymbol]);
-
-  // Clean deduplicated assets for graph
+  // Build N asset nodes for the uneditable canvas from real on-chain positions
   const graphAssets: AssetNode[] = useMemo(() => {
-    if (!isSimulation) {
-      // In LIVE mode: reflect real wallet asset holdings
-      if (!hasLiveCollateral) {
-        return [
-          {
-            symbol: primarySymbol,
-            name: getAssetName(primarySymbol),
-            weightPct: 0,
-            oracleHealthy: confBps <= maxConfBps && oracleAge <= maxOracleAge,
-            confBps,
-            maxConfBps,
-            marketOpen: s.session?.open ?? true,
-            mark: getAssetMark(primarySymbol),
-          },
-        ];
-      }
+    if (port.positions.length === 0) {
       return [
         {
-          symbol: primarySymbol,
-          name: getAssetName(primarySymbol),
-          weightPct: 100,
-          oracleHealthy: confBps <= maxConfBps && oracleAge <= maxOracleAge,
-          confBps,
-          maxConfBps,
-          marketOpen: s.session?.open ?? true,
-          mark: getAssetMark(primarySymbol),
+          symbol: "NVDA",
+          name: "NVIDIA",
+          weightPct: 0,
+          oracleHealthy: true,
+          confBps: 18,
+          maxConfBps: 150,
+          marketOpen: true,
+          mark: getAssetMark("NVDA"),
         },
       ];
     }
 
-    // In Simulation mode: Clean deduplicated 4-asset portfolio for modeling
-    const sec1 = secondaryPool[0] || "AAPL";
-    const sec2 = secondaryPool[1] || "MSFT";
-
-    return [
-      {
-        symbol: primarySymbol,
-        name: getAssetName(primarySymbol),
-        weightPct: 58,
-        oracleHealthy: confBps <= maxConfBps && oracleAge <= maxOracleAge,
-        confBps,
-        maxConfBps,
-        marketOpen: s.session?.open ?? true,
-        mark: getAssetMark(primarySymbol),
-      },
-      {
-        symbol: sec1,
-        name: getAssetName(sec1),
-        weightPct: 22,
-        oracleHealthy: true,
-        confBps: 18,
-        maxConfBps: 150,
-        marketOpen: true,
-        mark: getAssetMark(sec1),
-      },
-      {
-        symbol: sec2,
-        name: getAssetName(sec2),
-        weightPct: 15,
-        oracleHealthy: true,
-        confBps: 12,
-        maxConfBps: 150,
-        marketOpen: true,
-        mark: getAssetMark(sec2),
-      },
-      {
-        symbol: "USDC",
-        name: "USD Coin",
-        weightPct: 5,
-        oracleHealthy: true,
-        confBps: 0,
-        maxConfBps: 150,
-        marketOpen: true,
-        mark: getAssetMark("USDC"),
-      },
-    ];
-  }, [isSimulation, hasLiveCollateral, primarySymbol, secondaryPool, confBps, maxConfBps, oracleAge, maxOracleAge, s.session]);
-
-  // Concentration penalty math
-  const maxWeight = isSimulation ? Math.max(...graphAssets.map((a) => a.weightPct)) : (hasLiveCollateral ? 100 : 0);
-  const concentrationPenaltyBps = isSimulation && maxWeight > 40 ? Math.round((maxWeight - 40) * 100 * 0.36) : 0;
-  const effectiveLtvBps = hasLiveCollateral || isSimulation ? Math.max(3000, baseLtvBps - concentrationPenaltyBps) : 0;
-  const adjustedBorrowPower = hasLiveCollateral ? Math.max(0, collateralValueUsd * (effectiveLtvBps / BPS) - debtUi) : 0;
-
-  // Callback with equality check to prevent infinite re-render loops
-  const handleDynamicStateChange = useCallback((payload: DynamicStatePayload) => {
-    setDynamicPayload((prev) => {
-      if (
-        prev &&
-        prev.riskState === payload.riskState &&
-        prev.effectiveLtvBps === payload.effectiveLtvBps &&
-        prev.borrowPowerUsd === payload.borrowPowerUsd &&
-        prev.borrowAllowed === payload.borrowAllowed &&
-        prev.concentrationPct === payload.concentrationPct &&
-        prev.confBps === payload.confBps &&
-        prev.hardOverride === payload.hardOverride &&
-        prev.hardOverrideReason === payload.hardOverrideReason
-      ) {
-        return prev;
-      }
-      return payload;
-    });
-  }, []);
-
-  // Active synchronized values across the page
-  const activeRiskState = isSimulation ? (dynamicPayload?.riskState ?? "SAFE") : liveRiskState;
-  const activeBorrowAllowed = isSimulation
-    ? (dynamicPayload?.borrowAllowed ?? false)
-    : liveBorrowAllowed;
-  const activeEffectiveLtvBps = isSimulation
-    ? (dynamicPayload?.effectiveLtvBps ?? effectiveLtvBps)
-    : effectiveLtvBps;
-  const activeBorrowPower = isSimulation
-    ? (dynamicPayload?.borrowPowerUsd ?? 0)
-    : adjustedBorrowPower;
-  const activeConcentrationPct = isSimulation
-    ? (dynamicPayload?.concentrationPct ?? maxWeight)
-    : (hasLiveCollateral ? 100 : 0);
-  const activeConfBps = isSimulation ? (dynamicPayload?.confBps ?? confBps) : confBps;
-  const activeHardOverride = isSimulation ? (dynamicPayload?.hardOverride ?? false) : liveHardOverride;
-  const activeHardReason = isSimulation
-    ? dynamicPayload?.hardOverrideReason
-    : (activeHardOverride ? "Upstream custody settlement link impaired" : undefined);
-
-  const activeEffectiveLtvPct = activeEffectiveLtvBps / 100;
-  const activeProfile = riskProfile(leverageRatio, debtUi > 0);
-
-  const hfDisplay = isSimulation
-    ? activeRiskState === "EMERGENCY"
-      ? "0.92"
-      : activeRiskState === "RESTRICTED"
-      ? "1.38"
-      : "2.80"
-    : rawHfBps !== null
-    ? (rawHfBps / BPS).toFixed(2)
-    : "No debt";
-
-  const liquidationActive = isSimulation
-    ? activeRiskState === "EMERGENCY"
-    : rawHfBps !== null && rawHfBps < BPS;
-
-  const withdrawAllowed = hasLiveCollateral && !s.protocol?.paused && activeRiskState !== "EMERGENCY";
+    return port.positions.map((p) => ({
+      symbol: p.market.symbol,
+      name: p.market.name,
+      weightPct: Math.round(p.weightPct),
+      oracleHealthy: p.oracleHealthy,
+      confBps: p.confBps,
+      maxConfBps: p.maxConfBps,
+      marketOpen: p.marketOpen,
+      mark: getAssetMark(p.market.symbol),
+    }));
+  }, [port.positions]);
 
   if (!connected) {
     return (
@@ -297,68 +137,77 @@ export default function Profile() {
         className="stack g-20"
         style={{ maxWidth: 1080, margin: "0 auto", paddingBottom: 60 }}
       >
-        {/* ── Real On-Chain / Simulation State Indicator Banner ── */}
-        {!isSimulation && !hasLiveCollateral ? (
-          <div
-            style={{
-              padding: "12px 16px",
-              background: "rgba(127, 195, 154, 0.06)",
-              border: "1px solid rgba(127, 195, 154, 0.2)",
-              borderRadius: 8,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              flexWrap: "wrap",
-              gap: 12,
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <Icon name="check" size={16} />
-              <div>
-                <span style={{ fontSize: 12, fontWeight: 650, color: "var(--text)" }}>
-                  Connected Wallet: {shortenAddress(publicKey?.toBase58() ?? "", 4, 4)} (Live Devnet State)
+        {/* ── Real On-Chain Telemetry Header Banner ── */}
+        <div
+          style={{
+            padding: "12px 18px",
+            background: hasLiveCollateral
+              ? "rgba(127, 195, 154, 0.07)"
+              : "rgba(207, 173, 116, 0.07)",
+            border: `1px solid ${
+              hasLiveCollateral
+                ? "rgba(127, 195, 154, 0.25)"
+                : "rgba(207, 173, 116, 0.25)"
+            }`,
+            borderRadius: 8,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 12,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: hasLiveCollateral ? "var(--success, #7fc39a)" : "#cfad74",
+                boxShadow: hasLiveCollateral
+                  ? "0 0 10px rgba(127, 195, 154, 0.7)"
+                  : "0 0 8px rgba(207, 173, 116, 0.5)",
+                display: "inline-block",
+              }}
+            />
+            <div>
+              <div style={{ fontSize: 12.5, fontWeight: 650, color: "var(--text)" }}>
+                Solana Devnet Live Truth:{" "}
+                <span style={{ fontFamily: "var(--mono)" }}>
+                  {shortenAddress(publicKey?.toBase58() ?? "", 4, 4)}
                 </span>
-                <div style={{ fontSize: 11.5, color: "var(--text-3)", marginTop: 2 }}>
-                  Fresh wallet detected with $0.00 collateral. Available borrow capacity is strictly $0.00.
-                </div>
+              </div>
+              <div style={{ fontSize: 11.5, color: "var(--text-3)", marginTop: 2 }}>
+                {port.loading
+                  ? "Scanning on-chain position PDAs..."
+                  : hasLiveCollateral
+                  ? `${port.positions.length} active on-chain collateral holding${
+                      port.positions.length !== 1 ? "s" : ""
+                    } evaluated under Risk Ratchet.`
+                  : "Fresh wallet detected with $0.00 collateral. Borrow capacity is strictly $0.00."}
               </div>
             </div>
-            <div className="row g-8">
-              <Link to="/app/position" className="btn btn--accent btn--sm" style={{ fontSize: 11, height: 26 }}>
-                Deposit Collateral →
-              </Link>
-            </div>
           </div>
-        ) : isSimulation ? (
-          <div
-            style={{
-              padding: "10px 16px",
-              background: "rgba(207, 173, 116, 0.08)",
-              border: "1px solid rgba(207, 173, 116, 0.25)",
-              borderRadius: 8,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              flexWrap: "wrap",
-              gap: 12,
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <Icon name="info" size={16} />
-              <span style={{ fontSize: 12, color: "var(--text-2)" }}>
-                <strong>Simulation Active ({simMode}):</strong> Modeling risk ratchet behavior under hypothetical scenario.
-              </span>
-            </div>
+          <div className="row g-8">
             <button
               type="button"
               className="btn btn--secondary btn--sm"
-              style={{ fontSize: 11, padding: "4px 10px", height: 26 }}
-              onClick={() => setSimMode("LIVE")}
+              style={{ fontSize: 11, height: 28, padding: "0 10px" }}
+              onClick={port.refresh}
+              disabled={port.loading}
             >
-              Return to Live Wallet State
+              <Icon name="clock" size={13} />
+              <span>{port.loading ? "Querying..." : "Refresh Chain"}</span>
             </button>
+            <Link
+              to="/app/position"
+              className="btn btn--accent btn--sm"
+              style={{ fontSize: 11, height: 28, padding: "0 12px" }}
+            >
+              Deposit Collateral →
+            </Link>
           </div>
-        ) : null}
+        </div>
 
         {/* ── Section 1: Risk Identity Card ──────────────────────────── */}
         <Card>
@@ -380,10 +229,10 @@ export default function Profile() {
                   height: 48,
                   borderRadius: 12,
                   background: `linear-gradient(135deg, ${
-                    activeRiskState === "SAFE" ? "#7fc39a22" : "#e06c6c22"
+                    port.riskState === "SAFE" ? "#7fc39a22" : "#e06c6c22"
                   }, var(--surface-3))`,
                   border: `2px solid ${
-                    activeRiskState === "SAFE" ? "#7fc39a44" : "#e06c6c44"
+                    port.riskState === "SAFE" ? "#7fc39a44" : "#e06c6c44"
                   }`,
                   display: "flex",
                   alignItems: "center",
@@ -418,7 +267,7 @@ export default function Profile() {
                 <div style={{ fontSize: 10, color: "var(--text-3)", marginBottom: 2 }}>
                   Risk Profile
                 </div>
-                <Pill tone={riskProfileTone(activeProfile)}>{activeProfile}</Pill>
+                <Pill tone={riskProfileTone(profileLabel)}>{profileLabel}</Pill>
               </div>
               <div style={{ textAlign: "center" }}>
                 <div style={{ fontSize: 10, color: "var(--text-3)", marginBottom: 2 }}>
@@ -448,15 +297,15 @@ export default function Profile() {
                 </div>
                 <Pill
                   tone={
-                    activeRiskState === "SAFE"
+                    port.riskState === "SAFE"
                       ? "success"
-                      : activeRiskState === "EMERGENCY"
+                      : port.riskState === "EMERGENCY"
                       ? "danger"
                       : "warning"
                   }
                   withDot
                 >
-                  {activeRiskState}
+                  {port.riskState}
                 </Pill>
               </div>
             </div>
@@ -465,7 +314,7 @@ export default function Profile() {
 
         {/* ── Section 2: Financial Position ──────────────────────────── */}
         <Card title="Financial Position">
-          {s.loading ? (
+          {port.loading ? (
             <div className="row g-16">
               {[0, 1, 2, 3].map((i) => (
                 <Skeleton key={i} height={50} />
@@ -474,111 +323,208 @@ export default function Profile() {
           ) : (
             <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
               <StatBlock
-                label="Collateral"
-                value={`$${formatMoney(collateralValueUsd)}`}
+                label="Total Collateral"
+                value={`$${formatMoney(port.totalCollateralUsd)}`}
                 sub={
-                  hasLiveCollateral || isSimulation
-                    ? `${formatMoney(collateralUi, 4)} ${selectedMarket?.tokenSymbol ?? "NVDAx"}`
-                    : `0.0000 ${selectedMarket?.tokenSymbol ?? "NVDAx"}`
+                  hasLiveCollateral
+                    ? port.positions.length === 1
+                      ? `${formatMoney(port.positions[0].collateralUi, 4)} ${port.positions[0].market.tokenSymbol}`
+                      : `${port.positions.length} Active Positions (${port.positions.map((p) => p.market.symbol).join(", ")})`
+                    : "0.0000 (No Collateral)"
                 }
               />
               <StatBlock
                 label="Current Debt"
-                value={`$${formatMoney(debtUi)}`}
-                sub={selectedMarket?.quoteSymbol ?? "USDC"}
+                value={`$${formatMoney(port.totalDebtUsd)}`}
+                sub="USDC"
               />
               <StatBlock
                 label="Borrow Capacity"
-                value={`$${formatMoney(Math.max(0, activeBorrowPower))}`}
+                value={`$${formatMoney(port.borrowCapacityUsd)}`}
                 sub={
-                  hasLiveCollateral || isSimulation
-                    ? `Effective LTV: ${formatPercent(activeEffectiveLtvBps)}`
+                  hasLiveCollateral
+                    ? `Effective LTV: ${formatPercent(port.effectiveLtvBps)}`
                     : "No collateral deposited"
                 }
               />
               <StatBlock
                 label="Effective LTV"
-                value={
-                  hasLiveCollateral || isSimulation
-                    ? `${activeEffectiveLtvPct.toFixed(1)}%`
-                    : "0.0%"
-                }
+                value={hasLiveCollateral ? `${effectiveLtvPct.toFixed(1)}%` : "0.0%"}
                 sub={
-                  hasLiveCollateral || isSimulation
-                    ? `Base: ${formatPercent(baseLtvBps)} | Penalty: -${Math.round(
-                        (activeConcentrationPct > 40 ? (activeConcentrationPct - 40) * 36 : 0)
-                      )} bps`
-                    : `Base limit: ${formatPercent(baseLtvBps)} (Awaiting deposit)`
+                  hasLiveCollateral
+                    ? `Base: ${formatPercent(port.weightedBaseLtvBps)} | Penalty: -${port.concentrationPenaltyBps} bps`
+                    : "0.0% (Awaiting deposit)"
                 }
               />
             </div>
           )}
         </Card>
 
-        {/* ── Section 3: Risk Posture ────────────────────────────────── */}
+        {/* ── Section 3: On-Chain Deposited Holdings Breakdown (When N >= 1) ── */}
+        {port.positions.length > 0 && (
+          <Card title={`On-Chain Deposited Equities (${port.positions.length})`}>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid var(--border)", textAlign: "left", color: "var(--text-3)", fontSize: 11, fontFamily: "var(--mono)" }}>
+                    <th style={{ padding: "8px 12px" }}>ASSET</th>
+                    <th style={{ padding: "8px 12px" }}>COLLATERAL</th>
+                    <th style={{ padding: "8px 12px" }}>PYTH PRICE</th>
+                    <th style={{ padding: "8px 12px" }}>USD VALUE</th>
+                    <th style={{ padding: "8px 12px" }}>PORTFOLIO WEIGHT</th>
+                    <th style={{ padding: "8px 12px" }}>ORACLE POSTURE</th>
+                    <th style={{ padding: "8px 12px", textAlign: "right" }}>ACTION</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {port.positions.map((p) => {
+                    const mark = getAssetMark(p.market.symbol);
+                    return (
+                      <tr key={p.market.mint} style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.04)" }}>
+                        <td style={{ padding: "10px 12px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <div
+                              style={{
+                                width: 24,
+                                height: 24,
+                                borderRadius: "50%",
+                                background: "rgba(255, 255, 255, 0.05)",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                flexShrink: 0,
+                              }}
+                            >
+                              {mark ? (
+                                <svg viewBox="0 0 24 24" width={16} height={16}>
+                                  {mark.parts ? (
+                                    mark.parts.map((pt, idx) => (
+                                      <path key={idx} d={pt.d} fill={pt.fill} />
+                                    ))
+                                  ) : (
+                                    <path d={mark.d} fill={mark.onDark || "#ffffff"} />
+                                  )}
+                                </svg>
+                              ) : (
+                                <span style={{ fontSize: 10, fontWeight: 700 }}>{p.market.symbol.slice(0, 2)}</span>
+                              )}
+                            </div>
+                            <div>
+                              <div style={{ fontWeight: 650, color: "var(--text)" }}>{p.market.symbol}</div>
+                              <div style={{ fontSize: 10, color: "var(--text-3)" }}>{p.market.name}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{ padding: "10px 12px", fontFamily: "var(--mono)", fontWeight: 600 }}>
+                          {formatMoney(p.collateralUi, 4)} {p.market.tokenSymbol}
+                        </td>
+                        <td style={{ padding: "10px 12px", fontFamily: "var(--mono)" }}>
+                          ${formatMoney(p.priceUsd)}
+                        </td>
+                        <td style={{ padding: "10px 12px", fontFamily: "var(--mono)", fontWeight: 700, color: "var(--text)" }}>
+                          ${formatMoney(p.collateralValueUsd)}
+                        </td>
+                        <td style={{ padding: "10px 12px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <div
+                              style={{
+                                width: 60,
+                                height: 6,
+                                borderRadius: 3,
+                                background: "rgba(255, 255, 255, 0.08)",
+                                overflow: "hidden",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  width: `${Math.min(100, Math.round(p.weightPct))}%`,
+                                  height: "100%",
+                                  background: p.weightPct > 60 ? "#cfad74" : "#7fc39a",
+                                }}
+                              />
+                            </div>
+                            <span style={{ fontFamily: "var(--mono)", fontSize: 11, fontWeight: 600 }}>
+                              {Math.round(p.weightPct)}%
+                            </span>
+                          </div>
+                        </td>
+                        <td style={{ padding: "10px 12px" }}>
+                          <Pill tone={p.oracleHealthy ? "success" : "danger"}>
+                            {p.oracleHealthy ? `${p.confBps} bps` : "Breached"}
+                          </Pill>
+                        </td>
+                        <td style={{ padding: "10px 12px", textAlign: "right" }}>
+                          <Link
+                            to={`/app/position?market=${p.market.symbol}`}
+                            className="btn btn--secondary btn--sm"
+                            style={{ fontSize: 11, height: 24, padding: "0 8px" }}
+                          >
+                            Manage →
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        )}
+
+        {/* ── Section 4: Risk Posture ────────────────────────────────── */}
         <RiskPosture
-          concentrationPct={activeConcentrationPct}
-          oracleConfBps={activeConfBps}
-          maxConfBps={maxConfBps}
-          oracleAgeSec={activeRiskState === "EMERGENCY" ? 72 : oracleAge}
-          maxOracleAge={maxOracleAge}
-          liquidityState={activeHardOverride ? "critical" : s.asset?.liquidityState ?? "normal"}
+          concentrationPct={port.maxWeightPct}
+          oracleConfBps={port.positions[0]?.confBps ?? 18}
+          maxConfBps={port.positions[0]?.maxConfBps ?? 150}
+          oracleAgeSec={12}
+          maxOracleAge={600}
+          liquidityState={port.hardOverride ? "critical" : "normal"}
           leverageRatio={leverageRatio}
         />
 
-        {/* ── Section 4: Portfolio Risk Graph ────────────────────────── */}
+        {/* ── Section 5: Uneditable Full Strict Speed Portfolio Risk Graph ──── */}
         <PortfolioRiskGraph
           assets={graphAssets}
-          riskState={activeRiskState}
-          baseLtvBps={baseLtvBps}
-          effectiveLtvBps={activeEffectiveLtvBps}
-          borrowPowerUsd={Math.max(0, activeBorrowPower)}
-          totalCollateralUsd={collateralValueUsd}
-          borrowAllowed={activeBorrowAllowed}
-          hardOverride={activeHardOverride}
-          hardOverrideReason={activeHardReason}
-          simMode={simMode}
-          onSimModeChange={(m) => setSimMode(m)}
-          onDynamicStateChange={handleDynamicStateChange}
+          riskState={port.riskState}
+          baseLtvBps={port.weightedBaseLtvBps}
+          effectiveLtvBps={port.effectiveLtvBps}
+          borrowPowerUsd={port.borrowCapacityUsd}
+          totalCollateralUsd={port.totalCollateralUsd}
+          borrowAllowed={port.borrowAllowed}
+          hardOverride={port.hardOverride}
+          hardOverrideReason={port.hardOverrideReason}
+          uneditable={true}
         />
 
-        {/* ── Section 5: Risk Permissions ────────────────────────────── */}
+        {/* ── Section 6: Risk Permissions ────────────────────────────── */}
         <RiskPermissions
-          borrowAllowed={activeBorrowAllowed}
+          borrowAllowed={port.borrowAllowed}
           borrowBlockers={
-            activeHardOverride
-              ? [activeHardReason || "Hard risk override active"]
-              : !hasLiveCollateral && !isSimulation
+            port.hardOverride
+              ? [port.hardOverrideReason || "Hard risk override active"]
+              : !hasLiveCollateral
               ? ["No collateral deposited — deposit equity tokens to unlock credit line"]
-              : !activeBorrowAllowed
+              : !port.borrowAllowed
               ? ["Capacity restricted by Risk Ratchet (Concentration penalty active)"]
               : []
           }
           withdrawAllowed={withdrawAllowed}
           withdrawReason={
             !withdrawAllowed
-              ? !hasLiveCollateral && !isSimulation
+              ? !hasLiveCollateral
                 ? "No collateral deposited"
-                : activeRiskState === "EMERGENCY"
+                : port.riskState === "EMERGENCY"
                 ? "Risk-increasing withdrawals blocked in Emergency state"
                 : "Protocol paused"
               : undefined
           }
           liquidationActive={liquidationActive}
-          healthFactorBps={
-            isSimulation
-              ? activeRiskState === "EMERGENCY"
-                ? 9200
-                : activeRiskState === "RESTRICTED"
-                ? 13800
-                : 28000
-              : rawHfBps
-          }
-          riskState={activeRiskState}
+          healthFactorBps={port.healthFactorBps}
+          riskState={port.riskState}
         />
 
-        {/* ── Section 6: Risk History ────────────────────────────────── */}
-        <RiskHistory activeState={activeRiskState} />
+        {/* ── Section 7: Risk History ────────────────────────────────── */}
+        <RiskHistory activeState={port.riskState} />
 
         {/* ── Footer ─────────────────────────────────────────────────── */}
         <div
@@ -599,14 +545,12 @@ export default function Profile() {
             Identity → Risk → Permission: Your credit is a consequence of
             portfolio risk, not a fixed number.
           </p>
-          <div className="row g-8" style={{ justifyContent: "center" }}>
-            <Link to="/app/demo" className="btn btn--secondary btn--sm">
-              <Icon name="gauge" size={14} />
-              Interactive Risk Demo
+          <div className="row g-12" style={{ justifyContent: "center" }}>
+            <Link to="/app/learn" className="btn btn--secondary btn--sm">
+              Interactive Risk Simulator in Learn →
             </Link>
-            <Link to="/app/verify" className="btn btn--ghost btn--sm">
-              <Icon name="verify" size={14} />
-              Verify On-Chain
+            <Link to="/app/faucet" className="btn btn--secondary btn--sm">
+              Devnet Faucet
             </Link>
           </div>
         </div>

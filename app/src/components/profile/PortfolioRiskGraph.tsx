@@ -40,6 +40,7 @@ export interface PortfolioRiskGraphProps {
   /** Hard-risk override active (stale oracle, custody impairment, etc.) */
   hardOverride: boolean;
   hardOverrideReason?: string;
+  uneditable?: boolean;
   simMode?: "LIVE" | "HEALTHY" | "STRESS" | "EMERGENCY";
   onSimModeChange?: (mode: "LIVE" | "HEALTHY" | "STRESS" | "EMERGENCY") => void;
   onDynamicStateChange?: (payload: DynamicStatePayload) => void;
@@ -456,6 +457,7 @@ export function PortfolioRiskGraph({
   borrowAllowed: liveAllowed,
   hardOverride: liveHardOverride,
   hardOverrideReason: liveHardReason,
+  uneditable = false,
   simMode: controlledSimMode,
   onSimModeChange,
   onDynamicStateChange,
@@ -517,7 +519,65 @@ export function PortfolioRiskGraph({
     hardOverrideReason,
     whatChanged,
   } = useMemo(() => {
-    // 1. Determine weights from interactive slider
+    // 0. In uneditable mode: Strictly preserve ALL live on-chain assets (N stocks) and live calculations!
+    if (uneditable) {
+      const isLiveZero = totalCollateralUsd === 0;
+      const maxWeight = liveAssets.length > 0 ? Math.max(...liveAssets.map((a) => a.weightPct)) : 0;
+      let calculatedScore = 18;
+      if (liveHardOverride || liveState === "EMERGENCY") {
+        calculatedScore = 94;
+      } else if (liveState === "DEFENSIVE") {
+        calculatedScore = 65;
+      } else if (liveState === "RESTRICTED") {
+        calculatedScore = 32 + Math.round((maxWeight > 40 ? maxWeight - 40 : 0) * 0.4);
+      }
+
+      let changePayload = {
+        deltaScore: "Nominal (Safe)",
+        reason: "All oracle and market checks nominal across deposited collateral",
+        impact: `Full borrow capacity available under Risk Ratchet ($${liveBorrowPower.toLocaleString(undefined, { maximumFractionDigits: 2 })})`,
+        tone: "success" as Tone,
+      };
+
+      if (isLiveZero) {
+        changePayload = {
+          deltaScore: "Real-Time On-Chain Truth",
+          reason: "Connected wallet has 0 collateral deposited on Devnet",
+          impact: "Borrow capacity is strictly $0.00 until equity collateral is deposited",
+          tone: "neutral" as Tone,
+        };
+      } else if (liveHardOverride) {
+        changePayload = {
+          deltaScore: "CRITICAL FAILURE (Emergency)",
+          reason: liveHardReason || "Hard Risk override active",
+          impact: "HARD OVERRIDE: All new borrow instructions rejected on-chain",
+          tone: "danger" as Tone,
+        };
+      } else if (liveState === "RESTRICTED") {
+        changePayload = {
+          deltaScore: `Restricted (+${calculatedScore - 18}% Risk)`,
+          reason: maxWeight > 40
+            ? `Single-asset concentration (${maxWeight}%) exceeds 40% threshold`
+            : "Oracle confidence widened under Risk Ratchet",
+          impact: `Soft Risk penalty adjusted Effective LTV to ${(liveLtv / 100).toFixed(1)}%`,
+          tone: "warning" as Tone,
+        };
+      }
+
+      return {
+        assets: liveAssets,
+        riskState: liveState,
+        score: calculatedScore,
+        effectiveLtvBps: liveLtv,
+        borrowPowerUsd: liveBorrowPower,
+        borrowAllowed: liveAllowed,
+        hardOverride: liveHardOverride,
+        hardOverrideReason: liveHardReason,
+        whatChanged: changePayload,
+      };
+    }
+
+    // 1. Determine weights from interactive slider (Simulation Mode)
     const w0 = customPrimaryWeight;
     const remainingW = Math.max(0, 100 - w0);
     const w1 = Math.round(remainingW * 0.52);
@@ -733,21 +793,25 @@ export function PortfolioRiskGraph({
     onDynamicStateChange,
   ]);
 
-  const portfolioY = 221;
-  const creditY = 221;
+  // Dynamically compute canvas height and centered vertical positions for N assets
+  const N = assets.length;
+  const assetSpacing = N <= 1 ? 0 : Math.max(76, Math.min(108, Math.floor(400 / N)));
+  const totalSpread = (N - 1) * assetSpacing;
+  const H = Math.max(380, totalSpread + 170);
+  const centerY = Math.round(H / 2);
+  const assetStartY = centerY - Math.round(totalSpread / 2);
 
-  // Vertical positions for 4 assets
-  const assetSpacing = 98;
-  const assetStartY = 74;
+  const portfolioY = centerY;
+  const creditY = centerY;
 
   const assetPositions = useMemo(() => {
     return assets.map((a, i) => ({
       ...a,
       x: COL_ASSET,
-      y: assetStartY + i * assetSpacing,
+      y: N <= 1 ? centerY : assetStartY + i * assetSpacing,
       stressed: !a.oracleHealthy || a.confBps > a.maxConfBps || !a.marketOpen || a.weightPct > 60,
     }));
-  }, [assets]);
+  }, [assets, N, centerY, assetStartY, assetSpacing]);
 
   // Risk factor pills per asset
   const FACTORS = [
@@ -762,7 +826,7 @@ export function PortfolioRiskGraph({
       x: number; y: number; label: string; level: "low" | "med" | "high";
       stressed: boolean; isHard: boolean; parentIdx: number;
     }[] = [];
-    const factorOffsets = [-30, -10, 10, 30];
+    const factorOffsets = assetSpacing > 85 || N <= 2 ? [-28, -9, 9, 28] : [-22, -7, 7, 22];
 
     assetPositions.forEach((asset, ai) => {
       FACTORS.forEach((f, fi) => {
@@ -794,26 +858,44 @@ export function PortfolioRiskGraph({
       });
     });
     return result;
-  }, [assetPositions, custodyHalted]);
+  }, [assetPositions, custodyHalted, assetSpacing, N]);
 
   return (
     <Card
       title="Portfolio Risk Graph"
       action={
-        <div className="row g-6 wrap" style={{ alignItems: "center" }}>
-          <span style={{ fontSize: 11, color: "var(--text-3)", marginRight: 4 }}>Simulate:</span>
-          {(["LIVE", "HEALTHY", "STRESS", "EMERGENCY"] as const).map((m) => (
-            <button
-              key={m}
-              type="button"
-              className={`btn ${simMode === m ? "btn--accent" : "btn--ghost"} btn--sm`}
-              style={{ padding: "2px 8px", fontSize: 11, height: 26 }}
-              onClick={() => handleModeChange(m)}
-            >
-              {m}
-            </button>
-          ))}
-        </div>
+        uneditable ? (
+          <div className="row g-6" style={{ alignItems: "center" }}>
+            <span
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: "50%",
+                background: "var(--success, #7fc39a)",
+                boxShadow: "0 0 8px rgba(127, 195, 154, 0.6)",
+                display: "inline-block",
+              }}
+            />
+            <span style={{ fontSize: 11, fontFamily: "var(--mono)", color: "var(--text-2)" }}>
+              SOLANA DEVNET LIVE
+            </span>
+          </div>
+        ) : (
+          <div className="row g-6 wrap" style={{ alignItems: "center" }}>
+            <span style={{ fontSize: 11, color: "var(--text-3)", marginRight: 4 }}>Simulate:</span>
+            {(["LIVE", "HEALTHY", "STRESS", "EMERGENCY"] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                className={`btn ${simMode === m ? "btn--accent" : "btn--ghost"} btn--sm`}
+                style={{ padding: "2px 8px", fontSize: 11, height: 26 }}
+                onClick={() => handleModeChange(m)}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+        )
       }
     >
       {/* ── Top Explanation Strip: What changed? + Hard vs Soft Risk Legend ── */}
@@ -957,15 +1039,22 @@ export function PortfolioRiskGraph({
               <Icon name="position" size={14} />
               Deposit Collateral
             </Link>
-            <button
-              type="button"
-              className="btn btn--secondary btn--sm"
-              style={{ height: 32, padding: "0 14px" }}
-              onClick={() => handleModeChange("HEALTHY")}
-            >
-              <Icon name="gauge" size={14} />
-              Simulate Risk Ratchet Scenarios
-            </button>
+            {uneditable ? (
+              <Link to="/app/faucet" className="btn btn--secondary btn--sm" style={{ height: 32, padding: "0 14px" }}>
+                <Icon name="faucet" size={14} />
+                Claim Test Tokens in Faucet
+              </Link>
+            ) : (
+              <button
+                type="button"
+                className="btn btn--secondary btn--sm"
+                style={{ height: 32, padding: "0 14px" }}
+                onClick={() => handleModeChange("HEALTHY")}
+              >
+                <Icon name="gauge" size={14} />
+                Simulate Risk Ratchet Scenarios
+              </button>
+            )}
           </div>
         </div>
       ) : (
@@ -1079,8 +1168,8 @@ export function PortfolioRiskGraph({
         </svg>
       )}
 
-      {/* ── Dynamic Risk Playground / Sliders Section ── */}
-      {simMode !== "LIVE" || totalCollateralUsd > 0 ? (
+      {/* ── Dynamic Risk Playground / Sliders Section (Only when interactive) ── */}
+      {!uneditable && (simMode !== "LIVE" || totalCollateralUsd > 0 ? (
         <div
           style={{
             marginTop: 14,
@@ -1275,7 +1364,7 @@ export function PortfolioRiskGraph({
             </button>
           </div>
         </div>
-      )}
+      ))}
 
       {/* ── Visual Equation Footer ── */}
       <div
