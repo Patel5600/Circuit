@@ -209,7 +209,50 @@ export interface ClaimResult {
 }
 
 const STORAGE_PREFIX = "circuit_faucet_claim_";
-const COOLDOWN_MS = 60 * 60 * 1000; // 1 hour per asset
+export const COOLDOWN_MS = 4 * 60 * 60 * 1000; // 4 hours per asset
+
+export function formatCooldown(ms: number): string {
+  if (ms <= 0) return "";
+  const totalMins = Math.ceil(ms / (60 * 1000));
+  const hours = Math.floor(totalMins / 60);
+  const mins = totalMins % 60;
+  if (hours > 0 && mins > 0) return `${hours}h ${mins}m`;
+  if (hours > 0) return `${hours}h`;
+  return `${mins}m`;
+}
+
+export function sanitizeFaucetError(err: any): string {
+  if (!err) return "Transaction failed. Please retry.";
+  const str = typeof err === "string" ? err : err?.message ?? String(err);
+  const logs = Array.isArray(err?.logs) ? err.logs.join(" ") : "";
+  const full = (str + " " + logs).toLowerCase();
+
+  if (full.includes("insufficient lamports") || full.includes("custom program error: 0x1")) {
+    return "Faucet fee reserves are currently low. Please retry shortly.";
+  }
+  if (full.includes("rate limit") || full.includes("429") || full.includes("too many requests")) {
+    return "Solana Devnet RPC is rate-limited. Please wait 15 seconds and retry.";
+  }
+  if (full.includes("blockhash not found") || full.includes("timeout") || full.includes("timed out")) {
+    return "Devnet transaction timed out. Please click Claim again.";
+  }
+  if (full.includes("invalid solana address") || full.includes("bad public key")) {
+    return "Please enter a valid 32-44 character Solana address.";
+  }
+  if (full.includes("cooldown active")) {
+    return str;
+  }
+  if (full.includes("airdrop to") && full.includes("failed")) {
+    return "Official Solana Devnet airdrop faucet is rate-limited. Please retry shortly.";
+  }
+
+  // Clean raw simulation strings to 1 concise sentence
+  const clean = str.split("\n")[0].split(". Logs:")[0].replace("SendTransactionError: ", "").replace("Transaction simulation failed: ", "").trim();
+  if (clean.length > 80) {
+    return "Devnet transaction simulation failed. Please retry shortly.";
+  }
+  return clean || "Transaction failed on Devnet. Please retry.";
+}
 
 export function getCooldownRemaining(recipient: string, symbol: string): number {
   try {
@@ -257,11 +300,8 @@ export async function claimFaucetAsset(
   // Check cooldown
   const remaining = getCooldownRemaining(recipientAddress, asset.symbol);
   if (remaining > 0) {
-    const mins = Math.ceil(remaining / (60 * 1000));
     throw new Error(
-      `Cooldown active for ${asset.tokenSymbol}. Please wait ${mins} minute${
-        mins > 1 ? "s" : ""
-      } before claiming again.`
+      `Cooldown active for ${asset.tokenSymbol}. Available in ${formatCooldown(remaining)}.`
     );
   }
 
@@ -297,40 +337,46 @@ export async function claimFaucetAsset(
         );
         signature = await sendAndConfirmTransaction(connection, tx, [authority]);
       } catch (fallbackErr: any) {
-        throw new Error(
-          `SOL airdrop request failed: ${airdropErr instanceof Error ? airdropErr.message : "Rate limit"}. Please use official solana.faucet.com or try again in a few moments.`
-        );
+        throw new Error(sanitizeFaucetError(fallbackErr || airdropErr));
       }
     }
   } else {
     // Handle SPL Tokens (11 equities + USDC + WSOL)
     const mintPubkey = new PublicKey(asset.mint);
     const recipientAta = getAssociatedTokenAddressSync(mintPubkey, recipientPubkey);
-
     const rawAmount = BigInt(Math.round(amount * 10 ** asset.decimals));
 
-    const tx = new Transaction().add(
-      createAssociatedTokenAccountIdempotentInstruction(
-        authority.publicKey,
-        recipientAta,
-        recipientPubkey,
-        mintPubkey
-      ),
-      createMintToInstruction(
-        mintPubkey,
-        recipientAta,
-        authority.publicKey,
-        rawAmount
-      )
-    );
+    const tx = new Transaction();
 
     try {
+      // Check if recipient ATA exists to save rent
+      const ataInfo = await connection.getAccountInfo(recipientAta);
+      if (!ataInfo) {
+        tx.add(
+          createAssociatedTokenAccountIdempotentInstruction(
+            authority.publicKey,
+            recipientAta,
+            recipientPubkey,
+            mintPubkey
+          )
+        );
+      }
+
+      tx.add(
+        createMintToInstruction(
+          mintPubkey,
+          recipientAta,
+          authority.publicKey,
+          rawAmount
+        )
+      );
+
       signature = await sendAndConfirmTransaction(connection, tx, [authority], {
         commitment: "confirmed",
         preflightCommitment: "confirmed",
       });
     } catch (err: any) {
-      throw new Error(`On-chain mint failed: ${err?.message ?? String(err)}`);
+      throw new Error(sanitizeFaucetError(err));
     }
   }
 

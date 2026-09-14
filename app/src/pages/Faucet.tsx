@@ -11,6 +11,9 @@ import {
   getCooldownRemaining,
   queryOnChainBalances,
   ClaimResult,
+  COOLDOWN_MS,
+  formatCooldown,
+  sanitizeFaucetError,
 } from "../lib/faucet";
 import { MARKETS_DATA } from "../data/markets";
 
@@ -102,10 +105,10 @@ export default function Faucet() {
         `Successfully minted ${result.amount.toLocaleString()} ${result.asset} on Devnet!`
       );
       // Refresh cooldowns and balances
-      setCooldowns((prev) => ({ ...prev, [asset.symbol]: 60 * 60 * 1000 }));
+      setCooldowns((prev) => ({ ...prev, [asset.symbol]: COOLDOWN_MS }));
       setTimeout(() => refreshBalances(activeAddress), 1500);
     } catch (err: any) {
-      setErrorMsg(err?.message || "Mint transaction failed.");
+      setErrorMsg(sanitizeFaucetError(err));
     } finally {
       setMintingSymbol(null);
     }
@@ -136,7 +139,7 @@ export default function Faucet() {
         setErrorMsg("All starter pack assets are currently on cooldown for this address.");
       }
     } catch (err: any) {
-      setErrorMsg(err?.message || "Failed to claim starter pack.");
+      setErrorMsg(sanitizeFaucetError(err));
     } finally {
       setStarterPackLoading(false);
       setStarterProgress("");
@@ -339,11 +342,11 @@ export default function Faucet() {
                 <div style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.4 }}>
                   {isConnected ? (
                     <>
-                      Grants: <strong>50 Shares</strong> per equity • <strong>10,000 USDC</strong> • <strong>1.0 SOL</strong>
+                      Grants: <strong>50 Shares</strong> per equity • <strong>10,000 USDC</strong> • <strong>1.0 SOL</strong> (4-hour cooldown)
                     </>
                   ) : (
                     <>
-                      Grants: <strong>10 Shares</strong> per equity • <strong>2,000 USDC</strong> • <strong>0.2 SOL</strong> (Hourly rate limited)
+                      Grants: <strong>10 Shares</strong> per equity • <strong>2,000 USDC</strong> • <strong>0.2 SOL</strong> (4-hour cooldown)
                     </>
                   )}
                 </div>
@@ -567,7 +570,7 @@ export default function Faucet() {
                   ) : isCooling ? (
                     <span className="row g-6" style={{ alignItems: "center", justifyContent: "center" }}>
                       <Icon name="clock" size={14} />
-                      <span>Cooldown ({Math.ceil(remainingCd / 60000)}m)</span>
+                      <span>Cooldown ({formatCooldown(remainingCd)})</span>
                     </span>
                   ) : (
                     <span className="row g-6" style={{ alignItems: "center", justifyContent: "center" }}>
