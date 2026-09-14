@@ -148,7 +148,7 @@ pub fn handler(ctx: Context<Liquidate>) -> Result<()> {
         asset: ctx.accounts.asset_config.mint,
         debt_repaid: debt_to_repay,
         collateral_seized: actual_seizure,
-        bonus_bps: dynamic_bonus_bps,
+        bonus_bps,
         timestamp: clock.unix_timestamp,
     });
 

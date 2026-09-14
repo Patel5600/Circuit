@@ -93,7 +93,8 @@ programs/circuit/src/
 │   ├── refresh_guard.rs
 │   ├── pause.rs
 │   ├── set_custody_state.rs
-│   └── set_liquidity_state.rs
+│   ├── set_liquidity_state.rs
+│   └── update_fee_config.rs
 ├── oracle/                  # Centralized oracle decoding and sanitization
 │   ├── mod.rs
 │   └── validation.rs        # Single point of contact with pyth-solana-receiver-sdk
@@ -228,8 +229,10 @@ sequenceDiagram
   3. Validate custody and liquidity simulation states.
   4. Compute collateral value scaled to quote decimals using [`calculate_collateral_value`](file:///c:/Dev/Circuit/programs/circuit/src/math/fixed_point.rs#L42).
   5. Compute borrow headroom and health factor.
-  6. Transfer `amount` quote tokens from `liquidity_vault` to `user_quote_ata` using `ProtocolConfig` PDA signer seeds.
-  7. Update `position.debt_amount`, `position.last_valid_price`, and `position.last_valid_expo`.
+  6. Compute protocol origination fee via [`calculate_protocol_fee`](file:///c:/Dev/Circuit/programs/circuit/src/math/fixed_point.rs#L125) (floor division, max 1,000 BPS).
+  7. If fee > 0, transfer `fee_amount` from `liquidity_vault` to `treasury_quote_ata` using `ProtocolConfig` PDA seeds, emitting `ProtocolFeeCollected`.
+  8. Transfer `net_amount` from `liquidity_vault` to `user_quote_ata` using `ProtocolConfig` PDA seeds.
+  9. Update `position.debt_amount`, `position.last_valid_price`, and `position.last_valid_expo`, emitting `BorrowExecuted`.
 
 ```mermaid
 sequenceDiagram
@@ -240,10 +243,12 @@ sequenceDiagram
     participant Market as Market Engine
     participant Math as Math Engine
     participant Vault as Liquidity Vault ATA
+    participant Treasury as Treasury Quote ATA
     participant Pos as Position PDA
 
     User->>Circuit: borrow(amount)
     Circuit->>Circuit: Require !paused & asset.enabled
+    Circuit->>Circuit: Validate treasury_quote_ata.owner == protocol_config.fee_recipient
     Circuit->>Pyth: Read PriceUpdateV2
     Circuit->>Circuit: oracle::validate_pyth_price()
     Circuit->>Market: market::is_market_open(clock.unix_timestamp)
@@ -252,7 +257,11 @@ sequenceDiagram
     Circuit->>Math: calculate_max_borrow(value, base_ltv_bps)
     Circuit->>Math: calculate_health_factor(value, liq_threshold, new_debt)
     Circuit->>Circuit: Require new_debt <= max_borrow & HF >= min_hf
-    Circuit->>Vault: CPI: spl_token::transfer(Vault ATA -> User ATA) [PDA Signed]
+    Circuit->>Math: calculate_protocol_fee(amount, fee_bps, fee_enabled)
+    alt fee_amount > 0
+        Circuit->>Treasury: CPI: spl_token::transfer(Vault ATA -> Treasury ATA) [PDA Signed]
+    end
+    Circuit->>Vault: CPI: spl_token::transfer(Vault ATA -> User ATA) [net_amount, PDA Signed]
     Circuit->>Pos: debt_amount += amount, record last_valid_price
     Circuit-->>User: Ok
 ```
@@ -594,7 +603,8 @@ flowchart LR
 ```mermaid
 flowchart LR
     subgraph BorrowFlow["Borrow Operation"]
-        LiqVault1["Protocol Liquidity Vault\n(Quote Token / USDC)"] -->|spl_token::transfer\nProtocolConfig PDA Signs| UserQuote1["User Quote ATA\n(USDC)"]
+        LiqVault1["Protocol Liquidity Vault\n(Quote Token / USDC)"] -->|spl_token::transfer\nnet_amount\nProtocolConfig PDA Signs| UserQuote1["User Quote ATA\n(USDC)"]
+        LiqVault1 -->|spl_token::transfer\nfee_amount (25 BPS)\nProtocolConfig PDA Signs| TreasuryATA["Circuit Treasury ATA\nOwner: 7AALMs...rtb4"]
     end
 
     subgraph RepayFlow["Repay Operation"]
@@ -611,3 +621,16 @@ flowchart TD
         ColVault["Protocol Collateral Vault\n(Equity Token)"] -->|2. Seize collateral + bonus\nProtocolConfig PDA Signs| LiqCollateral["Liquidator Collateral ATA\n(Equity Token)"]
     end
 ```
+
+---
+
+## 13. Protocol Economics & Treasury Revenue Model
+
+Circuit enforces an on-chain monetization model built on **safe credit execution**:
+- **Execution Fee**: 25 BPS (0.25%) flat origination fee deducted from gross borrow amount using checked fixed-point arithmetic with floor rounding.
+- **Circuit Treasury**: `7AALMsZ5MuioSW7BMwBCwTmy9Y1fMJ6MKXAELYyrtb4`. Enforced via Anchor account constraint `treasury_quote_ata.owner == protocol_config.fee_recipient`.
+- **Zero Liquidation Exploitation**: 0% protocol take on liquidations. 100% of the dynamic bonus goes to liquidators to restore pool solvency.
+- **Unsafe Action Revenue**: Blocked operations (closed NYSE session, blown Pyth confidence, paused protocol) generate strictly **$0.00** fee.
+- **Governance**: Maximum fee cap `<= 1,000 BPS` (10.00%). Admin-controlled in MVP with migration path to Squads v4 multisig.
+
+See [`docs/REVENUE_MODEL.md`](file:///c:/Dev/Circuit/docs/REVENUE_MODEL.md) for full economic specifications.

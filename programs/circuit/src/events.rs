@@ -77,3 +77,31 @@ pub struct RecoveryObserved {
     pub required_observations: u32,
     pub timestamp: i64,
 }
+
+/// Emitted when a protocol origination fee is settled directly to Circuit Treasury.
+#[event]
+pub struct ProtocolFeeCollected {
+    pub payer: Pubkey,
+    pub fee_amount: u64,
+    pub fee_asset: Pubkey,
+    pub treasury: Pubkey,
+    pub source_action: String,
+    pub position: Pubkey,
+    pub timestamp: i64,
+    pub protocol_version: u16,
+}
+
+/// Emitted upon successful execution of an authorized borrow with risk metrics.
+#[event]
+pub struct BorrowExecuted {
+    pub user: Pubkey,
+    pub asset: Pubkey,
+    pub quote_mint: Pubkey,
+    pub collateral_value: u64,
+    pub borrow_amount: u64,
+    pub fee_amount: u64,
+    pub resulting_ltv_bps: u64,
+    pub resulting_health_factor_bps: u64,
+    pub risk_state: MarketState,
+    pub timestamp: i64,
+}

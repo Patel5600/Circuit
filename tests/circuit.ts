@@ -256,7 +256,9 @@ describe("Circuit Protocol", () => {
       assert.equal(pos.lastValidPrice.toString(), "10000000000");
       assert.equal(pos.lastValidExpo, -8);
 
-      assert.equal(h.tokenBalance(h.userQuoteAta), BigInt(500 * TOKEN));
+      // 25 bps protocol fee deducted: 500 * 0.0025 = 1.25 USDC
+      assert.equal(h.tokenBalance(h.userQuoteAta), BigInt(498_750_000));
+      assert.equal(h.tokenBalance(h.treasuryQuoteAta), BigInt(1_250_000));
     });
 
     it("permits borrowing exactly at LTV capacity", async () => {
@@ -586,6 +588,18 @@ describe("Circuit Protocol", () => {
       await h.bootstrapProtocol();
       h.sendOk([await h.ixDeposit(COLLATERAL)], [h.user]);
       h.sendOk([await h.ixBorrow(500 * TOKEN)], [h.user]);
+      // Supply user with a small quote buffer so they can repay full gross debt despite fee deduction
+      h.sendOk(
+        [
+          createMintToInstruction(
+            h.quoteMint,
+            h.userQuoteAta,
+            h.admin.publicKey,
+            BigInt(10 * TOKEN)
+          ),
+        ],
+        [h.admin]
+      );
     });
 
     it("reduces debt and returns tokens to the liquidity vault", async () => {
@@ -691,6 +705,17 @@ describe("Circuit Protocol", () => {
     });
 
     it("rejects liquidating a position with no debt", async () => {
+      h.sendOk(
+        [
+          createMintToInstruction(
+            h.quoteMint,
+            h.userQuoteAta,
+            h.admin.publicKey,
+            BigInt(10 * TOKEN)
+          ),
+        ],
+        [h.admin]
+      );
       h.sendOk([await h.ixRepay(CAPACITY)], [h.user]);
       const res = h.send([await h.ixLiquidate()], [h.liquidator]);
       expectAnchorError(res, "NotLiquidatable");

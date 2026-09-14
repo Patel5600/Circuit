@@ -13,7 +13,7 @@ import {
   getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
 
-import { PROGRAM_ID, PYTH_FEED_ID, idl } from "../config";
+import { CIRCUIT_TREASURY_KEY, PROGRAM_ID, PYTH_FEED_ID, idl } from "../config";
 
 /**
  * Typed access to the Circuit program: PDA derivation, account reads, and
@@ -51,6 +51,9 @@ export interface ProtocolConfigView {
   version: number;
   minHealthFactorBps: number;
   liquidationBonusBps: number;
+  feeRecipient?: PublicKey;
+  borrowFeeBps?: number;
+  feeEnabled?: boolean;
 }
 
 export interface AssetConfigView {
@@ -172,6 +175,9 @@ export async function fetchProtocolConfig(
     version: Number(r.version),
     minHealthFactorBps: Number(r.minHealthFactorBps),
     liquidationBonusBps: Number(r.liquidationBonusBps),
+    feeRecipient: r.feeRecipient ? new PublicKey(r.feeRecipient) : undefined,
+    borrowFeeBps: r.borrowFeeBps ? Number(r.borrowFeeBps) : 25,
+    feeEnabled: r.feeEnabled !== undefined ? Boolean(r.feeEnabled) : true,
   }));
 }
 
@@ -319,6 +325,7 @@ export async function buildBorrow(
   amountNative: bigint
 ): Promise<TransactionInstruction[]> {
   const userQuoteAta = getAssociatedTokenAddressSync(ctx.quoteMint, ctx.owner);
+  const treasuryQuoteAta = getAssociatedTokenAddressSync(ctx.quoteMint, CIRCUIT_TREASURY_KEY);
   const ix = await ctx.program.methods
     .borrow(new BN(amountNative.toString()))
     .accountsPartial({
@@ -331,16 +338,24 @@ export async function buildBorrow(
       quoteMint: ctx.quoteMint,
       userQuoteAta,
       liquidityVault: vaultFor(ctx.quoteMint),
+      treasuryQuoteAta,
       tokenProgram: TOKEN_PROGRAM_ID,
     })
     .instruction();
 
   // The borrower may not hold the quote mint yet; create the ATA idempotently.
+  // We also ensure the protocol treasury quote ATA exists idempotently.
   return [
     createAssociatedTokenAccountIdempotentInstruction(
       ctx.owner,
       userQuoteAta,
       ctx.owner,
+      ctx.quoteMint
+    ),
+    createAssociatedTokenAccountIdempotentInstruction(
+      ctx.owner,
+      treasuryQuoteAta,
+      CIRCUIT_TREASURY_KEY,
       ctx.quoteMint
     ),
     ix,
@@ -510,6 +525,23 @@ export function buildErrorMap(): Map<number, string> {
     m.set(Number(e.code), String(e.name));
   }
   return m;
+}
+
+/**
+ * Mirrors fixed_point.rs calculate_protocol_fee.
+ * Floor division: fee = (borrow_amount * fee_bps) / 10_000.
+ */
+export function calculateProtocolFee(
+  borrowAmount: bigint,
+  feeBps = 25,
+  feeEnabled = true
+): { fee: bigint; netDisbursed: bigint } {
+  if (!feeEnabled || feeBps === 0 || borrowAmount === 0n) {
+    return { fee: 0n, netDisbursed: borrowAmount };
+  }
+  const fee = (borrowAmount * BigInt(feeBps)) / 10000n;
+  const netDisbursed = borrowAmount > fee ? borrowAmount - fee : 0n;
+  return { fee, netDisbursed };
 }
 
 export async function sendInstructions(

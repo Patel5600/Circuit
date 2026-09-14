@@ -91,10 +91,44 @@ pub fn handler(ctx: Context<Borrow>, amount: u64) -> Result<()> {
         CircuitError::InsufficientLiquidity
     );
 
-    // -- Step 16: Transfer quote tokens from vault to borrower --
+    // -- Step 16: Calculate protocol fee on-chain & net borrow amount --
+    let (fee_amount, net_disbursed) = math::calculate_protocol_fee(
+        amount,
+        protocol.borrow_fee_bps,
+        protocol.fee_enabled,
+    )?;
+
     let seeds = &[ProtocolConfig::SEEDS, &[protocol.bump]];
     let signer_seeds = &[&seeds[..]];
 
+    // Settle protocol fee directly to Circuit Treasury if fee > 0
+    if fee_amount > 0 {
+        token::transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.key(),
+                Transfer {
+                    from: ctx.accounts.liquidity_vault.to_account_info(),
+                    to: ctx.accounts.treasury_quote_ata.to_account_info(),
+                    authority: ctx.accounts.protocol_config.to_account_info(),
+                },
+                signer_seeds,
+            ),
+            fee_amount,
+        )?;
+
+        emit!(crate::events::ProtocolFeeCollected {
+            payer: ctx.accounts.owner.key(),
+            fee_amount,
+            fee_asset: ctx.accounts.quote_mint.key(),
+            treasury: protocol.fee_recipient,
+            source_action: "BORROW_ORIGINATION".to_string(),
+            position: position.key(),
+            timestamp: clock.unix_timestamp,
+            protocol_version: protocol.version,
+        });
+    }
+
+    // Transfer net quote tokens from vault to borrower
     token::transfer(
         CpiContext::new_with_signer(
             ctx.accounts.token_program.key(),
@@ -105,13 +139,32 @@ pub fn handler(ctx: Context<Borrow>, amount: u64) -> Result<()> {
             },
             signer_seeds,
         ),
-        amount,
+        net_disbursed,
     )?;
 
     // -- Step 17: Update position --
     position.debt_amount = new_debt as u64;
     position.last_valid_price = validated_price.price;
     position.last_valid_expo = validated_price.expo;
+
+    let resulting_ltv_bps = if collateral_value > 0 {
+        (((new_debt as u128) * 10_000) / collateral_value).min(10_000) as u64
+    } else {
+        0
+    };
+
+    emit!(crate::events::BorrowExecuted {
+        user: ctx.accounts.owner.key(),
+        asset: ctx.accounts.asset_config.mint,
+        quote_mint: ctx.accounts.quote_mint.key(),
+        collateral_value: collateral_value as u64,
+        borrow_amount: amount,
+        fee_amount,
+        resulting_ltv_bps,
+        resulting_health_factor_bps: hf,
+        risk_state: crate::state::MarketState::Safe,
+        timestamp: clock.unix_timestamp,
+    });
 
     emit!(crate::events::BorrowEvent {
         owner: ctx.accounts.owner.key(),
@@ -124,8 +177,8 @@ pub fn handler(ctx: Context<Borrow>, amount: u64) -> Result<()> {
     });
 
     msg!(
-        "Borrowed {} quote tokens. Total debt: {}. HF: {} BPS",
-        amount, position.debt_amount, hf
+        "Borrowed {} quote tokens (fee: {}, net: {}). Total debt: {}. HF: {} BPS",
+        amount, fee_amount, net_disbursed, position.debt_amount, hf
     );
     Ok(())
 }
@@ -182,6 +235,14 @@ pub struct Borrow<'info> {
         token::authority = owner,
     )]
     pub user_quote_ata: Box<Account<'info, TokenAccount>>,
+
+    /// Circuit Treasury's quote token account (receives protocol fee)
+    #[account(
+        mut,
+        token::mint = quote_mint,
+        constraint = treasury_quote_ata.owner == protocol_config.fee_recipient @ CircuitError::InvalidFeeRecipient,
+    )]
+    pub treasury_quote_ata: Box<Account<'info, TokenAccount>>,
 
     /// Protocol liquidity vault (source of borrowed tokens)
     #[account(

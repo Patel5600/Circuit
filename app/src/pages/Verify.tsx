@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { PublicKey } from "@solana/web3.js";
 import { useWallet } from "@solana/wallet-adapter-react";
+import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 
 import { PageContainer } from "../components/layout/AppShell";
 import { ConfigNotice } from "../components/layout/Guards";
@@ -28,6 +30,9 @@ import {
   PYTH_RECEIVER_ID,
   QUOTE_MINT,
   RPC_URL,
+  CIRCUIT_TREASURY_ADDRESS,
+  DEFAULT_BORROW_FEE_BPS,
+  MAX_BORROW_FEE_BPS,
   explorerUrl,
 } from "../config";
 import {
@@ -213,6 +218,47 @@ export default function Verify() {
               balance={`${formatMoney(toUi(s.vaultLiquidity))} ${selectedMarket.quoteSymbol}`}
               note={`Holds lendable ${selectedMarket.quoteSymbol} capital to fund user borrow operations`}
             />
+          </div>
+        </Card>
+
+        {/* -- Protocol Treasury & Economics --------------------------- */}
+        <Card
+          title={
+            <div className="row between g-12 wrap" style={{ alignItems: "center" }}>
+              <span>Protocol Treasury & Economics</span>
+              <div className="row g-6">
+                <Pill tone="success" withDot>{DEFAULT_BORROW_FEE_BPS} BPS Borrow Fee</Pill>
+                <Pill tone="neutral">{MAX_BORROW_FEE_BPS} BPS Hard Cap</Pill>
+              </div>
+            </div>
+          }
+        >
+          <p className="t-sm muted" style={{ marginBottom: 14 }}>
+            Circuit monetizes safe credit execution, not liquidations or user losses.
+            100% of the 25 BPS origination fee is transferred directly to the Circuit Treasury on-chain.
+            Unsafe or blocked operations generate $0.00 fee.
+          </p>
+          <div className="grid grid--2">
+            <AddressCard
+              label="Circuit Treasury"
+              address={new PublicKey(CIRCUIT_TREASURY_ADDRESS)}
+              badge="Protocol Treasury"
+              badgeTone="accent"
+              note="Public protocol treasury account. Enforced by Anchor constraint treasury_quote_ata.owner == protocol_config.fee_recipient."
+            />
+            <AddressCard
+              label={`Treasury Quote ATA (${selectedMarket.quoteSymbol})`}
+              address={activeQuoteMint ? getAssociatedTokenAddressSync(activeQuoteMint, new PublicKey(CIRCUIT_TREASURY_ADDRESS)) : null}
+              badge="Fee Vault ATA"
+              badgeTone="success"
+              note={`Accumulates ${selectedMarket.quoteSymbol} origination fees from executed borrows across all tokenized equity markets.`}
+            />
+          </div>
+          <div style={{ marginTop: 14 }}>
+            <Link to="/app/economics" className="btn btn--secondary btn--sm">
+              <Icon name="layers" size={13} />
+              Open Dedicated Economics Dashboard
+            </Link>
           </div>
         </Card>
 

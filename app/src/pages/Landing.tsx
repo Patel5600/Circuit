@@ -10,6 +10,7 @@ import { RiskRatchetSection } from "../components/landing/RiskRatchetSection";
 import { ProgrammableCreditSection } from "../components/landing/ProgrammableCreditSection";
 import { LiveProofSection } from "../components/landing/LiveProofSection";
 import { WhyCircuitSection } from "../components/landing/WhyCircuitSection";
+import { EconomicEngineSection } from "../components/landing/EconomicEngineSection";
 import { FinalCTA } from "../components/landing/FinalCTA";
 import { LandingFooter } from "../components/landing/LandingFooter";
 import { Icon } from "../components/ui";
@@ -132,7 +133,10 @@ export default function Landing() {
         {/* SECTION 08: WHY CIRCUIT */}
         <WhyCircuitSection />
 
-        {/* SECTION 09: FINAL CTA */}
+        {/* SECTION 09: THE ECONOMIC ENGINE */}
+        <EconomicEngineSection />
+
+        {/* SECTION 10: FINAL CTA */}
         <FinalCTA />
       </main>
 

@@ -25,13 +25,14 @@ import { activeAssetDisplay } from "../lib/asset";
 import { formatMoney, formatPercent, formatTokens } from "../lib/format";
 import {
   buildBorrow,
+  calculateProtocolFee,
   collateralValue,
   healthFactorBps,
   toNative,
   toUi,
 } from "../lib/protocol";
 import { derivePriceAccount } from "../lib/pyth";
-import { PYTH_FEED_ID } from "../config";
+import { CIRCUIT_TREASURY_ADDRESS, PYTH_FEED_ID } from "../config";
 
 function Step({
   n,
@@ -122,6 +123,12 @@ export default function Borrow() {
     );
     return healthFactorBps(value, s.asset.liquidationThresholdBps, newDebt);
   }, [s.asset, s.oracle, valid, collateral, newDebt]);
+
+  const feeBps = s.protocol?.borrowFeeBps ?? 25;
+  const feeEnabled = s.protocol?.feeEnabled ?? true;
+  const feeDetails = useMemo(() => {
+    return calculateProtocolFee(amountNative, feeBps, feeEnabled);
+  }, [amountNative, feeBps, feeEnabled]);
 
   const checks = buildSafetyChecks(s.asset, s.oracle, s.session);
   const gatesPass = checks.every((c) => c.ok);
@@ -404,8 +411,24 @@ export default function Borrow() {
                 value={`${isSolBorrow ? "" : "$"}${formatMoney(toUi(debt))} ${quoteSymbol}`}
               />
               <DataRow
-                label="After this borrow"
+                label="Gross debt drawn"
                 value={`${isSolBorrow ? "" : "$"}${formatMoney(toUi(newDebt))} ${quoteSymbol}`}
+              />
+              <DataRow
+                label={`Protocol execution fee (${(feeBps / 100).toFixed(2)}%)`}
+                value={
+                  valid
+                    ? `${isSolBorrow ? "" : "$"}${formatMoney(toUi(feeDetails.fee))} ${quoteSymbol}`
+                    : "—"
+                }
+              />
+              <DataRow
+                label="Net received to wallet"
+                value={
+                  valid
+                    ? `${isSolBorrow ? "" : "$"}${formatMoney(toUi(feeDetails.netDisbursed))} ${quoteSymbol}`
+                    : "—"
+                }
               />
               <DataRow
                 label="Remaining capacity"
@@ -420,6 +443,27 @@ export default function Borrow() {
                     <span className="dim">Enter an amount</span>
                   )}
                 </span>
+              </div>
+              <div
+                style={{
+                  marginTop: 10,
+                  padding: "8px 12px",
+                  borderRadius: 6,
+                  background: "var(--surface-2)",
+                  border: "1px solid var(--border)",
+                  fontSize: 11.5,
+                  color: "var(--text-3)",
+                  lineHeight: 1.4,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                }}
+              >
+                <span>
+                  Circuit Treasury: <code style={{ color: "var(--text-2)" }}>{CIRCUIT_TREASURY_ADDRESS.slice(0, 4)}...{CIRCUIT_TREASURY_ADDRESS.slice(-4)}</code>
+                </span>
+                <span style={{ color: "var(--success)", fontWeight: 600 }}>Monetizes safe execution only</span>
               </div>
             </div>
           </Step>

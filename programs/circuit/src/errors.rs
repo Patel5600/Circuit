@@ -147,5 +147,17 @@ pub enum CircuitError {
     /// Illegal risk ratchet recovery transition attempted
     #[msg("Illegal risk ratchet recovery transition attempted")]
     IllegalStateTransition,
+
+    /// Fee recipient account does not match configured treasury
+    #[msg("Fee recipient account does not match configured protocol treasury")]
+    InvalidFeeRecipient,
+
+    /// Borrow fee BPS exceeds maximum allowable limit
+    #[msg("Borrow fee BPS exceeds maximum allowable limit")]
+    FeeBpsExceedsMaximum,
+
+    /// Invalid protocol fee token account
+    #[msg("Invalid protocol fee token account")]
+    InvalidFeeAccount,
 }
 

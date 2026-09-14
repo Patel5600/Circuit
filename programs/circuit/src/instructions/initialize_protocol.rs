@@ -27,6 +27,9 @@ pub fn handler(
     config.default_max_oracle_age = default_max_oracle_age;
     config.default_max_conf_bps = default_max_conf_bps;
     config.liquidation_bonus_bps = liquidation_bonus_bps;
+    config.fee_recipient = ProtocolConfig::DEFAULT_TREASURY_PUBKEY;
+    config.borrow_fee_bps = ProtocolConfig::DEFAULT_BORROW_FEE_BPS;
+    config.fee_enabled = true;
     config.bump = ctx.bumps.protocol_config;
 
     msg!("Protocol initialized. Authority: {}", config.authority);

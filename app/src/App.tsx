@@ -24,6 +24,7 @@ const Borrow = lazy(() => import("./pages/Borrow"));
 const Activity = lazy(() => import("./pages/Activity"));
 const Learn = lazy(() => import("./pages/Learn"));
 const Verify = lazy(() => import("./pages/Verify"));
+const Economics = lazy(() => import("./pages/Economics"));
 const Demo = lazy(() => import("./pages/Demo"));
 const Faucet = lazy(() => import("./pages/Faucet"));
 const Profile = lazy(() => import("./pages/Profile"));
@@ -42,6 +43,7 @@ const TITLES: Record<string, string> = {
   "/app/learn": "How it works",
   "/learn": "How it works",
   "/app/verify": "Verification",
+  "/app/economics": "Protocol Economics & Treasury",
   "/app/demo": "Interactive Demo",
 };
 
@@ -130,6 +132,7 @@ export default function App() {
         <Route path="/app/learn" element={<AppRoute><Learn /></AppRoute>} />
         <Route path="/learn" element={<AppRoute><Learn /></AppRoute>} />
         <Route path="/app/verify" element={<AppRoute><Verify /></AppRoute>} />
+        <Route path="/app/economics" element={<AppRoute><Economics /></AppRoute>} />
 
         <Route path="/app/demo" element={<AppRoute><Demo /></AppRoute>} />
 

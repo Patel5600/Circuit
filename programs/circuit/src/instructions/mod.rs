@@ -20,6 +20,7 @@ pub mod start_liquidation_auction;
 pub mod cancel_liquidation_auction;
 pub mod liquidate_auction;
 pub mod pause;
+pub mod update_fee_config;
 
 pub use initialize_protocol::*;
 pub use register_asset::*;
@@ -35,4 +36,5 @@ pub use start_liquidation_auction::*;
 pub use cancel_liquidation_auction::*;
 pub use liquidate_auction::*;
 pub use pause::*;
+pub use update_fee_config::*;
 

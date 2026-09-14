@@ -74,4 +74,15 @@ export function missingConfig(): string[] {
   return missing;
 }
 
+/** Circuit Protocol Treasury public address on Solana */
+export const CIRCUIT_TREASURY_ADDRESS = envVar(
+  "VITE_CIRCUIT_TREASURY_ADDRESS",
+  "7AALMsZ5MuioSW7BMwBCwTmy9Y1fMJ6MKXAELYyrtb4"
+);
+export const CIRCUIT_TREASURY_KEY = new PublicKey(CIRCUIT_TREASURY_ADDRESS);
+
+/** Default borrow/origination fee in basis points (25 BPS = 0.25%) */
+export const DEFAULT_BORROW_FEE_BPS = 25;
+export const MAX_BORROW_FEE_BPS = 1000;
+
 export { idl };

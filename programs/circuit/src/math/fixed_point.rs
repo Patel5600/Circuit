@@ -35,6 +35,12 @@ pub const DEFAULT_CLOSE_FACTOR_BPS: u64 = 5_000;
 /// Dust debt threshold: positions with <= 100 USDC ($100) allow 100% full liquidation
 pub const DUST_DEBT_THRESHOLD: u64 = 100_000_000;
 
+/// Maximum allowable protocol borrow fee in BPS (1000 BPS = 10.00%)
+pub const MAX_BORROW_FEE_BPS: u64 = 1_000;
+
+/// Default protocol borrow fee in BPS (25 BPS = 0.25%)
+pub const DEFAULT_BORROW_FEE_BPS: u64 = 25;
+
 
 // --------------------------------------------------------------
 // Collateral Value Calculation
@@ -508,6 +514,44 @@ pub fn calculate_effective_ltv_with_concentration(
     let penalty = calculate_concentration_penalty(concentration_bps, threshold_bps, slope_bps)?;
     let reduced_ltv = base_ltv_bps.saturating_sub(penalty);
     Ok(reduced_ltv.max(min_ltv_floor_bps))
+}
+
+// --------------------------------------------------------------
+// Protocol Fee (Credit Execution / Origination) Calculation
+// --------------------------------------------------------------
+
+/// Calculates the protocol origination fee and net disbursed amount.
+///
+/// Formula:
+///   fee_amount = (borrow_amount * fee_bps) / BPS_SCALE
+///   net_amount = borrow_amount - fee_amount
+///
+/// Properties:
+/// - Deterministic floor rounding (favors borrower, prevents fractional micro-token inflation)
+/// - Zero arithmetic overflow via u128 intermediate
+/// - If fee_enabled is false or fee_bps is 0: returns (0, borrow_amount)
+pub fn calculate_protocol_fee(
+    borrow_amount: u64,
+    fee_bps: u64,
+    fee_enabled: bool,
+) -> Result<(u64, u64)> {
+    if !fee_enabled || fee_bps == 0 {
+        return Ok((0, borrow_amount));
+    }
+
+    require!(fee_bps <= MAX_BORROW_FEE_BPS, CircuitError::FeeBpsExceedsMaximum);
+
+    let fee = (borrow_amount as u128)
+        .checked_mul(fee_bps as u128)
+        .ok_or(CircuitError::MathOverflow)?
+        / BPS_SCALE_U128;
+
+    let fee_u64 = fee as u64;
+    let net_amount = borrow_amount
+        .checked_sub(fee_u64)
+        .ok_or(CircuitError::MathOverflow)?;
+
+    Ok((fee_u64, net_amount))
 }
 
 // --------------------------------------------------------------
@@ -1059,6 +1103,66 @@ mod tests {
         assert_eq!(penalty_90, 1_800);
         let ltv_90 = calculate_effective_ltv_with_concentration(base_ltv, 9_000, threshold, slope, floor).unwrap();
         assert_eq!(ltv_90, 5_200);
+    }
+
+    // -- Protocol Fee (Origination) Tests --
+
+    #[test]
+    fn test_protocol_fee_default_rate() {
+        // $1,000 borrow (1_000_000_000 native USDC) at 25 BPS (0.25%)
+        // fee = 1000 * 0.0025 = $2.50 (2_500_000 native)
+        // net = 1000 - 2.50 = $997.50 (997_500_000 native)
+        let (fee, net) = calculate_protocol_fee(1_000_000_000, 25, true).unwrap();
+        assert_eq!(fee, 2_500_000);
+        assert_eq!(net, 997_500_000);
+        assert_eq!(fee + net, 1_000_000_000);
+    }
+
+    #[test]
+    fn test_protocol_fee_disabled() {
+        let (fee, net) = calculate_protocol_fee(1_000_000_000, 25, false).unwrap();
+        assert_eq!(fee, 0);
+        assert_eq!(net, 1_000_000_000);
+    }
+
+    #[test]
+    fn test_protocol_fee_zero_bps() {
+        let (fee, net) = calculate_protocol_fee(1_000_000_000, 0, true).unwrap();
+        assert_eq!(fee, 0);
+        assert_eq!(net, 1_000_000_000);
+    }
+
+    #[test]
+    fn test_protocol_fee_maximum_allowed_cap() {
+        // 1000 BPS = 10.00%
+        let (fee, net) = calculate_protocol_fee(1_000_000_000, 1_000, true).unwrap();
+        assert_eq!(fee, 100_000_000); // $100
+        assert_eq!(net, 900_000_000); // $900
+    }
+
+    #[test]
+    fn test_protocol_fee_exceeds_maximum_errors() {
+        // 1001 BPS > MAX_BORROW_FEE_BPS (1000)
+        let result = calculate_protocol_fee(1_000_000_000, 1_001, true);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_protocol_fee_floor_rounding() {
+        // 100 native units at 25 BPS -> 100 * 25 / 10_000 = 0.25 -> 0 native units fee
+        let (fee, net) = calculate_protocol_fee(100, 25, true).unwrap();
+        assert_eq!(fee, 0);
+        assert_eq!(net, 100);
+    }
+
+    #[test]
+    fn test_protocol_fee_large_volume_no_overflow() {
+        // 100 million USDC ($100M = 100_000_000_000_000 native)
+        let borrow_amt = 100_000_000_000_000u64;
+        let (fee, net) = calculate_protocol_fee(borrow_amt, 25, true).unwrap();
+        assert_eq!(fee, 250_000_000_000); // $250,000
+        assert_eq!(net, 99_750_000_000_000); // $99,750,000
+        assert_eq!(fee + net, borrow_amt);
     }
 }
 

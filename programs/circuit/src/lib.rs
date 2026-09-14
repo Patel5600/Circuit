@@ -112,6 +112,16 @@ pub mod circuit {
         instructions::pause::handler_unpause(ctx)
     }
 
+    /// Update protocol fee configuration (admin-only).
+    pub fn update_fee_config(
+        ctx: Context<UpdateFeeConfig>,
+        fee_recipient: Pubkey,
+        borrow_fee_bps: u64,
+        fee_enabled: bool,
+    ) -> Result<()> {
+        instructions::update_fee_config::handler(ctx, fee_recipient, borrow_fee_bps, fee_enabled)
+    }
+
     // -- Permissionless Observability --
 
     /// Refresh the cached MarketGuard state.

@@ -13,7 +13,6 @@ import {
   BPS,
 } from "../app/src/lib/risk/portfolio";
 import { Position } from "../app/src/lib/portfolio/provider";
-import { buildDynamicLiquidationPlan } from "../app/src/lib/risk/portfolio";
 
 describe("Protocol Hardening & Risk Ratchet Invariant Tests", () => {
   const MINT_NVDA = "CARqKy5GTCxz5G1tFiYA96A3Q8jaUE9Vppk7cjGJxRqq";

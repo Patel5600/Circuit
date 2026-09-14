@@ -191,9 +191,9 @@ function getStorageKey(walletAddress: string, symbol: string): string {
 }
 
 export function getCooldownRemaining(walletAddress: string, symbol: string): number {
-  if (typeof window === "undefined" || !walletAddress) return 0;
+  if (typeof globalThis === "undefined" || !(globalThis as any).window || !walletAddress) return 0;
   try {
-    const raw = localStorage.getItem(getStorageKey(walletAddress, symbol));
+    const raw = (globalThis as any).localStorage?.getItem(getStorageKey(walletAddress, symbol));
     if (!raw) return 0;
     const lastClaim = parseInt(raw, 10);
     if (isNaN(lastClaim)) return 0;
@@ -205,9 +205,9 @@ export function getCooldownRemaining(walletAddress: string, symbol: string): num
 }
 
 export function recordClaim(walletAddress: string, symbol: string): void {
-  if (typeof window === "undefined" || !walletAddress) return;
+  if (typeof globalThis === "undefined" || !(globalThis as any).window || !walletAddress) return;
   try {
-    localStorage.setItem(getStorageKey(walletAddress, symbol), String(Date.now()));
+    (globalThis as any).localStorage?.setItem(getStorageKey(walletAddress, symbol), String(Date.now()));
   } catch {}
 }
 
@@ -310,7 +310,7 @@ export async function claimFaucetAsset(
         }),
       });
 
-      const data = await res.json();
+      const data = (await res.json()) as any;
       if (!res.ok || !data.success) {
         throw new Error(data.error || "Failed to mint testnet tokens from Devnet faucet");
       }

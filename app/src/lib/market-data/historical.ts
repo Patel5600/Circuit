@@ -84,7 +84,7 @@ export class MarketHistoryProvider {
     }
 
     // 2. Fetch from server-side /api/market-data
-    if (typeof window !== "undefined") {
+    if (typeof globalThis !== "undefined" && (globalThis as any).window) {
       try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 3500);
@@ -96,7 +96,7 @@ export class MarketHistoryProvider {
         clearTimeout(timeout);
 
         if (res.ok) {
-          const json = await res.json();
+          const json = (await res.json()) as any;
           const item = json?.data?.[norm];
           if (item && typeof item.previousClose === "number" && item.previousClose > 0) {
             const ref: HistoricalReference = {

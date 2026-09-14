@@ -40,8 +40,11 @@ In the current MVP implementation, administrative authority is held by a single 
 - **Toggle Pause State**: Invoke [`pause_protocol`](file:///c:/Dev/Circuit/programs/circuit/src/instructions/pause.rs#L13) or [`unpause_protocol`](file:///c:/Dev/Circuit/programs/circuit/src/instructions/pause.rs#L24) to freeze risk-increasing operations across the protocol.
 - **Register Collateral Assets**: Invoke [`register_asset`](file:///c:/Dev/Circuit/programs/circuit/src/instructions/register_asset.rs#L11) to define supported equity mints, Pyth feed IDs, LTV ratios, and liquidation parameters.
 - **Set Simulation Inputs**: Invoke [`set_custody_state`](file:///c:/Dev/Circuit/programs/circuit/src/instructions/set_custody_state.rs#L11) and [`set_liquidity_state`](file:///c:/Dev/Circuit/programs/circuit/src/instructions/set_liquidity_state.rs#L11) to simulate upstream custodian or liquidity degradation during MVP testing.
+- **Configure Economic Parameters**: Invoke [`update_fee_config`](file:///c:/Dev/Circuit/programs/circuit/src/instructions/update_fee_config.rs) to adjust `borrow_fee_bps` (hard-capped on-chain at `<= 1,000 BPS` / 10%) or migrate `fee_recipient` to a multisig treasury.
 
 ### What the Admin CANNOT Do
+- **Cannot Exceed Fee Safety Cap**: The smart contract enforces `fee_bps <= MAX_BORROW_FEE_BPS` (1,000 BPS / 10.00%). Admin cannot impose predatory fees.
+- **Cannot Divert Fees Arbitrarily**: `borrow.rs` enforces `treasury_quote_ata.owner == protocol_config.fee_recipient`. Borrowers cannot be forced to pay unconfigured accounts.
 - **Cannot Forge Oracle Prices**: The protocol enforces cryptographic deserialization of Pyth `PriceUpdateV2` accounts verified by the Pyth Solana Receiver Program (`rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ`). The admin cannot supply arbitrary price values.
 - **Cannot Steal Vault Collateral**: Vault accounts are owned by the `ProtocolConfig` PDA (`["protocol"]`). The admin key is NOT the token authority; only the program itself, via PDA signer seeds during legitimate borrowing, withdrawal, or liquidation CPIs, can transfer tokens from the vaults.
 - **Cannot Bypass Health Factors**: The admin cannot alter individual position balances or force an undercollateralized borrow.
@@ -231,6 +234,7 @@ The MVP implementation contains specific simplifications that must be upgraded p
 | Area | MVP Implementation | Production Requirement |
 | :--- | :--- | :--- |
 | **Governance** | Single-sig admin keypair (`ProtocolConfig.authority`). | Squads v3/v4 multisig with timelock and emergency sub-daos. |
+| **Protocol Treasury** | Single-sig public key (`7AALMs...rtb4`) in `ProtocolConfig.fee_recipient`. | Squads v4 multisig with cold-storage custody and programmatic timelocks. |
 | **Exchange Calendar** | Static 2025–2026 NYSE calendar table in [`session.rs`](file:///c:/Dev/Circuit/programs/circuit/src/market/session.rs). | Audited onchain calendar program or authoritative calendar oracle feed. |
 | **Custody State** | Admin-controlled simulation enum via `set_custody_state`. | Cryptographic proof or oracle feed directly from underlying broker-dealer / qualified custodian. |
 | **Liquidity State** | Admin-controlled simulation enum via `set_liquidity_state`. | Onchain orderbook depth / DEX pool depth oracle integration. |

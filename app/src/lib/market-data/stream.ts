@@ -135,7 +135,7 @@ export function useMarketDataService() {
             headers: { Accept: "application/json" },
           });
           if (res.ok) {
-            const json = await res.json();
+            const json = (await res.json()) as any;
             if (json?.data) {
               serverDataMap = json.data;
             }

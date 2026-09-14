@@ -20,6 +20,7 @@ const PRIMARY: { to: string; label: string; icon: IconName }[] = [
 ];
 
 const SECONDARY: { to: string; label: string; icon: IconName }[] = [
+  { to: "/app/economics", label: "Economics", icon: "layers" },
   { to: "/app/learn", label: "Learn", icon: "learn" },
   { to: "/app/verify", label: "Verify", icon: "verify" },
   { to: "/app/faucet", label: "Faucet", icon: "faucet" },

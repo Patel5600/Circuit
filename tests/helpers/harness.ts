@@ -114,6 +114,8 @@ export class Harness {
   liquidatorEquityAta!: PublicKey;
   liquidatorQuoteAta!: PublicKey;
   outsiderQuoteAta!: PublicKey;
+  treasuryPubkey!: PublicKey;
+  treasuryQuoteAta!: PublicKey;
 
   priceUpdate!: PublicKey;
 
@@ -319,6 +321,7 @@ export class Harness {
       owner?: Keypair;
       position?: PublicKey;
       userQuoteAta?: PublicKey;
+      treasuryQuoteAta?: PublicKey;
     } = {}
   ): Promise<TransactionInstruction> {
     const owner = opts.owner ?? this.user;
@@ -335,8 +338,26 @@ export class Harness {
         userQuoteAta:
           opts.userQuoteAta ??
           getAssociatedTokenAddressSync(this.quoteMint, owner.publicKey),
+        treasuryQuoteAta:
+          opts.treasuryQuoteAta ??
+          this.treasuryQuoteAta,
         liquidityVault: this.liquidityVault,
         tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .instruction();
+  }
+
+  async ixUpdateFeeConfig(
+    feeRecipient: PublicKey,
+    borrowFeeBps: number | bigint,
+    feeEnabled: boolean,
+    authority = this.admin
+  ): Promise<TransactionInstruction> {
+    return this.program.methods
+      .updateFeeConfig(feeRecipient, new BN(borrowFeeBps.toString()), feeEnabled)
+      .accountsPartial({
+        authority: authority.publicKey,
+        protocolConfig: this.protocolConfig,
       })
       .instruction();
   }
@@ -629,6 +650,11 @@ export async function setupHarness(): Promise<Harness> {
     h.quoteMint,
     h.outsider.publicKey
   );
+  h.treasuryPubkey = new PublicKey("7AALMsZ5MuioSW7BMwBCwTmy9Y1fMJ6MKXAELYyrtb4");
+  h.treasuryQuoteAta = getAssociatedTokenAddressSync(
+    h.quoteMint,
+    h.treasuryPubkey
+  );
 
   h.sendOk(
     [
@@ -636,6 +662,12 @@ export async function setupHarness(): Promise<Harness> {
         h.admin.publicKey,
         h.outsiderQuoteAta,
         h.outsider.publicKey,
+        h.quoteMint
+      ),
+      createAssociatedTokenAccountInstruction(
+        h.admin.publicKey,
+        h.treasuryQuoteAta,
+        h.treasuryPubkey,
         h.quoteMint
       ),
       createAssociatedTokenAccountInstruction(

@@ -148,6 +148,13 @@
           "writable": true
         },
         {
+          "name": "treasury_quote_ata",
+          "docs": [
+            "Circuit Treasury's quote token account (receives protocol fee)"
+          ],
+          "writable": true
+        },
+        {
           "name": "liquidity_vault",
           "docs": [
             "Protocol liquidity vault (source of borrowed tokens)"
@@ -2497,6 +2504,69 @@
       "args": []
     },
     {
+      "name": "update_fee_config",
+      "docs": [
+        "Update protocol fee configuration (admin-only)."
+      ],
+      "discriminator": [
+        104,
+        184,
+        103,
+        242,
+        88,
+        151,
+        107,
+        20
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "Protocol admin authority"
+          ],
+          "signer": true
+        },
+        {
+          "name": "protocol_config",
+          "docs": [
+            "ProtocolConfig singleton PDA"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "fee_recipient",
+          "type": "pubkey"
+        },
+        {
+          "name": "borrow_fee_bps",
+          "type": "u64"
+        },
+        {
+          "name": "fee_enabled",
+          "type": "bool"
+        }
+      ]
+    },
+    {
       "name": "withdraw",
       "docs": [
         "Withdraw collateral.",
@@ -2816,6 +2886,125 @@
       ]
     }
   ],
+  "events": [
+    {
+      "name": "BorrowEvent",
+      "discriminator": [
+        86,
+        8,
+        140,
+        206,
+        215,
+        179,
+        118,
+        201
+      ]
+    },
+    {
+      "name": "BorrowExecuted",
+      "discriminator": [
+        237,
+        179,
+        78,
+        128,
+        82,
+        9,
+        45,
+        124
+      ]
+    },
+    {
+      "name": "DepositEvent",
+      "discriminator": [
+        120,
+        248,
+        61,
+        83,
+        31,
+        142,
+        107,
+        144
+      ]
+    },
+    {
+      "name": "LiquidateEvent",
+      "discriminator": [
+        158,
+        94,
+        144,
+        4,
+        147,
+        52,
+        5,
+        255
+      ]
+    },
+    {
+      "name": "ProtocolFeeCollected",
+      "discriminator": [
+        149,
+        0,
+        167,
+        154,
+        105,
+        146,
+        209,
+        134
+      ]
+    },
+    {
+      "name": "RecoveryObserved",
+      "discriminator": [
+        34,
+        164,
+        108,
+        143,
+        250,
+        163,
+        48,
+        218
+      ]
+    },
+    {
+      "name": "RepayEvent",
+      "discriminator": [
+        129,
+        213,
+        0,
+        108,
+        218,
+        108,
+        82,
+        140
+      ]
+    },
+    {
+      "name": "RiskStateChanged",
+      "discriminator": [
+        195,
+        213,
+        216,
+        46,
+        19,
+        110,
+        85,
+        196
+      ]
+    },
+    {
+      "name": "WithdrawEvent",
+      "discriminator": [
+        22,
+        9,
+        133,
+        26,
+        160,
+        44,
+        71,
+        192
+      ]
+    }
+  ],
   "errors": [
     {
       "code": 6000,
@@ -2996,6 +3185,21 @@
       "code": 6035,
       "name": "IllegalStateTransition",
       "msg": "Illegal risk ratchet recovery transition attempted"
+    },
+    {
+      "code": 6036,
+      "name": "InvalidFeeRecipient",
+      "msg": "Fee recipient account does not match configured protocol treasury"
+    },
+    {
+      "code": 6037,
+      "name": "FeeBpsExceedsMaximum",
+      "msg": "Borrow fee BPS exceeds maximum allowable limit"
+    },
+    {
+      "code": 6038,
+      "name": "InvalidFeeAccount",
+      "msg": "Invalid protocol fee token account"
     }
   ],
   "types": [
@@ -3133,6 +3337,100 @@
       }
     },
     {
+      "name": "BorrowEvent",
+      "docs": [
+        "Emitted when a user borrows quote currency against deposited collateral."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "asset",
+            "type": "pubkey"
+          },
+          {
+            "name": "quote_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "new_debt",
+            "type": "u64"
+          },
+          {
+            "name": "health_factor_bps",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BorrowExecuted",
+      "docs": [
+        "Emitted upon successful execution of an authorized borrow with risk metrics."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "asset",
+            "type": "pubkey"
+          },
+          {
+            "name": "quote_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "collateral_value",
+            "type": "u64"
+          },
+          {
+            "name": "borrow_amount",
+            "type": "u64"
+          },
+          {
+            "name": "fee_amount",
+            "type": "u64"
+          },
+          {
+            "name": "resulting_ltv_bps",
+            "type": "u64"
+          },
+          {
+            "name": "resulting_health_factor_bps",
+            "type": "u64"
+          },
+          {
+            "name": "risk_state",
+            "type": {
+              "defined": {
+                "name": "MarketState"
+              }
+            }
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
       "name": "CustodyState",
       "type": {
         "kind": "enum",
@@ -3145,6 +3443,37 @@
           },
           {
             "name": "Impaired"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DepositEvent",
+      "docs": [
+        "Emitted when a user deposits tokenized equities into collateral vault."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "asset",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "total_collateral",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
           }
         ]
       }
@@ -3183,6 +3512,45 @@
           },
           {
             "name": "RatchetRecoveryPending"
+          }
+        ]
+      }
+    },
+    {
+      "name": "LiquidateEvent",
+      "docs": [
+        "Emitted when an unhealthy position is liquidated."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "liquidator",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "asset",
+            "type": "pubkey"
+          },
+          {
+            "name": "debt_repaid",
+            "type": "u64"
+          },
+          {
+            "name": "collateral_seized",
+            "type": "u64"
+          },
+          {
+            "name": "bonus_bps",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
           }
         ]
       }
@@ -3653,11 +4021,154 @@
             "type": "u64"
           },
           {
+            "name": "fee_recipient",
+            "docs": [
+              "Treasury recipient that receives protocol fees"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "borrow_fee_bps",
+            "docs": [
+              "Protocol origination / credit execution fee in BPS (e.g., 25 = 0.25%)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "fee_enabled",
+            "docs": [
+              "Whether protocol fee collection is currently active"
+            ],
+            "type": "bool"
+          },
+          {
             "name": "bump",
             "docs": [
               "PDA bump seed"
             ],
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProtocolFeeCollected",
+      "docs": [
+        "Emitted when a protocol origination fee is settled directly to Circuit Treasury."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "payer",
+            "type": "pubkey"
+          },
+          {
+            "name": "fee_amount",
+            "type": "u64"
+          },
+          {
+            "name": "fee_asset",
+            "type": "pubkey"
+          },
+          {
+            "name": "treasury",
+            "type": "pubkey"
+          },
+          {
+            "name": "source_action",
+            "type": "string"
+          },
+          {
+            "name": "position",
+            "type": "pubkey"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          },
+          {
+            "name": "protocol_version",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RecoveryObserved",
+      "docs": [
+        "Emitted when a healthy crank observation contributes to monotonic recovery."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "feed_id",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "risk_epoch",
+            "type": "u64"
+          },
+          {
+            "name": "current_state",
+            "type": {
+              "defined": {
+                "name": "MarketState"
+              }
+            }
+          },
+          {
+            "name": "consecutive_observations",
+            "type": "u32"
+          },
+          {
+            "name": "required_observations",
+            "type": "u32"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RepayEvent",
+      "docs": [
+        "Emitted when debt is repaid for a position."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "asset",
+            "type": "pubkey"
+          },
+          {
+            "name": "quote_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "remaining_debt",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
           }
         ]
       }
@@ -3748,6 +4259,58 @@
       }
     },
     {
+      "name": "RiskStateChanged",
+      "docs": [
+        "Emitted when the 4-state Risk Ratchet transitions to a new state."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "feed_id",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "risk_epoch",
+            "type": "u64"
+          },
+          {
+            "name": "previous_state",
+            "type": {
+              "defined": {
+                "name": "MarketState"
+              }
+            }
+          },
+          {
+            "name": "new_state",
+            "type": {
+              "defined": {
+                "name": "MarketState"
+              }
+            }
+          },
+          {
+            "name": "reason",
+            "type": {
+              "defined": {
+                "name": "GuardReason"
+              }
+            }
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
       "name": "VerificationLevel",
       "docs": [
         "Pyth price updates are bridged to all blockchains via Wormhole.",
@@ -3776,6 +4339,37 @@
           },
           {
             "name": "Full"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WithdrawEvent",
+      "docs": [
+        "Emitted when a user withdraws collateral from their position."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "asset",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "remaining_collateral",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
           }
         ]
       }
