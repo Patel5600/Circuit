@@ -20,6 +20,7 @@ import { MarketSelector } from "../components/market/MarketSelector";
 import { useProtocolState } from "../hooks/useProtocolState";
 import { useTransaction } from "../hooks/useTransaction";
 import { useMarket } from "../context/MarketContext";
+import { useCircuitDomain } from "../lib/domain/context";
 import { activeAssetDisplay } from "../lib/asset";
 import { formatMoney, formatPercent, formatTokens } from "../lib/format";
 import {
@@ -82,7 +83,8 @@ function Step({
 export default function Borrow() {
   const { selectedMarket, markets, selectMarket } = useMarket();
   const s = useProtocolState();
-  const { connected } = useWallet();
+  const { connected, publicKey } = useWallet();
+  const { invalidate } = useCircuitDomain();
   const tx = useTransaction();
 
   const display = useMemo(() => activeAssetDisplay(selectedMarket), [selectedMarket]);
@@ -160,6 +162,7 @@ export default function Borrow() {
       onSuccess: () => {
         setAmount("");
         s.refresh();
+        invalidate({ portfolio: true, wallet: true, activity: true });
       },
     });
   };
@@ -425,11 +428,18 @@ export default function Borrow() {
         open={txOpen}
         state={tx.state}
         title="Borrow"
+        action="Borrow"
+        asset={quoteSymbol}
+        amount={amount ? `$${amount}` : undefined}
+        wallet={publicKey?.toBase58()}
         onClose={() => {
           setTxOpen(false);
           tx.reset();
         }}
-        onDone={s.refresh}
+        onDone={() => {
+          s.refresh();
+          invalidate({ portfolio: true, wallet: true, activity: true });
+        }}
       />
     </PageContainer>
   );

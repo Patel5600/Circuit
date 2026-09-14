@@ -15,6 +15,10 @@ export function formatMoney(value: number, digits = 2): string {
   });
 }
 
+export function formatCurrency(value: number, digits = 2): string {
+  return `$${formatMoney(value, digits)}`;
+}
+
 /** Compact currency for headline figures: $12.4K, $1.2M. */
 export function formatMoneyCompact(value: number): string {
   if (!Number.isFinite(value)) return "$0";

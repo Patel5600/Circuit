@@ -39,9 +39,18 @@ export type IconName =
   | "close"
   | "layers"
   | "gauge"
+  | "refresh"
   | "faucet";
 
 const PATHS: Record<IconName, React.ReactNode> = {
+  refresh: (
+    <>
+      <path d="M21 2v6h-6" />
+      <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+      <path d="M3 22v-6h6" />
+      <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+    </>
+  ),
   faucet: (
     <>
       <path d="M4 10h11a3 3 0 0 1 3 3v2H4v-5Z" />

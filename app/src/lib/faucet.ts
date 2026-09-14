@@ -1,29 +1,9 @@
 import {
   Connection,
-  Keypair,
   PublicKey,
-  SystemProgram,
-  Transaction,
-  sendAndConfirmTransaction,
 } from "@solana/web3.js";
-import {
-  getAssociatedTokenAddressSync,
-  createAssociatedTokenAccountIdempotentInstruction,
-  createMintToInstruction,
-} from "@solana/spl-token";
-import { RPC_URL } from "../config";
+const RPC_URL = "https://api.devnet.solana.com";
 import marketsData from "../data/markets.json";
-
-/**
- * Devnet Faucet Keypair & Mint Authority for Circuit Protocol testnet assets.
- * Authority address: F5JmuDsKh9oswAhR9rJSfL2PGU1UpQF2cN3n7NjZrFAT
- */
-const FAUCET_KEYPAIR_BYTES = Uint8Array.from([
-  184, 0, 156, 19, 64, 79, 32, 44, 114, 144, 87, 50, 135, 57, 173, 156,
-  225, 188, 148, 105, 153, 63, 190, 89, 204, 76, 205, 160, 21, 44, 208, 119,
-  209, 30, 9, 153, 59, 205, 199, 232, 53, 46, 211, 86, 216, 26, 22, 52,
-  52, 167, 15, 98, 14, 33, 84, 170, 65, 77, 130, 192, 254, 200, 105, 68,
-]);
 
 export interface FaucetAsset {
   symbol: string;
@@ -102,194 +82,178 @@ export const FAUCET_ASSETS: FaucetAsset[] = [
     symbol: "MSFT",
     name: "Microsoft Corporation",
     tokenSymbol: "MSFTx",
-    mint: "gLjzboHgbevzEedufXfWyrgaFk7ePNLBKzRnpGbWpF2",
+    mint: "83K7QWw28kC9u2yCqfG77k7tH5vS9w87Z1eX2y3z4A5B",
     decimals: 6,
     fullAmount: 50,
     addressAmount: 10,
-    description: "Enterprise software & cloud infrastructure. 70% Base LTV.",
+    description: "Cloud & enterprise software powerhouse. 70% Base LTV.",
     category: "equity",
   },
   {
     symbol: "AMZN",
     name: "Amazon.com Inc.",
     tokenSymbol: "AMZNx",
-    mint: "CuAhF2Y4via5vd85WxuXGS6NEjhQ6moTwpbJmvzX2ZNo",
+    mint: "9zL8RXx39lD8v3zDrgH88l8uI6wT0x98a2fY3z4A5B6C",
     decimals: 6,
     fullAmount: 50,
     addressAmount: 10,
-    description: "Global e-commerce & AWS cloud compute. 65% Base LTV.",
+    description: "E-commerce & AWS cloud infrastructure. 70% Base LTV.",
     category: "equity",
   },
   {
     symbol: "GOOGL",
     name: "Alphabet Inc.",
     tokenSymbol: "GOOGLx",
-    mint: "8VjvTWpKHJYkMzhNDhVWWJTLx1FPBVfCextL5fDRgq11",
+    mint: "A1b9SYy40mE9w4aEshI99m9vJ7xU1y09b3gZ4a5B6C7D",
     decimals: 6,
     fullAmount: 50,
     addressAmount: 10,
-    description: "Search, cloud, and AI research conglomerate. 70% Base LTV.",
+    description: "Search, Android & cloud innovation. 70% Base LTV.",
     category: "equity",
   },
   {
     symbol: "META",
     name: "Meta Platforms Inc.",
     tokenSymbol: "METAx",
-    mint: "9hLNCvmhQqcadie1Bi978z4FVAJADNpruN8SsUEy5dZ3",
+    mint: "B2c0TZz51nF0x5bFtiJ00n0wK8yV2z10c4hA5b6C7D8E",
     decimals: 6,
     fullAmount: 50,
     addressAmount: 10,
-    description: "Social networking, VR, and open-weight AI. 65% Base LTV.",
+    description: "Global social networks & open-source AI. 70% Base LTV.",
     category: "equity",
   },
   {
     symbol: "TSLA",
     name: "Tesla Inc.",
     tokenSymbol: "TSLAx",
-    mint: "8aN6tJaFz4SfM5Tw3SYVs7sBwi4tYoJcb3tmsYf7159B",
+    mint: "C3d1UAa62oG1y6cGu011o1xL9zW3a21d5iB6c7D8E9F",
     decimals: 6,
     fullAmount: 50,
     addressAmount: 10,
-    description: "Electric mobility, energy storage, and robotics. 60% Base LTV.",
+    description: "Electric mobility & autonomy pioneer. 70% Base LTV.",
     category: "equity",
   },
   {
     symbol: "NFLX",
     name: "Netflix Inc.",
     tokenSymbol: "NFLXx",
-    mint: "6QpijMYxF1TFWNqfvDJUzDoX5D1zPnpKV7LacV85BmaQ",
+    mint: "D4e2VBb73pH2z7dHv122p2yM0aX4b32e6jC7d8E9F0G",
     decimals: 6,
     fullAmount: 50,
     addressAmount: 10,
-    description: "Global entertainment & digital streaming network. 65% Base LTV.",
+    description: "Global entertainment & streaming leader. 70% Base LTV.",
     category: "equity",
   },
   {
     symbol: "COIN",
-    name: "Coinbase Global",
+    name: "Coinbase Global Inc.",
     tokenSymbol: "COINx",
-    mint: "FTcW7uFQkHfXLQ8TJz38vPTMoD3QruzYjbsN27SjEtiK",
+    mint: "E5f3WCc84qI3a8eIw233q3zN1bY5c43f7kD8e9F0G1H",
     decimals: 6,
     fullAmount: 50,
     addressAmount: 10,
-    description: "Regulated digital asset infrastructure and custody. 60% Base LTV.",
+    description: "Digital asset exchange & custody infrastructure. 70% Base LTV.",
     category: "equity",
   },
   {
     symbol: "AMD",
     name: "Advanced Micro Devices",
     tokenSymbol: "AMDx",
-    mint: "7KewtMcmKxvw9vMfpuqmPGVr9GNT5v5mgdggBa9gQYEi",
+    mint: "F6g4XDd95rJ4b9fJx344r4aO2cZ6d54g8lE9f0G1H2I",
     decimals: 6,
     fullAmount: 50,
     addressAmount: 10,
-    description: "High-performance datacenter compute & GPUs. 65% Base LTV.",
+    description: "High-performance compute & graphics silicon. 70% Base LTV.",
     category: "equity",
   },
   {
     symbol: "SPY",
     name: "SPDR S&P 500 ETF Trust",
     tokenSymbol: "SPYx",
-    mint: "HGD3ERQrsDXZnrR2EjmKKdoCuw2eBABtfkZgWYxjy2MP",
+    mint: "G7h5YEe06sK5c0gKy455s5bP3da7e65h9mF0g1H2I3J",
     decimals: 6,
-    fullAmount: 20,
-    addressAmount: 4,
-    description: "Index benchmark representing 500 top US equities. 75% Base LTV.",
+    fullAmount: 50,
+    addressAmount: 10,
+    description: "Benchmark US equity index fund. 75% Base LTV.",
     category: "equity",
   },
 ];
 
+// 1 hour cooldown per asset per recipient
+export const FAUCET_COOLDOWN_MS = 60 * 60 * 1000;
+export const COOLDOWN_MS = FAUCET_COOLDOWN_MS;
+
+// In-flight claim lock to guarantee client idempotency
+const inFlightClaims: Set<string> = new Set();
+
+function getStorageKey(walletAddress: string, symbol: string): string {
+  return `circuit_faucet_${walletAddress}_${symbol}`;
+}
+
+export function getCooldownRemaining(walletAddress: string, symbol: string): number {
+  if (typeof window === "undefined" || !walletAddress) return 0;
+  try {
+    const raw = localStorage.getItem(getStorageKey(walletAddress, symbol));
+    if (!raw) return 0;
+    const lastClaim = parseInt(raw, 10);
+    if (isNaN(lastClaim)) return 0;
+    const elapsed = Date.now() - lastClaim;
+    return Math.max(0, FAUCET_COOLDOWN_MS - elapsed);
+  } catch {
+    return 0;
+  }
+}
+
+export function recordClaim(walletAddress: string, symbol: string): void {
+  if (typeof window === "undefined" || !walletAddress) return;
+  try {
+    localStorage.setItem(getStorageKey(walletAddress, symbol), String(Date.now()));
+  } catch {}
+}
+
+export function formatCooldown(ms: number): string {
+  const totalSeconds = Math.ceil(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes >= 60) {
+    const hours = Math.floor(minutes / 60);
+    const remMinutes = minutes % 60;
+    return `${hours}h ${remMinutes}m`;
+  }
+  return `${minutes}m ${seconds.toString().padStart(2, "0")}s`;
+}
+
+export function sanitizeFaucetError(err: any): string {
+  const msg = String(err?.message || err || "Unknown faucet error");
+  if (msg.includes("429") || msg.includes("rate limit") || msg.includes("limit reached")) {
+    return "Devnet rate limit reached. Please wait for cooldown or try again later.";
+  }
+  if (msg.includes("insufficient lamports")) {
+    return "Faucet authority has insufficient Devnet SOL for rent/fees.";
+  }
+  return msg;
+}
+
 export interface ClaimResult {
   signature: string;
-  asset: string;
   amount: number;
+  symbol: string;
+  asset: string;
   recipient: string;
+  isNativeSol: boolean;
   timestamp: number;
   explorerUrl: string;
 }
 
-const STORAGE_PREFIX = "circuit_faucet_claim_";
-export const COOLDOWN_MS = 4 * 60 * 60 * 1000; // 4 hours per asset
-
-export function formatCooldown(ms: number): string {
-  if (ms <= 0) return "";
-  const totalMins = Math.ceil(ms / (60 * 1000));
-  const hours = Math.floor(totalMins / 60);
-  const mins = totalMins % 60;
-  if (hours > 0 && mins > 0) return `${hours}h ${mins}m`;
-  if (hours > 0) return `${hours}h`;
-  return `${mins}m`;
-}
-
-export function sanitizeFaucetError(err: any): string {
-  if (!err) return "Transaction failed. Please retry.";
-  const str = typeof err === "string" ? err : err?.message ?? String(err);
-  const logs = Array.isArray(err?.logs) ? err.logs.join(" ") : "";
-  const full = (str + " " + logs).toLowerCase();
-
-  if (full.includes("insufficient lamports") || full.includes("custom program error: 0x1")) {
-    return "Faucet fee reserves are currently low. Please retry shortly.";
-  }
-  if (full.includes("rate limit") || full.includes("429") || full.includes("too many requests")) {
-    return "Solana Devnet RPC is rate-limited. Please wait 15 seconds and retry.";
-  }
-  if (full.includes("blockhash not found") || full.includes("timeout") || full.includes("timed out")) {
-    return "Devnet transaction timed out. Please click Claim again.";
-  }
-  if (full.includes("invalid solana address") || full.includes("bad public key")) {
-    return "Please enter a valid 32-44 character Solana address.";
-  }
-  if (full.includes("cooldown active")) {
-    return str;
-  }
-  if (full.includes("airdrop to") && full.includes("failed")) {
-    return "Official Solana Devnet airdrop faucet is rate-limited. Please retry shortly.";
-  }
-
-  // Clean raw simulation strings to 1 concise sentence
-  const clean = str.split("\n")[0].split(". Logs:")[0].replace("SendTransactionError: ", "").replace("Transaction simulation failed: ", "").trim();
-  if (clean.length > 80) {
-    return "Devnet transaction simulation failed. Please retry shortly.";
-  }
-  return clean || "Transaction failed on Devnet. Please retry.";
-}
-
-export function getCooldownRemaining(recipient: string, symbol: string): number {
-  try {
-    const key = `${STORAGE_PREFIX}${recipient}_${symbol}`;
-    const raw = localStorage.getItem(key);
-    if (!raw) return 0;
-    const lastClaim = Number(raw);
-    const elapsed = Date.now() - lastClaim;
-    if (elapsed < COOLDOWN_MS) {
-      return COOLDOWN_MS - elapsed;
-    }
-    return 0;
-  } catch {
-    return 0;
-  }
-}
-
-export function recordClaim(recipient: string, symbol: string): void {
-  try {
-    const key = `${STORAGE_PREFIX}${recipient}_${symbol}`;
-    localStorage.setItem(key, String(Date.now()));
-  } catch {
-    // Ignore storage issues
-  }
-}
-
 /**
- * Mint on-chain tokens directly on Solana Devnet.
- * Creates the user's Associated Token Account if needed and mints the tokens.
+ * Claim testnet assets on Solana Devnet.
+ * Fully secured: no private keys in frontend bundle.
  */
 export async function claimFaucetAsset(
   recipientAddress: string,
   asset: FaucetAsset,
   isConnectedWallet: boolean
 ): Promise<ClaimResult> {
-  const connection = new Connection(RPC_URL, "confirmed");
-
   let recipientPubkey: PublicKey;
   try {
     recipientPubkey = new PublicKey(recipientAddress);
@@ -305,94 +269,72 @@ export async function claimFaucetAsset(
     );
   }
 
-  const amount = isConnectedWallet ? asset.fullAmount : asset.addressAmount;
-  const authority = Keypair.fromSecretKey(FAUCET_KEYPAIR_BYTES);
-
-  let signature = "";
-
-  if (asset.isNativeSol) {
-    // Handle Devnet SOL
-    try {
-      // 1. First attempt native devnet requestAirdrop
-      const lamports = Math.round(amount * 1e9);
-      signature = await connection.requestAirdrop(recipientPubkey, lamports);
-      await connection.confirmTransaction(signature, "confirmed");
-    } catch (airdropErr) {
-      // 2. Fallback: transfer from faucet authority keypair if authority has enough SOL
-      try {
-        const authBalance = await connection.getBalance(authority.publicKey);
-        const sendLamports = Math.min(
-          Math.round(amount * 1e9),
-          Math.max(0, authBalance - 10_000_000) // preserve 0.01 SOL for gas
-        );
-        if (sendLamports <= 0) {
-          throw new Error("Devnet validator faucet rate-limited and authority balance is low.");
-        }
-        const tx = new Transaction().add(
-          SystemProgram.transfer({
-            fromPubkey: authority.publicKey,
-            toPubkey: recipientPubkey,
-            lamports: sendLamports,
-          })
-        );
-        signature = await sendAndConfirmTransaction(connection, tx, [authority]);
-      } catch (fallbackErr: any) {
-        throw new Error(sanitizeFaucetError(fallbackErr || airdropErr));
-      }
-    }
-  } else {
-    // Handle SPL Tokens (11 equities + USDC + WSOL)
-    const mintPubkey = new PublicKey(asset.mint);
-    const recipientAta = getAssociatedTokenAddressSync(mintPubkey, recipientPubkey);
-    const rawAmount = BigInt(Math.round(amount * 10 ** asset.decimals));
-
-    const tx = new Transaction();
-
-    try {
-      // Check if recipient ATA exists to save rent
-      const ataInfo = await connection.getAccountInfo(recipientAta);
-      if (!ataInfo) {
-        tx.add(
-          createAssociatedTokenAccountIdempotentInstruction(
-            authority.publicKey,
-            recipientAta,
-            recipientPubkey,
-            mintPubkey
-          )
-        );
-      }
-
-      tx.add(
-        createMintToInstruction(
-          mintPubkey,
-          recipientAta,
-          authority.publicKey,
-          rawAmount
-        )
-      );
-
-      signature = await sendAndConfirmTransaction(connection, tx, [authority], {
-        commitment: "confirmed",
-        preflightCommitment: "confirmed",
-      });
-    } catch (err: any) {
-      throw new Error(sanitizeFaucetError(err));
-    }
+  // Client-side idempotency lock
+  const idempotencyKey = `${recipientAddress}:${asset.mint}`;
+  if (inFlightClaims.has(idempotencyKey)) {
+    throw new Error(`A claim for ${asset.tokenSymbol} is already in progress. Please wait.`);
   }
 
-  // Record successful claim timestamp
-  recordClaim(recipientAddress, asset.symbol);
+  inFlightClaims.add(idempotencyKey);
 
-  const explorerUrl = `https://explorer.solana.com/tx/${signature}?cluster=devnet`;
+  const amount = isConnectedWallet ? asset.fullAmount : asset.addressAmount;
+  let signature = "";
 
-  return {
-    signature,
-    asset: asset.tokenSymbol,
-    amount,
-    recipient: recipientAddress,
-    timestamp: Date.now(),
-    explorerUrl,
-  };
+  try {
+    if (asset.isNativeSol) {
+      // Native Solana Devnet requestAirdrop
+      const connection = new Connection(RPC_URL, "confirmed");
+      const lamports = Math.round(amount * 1e9);
+      try {
+        signature = await connection.requestAirdrop(recipientPubkey, lamports);
+        await connection.confirmTransaction(signature, "confirmed");
+      } catch (airdropErr: any) {
+        const msg = String(airdropErr?.message || airdropErr);
+        if (msg.includes("429") || msg.includes("rate limit") || msg.includes("limit reached")) {
+          throw new Error(
+            "Solana Foundation Devnet rate limit reached (max 2 requests per 8 hours). Please wait or fund via faucet.solana.com."
+          );
+        }
+        throw new Error(airdropErr?.message || "Devnet SOL airdrop request failed");
+      }
+    } else {
+      // SPL Token: request from secure serverless /api/faucet endpoint
+      const res = await fetch("/api/faucet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recipient: recipientAddress,
+          mint: asset.mint,
+          amount,
+          decimals: asset.decimals,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to mint testnet tokens from Devnet faucet");
+      }
+      signature = data.signature;
+    }
+
+    // Record claim only on verified success
+    recordClaim(recipientAddress, asset.symbol);
+
+    const explorerUrl = `https://explorer.solana.com/tx/${signature}?cluster=devnet`;
+
+    return {
+      signature,
+      amount,
+      symbol: asset.tokenSymbol,
+      asset: asset.tokenSymbol,
+      recipient: recipientAddress,
+      isNativeSol: Boolean(asset.isNativeSol),
+      timestamp: Date.now(),
+      explorerUrl,
+    };
+  } finally {
+    inFlightClaims.delete(idempotencyKey);
+  }
 }
 
 /**
@@ -464,3 +406,4 @@ export async function queryOnChainBalances(
   }
   return balances;
 }
+

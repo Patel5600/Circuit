@@ -656,6 +656,21 @@ svg {
     top: var(--header-h);
     height: calc(100vh - var(--header-h));
     overflow-y: auto;
+    transition: width var(--t-fast) cubic-bezier(0.16, 1, 0.3, 1), padding var(--t-fast) cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .sidebar.sidebar--collapsed {
+    width: 68px !important;
+    padding: 18px 8px !important;
+  }
+  .sidebar.sidebar--collapsed .navlink__label,
+  .sidebar.sidebar--collapsed .sidebar__hide-collapsed {
+    display: none !important;
+  }
+  .sidebar.sidebar--collapsed .navlink {
+    justify-content: center !important;
+    padding: 0 !important;
+    width: 44px;
+    margin: 0 auto;
   }
 }
 

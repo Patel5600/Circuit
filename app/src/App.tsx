@@ -5,6 +5,7 @@ import { AppShell } from "./components/layout/AppShell";
 import { IconKeyframes } from "./components/ui/Icon";
 import { Skeleton } from "./components/ui";
 import { MarketProvider } from "./context/MarketContext";
+import { CircuitProtocolProvider } from "./lib/domain/context";
 
 /**
  * Route table.
@@ -72,18 +73,20 @@ function PageFallback() {
 }
 
 /**
- * Wraps an app page in the wallet providers and the shell. The providers are
- * lazy so the landing page never downloads them.
+ * Wraps an app page in the wallet providers, domain protocol provider, and shell.
+ * The providers are lazy so the landing page never downloads them.
  */
 function AppRoute({ children }: { children: React.ReactNode }) {
   return (
     <Suspense fallback={<ShellFallback />}>
       <SolanaProviders>
-        <MarketProvider>
-          <AppShell>
-            <Suspense fallback={<PageFallback />}>{children}</Suspense>
-          </AppShell>
-        </MarketProvider>
+        <CircuitProtocolProvider>
+          <MarketProvider>
+            <AppShell>
+              <Suspense fallback={<PageFallback />}>{children}</Suspense>
+            </AppShell>
+          </MarketProvider>
+        </CircuitProtocolProvider>
       </SolanaProviders>
     </Suspense>
   );

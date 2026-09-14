@@ -2,22 +2,23 @@ import React, { useMemo, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 
-import { Button, Icon, Modal } from "../ui";
+import { Button, Icon, Modal, Pill } from "../ui";
 import { shortenAddress } from "../../lib/format";
+import { useCircuitDomain } from "../../lib/domain/context";
+import { formatSol } from "../../lib/domain/wallet";
 
 /**
- * Wallet control.
- *
- * Replaces the adapter's default button so the connected state reads as
- * "Connected / 7Vdx...Se6J" rather than exposing adapter chrome. The adapter's
- * own modal is still used for wallet selection, since it handles detection.
+ * Institutional Wallet Control & Network Safety Popover
  */
 export function WalletButton({ compact = false }: { compact?: boolean }) {
   const { publicKey, connected, connecting, disconnect, wallet } = useWallet();
   const { setVisible } = useWalletModal();
   const [menuOpen, setMenuOpen] = useState(false);
+  const { wallet: walletDomain, refreshAll } = useCircuitDomain();
 
   const address = useMemo(() => publicKey?.toBase58() ?? "", [publicKey]);
+  const isWrongNetwork = walletDomain.status === "WRONG_NETWORK";
+  const solText = formatSol(walletDomain.solBalanceLamports);
 
   if (!connected) {
     return (
@@ -43,17 +44,31 @@ export function WalletButton({ compact = false }: { compact?: boolean }) {
           minHeight: 40,
           padding: "0 12px",
           borderRadius: "var(--r)",
-          border: "1px solid var(--border-strong)",
-          background: "var(--surface-2)",
+          border: isWrongNetwork
+            ? "1px solid var(--danger)"
+            : "1px solid var(--border-strong)",
+          background: isWrongNetwork ? "rgba(224, 82, 82, 0.1)" : "var(--surface-2)",
+          cursor: "pointer",
+          transition: "all var(--t-fast)",
         }}
         aria-label={`Wallet connected: ${address}. Open wallet menu`}
       >
-        <span className="dot" style={{ color: "var(--success)" }} aria-hidden="true" />
+        <span
+          className="dot"
+          style={{ color: isWrongNetwork ? "var(--danger)" : "var(--success)" }}
+          aria-hidden="true"
+        />
         <span className="stack" style={{ lineHeight: 1.15, textAlign: "left" }}>
-          {!compact && (
-            <span style={{ fontSize: 10.5, color: "var(--text-3)", fontWeight: 600 }}>
-              Connected
+          {isWrongNetwork ? (
+            <span style={{ fontSize: 10.5, color: "var(--danger)", fontWeight: 700 }}>
+              WRONG NETWORK
             </span>
+          ) : (
+            !compact && (
+              <span style={{ fontSize: 10.5, color: "var(--text-3)", fontWeight: 600 }}>
+                {solText}
+              </span>
+            )
           )}
           <span className="mono" style={{ fontSize: 12.5, fontWeight: 600 }}>
             {shortenAddress(address)}
@@ -61,24 +76,118 @@ export function WalletButton({ compact = false }: { compact?: boolean }) {
         </span>
       </button>
 
-      <Modal open={menuOpen} onClose={() => setMenuOpen(false)} title="Wallet">
-        <div className="stack g-16">
-          <div className="stack g-6">
-            <span className="t-label">Connected with {wallet?.adapter.name ?? "wallet"}</span>
-            <span className="mono t-sm" style={{ overflowWrap: "anywhere" }}>
-              {address}
-            </span>
+      <Modal open={menuOpen} onClose={() => setMenuOpen(false)} title="Wallet Session">
+        <div className="stack g-16" style={{ minWidth: 320 }}>
+          {isWrongNetwork && (
+            <div
+              style={{
+                padding: "12px 14px",
+                borderRadius: "var(--r)",
+                background: "rgba(224, 82, 82, 0.12)",
+                border: "1px solid var(--danger)",
+                color: "var(--text)",
+                fontSize: 12.5,
+                lineHeight: 1.4,
+              }}
+            >
+              <div style={{ fontWeight: 700, color: "var(--danger)", marginBottom: 4 }}>
+                WRONG NETWORK DETECTED
+              </div>
+              <div>
+                Switch your wallet network to <strong>Solana Devnet</strong> to interact with Circuit Protocol. All transactions are blocked while on other clusters.
+              </div>
+            </div>
+          )}
+
+          <div
+            className="stack g-10"
+            style={{
+              padding: 14,
+              background: "var(--surface-2)",
+              borderRadius: "var(--r)",
+              border: "1px solid var(--border)",
+            }}
+          >
+            <div className="row between g-8" style={{ alignItems: "center" }}>
+              <span className="t-label">Wallet Provider</span>
+              <span style={{ fontWeight: 600, fontSize: 13 }}>
+                {wallet?.adapter.name ?? "Solana Wallet"}
+              </span>
+            </div>
+
+            <div className="row between g-8" style={{ alignItems: "center" }}>
+              <span className="t-label">Network</span>
+              <Pill tone={isWrongNetwork ? "danger" : "accent"} withDot>
+                {isWrongNetwork ? "Wrong Network" : "Solana Devnet"}
+              </Pill>
+            </div>
+
+            <div className="row between g-8" style={{ alignItems: "center" }}>
+              <span className="t-label">Devnet SOL Balance</span>
+              <div className="row g-6" style={{ alignItems: "center" }}>
+                <span className="mono" style={{ fontWeight: 650, fontSize: 13 }}>
+                  {solText}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => refreshAll()}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "var(--text-3)",
+                    cursor: "pointer",
+                    padding: 2,
+                    display: "flex",
+                  }}
+                  title="Refresh Balance"
+                >
+                  <Icon name="refresh" size={12} />
+                </button>
+              </div>
+            </div>
+
+            <div className="stack g-4" style={{ marginTop: 4 }}>
+              <span className="t-label">Address</span>
+              <span
+                className="mono t-sm"
+                style={{
+                  wordBreak: "break-all",
+                  background: "var(--surface-1)",
+                  padding: "6px 8px",
+                  borderRadius: "var(--r-sm)",
+                  fontSize: 11,
+                  color: "var(--text-2)",
+                }}
+              >
+                {address}
+              </span>
+            </div>
           </div>
-          <div className="row g-8 wrap">
+
+          <div className="row g-8 wrap" style={{ justifyContent: "flex-end" }}>
             <Button
               variant="secondary"
+              size="sm"
               icon="copy"
               onClick={() => navigator.clipboard?.writeText(address)}
             >
-              Copy address
+              Copy Address
             </Button>
+
+            <a
+              href={`https://explorer.solana.com/address/${address}?cluster=devnet`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn--secondary btn--sm"
+              style={{ textDecoration: "none" }}
+            >
+              <Icon name="external" size={13} />
+              Explorer
+            </a>
+
             <Button
               variant="ghost"
+              size="sm"
               onClick={async () => {
                 setMenuOpen(false);
                 await disconnect();
