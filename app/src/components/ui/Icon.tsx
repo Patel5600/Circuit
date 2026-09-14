@@ -41,9 +41,16 @@ export type IconName =
   | "gauge"
   | "refresh"
   | "search"
+  | "user"
   | "faucet";
 
 const PATHS: Record<IconName, React.ReactNode> = {
+  user: (
+    <>
+      <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </>
+  ),
   search: (
     <>
       <circle cx="11" cy="11" r="7" />

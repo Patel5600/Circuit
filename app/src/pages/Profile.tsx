@@ -298,7 +298,7 @@ export default function Profile() {
                     flexShrink: 0,
                   }}
                 >
-                  <Icon name="shield" size={20} />
+                  <Icon name="user" size={20} />
                 </div>
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

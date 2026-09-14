@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 
@@ -41,8 +42,8 @@ export function WalletButton({ compact = false }: { compact?: boolean }) {
         onClick={() => setMenuOpen(true)}
         className="row g-8"
         style={{
-          minHeight: 40,
-          padding: "0 12px",
+          minHeight: 38,
+          padding: "0 10px",
           borderRadius: "var(--r)",
           border: isWrongNetwork
             ? "1px solid var(--danger)"
@@ -50,14 +51,18 @@ export function WalletButton({ compact = false }: { compact?: boolean }) {
           background: isWrongNetwork ? "rgba(224, 82, 82, 0.1)" : "var(--surface-2)",
           cursor: "pointer",
           transition: "all var(--t-fast)",
+          alignItems: "center",
         }}
-        aria-label={`Wallet connected: ${address}. Open wallet menu`}
+        aria-label={`Wallet connected: ${address}. Open account menu`}
       >
         <span
           className="dot"
           style={{ color: isWrongNetwork ? "var(--danger)" : "var(--success)" }}
           aria-hidden="true"
         />
+        <span style={{ color: "var(--text-3)", display: "inline-flex", flexShrink: 0 }}>
+          <Icon name="user" size={14} />
+        </span>
         <span className="stack" style={{ lineHeight: 1.15, textAlign: "left" }}>
           {isWrongNetwork ? (
             <span style={{ fontSize: 10.5, color: "var(--danger)", fontWeight: 700 }}>
@@ -70,7 +75,7 @@ export function WalletButton({ compact = false }: { compact?: boolean }) {
               </span>
             )
           )}
-          <span className="mono" style={{ fontSize: 12.5, fontWeight: 600 }}>
+          <span className="mono" style={{ fontSize: 12, fontWeight: 600 }}>
             {shortenAddress(address)}
           </span>
         </span>
@@ -164,37 +169,49 @@ export function WalletButton({ compact = false }: { compact?: boolean }) {
             </div>
           </div>
 
-          <div className="row g-8 wrap" style={{ justifyContent: "flex-end" }}>
-            <Button
-              variant="secondary"
-              size="sm"
-              icon="copy"
-              onClick={() => navigator.clipboard?.writeText(address)}
-            >
-              Copy Address
-            </Button>
-
-            <a
-              href={`https://explorer.solana.com/address/${address}?cluster=devnet`}
-              target="_blank"
-              rel="noopener noreferrer"
+          <div className="row g-8 wrap" style={{ justifyContent: "space-between", alignItems: "center" }}>
+            <Link
+              to="/app/profile"
+              onClick={() => setMenuOpen(false)}
               className="btn btn--secondary btn--sm"
               style={{ textDecoration: "none" }}
             >
-              <Icon name="external" size={13} />
-              Explorer
-            </a>
+              <Icon name="user" size={13} />
+              Risk Profile
+            </Link>
 
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={async () => {
-                setMenuOpen(false);
-                await disconnect();
-              }}
-            >
-              Disconnect
-            </Button>
+            <div className="row g-8 wrap" style={{ alignItems: "center" }}>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon="copy"
+                onClick={() => navigator.clipboard?.writeText(address)}
+              >
+                Copy
+              </Button>
+
+              <a
+                href={`https://explorer.solana.com/address/${address}?cluster=devnet`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn--secondary btn--sm"
+                style={{ textDecoration: "none" }}
+              >
+                <Icon name="external" size={13} />
+                Explorer
+              </a>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={async () => {
+                  setMenuOpen(false);
+                  await disconnect();
+                }}
+              >
+                Disconnect
+              </Button>
+            </div>
           </div>
         </div>
       </Modal>

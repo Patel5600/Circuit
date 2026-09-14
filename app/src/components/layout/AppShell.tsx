@@ -14,15 +14,14 @@ const PRIMARY: { to: string; label: string; icon: IconName }[] = [
   { to: "/app", label: "Dashboard", icon: "dashboard" },
   { to: "/app/markets", label: "Markets", icon: "markets" },
   { to: "/app/position", label: "Position", icon: "position" },
-  { to: "/app/borrow", label: "Borrow", icon: "borrow" },
   { to: "/app/activity", label: "Activity", icon: "activity" },
+  { to: "/app/borrow", label: "Borrow", icon: "borrow" },
 ];
 
 const SECONDARY: { to: string; label: string; icon: IconName }[] = [
-  { to: "/app/profile", label: "Profile", icon: "shield" },
-  { to: "/app/faucet", label: "Faucet", icon: "faucet" },
   { to: "/app/learn", label: "Learn", icon: "learn" },
   { to: "/app/verify", label: "Verify", icon: "verify" },
+  { to: "/app/faucet", label: "Faucet", icon: "faucet" },
 ];
 
 function SystemHealthPill({ onClick }: { onClick: () => void }) {
@@ -38,11 +37,12 @@ function SystemHealthPill({ onClick }: { onClick: () => void }) {
         padding: 0,
         cursor: "pointer",
         display: "inline-flex",
+        alignItems: "center",
       }}
       title="View System Health & RPC Diagnostics"
     >
       <Pill tone={isHealthy ? "success" : "warning"} withDot>
-        {isHealthy ? "SYSTEM HEALTHY" : "DEGRADED"}
+        {isHealthy ? "HEALTHY" : "DEGRADED"}
       </Pill>
     </button>
   );
@@ -59,49 +59,20 @@ function NetworkPill() {
 function Header({ onOpenHealth }: { onOpenHealth: () => void }) {
   return (
     <header className="appbar">
-      <NavLink to="/" aria-label="circuit home">
-        <CircuitWordmark size={24} />
-      </NavLink>
-
-      {/* Desktop inline nav without Profile option */}
-      <nav
-        aria-label="Primary"
-        className="row g-4 grow"
-        style={{ marginLeft: 16, display: "none" }}
-        data-desktop-nav
-      >
-        {PRIMARY.slice(0, 4).map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.to === "/app"}
-            className="navlink"
-            style={{ minHeight: 36 }}
-          >
-            {item.label}
-          </NavLink>
-        ))}
-      </nav>
-
-      <span className="grow" data-mobile-spacer />
-
       <div className="row g-8" style={{ alignItems: "center" }}>
-        <SystemHealthPill onClick={onOpenHealth} />
-        <span data-hide-narrow>
-          <NetworkPill />
-        </span>
-        <WalletButton compact />
+        <NavLink to="/" aria-label="circuit home" style={{ display: "flex", alignItems: "center" }}>
+          <CircuitWordmark size={22} />
+        </NavLink>
       </div>
 
-      <style>{`
-        @media (min-width: 1024px) {
-          nav[data-desktop-nav] { display: flex !important; }
-          span[data-mobile-spacer] { display: none; }
-        }
-        @media (max-width: 400px) {
-          span[data-hide-narrow] { display: none; }
-        }
-      `}</style>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <SystemHealthPill onClick={onOpenHealth} />
+      </div>
+
+      <div className="row g-8" style={{ alignItems: "center" }}>
+        <NetworkPill />
+        <WalletButton compact />
+      </div>
     </header>
   );
 }
@@ -222,15 +193,15 @@ function Sidebar({
               width: 30,
               height: 30,
               borderRadius: 7,
-              background: "rgba(127, 195, 154, 0.14)",
-              color: "var(--success)",
+              background: "rgba(236, 234, 230, 0.08)",
+              color: "var(--accent)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               flexShrink: 0,
             }}
           >
-            <Icon name="shield" size={16} />
+            <Icon name="user" size={16} />
           </span>
           {!collapsed && (
             <>
@@ -278,34 +249,6 @@ function MobileNav() {
         </NavLink>
       ))}
     </nav>
-  );
-}
-
-/** Sticky borrow action on mobile, where Borrow is not a bottom-nav item. */
-function BorrowFab() {
-  const { pathname } = useLocation();
-  if (pathname.startsWith("/app/borrow")) return null;
-  return (
-    <NavLink to="/app/borrow" className="btn btn--accent fab" aria-label="Borrow">
-      <Icon name="borrow" size={16} />
-      Borrow
-    </NavLink>
-  );
-}
-
-/** Bottom Left Corner Profile FAB on mobile */
-function ProfileFab() {
-  const { pathname } = useLocation();
-  if (pathname.startsWith("/app/profile")) return null;
-  return (
-    <NavLink
-      to="/app/profile"
-      className="profile-fab"
-      aria-label="Risk Profile"
-    >
-      <Icon name="shield" size={15} />
-      <span>Profile</span>
-    </NavLink>
   );
 }
 
@@ -372,8 +315,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </main>
         </div>
         <MobileNav />
-        <ProfileFab />
-        <BorrowFab />
 
         <SystemHealthModal open={healthOpen} onClose={() => setHealthOpen(false)} />
       </div>

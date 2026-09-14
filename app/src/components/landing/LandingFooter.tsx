@@ -29,7 +29,7 @@ export function LandingFooter() {
         <div className="foot__brand">
           <CircuitWordmark size={24} />
           <p className="foot__tag">
-            Credit infrastructure for tokenized equities on Solana.
+            Programmable credit infrastructure for tokenized equities on Solana.
           </p>
         </div>
 
