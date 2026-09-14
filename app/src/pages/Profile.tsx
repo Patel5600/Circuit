@@ -97,6 +97,15 @@ export default function Profile() {
   const liquidationActive = port.healthFactorBps !== null && port.healthFactorBps < BPS;
   const withdrawAllowed = hasLiveCollateral && port.riskState !== "EMERGENCY";
 
+  const [copied, setCopied] = useState(false);
+  const copyAddress = () => {
+    if (publicKey) {
+      navigator.clipboard.writeText(publicKey.toBase58());
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
   const [selectedDriverNode, setSelectedDriverNode] = useState<string | null>(null);
 
   const riskAnalysis = useMemo(() => {
@@ -242,155 +251,205 @@ export default function Profile() {
           </div>
         </div>
 
-        {/* ── Section 1: Risk Identity Card ──────────────────────────── */}
+        {/* ── Section 1: CIRCUIT PROFILE ──────────────────────────── */}
         <Card>
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 24,
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            {/* Left: wallet + identity */}
-            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              {/* Wallet avatar */}
-              <div
-                style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: 12,
-                  background: `linear-gradient(135deg, ${
-                    port.riskState === "SAFE" ? "#7fc39a22" : "#e06c6c22"
-                  }, var(--surface-3))`,
-                  border: `2px solid ${
-                    port.riskState === "SAFE" ? "#7fc39a44" : "#e06c6c44"
-                  }`,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                }}
-              >
-                <Icon name="wallet" size={22} />
-              </div>
-              <div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            {/* Header: Title, Network, Wallet, Risk State */}
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 16,
+                alignItems: "center",
+                justifyContent: "space-between",
+                paddingBottom: 16,
+                borderBottom: "1px solid var(--border)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                 <div
                   style={{
-                    fontSize: 11,
-                    fontFamily: "var(--mono)",
-                    color: "var(--text-3)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.08em",
-                    marginBottom: 2,
+                    width: 44,
+                    height: 44,
+                    borderRadius: 10,
+                    background: `linear-gradient(135deg, ${
+                      port.riskState === "SAFE" ? "#7fc39a22" : "#e06c6c22"
+                    }, var(--surface-3))`,
+                    border: `1.5px solid ${
+                      port.riskState === "SAFE" ? "#7fc39a44" : "#e06c6c44"
+                    }`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
                   }}
                 >
-                  Wallet Identity
+                  <Icon name="shield" size={20} />
                 </div>
-                <div style={{ fontSize: 16, fontWeight: 700, fontFamily: "var(--mono)" }}>
-                  {publicKey ? shortenAddress(publicKey.toBase58(), 4, 4) : "—"}
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <h2
+                      style={{
+                        margin: 0,
+                        fontSize: 16,
+                        fontWeight: 750,
+                        letterSpacing: "0.06em",
+                        fontFamily: "var(--mono)",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      CIRCUIT PROFILE
+                    </h2>
+                    <span
+                      style={{
+                        fontSize: 10.5,
+                        fontFamily: "var(--mono)",
+                        fontWeight: 700,
+                        padding: "2px 7px",
+                        borderRadius: 4,
+                        background: "rgba(153, 69, 255, 0.12)",
+                        border: "1px solid rgba(153, 69, 255, 0.3)",
+                        color: "#c4a0ff",
+                        letterSpacing: "0.05em",
+                      }}
+                    >
+                      DEVNET
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                    <span style={{ fontSize: 11.5, fontFamily: "var(--mono)", color: "var(--text-2)" }}>
+                      Wallet: {publicKey ? shortenAddress(publicKey.toBase58(), 4, 4) : "—"}
+                    </span>
+                    {publicKey && (
+                      <button
+                        type="button"
+                        onClick={copyAddress}
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          color: copied ? "var(--success)" : "var(--text-3)",
+                          cursor: "pointer",
+                          fontSize: 11,
+                          fontFamily: "var(--mono)",
+                          padding: "0 4px",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 3,
+                        }}
+                        title="Copy address"
+                      >
+                        <Icon name={copied ? "check" : "copy"} size={11} />
+                        <span>{copied ? "Copied" : "Copy"}</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right: Risk State Badge & Risk Profile */}
+              <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: 10, fontFamily: "var(--mono)", color: "var(--text-3)", marginBottom: 2 }}>
+                    RISK STATE
+                  </div>
+                  <Pill
+                    tone={
+                      port.riskState === "SAFE"
+                        ? "success"
+                        : port.riskState === "EMERGENCY"
+                        ? "danger"
+                        : "warning"
+                    }
+                    withDot
+                  >
+                    {port.riskState}
+                  </Pill>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: 10, fontFamily: "var(--mono)", color: "var(--text-3)", marginBottom: 2 }}>
+                    RISK PROFILE
+                  </div>
+                  <Pill tone={riskProfileTone(profileLabel)}>{profileLabel}</Pill>
                 </div>
               </div>
             </div>
 
-            {/* Right: quick stats */}
-            <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "center" }}>
-              <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 10, color: "var(--text-3)", marginBottom: 2 }}>
-                  Risk Profile
-                </div>
-                <Pill tone={riskProfileTone(profileLabel)}>{profileLabel}</Pill>
+            {/* Metrics: Health, Current Credit, Available Credit, Collateral, Effective LTV */}
+            {port.loading ? (
+              <div className="row g-16">
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <Skeleton key={i} height={60} />
+                ))}
               </div>
-              <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 10, color: "var(--text-3)", marginBottom: 2 }}>
-                  Health Factor
-                </div>
-                <span
-                  style={{
-                    fontSize: 18,
-                    fontWeight: 700,
-                    fontFamily: "var(--mono)",
-                    color:
-                      hfDisplay === "No debt"
-                        ? "var(--text-2)"
-                        : parseFloat(hfDisplay) < 1.0
-                        ? "var(--danger)"
-                        : parseFloat(hfDisplay) < 1.5
-                        ? "var(--warning)"
-                        : "var(--success)",
-                  }}
-                >
-                  {hfDisplay}
-                </span>
-              </div>
-              <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 10, color: "var(--text-3)", marginBottom: 2 }}>
-                  Risk State
-                </div>
-                <Pill
-                  tone={
-                    port.riskState === "SAFE"
-                      ? "success"
-                      : port.riskState === "EMERGENCY"
-                      ? "danger"
-                      : "warning"
+            ) : (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+                  gap: 16,
+                }}
+              >
+                <StatBlock
+                  label="Portfolio Health"
+                  value={
+                    <span
+                      style={{
+                        color:
+                          hfDisplay === "No debt"
+                            ? "var(--text-2)"
+                            : parseFloat(hfDisplay) < 1.0
+                            ? "var(--danger)"
+                            : parseFloat(hfDisplay) < 1.5
+                            ? "var(--warning)"
+                            : "var(--success)",
+                      }}
+                    >
+                      {hfDisplay}
+                    </span>
                   }
-                  withDot
-                >
-                  {port.riskState}
-                </Pill>
+                  sub={
+                    port.healthFactorBps !== null
+                      ? port.healthFactorBps < BPS
+                        ? "LIQUIDATABLE (< 1.00)"
+                        : "Nominal Solvency"
+                      : "Zero debt drawn"
+                  }
+                />
+                <StatBlock
+                  label="Current Credit"
+                  value={`$${formatMoney(port.totalDebtUsd)}`}
+                  sub="Borrowed amount (USDC)"
+                />
+                <StatBlock
+                  label="Available Credit"
+                  value={`$${formatMoney(port.borrowCapacityUsd)}`}
+                  sub={
+                    hasLiveCollateral
+                      ? `Max: $${formatMoney(port.totalCollateralUsd * (port.effectiveLtvBps / BPS))}`
+                      : "Awaiting collateral deposit"
+                  }
+                />
+                <StatBlock
+                  label="Collateral"
+                  value={`$${formatMoney(riskAnalysis.conservativeCollateralUsd)}`}
+                  sub={
+                    hasLiveCollateral
+                      ? `Nominal: $${formatMoney(port.totalCollateralUsd)} (p - conf)`
+                      : "0.0000 (No Collateral)"
+                  }
+                />
+                <StatBlock
+                  label="LTV"
+                  value={hasLiveCollateral ? `${effectiveLtvPct.toFixed(1)}%` : "0.0%"}
+                  sub={
+                    hasLiveCollateral
+                      ? `Base: ${formatPercent(port.weightedBaseLtvBps)} | Penalty: -${port.concentrationPenaltyBps} bps`
+                      : "0.0% (Awaiting deposit)"
+                  }
+                />
               </div>
-            </div>
+            )}
           </div>
-        </Card>
-
-        {/* ── Section 2: Financial Position ──────────────────────────── */}
-        <Card title="Financial Position">
-          {port.loading ? (
-            <div className="row g-16">
-              {[0, 1, 2, 3].map((i) => (
-                <Skeleton key={i} height={50} />
-              ))}
-            </div>
-          ) : (
-            <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
-              <StatBlock
-                label="Total Collateral"
-                value={`$${formatMoney(port.totalCollateralUsd)}`}
-                sub={
-                  hasLiveCollateral
-                    ? port.positions.length === 1
-                      ? `${formatMoney(port.positions[0].collateralUi, 4)} ${port.positions[0].market.tokenSymbol}`
-                      : `${port.positions.length} Active Positions (${port.positions.map((p) => p.market.symbol).join(", ")})`
-                    : "0.0000 (No Collateral)"
-                }
-              />
-              <StatBlock
-                label="Current Debt"
-                value={`$${formatMoney(port.totalDebtUsd)}`}
-                sub="USDC"
-              />
-              <StatBlock
-                label="Borrow Capacity"
-                value={`$${formatMoney(port.borrowCapacityUsd)}`}
-                sub={
-                  hasLiveCollateral
-                    ? `Effective LTV: ${formatPercent(port.effectiveLtvBps)}`
-                    : "No collateral deposited"
-                }
-              />
-              <StatBlock
-                label="Effective LTV"
-                value={hasLiveCollateral ? `${effectiveLtvPct.toFixed(1)}%` : "0.0%"}
-                sub={
-                  hasLiveCollateral
-                    ? `Base: ${formatPercent(port.weightedBaseLtvBps)} | Penalty: -${port.concentrationPenaltyBps} bps`
-                    : "0.0% (Awaiting deposit)"
-                }
-              />
-            </div>
-          )}
         </Card>
 
         {/* ── Section 3: On-Chain Deposited Holdings Breakdown (When N >= 1) ── */}

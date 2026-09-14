@@ -13,7 +13,7 @@
  *   node_modules/.bin/ts-node scripts/initialize-devnet.ts
  */
 
-import * as anchor from "@coral-xyz/anchor";
+import * as anchor from "@anchor-lang/core";
 import { PublicKey, Keypair, Connection, clusterApiUrl, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { getAssociatedTokenAddress, createMint, mintTo, getOrCreateAssociatedTokenAccount } from "@solana/spl-token";
 import * as fs from "fs";

@@ -35,20 +35,22 @@ export function RiskPermissions({
   const isNoCollateral = borrowBlockers.some((b) => b.toLowerCase().includes("no collateral"));
 
   const borrowStatus = borrowAllowed
-    ? "✓ Allowed"
-    : isNoCollateral
-    ? "— Awaiting Deposit"
+    ? "ALLOWED"
     : isRestricted
-    ? "⚠ Restricted"
-    : "✗ Blocked";
+    ? "RESTRICTED"
+    : "BLOCKED";
 
   const borrowTone: Tone = borrowAllowed
     ? "success"
-    : isNoCollateral
-    ? "neutral"
     : isRestricted
     ? "warning"
     : "danger";
+
+  const withdrawStatus = withdrawAllowed
+    ? "ALLOWED"
+    : isEmergency
+    ? "BLOCKED"
+    : "RESTRICTED";
 
   const rows: PermissionRow[] = [
     {
@@ -68,42 +70,40 @@ export function RiskPermissions({
     {
       action: "Withdraw",
       allowed: withdrawAllowed,
-      statusText: withdrawAllowed ? "✓ Allowed" : isEmergency ? "✗ Blocked" : "— Inactive",
-      tone: withdrawAllowed ? "success" : isEmergency ? "danger" : "neutral",
+      statusText: withdrawStatus,
+      tone: withdrawAllowed ? "success" : "danger",
       reason: withdrawReason || (withdrawAllowed ? "Withdrawals permitted while position remains solvent" : isEmergency ? "Risk-increasing withdrawals halted in Emergency state" : "No deposited collateral to withdraw"),
     },
     {
       action: "Repay",
       allowed: true,
       alwaysAllowed: true,
-      statusText: "Always Allowed",
+      statusText: "ALLOWED",
       tone: "success",
-      reason: "Deleveraging paths remain open under all protocol states",
+      reason: "Deleveraging paths remain unconditionally open under all protocol states",
     },
     {
-      action: "Liquidation",
+      action: "Liquidate",
       allowed: !liquidationActive,
-      statusText: isEmergency
-        ? "Protected"
-        : liquidationActive
-        ? "⚠ Active"
-        : "Not Active",
-      tone: isEmergency ? "neutral" : liquidationActive ? "danger" : "neutral",
-      reason: isEmergency
-        ? "Dutch auction safeguard damping cascading selloffs"
-        : liquidationActive
-        ? `Health factor below safety threshold${
-            healthFactorBps !== null
-              ? ` (${(healthFactorBps / 10_000).toFixed(2)})`
-              : ""
-          }`
+      statusText: liquidationActive ? "ACTIVE" : "INACTIVE",
+      tone: liquidationActive ? "danger" : "neutral",
+      reason: liquidationActive
+        ? `Position eligible for liquidation (Health Factor < 1.00)`
         : "Collateral comfortably exceeds liquidation threshold",
+    },
+    {
+      action: "Deposit",
+      allowed: true,
+      alwaysAllowed: true,
+      statusText: "ALLOWED",
+      tone: "success",
+      reason: "Equity collateral deposits always permitted to improve account solvency",
     },
   ];
 
   return (
     <Card
-      title="Risk Permissions"
+      title="Current Permissions"
       action={
         <span
           style={{
@@ -112,7 +112,7 @@ export function RiskPermissions({
             color: "var(--text-3)",
           }}
         >
-          What actions is this wallet trusted to perform?
+          Direct on-chain protocol state enforcement
         </span>
       }
     >

@@ -51,7 +51,7 @@ export async function fetchHistoricalReference(symbol: string): Promise<Historic
       throw new Error(`Market provider returned HTTP ${res.status}`);
     }
 
-    const data = await res.json();
+    const data: any = await res.json();
     const result = data?.chart?.result?.[0];
     const meta = result?.meta;
     

@@ -1,4 +1,4 @@
-import { BPS } from "../protocol";
+export const BPS = 10_000;
 
 export interface AssetRiskDetail {
   symbol: string;
@@ -53,6 +53,14 @@ export interface PortfolioRiskAnalysis {
     impactUsd: number;
     targetNode: "ASSETS" | "RISK_FACTORS" | "PORTFOLIO" | "CREDIT" | "PERMISSIONS";
   }[];
+}
+
+/**
+ * Normalizes a raw Pyth price/conf integer with its signed exponent to floating USD.
+ * E.g., raw 14850000000 with exponent -8 -> 148.50 USD.
+ */
+export function normalizePythPrice(rawPrice: bigint | number, exponent: number): number {
+  return Number(rawPrice) * Math.pow(10, exponent);
 }
 
 /**

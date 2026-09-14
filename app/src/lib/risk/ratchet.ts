@@ -62,6 +62,21 @@ export function isValidRatchetTransition(
 }
 
 /**
+ * Asserts that a ratchet state transition is valid under monotonic recovery rules.
+ * Throws an Error if an illegal jump (e.g. EMERGENCY -> SAFE directly) is attempted.
+ */
+export function assertValidRatchetTransition(
+  from: RiskRatchetState,
+  to: RiskRatchetState
+): void {
+  if (!isValidRatchetTransition(from, to)) {
+    throw new Error(
+      `Illegal Risk Ratchet transition from ${from} directly to ${to}. Monotonic staged recovery is strictly enforced.`
+    );
+  }
+}
+
+/**
  * Computes the next risk state given current conditions, respecting hysteresis.
  */
 export function evaluateRatchetState(
