@@ -42,5 +42,8 @@ Thumbs.db
 *.swp
 *.swo
 
+# Scratch scripts
+scratch/
+
 # Devnet deployment records (regenerated)
 devnet/

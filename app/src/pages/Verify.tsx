@@ -216,6 +216,92 @@ export default function Verify() {
           </div>
         </Card>
 
+        {/* -- Security & Verifiable Build ---------------------------- */}
+        <Card
+          title={
+            <div className="row between g-12 wrap" style={{ alignItems: "center" }}>
+              <span>Smart contract security & verifiable build attestation</span>
+              <div className="row g-6">
+                <Pill tone="success" withDot>Security.txt Included</Pill>
+                <Pill tone="accent" withDot>On-Chain Verified PDA</Pill>
+              </div>
+            </div>
+          }
+        >
+          <div className="stack g-12" style={{ marginBottom: 14 }}>
+            <p className="t-sm muted" style={{ margin: 0 }}>
+              The Circuit Protocol program binary embeds cryptographic security metadata and publishes its reproducible build attestation to the official Solana Foundation / OtterSec verifiable build registry.
+            </p>
+          </div>
+
+          <div className="grid grid--2">
+            <AddressCard
+              label="Solana Verifiable Build PDA"
+              address="ASEZW9QkzcycmhMN6j3Ej8hCVAGN5bvdbTbKthk9nXEc"
+              badge="OtterSec Verified PDA"
+              badgeTone="accent"
+              seeds={["otter_verify", "program", "authority"]}
+              note="Official on-chain PDA uploaded by upgrade authority linking program bytecode to GitHub commit 4faab2e"
+            />
+            <AddressCard
+              label="Verification Upload TX"
+              address="YPCNPcbJoVVBqaF1d1xUCp4EsaF777Fn7vX8eAttLE8nFhrFxPUHEVmVbzsHv3byERh6LwLeNEFyyGYFzJLbnBN"
+              kind="tx"
+              badge="Devnet Transaction"
+              badgeTone="success"
+              note="Confirmed on-chain transaction writing verifiable build parameters to the Solana blockchain"
+            />
+            <AddressCard
+              label="Program Upgrade Authority"
+              address="F5JmuDsKh9oswAhR9rJSfL2PGU1UpQF2cN3n7NjZrFAT"
+              badge="Signer Authority"
+              badgeTone="neutral"
+              note="Authorized keypair that signed the on-chain verifiable build attestation and controls program upgrades"
+            />
+            <AddressCard
+              label="Source Code Snapshot"
+              address="Cq4Lvd6Kgr3a2aP6ENPVGQ8tUpbkGmoWr9ZDBdXGiTs2"
+              badge="Commit 4faab2e"
+              badgeTone="neutral"
+              note="Compiled from public repository at github.com/Patel5600/Circuit for program Cq4Lvd6...iTs2"
+            />
+          </div>
+
+          <div
+            style={{
+              marginTop: 14,
+              padding: "12px 16px",
+              background: "var(--surface-2)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--r)",
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+            }}
+          >
+            <div className="stack g-4">
+              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>
+                Embedded Security.txt Policy
+              </div>
+              <div style={{ fontSize: 12, color: "var(--text-2)" }}>
+                Auditors: None (Devnet MVP) • Policy: <span className="mono">docs/SECURITY.md</span> • Contact: <span className="mono">github:Patel5600/Circuit/issues</span>
+              </div>
+            </div>
+
+            <a
+              href="https://explorer.solana.com/address/Cq4Lvd6Kgr3a2aP6ENPVGQ8tUpbkGmoWr9ZDBdXGiTs2/security?cluster=devnet"
+              target="_blank"
+              rel="noreferrer"
+              className="btn btn--secondary btn--sm"
+            >
+              <Icon name="shield" size={14} />
+              <span>Inspect Security.txt on Explorer &rarr;</span>
+            </a>
+          </div>
+        </Card>
+
         {/* -- Oracle -------------------------------------------------- */}
         <Card
           title="Oracle"

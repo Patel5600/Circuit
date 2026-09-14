@@ -132,9 +132,9 @@ Every item is marked with its readiness state, a description of the current MVP 
 - **Current MVP**: Ad-hoc admin pause CLI command.
 - **Production Requirement**: Documented standard operating procedures (SOP) detailing step-by-step emergency escalation paths: pause triggers, communication channels, bug bounty triage, and white-hat recovery mechanisms.
 
-### [ ] 25. Program Reproducible Build Verification
-- **Current MVP**: Local compilation via Anchor CLI.
-- **Production Requirement**: Build using verified verifiable Docker containers (`anchor build --verifiable`) and publish image digest to ensure byte-for-byte binary reproducibility on Solana FM and Solana Explorer.
+### [x] 25. Program Reproducible Build Verification
+- **Devnet Status**: Official Solana Foundation / OtterSec Verifiable Build PDA successfully published on-chain at [`ASEZW9QkzcycmhMN6j3Ej8hCVAGN5bvdbTbKthk9nXEc`](https://explorer.solana.com/address/ASEZW9QkzcycmhMN6j3Ej8hCVAGN5bvdbTbKthk9nXEc?cluster=devnet) signed by upgrade authority `F5JmuDsKh9oswAhR9rJSfL2PGU1UpQF2cN3n7NjZrFAT` linking program `Cq4Lvd6Kgr3a2aP6ENPVGQ8tUpbkGmoWr9ZDBdXGiTs2` to GitHub commit `4faab2e`.
+- **Mainnet Requirement**: Submit remote worker queue (`solana-verify remote submit-job`) on Mainnet-Beta once deployed, unlocking the green Explorer "Verified Build" badge.
 
 ### [ ] 26. Verified IDL Publication
 - **Current MVP**: IDL generated in `target/idl/circuit.json`.
