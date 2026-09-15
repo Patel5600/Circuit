@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useId } from "react";
+import React, { useState, useMemo } from "react";
 import { Candle } from "../../lib/market-data/types";
 import { formatMoney } from "../../lib/format";
 
@@ -33,7 +33,6 @@ export function MarketCandlestick({
   className,
   style,
 }: MarketCandlestickProps) {
-  const chartId = useId();
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
   const validCandles = useMemo(() => {
@@ -128,33 +127,30 @@ export function MarketCandlestick({
     : null;
 
   // Price axis tick marks for full chart
-  const priceTicks = useMemo(() => {
-    if (compact) return [];
-    const ticks = [
-      lowBound + priceRange * 0.15,
-      lowBound + priceRange * 0.5,
-      lowBound + priceRange * 0.85,
-    ];
-    return ticks;
-  }, [compact, lowBound, priceRange]);
+  const priceTicks = compact
+    ? []
+    : [
+        lowBound + priceRange * 0.15,
+        lowBound + priceRange * 0.5,
+        lowBound + priceRange * 0.85,
+      ];
 
   // Time axis tick marks for full chart
-  const timeTicks = useMemo(() => {
-    if (compact || count < 4) return [];
-    const indices = [
-      0,
-      Math.floor(count / 3),
-      Math.floor((count * 2) / 3),
-      count - 1,
-    ];
-    return indices.map((idx) => {
-      const c = displayCandles[idx];
-      const date = new Date(c.time * 1000);
-      const timeStr = date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
-      const x = paddingLeft + idx * slotWidth + slotWidth / 2;
-      return { x, label: timeStr };
-    });
-  }, [compact, count, displayCandles, paddingLeft, slotWidth]);
+  const timeTicks =
+    compact || count < 4
+      ? []
+      : [
+          0,
+          Math.floor(count / 3),
+          Math.floor((count * 2) / 3),
+          count - 1,
+        ].map((idx) => {
+          const c = displayCandles[idx];
+          const date = new Date(c.time * 1000);
+          const timeStr = date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+          const x = paddingLeft + idx * slotWidth + slotWidth / 2;
+          return { x, label: timeStr };
+        });
 
   return (
     <div
