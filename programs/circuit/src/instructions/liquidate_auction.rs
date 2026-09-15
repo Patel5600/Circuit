@@ -78,6 +78,21 @@ pub fn handler(ctx: Context<LiquidateAuction>, requested_repay: u64) -> Result<(
         math::DUTCH_AUCTION_MAX_BONUS_BPS,
     )?;
 
+    // Calculate exact minimum debt repayment required to restore position to target HF (protocol minimum)
+    let min_restoration_debt = math::calculate_minimum_restoration_debt(
+        position.debt_amount,
+        collateral_value,
+        asset.liquidation_threshold_bps,
+        protocol.min_health_factor_bps,
+        bonus_bps,
+        math::DUST_DEBT_THRESHOLD,
+    )?;
+
+    // Reject under-restoring liquidations: liquidator must repay at least the minimum required debt
+    if requested_repay > 0 && requested_repay < min_restoration_debt {
+        return err!(CircuitError::InsufficientLiquidationAmount);
+    }
+
     // Calculate debt to repay with partial close factor
     let debt_to_repay = math::calculate_close_factor_debt(
         position.debt_amount,

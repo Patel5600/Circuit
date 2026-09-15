@@ -28,6 +28,10 @@ This document provides a comprehensive threat model for the Circuit Protocol (`C
 | **V18** | Replay & Reentrancy State Manipulation | Solana Runtime $\rightarrow$ Program Context | Medium | **Mitigated** |
 | **V19** | Cached MarketGuard Observability Hijacking | Keeper / Cranker $\rightarrow$ User Engine | High | **Mitigated** |
 | **V20** | Dust Deposit & Account Spam Griefing | Client $\rightarrow$ Solana Rent Engine | Low | **Mitigated** |
+| **V21** | Liquidation Griefing & Under-Restoration | Liquidator $\rightarrow$ Borrower Position | High | **Mitigated** |
+| **V22** | Dutch Auction Frontrunning & Decay Exploitation | MEV Searcher $\rightarrow$ Auction PDA | High | **Mitigated** |
+| **V23** | Capital Policy Bypass via Direct Instruction Calls | Caller $\rightarrow$ Core Instruction Engine | Critical | **Mitigated** |
+| **V24** | Rounding Direction & Precision Exploitation | Math Engine $\rightarrow$ Liquidation Settlement | Medium | **Mitigated** |
 
 ---
 
@@ -277,3 +281,53 @@ This document provides a comprehensive threat model for the Circuit Protocol (`C
   2. Each position requires rent exemption in SOL (~0.0016 SOL per `Position` PDA), paid entirely by the user (`payer = owner`).
   3. Spamming creates a net-negative economic cost for the attacker with zero protocol degradation.
 - **Remaining Risk**: Minor chain-wide ledger bloat if attacker is willing to burn substantial SOL rent capital.
+
+---
+
+### Vector 21: Liquidation Griefing & Under-Restoration
+- **Attack Description**: An adversarial liquidator observes an unhealthy position and repeatedly repays a microscopic fraction of debt (e.g., 1 unit or dust amount). Each call claims the liquidation discount bonus and extracts borrower collateral without lifting the position back to a safe health factor ($\text{HF} \ge 1.05$), griefing the borrower and generating parasitic liquidator profit while leaving the protocol at systemic default risk.
+- **Trust Boundary**: Liquidator $\rightarrow$ Borrower Position PDA.
+- **Mitigation Implemented**:
+  1. [`calculate_min_restoration_debt`](file:///c:/Dev/Circuit/programs/circuit/src/math/fixed_point.rs) mathematically solves for the exact minimum debt repayment $d^*$ needed to restore the position to $\text{HF}^* \ge 1.05$:
+     $$d^* = \left\lceil \frac{D \cdot 10,000 \cdot h^* - V \cdot 10,000 \cdot \tau}{10,000 \cdot h^* - \beta \cdot \tau} \right\rceil$$
+  2. [`liquidate_auction.rs`](file:///c:/Dev/Circuit/programs/circuit/src/instructions/liquidate_auction.rs) enforces `repay_amount >= min_restoration_debt`. Any repayment less than $d^*$ reverts with [`CircuitError::InsufficientLiquidationAmount`](file:///c:/Dev/Circuit/programs/circuit/src/errors.rs).
+  3. If remaining debt $D - d^*$ falls below the dust threshold (\$100 / 100,000,000 units), full 100% liquidation is enforced ($d^* = D$) to eliminate insolvent tail risk.
+- **Remaining Risk**: Extreme market gap down where position collateral value drops faster than liquidator execution can restore it (mitigated by Dutch auction dynamic discount incentives and liquidator keeper competition).
+- **Test Coverage**: Tested in `tests/circuit.ts` Scenario 20.
+
+---
+
+### Vector 22: Dutch Auction Frontrunning & Decay Exploitation
+- **Attack Description**: An MEV searcher or malicious liquidator attempts to exploit the dynamic Dutch auction mechanism by: (1) frontrunning other liquidators at high discount, (2) waiting maliciously until the discount reaches extreme levels to maximize collateral seizure at the borrower's expense, (3) creating duplicate concurrent auctions on the same position, or (4) executing double settlements on an already resolved auction.
+- **Trust Boundary**: Liquidator / MEV Searcher $\rightarrow$ `LiquidationAuction` PDA.
+- **Mitigation Implemented**:
+  1. Clamped Linear Discount Ramp: Bonus begins at a conservative floor (`min_bonus_bps` = 200 bps / 2.0%) and linearly ramps over 150 slots to `max_bonus_bps` (1500 bps / 15.0%). The discount is strictly capped at 15.0%, preventing infinite price erosion.
+  2. Canonical PDA Uniqueness: The `LiquidationAuction` PDA is uniquely seeded by `[b"auction", position.key().as_ref()]`. Duplicate attempts to initialize fail at the Solana runtime account allocation level.
+  3. Atomic Closure & Single Settlement: Upon full repayment or restoration of health, the auction account is closed via Anchor's `close = initiator`, burning the account data and returning rent to the initiator. Replay or double settlement reverts with account-not-found.
+- **Remaining Risk**: MEV priority fee competition among liquidators on mainnet.
+- **Test Coverage**: Tested in `tests/circuit.ts` Scenarios 18 & 21.
+
+---
+
+### Vector 23: Capital Policy Bypass via Direct Instruction Calls
+- **Attack Description**: An attacker bypasses frontend validation and calls [`borrow`](file:///c:/Dev/Circuit/programs/circuit/src/instructions/borrow.rs) or [`withdraw`](file:///c:/Dev/Circuit/programs/circuit/src/instructions/withdraw.rs) directly via RPC when the protocol is in `Restricted`, `Defensive`, or `Emergency` state (e.g. during off-market hours or during an oracle confidence anomaly), attempting to extract liquidity when risk policy forbids it.
+- **Trust Boundary**: Untrusted Caller / Transaction $\rightarrow$ Circuit Core State Engine.
+- **Mitigation Implemented**:
+  1. Authoritative On-Chain Derivation: Permissions are never passed by the caller or accepted from off-chain inputs. Every instruction handler derives the `CapitalPolicy` dynamically from live on-chain invariants (`CapitalPolicy::from_risk_state(...)`).
+  2. In `borrow.rs`: If `!policy.borrow_allowed`, execution immediately halts with `CircuitError::CapitalPolicyBlocked` or `CircuitError::InvalidCustodyState`.
+  3. In `withdraw.rs`: If debt exists and `!policy.withdraw_allowed`, execution immediately halts with `CircuitError::CapitalPolicyBlocked`.
+  4. Non-Custodial Anti-Hostage Invariant: Even in `Emergency`, `repay` and `deposit` are unconditionally permitted to allow borrowers to protect and recover their positions.
+- **Remaining Risk**: None; permission checking is hardcoded and enforced strictly on-chain prior to any state mutation.
+- **Test Coverage**: Tested in `tests/circuit.ts` Scenario 19.
+
+---
+
+### Vector 24: Rounding Direction & Precision Exploitation
+- **Attack Description**: An attacker crafts fractional token amounts or manipulates integer division truncation to pay less debt than required or claim slightly more collateral than earned during liquidation.
+- **Trust Boundary**: Math Engine $\rightarrow$ SPL Token Decimal Conversion.
+- **Mitigation Implemented**:
+  1. All mathematical operations use checked 128-bit integer arithmetic (`u128`) without floating point.
+  2. Debt restoration thresholds use ceiling division (`div_ceil`) to ensure the protocol never undercharges debt repayment.
+  3. Health factor and valuation calculations maintain consistent decimal scaling (`BPS_SCALE = 10,000`, `USD_SCALE = 10^8`, token decimals = 6).
+- **Remaining Risk**: Microscopic sub-token-unit rounding remnants (dust < 1 micro-token).
+- **Test Coverage**: Tested in `fixed_point.rs` unit tests and `tests/circuit.ts` Scenario 20.

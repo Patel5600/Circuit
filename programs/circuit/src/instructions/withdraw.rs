@@ -65,6 +65,15 @@ pub fn handler(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
             CircuitError::InvalidLiquidityState
         );
 
+        let policy = CapitalPolicy::from_risk_state(
+            MarketState::Safe,
+            asset.base_ltv_bps,
+            position.has_debt(),
+            0,
+            clock.unix_timestamp,
+        );
+        require!(policy.withdraw_allowed, CircuitError::CapitalPolicyBlocked);
+
         // Calculate remaining collateral value
         let remaining_value = math::calculate_collateral_value(
             remaining_collateral,

@@ -159,5 +159,13 @@ pub enum CircuitError {
     /// Invalid protocol fee token account
     #[msg("Invalid protocol fee token account")]
     InvalidFeeAccount,
+
+    /// Liquidation repayment amount is insufficient to restore target health factor
+    #[msg("Liquidation repayment amount is insufficient to restore target health factor")]
+    InsufficientLiquidationAmount,
+
+    /// Operation rejected by authoritative Capital Policy
+    #[msg("Operation rejected by authoritative Capital Policy")]
+    CapitalPolicyBlocked,
 }
 

@@ -23,6 +23,7 @@ import {
   TS_WEEKEND,
   TS_HOLIDAY,
   TS_AFTER_CLOSE,
+  USD,
 } from "./helpers/harness";
 
 /**
@@ -1062,6 +1063,171 @@ describe("Circuit Protocol", () => {
       // Position is still underwater at $80, cancel attempt fails
       const res = h.send([await h.ixCancelLiquidationAuction()], [h.user]);
       expectAnchorError(res, "AuctionStillActive");
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Scenario 19 - Authoritative Capital Policy Enforcement
+  // -----------------------------------------------------------------------
+  describe("19. authoritative capital policy enforcement", () => {
+    let h: Harness;
+    beforeEach(async () => {
+      h = await setupHarness();
+      await h.bootstrapProtocol();
+      h.sendOk([await h.ixDeposit(COLLATERAL)], [h.user]);
+    });
+
+    it("allows borrow and withdraw under nominal Safe state", async () => {
+      // Safe state: borrow permitted up to base LTV
+      h.sendOk([await h.ixBorrow(300 * TOKEN)], [h.user]);
+      const pos = h.fetch<any>("Position", h.position);
+      assert.equal(pos.debtAmount.toNumber(), 300 * TOKEN);
+
+      // Safe state: partial withdraw permitted if HF >= 1.0
+      h.sendOk([await h.ixWithdraw(2 * TOKEN)], [h.user]);
+      const posAfter = h.fetch<any>("Position", h.position);
+      assert.equal(posAfter.collateralAmount.toNumber(), 8 * TOKEN);
+    });
+
+    it("blocks new borrow when market state transitions to Restricted", async () => {
+      // Transition to Restricted via delayed custody
+      h.sendOk([await h.ixSetCustody("delayed")], [h.admin]);
+
+      const res = h.send([await h.ixBorrow(100 * TOKEN)], [h.user]);
+      expectAnchorError(res, "InvalidCustodyState");
+    });
+
+    it("blocks collateral withdrawal with active debt during Restricted state", async () => {
+      // Borrow while safe
+      h.sendOk([await h.ixBorrow(300 * TOKEN)], [h.user]);
+
+      // Transition to Restricted
+      h.sendOk([await h.ixSetCustody("delayed")], [h.admin]);
+
+      // Attempt withdrawal with active debt -> blocked
+      const res = h.send([await h.ixWithdraw(1 * TOKEN)], [h.user]);
+      expectAnchorError(res, "InvalidCustodyState");
+    });
+
+    it("always permits debt repayment during Emergency state (anti-hostage invariant)", async () => {
+      // Borrow while safe
+      h.sendOk([await h.ixBorrow(300 * TOKEN)], [h.user]);
+
+      // Transition to Emergency via impaired custody
+      h.sendOk([await h.ixSetCustody("impaired")], [h.admin]);
+
+      // Repay $100 must succeed
+      h.sendOk([await h.ixRepay(100 * TOKEN)], [h.user]);
+      const pos = h.fetch<any>("Position", h.position);
+      assert.equal(pos.debtAmount.toNumber(), 200 * TOKEN);
+    });
+
+    it("always permits collateral deposit during Emergency state (risk-reducing invariant)", async () => {
+      // Transition to Emergency
+      h.sendOk([await h.ixSetCustody("impaired")], [h.admin]);
+
+      // Deposit additional collateral must succeed
+      h.sendOk([await h.ixDeposit(5 * TOKEN)], [h.user]);
+      const pos = h.fetch<any>("Position", h.position);
+      assert.equal(pos.collateralAmount.toNumber(), 15 * TOKEN);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Scenario 20 - Minimum-Restoration Partial Liquidation Invariants
+  // -----------------------------------------------------------------------
+  describe("20. minimum-restoration partial liquidation invariants", () => {
+    let h: Harness;
+    beforeEach(async () => {
+      h = await setupHarness();
+      await h.bootstrapProtocol();
+      h.sendOk([await h.ixDeposit(COLLATERAL)], [h.user]);
+      h.sendOk([await h.ixBorrow(CAPACITY)], [h.user]); // $700 debt
+    });
+
+    it("rejects insufficient liquidation repayment when requested_repay < min_restoration", async () => {
+      // Drop price to $80 ($800 value, $700 debt, HF = 0.914)
+      h.setPrice({ priceUsd: 80 });
+      h.sendOk([await h.ixStartLiquidationAuction()], [h.liquidator]);
+
+      // Min restoration debt needed to reach HF 1.0 is ~$326.08 (326_086_957 native)
+      // Attempting to repay only $50 (50_000_000 native) leaves position deeply underwater
+      const res = h.send([await h.ixLiquidateAuction(50 * TOKEN)], [h.liquidator]);
+      expectAnchorError(res, "InsufficientLiquidationAmount");
+    });
+
+    it("executes 100% full liquidation when debt is below dust threshold", async () => {
+      // Setup small debt: user repays down to $80 (below $100 dust threshold)
+      h.sendOk([await h.ixRepay(620 * TOKEN)], [h.user]);
+      const posBefore = h.fetch<any>("Position", h.position);
+      assert.equal(posBefore.debtAmount.toNumber(), 80 * TOKEN);
+
+      // Drop price so position is underwater
+      // At $80 debt, 0.9 equity tokens = $90 value. Drop price to $80 -> value = $72, HF < 1.0
+      h.sendOk([await h.ixWithdraw(9 * TOKEN)], [h.user]); // remaining: 1 token
+      h.setPrice({ priceUsd: 80 }); // collateral value = $80, debt = $80, HF = 0.80
+
+      h.sendOk([await h.ixStartLiquidationAuction()], [h.liquidator]);
+
+      // Liquidate with requested_repay = 0 -> full $80 dust debt cleared
+      h.sendOk([await h.ixLiquidateAuction(0)], [h.liquidator]);
+
+      const posAfter = h.fetch<any>("Position", h.position);
+      assert.equal(posAfter.debtAmount.toNumber(), 0);
+      assert.property(posAfter.state, "healthy");
+      assert.isNull(h.maybeFetch<any>("LiquidationAuction", h.auction));
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Scenario 21 - Adversarial Dutch Auction Recovery & Replay Protection
+  // -----------------------------------------------------------------------
+  describe("21. adversarial dutch auction recovery & replay protection", () => {
+    let h: Harness;
+    beforeEach(async () => {
+      h = await setupHarness();
+      await h.bootstrapProtocol();
+      h.sendOk([await h.ixDeposit(COLLATERAL)], [h.user]);
+      h.sendOk([await h.ixBorrow(CAPACITY)], [h.user]);
+      h.setPrice({ priceUsd: 80 });
+    });
+
+    it("prevents duplicate liquidation auction initiation", async () => {
+      // Start auction once
+      h.sendOk([await h.ixStartLiquidationAuction()], [h.liquidator]);
+
+      // Attempting to start a duplicate auction must fail
+      const res = h.send([await h.ixStartLiquidationAuction(h.outsider)], [h.outsider]);
+      assert.isTrue(isFailure(res));
+    });
+
+    it("prevents double settlement after auction is already resolved and closed", async () => {
+      // Start auction and resolve it
+      h.sendOk([await h.ixStartLiquidationAuction()], [h.liquidator]);
+      h.sendOk([await h.ixLiquidateAuction(0)], [h.liquidator]);
+
+      // Auction is now resolved and closed (PDA is null)
+      assert.isNull(h.maybeFetch<any>("LiquidationAuction", h.auction));
+
+      // Attempting to settle again must fail as auction account no longer exists
+      const res = h.send([await h.ixLiquidateAuction(0)], [h.liquidator]);
+      expectFailure(res, "double settlement on closed auction");
+    });
+
+    it("strictly clamps auction discount within min (200 bps) and max (1500 bps)", async () => {
+      h.sendOk([await h.ixStartLiquidationAuction()], [h.liquidator]);
+
+      // Check slot 0 bonus
+      const auction = h.fetch<any>("LiquidationAuction", h.auction);
+      assert.equal(auction.startPrice.toNumber(), 80 * USD);
+
+      // Advance 10,000 slots into the future (far beyond 150 slot duration)
+      h.advanceSlots(10_000);
+
+      // Bonus must be capped at 1500 bps (15%), never exceeding max discount
+      const res = h.sendOk([await h.ixLiquidateAuction(0)], [h.liquidator]);
+      const logs = logsOf(res).join("\n");
+      assert.include(logs, "Bonus: 1500 bps");
     });
   });
 });

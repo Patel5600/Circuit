@@ -58,6 +58,14 @@ pub fn handler(ctx: Context<Borrow>, amount: u64) -> Result<()> {
 
     // All conditions met -> MarketState is Safe
     // (We derived this independently, not from cached MarketGuard)
+    let policy = CapitalPolicy::from_risk_state(
+        MarketState::Safe,
+        asset.base_ltv_bps,
+        position.has_debt(),
+        0,
+        clock.unix_timestamp,
+    );
+    require!(policy.borrow_allowed, CircuitError::CapitalPolicyBlocked);
 
     // -- Step 11: Calculate collateral value --
     let collateral_value = math::calculate_collateral_value(
@@ -68,8 +76,8 @@ pub fn handler(ctx: Context<Borrow>, amount: u64) -> Result<()> {
         ctx.accounts.quote_mint.decimals,
     )?;
 
-    // -- Step 12: Apply fixed base LTV (MVP: no dynamic adjustment) --
-    let max_borrow = math::calculate_max_borrow(collateral_value, asset.base_ltv_bps)?;
+    // -- Step 12: Apply authoritative effective LTV derived from Capital Policy --
+    let max_borrow = math::calculate_max_borrow(collateral_value, policy.effective_ltv_bps)?;
 
     // -- Step 13: Check capacity --
     let new_debt = (position.debt_amount as u128)

@@ -5,6 +5,7 @@ pub mod market_guard;
 pub mod position;
 pub mod liquidation_auction;
 pub mod risk_ratchet;
+pub mod capital_policy;
 
 pub use enums::*;
 pub use protocol_config::*;
@@ -13,4 +14,5 @@ pub use market_guard::*;
 pub use position::*;
 pub use liquidation_auction::*;
 pub use risk_ratchet::*;
+pub use capital_policy::*;
 

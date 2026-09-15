@@ -378,8 +378,123 @@ pub fn calculate_close_factor_debt(
         requested_repay
     };
 
+
     require!(actual_repay > 0, CircuitError::MathOverflow);
     Ok(actual_repay)
+}
+
+// --------------------------------------------------------------
+// Minimum-Restoration Liquidation Calculation
+// --------------------------------------------------------------
+
+/// Default target health factor for restoration (10500 BPS = 1.05)
+pub const DEFAULT_TARGET_HEALTH_FACTOR_BPS: u64 = 10_500;
+
+/// Minimum partial liquidation repayment amount in quote units ($10)
+pub const MIN_PARTIAL_LIQUIDATION_DEBT: u64 = 10_000_000;
+
+/// Calculates the exact minimum debt repayment required to restore an unhealthy position
+/// to the configured target health factor condition.
+///
+/// Mathematical derivation:
+///   HF' = (V' * tau) / (D' * 10_000) >= h_target
+///   Where:
+///     V' = V - (d * beta) / 10_000
+///     D' = D - d
+///     beta = 10_000 + bonus_bps
+///     tau = liquidation_threshold_bps
+///     h_target = target_health_factor_bps
+///
+/// Solving for minimum d*:
+///   (V * 10_000 - d * beta) * tau >= (D - d) * 10_000 * h_target
+///   d * (10_000 * h_target - beta * tau) >= D * 10_000 * h_target - V * 10_000 * tau
+///   d* = ceil( (D * 10_000 * h_target - V * 10_000 * tau) / (10_000 * h_target - beta * tau) )
+///
+/// Boundary & Safety Invariants:
+/// - Uses checked u128 arithmetic throughout to guarantee zero overflow.
+/// - If current total debt <= dust_threshold ($100), allows 100% full liquidation.
+/// - If remaining debt (total_debt - d*) <= dust_threshold, liquidates 100% to prevent unserviceable dust.
+/// - If denominator <= 0 or position is deeply insolvent (d* >= total_debt), caps at total_debt.
+pub fn calculate_minimum_restoration_debt(
+    total_debt: u64,
+    collateral_value: u128,
+    liquidation_threshold_bps: u64,
+    target_health_factor_bps: u64,
+    bonus_bps: u64,
+    dust_threshold: u64,
+) -> Result<u64> {
+    require!(total_debt > 0, CircuitError::NotLiquidatable);
+    require!(target_health_factor_bps > 0, CircuitError::HealthFactorTooLow);
+
+    // Dust positions allow 100% liquidation
+    if total_debt <= dust_threshold {
+        return Ok(total_debt);
+    }
+
+    let debt_u128 = total_debt as u128;
+    let target_hf_u128 = target_health_factor_bps as u128;
+    let tau_u128 = liquidation_threshold_bps as u128;
+    let beta_u128 = BPS_SCALE_U128
+        .checked_add(bonus_bps as u128)
+        .ok_or(CircuitError::MathOverflow)?;
+
+    // Term 1: D * 10_000 * h_target
+    let d_target = debt_u128
+        .checked_mul(BPS_SCALE_U128)
+        .ok_or(CircuitError::MathOverflow)?
+        .checked_mul(target_hf_u128)
+        .ok_or(CircuitError::MathOverflow)?;
+
+    // Term 2: V * 10_000 * tau
+    let v_tau = collateral_value
+        .checked_mul(BPS_SCALE_U128)
+        .ok_or(CircuitError::MathOverflow)?
+        .checked_mul(tau_u128)
+        .ok_or(CircuitError::MathOverflow)?;
+
+    // If collateral risk-adjusted value already meets or exceeds target, no liquidation debt needed
+    if v_tau >= d_target {
+        return Ok(0);
+    }
+
+    // Numerator: D * 10_000 * h_target - V * 10_000 * tau
+    let numerator = d_target
+        .checked_sub(v_tau)
+        .ok_or(CircuitError::MathOverflow)?;
+
+    // Denominator: 10_000 * h_target - beta * tau
+    let denom_left = BPS_SCALE_U128
+        .checked_mul(target_hf_u128)
+        .ok_or(CircuitError::MathOverflow)?;
+    let denom_right = beta_u128
+        .checked_mul(tau_u128)
+        .ok_or(CircuitError::MathOverflow)?;
+
+    if denom_left <= denom_right {
+        // Severe discount / high liquidation threshold implies cannot restore partially -> full liquidation
+        return Ok(total_debt);
+    }
+
+    let denominator = denom_left
+        .checked_sub(denom_right)
+        .ok_or(CircuitError::MathOverflow)?;
+
+    // Ceil division: (numerator + denominator - 1) / denominator
+    let min_d = numerator
+        .checked_add(denominator - 1)
+        .ok_or(CircuitError::MathOverflow)?
+        / denominator;
+
+    // Cap at total debt
+    let capped_d = min_d.min(debt_u128);
+
+    // If remaining debt is below dust threshold, clear entire debt
+    let remaining_debt = debt_u128.saturating_sub(capped_d);
+    if remaining_debt <= (dust_threshold as u128) {
+        return Ok(total_debt);
+    }
+
+    Ok(capped_d as u64)
 }
 
 
@@ -1163,6 +1278,107 @@ mod tests {
         assert_eq!(fee, 250_000_000_000); // $250,000
         assert_eq!(net, 99_750_000_000_000); // $99,750,000
         assert_eq!(fee + net, borrow_amt);
+    }
+
+    // -- Minimum-Restoration Liquidation Tests --
+
+    #[test]
+    fn test_minimum_restoration_exact_math() {
+        // Collateral: 10 NVDA at $80 = $800 value (800_000_000 native)
+        // Debt: $700 (700_000_000 native)
+        // Threshold: 8000 BPS (80%), Bonus: 500 BPS (5%)
+        // Target HF: 10500 BPS (1.05)
+        // Dust threshold: $100 (100_000_000 native)
+        let total_debt = 700_000_000;
+        let collateral_value = 800_000_000;
+        let threshold = 8_000;
+        let target_hf = 10_500;
+        let bonus = 500;
+        let dust = 100_000_000;
+
+        let min_debt = calculate_minimum_restoration_debt(
+            total_debt,
+            collateral_value,
+            threshold,
+            target_hf,
+            bonus,
+            dust,
+        ).unwrap();
+
+        // Mathematical d* = ceil(9,500,000,000 / 21,000,000) = 452_380_953 native ($452.38)
+        assert_eq!(min_debt, 452_380_953);
+
+        // Verify that after repaying min_debt and seizing collateral with 5% bonus:
+        // Remaining debt:
+        let new_debt = total_debt - min_debt;
+        // Collateral value seized: min_debt * (10_000 + 500) / 10_000
+        let seized_val = (min_debt as u128) * 10_500 / 10_000;
+        let new_collateral_val = collateral_value - seized_val;
+        // Resulting HF: (new_collateral_val * 8_000) / (new_debt * 10_000)
+        let resulting_hf = calculate_health_factor(new_collateral_val, threshold, new_debt).unwrap();
+
+        // Resulting HF must be >= target_hf (10500)
+        assert!(resulting_hf >= target_hf, "Resulting HF {} must be >= target {}", resulting_hf, target_hf);
+    }
+
+    #[test]
+    fn test_minimum_restoration_dust_debt_triggers_full() {
+        // Debt: $80 <= $100 dust threshold -> 100% full liquidation
+        let min_debt = calculate_minimum_restoration_debt(
+            80_000_000,
+            100_000_000,
+            8_000,
+            10_500,
+            500,
+            100_000_000,
+        ).unwrap();
+        assert_eq!(min_debt, 80_000_000);
+    }
+
+    #[test]
+    fn test_minimum_restoration_dust_residual_triggers_full() {
+        // Debt: $500. Suppose calculated d* is $450.
+        // Remaining debt would be $50 <= $100 dust threshold.
+        // Engine must liquidate full $500 to prevent leaving unserviceable dust!
+        let total_debt = 500_000_000;
+        let collateral_value = 520_000_000;
+        let min_debt = calculate_minimum_restoration_debt(
+            total_debt,
+            collateral_value,
+            8_000,
+            10_500,
+            500,
+            100_000_000,
+        ).unwrap();
+        assert_eq!(min_debt, total_debt);
+    }
+
+    #[test]
+    fn test_minimum_restoration_deeply_underwater_returns_full() {
+        // Position has $1,000 debt but only $200 collateral value
+        let min_debt = calculate_minimum_restoration_debt(
+            1_000_000_000,
+            200_000_000,
+            8_000,
+            10_500,
+            500,
+            100_000_000,
+        ).unwrap();
+        assert_eq!(min_debt, 1_000_000_000);
+    }
+
+    #[test]
+    fn test_minimum_restoration_healthy_returns_zero() {
+        // Position has $1,000 collateral value and only $500 debt (HF = 1.6 > 1.05)
+        let min_debt = calculate_minimum_restoration_debt(
+            500_000_000,
+            1_000_000_000,
+            8_000,
+            10_500,
+            500,
+            100_000_000,
+        ).unwrap();
+        assert_eq!(min_debt, 0);
     }
 }
 
