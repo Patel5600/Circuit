@@ -105,3 +105,63 @@ pub struct BorrowExecuted {
     pub risk_state: MarketState,
     pub timestamp: i64,
 }
+
+/// Emitted when capital policy permissions or effective LTV are updated.
+#[event]
+pub struct CapitalPolicyUpdated {
+    pub risk_state: MarketState,
+    pub effective_ltv: u64,
+    pub borrow_allowed: bool,
+    pub withdraw_allowed: bool,
+    pub repay_allowed: bool,
+    pub deposit_allowed: bool,
+    pub liquidation_allowed: bool,
+    pub risk_epoch: u64,
+    pub timestamp: i64,
+}
+
+/// Emitted when a borrow operation is evaluated and authorized by capital policy.
+#[event]
+pub struct BorrowAllowed {
+    pub position: Pubkey,
+    pub amount: u64,
+    pub resulting_ltv: u64,
+    pub risk_state: MarketState,
+}
+
+/// Emitted when a borrow operation is blocked by on-chain capital policy.
+#[event]
+pub struct BorrowBlocked {
+    pub position: Pubkey,
+    pub requested_amount: u64,
+    pub current_ltv: u64,
+    pub effective_ltv: u64,
+    pub risk_state: MarketState,
+    pub reason: String,
+}
+
+/// Emitted when a recovery Dutch auction is initiated.
+#[event]
+pub struct AuctionCreated {
+    pub auction: Pubkey,
+    pub position: Pubkey,
+    pub collateral_amount: u64,
+    pub reference_price: i64,
+    pub start_price: i64,
+    pub floor_price: i64,
+    pub start_time: i64,
+    pub end_time: i64,
+    pub risk_state: MarketState,
+}
+
+/// Emitted when a recovery Dutch auction is settled atomically.
+#[event]
+pub struct AuctionSettled {
+    pub auction: Pubkey,
+    pub buyer: Pubkey,
+    pub collateral_amount: u64,
+    pub settlement_price: i64,
+    pub debt_repaid: u64,
+    pub fee: u64,
+    pub timestamp: i64,
+}

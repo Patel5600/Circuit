@@ -167,5 +167,41 @@ pub enum CircuitError {
     /// Operation rejected by authoritative Capital Policy
     #[msg("Operation rejected by authoritative Capital Policy")]
     CapitalPolicyBlocked,
+
+    /// Borrowing is disabled by current on-chain capital policy
+    #[msg("Borrowing is disabled by current on-chain capital policy")]
+    BorrowDisabledByRiskPolicy,
+
+    /// Withdrawal is disabled by current on-chain capital policy
+    #[msg("Withdrawal is disabled by current on-chain capital policy")]
+    WithdrawDisabledByRiskPolicy,
+
+    /// Proposed operation exceeds effective LTV capacity
+    #[msg("Proposed operation exceeds effective LTV capacity")]
+    EffectiveLtvExceeded,
+
+    /// Attempted an invalid risk state transition
+    #[msg("Attempted an invalid risk state transition")]
+    InvalidRiskTransition,
+
+    /// Risk epoch mismatch
+    #[msg("Risk epoch mismatch")]
+    RiskEpochMismatch,
+
+    /// Oracle condition is unsafe
+    #[msg("Oracle condition is unsafe")]
+    OracleConditionUnsafe,
+
+    /// Resulting position would become unsafe
+    #[msg("Resulting position would become unsafe")]
+    PositionWouldBecomeUnsafe,
+
+    /// Liquidation auction has expired
+    #[msg("Liquidation auction has expired")]
+    AuctionExpired,
+
+    /// Calculated auction price is out of bounds
+    #[msg("Calculated auction price is out of bounds")]
+    AuctionPriceOutOfBounds,
 }
 

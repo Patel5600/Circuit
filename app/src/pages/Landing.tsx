@@ -11,6 +11,7 @@ import { Nav } from "../components/landing/Nav";
 import { SafeState } from "../components/landing/SafeState";
 import { Storm } from "../components/landing/Storm";
 import { Technology } from "../components/landing/Technology";
+import { Economics } from "../components/landing/Economics";
 import { FaultLineMatrix } from "../components/landing/FaultLineMatrix";
 import { Icon } from "../components/ui";
 import { CLUSTER_LABEL } from "../env";
@@ -76,30 +77,60 @@ export default function Landing() {
             <div className="hero__copy">
               <p className="hero__eyebrow">
                 <span className="dot" aria-hidden="true" />
-                Solana Devnet · Programmable Risk Ratchet Primitive
+                Solana {CLUSTER_LABEL} · Programmable Credit Infrastructure
               </p>
 
               <h1 className="hero__title">
                 Tokenized stocks are assets.
                 <br />
-                Circuit makes them
+                circuit makes them
                 <br />
                 <em>programmable collateral.</em>
               </h1>
 
               <p className="hero__lede">
-                Circuit does not merely calculate risk. It turns risk into on-chain permissions.
-                When market risk changes, credit permissions change with it.
+                circuit turns verified market conditions into capital permissions,
+                credit limits and deterministic recovery actions enforced on-chain.
+              </p>
+
+              <p style={{ margin: "10px 0 0", fontSize: "14px", color: "var(--text-3)", lineHeight: 1.5 }}>
+                Market state changes what capital is allowed to do.
               </p>
 
               <div className="hero__cta">
                 <Link to="/app" className="btn btn--primary btn--lg">
-                  Launch App
+                  Launch circuit
                   <Icon name="arrowRight" size={17} />
                 </Link>
-                <a href="#dimensions" className="btn btn--ghost btn--lg">
-                  Explore Architecture
+                <a href="#how" className="btn btn--ghost btn--lg">
+                  Explore Mechanism
                 </a>
+              </div>
+
+              {/* Subtle mechanism cue */}
+              <div
+                style={{
+                  marginTop: "20px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "6px 12px",
+                  borderRadius: "4px",
+                  background: "rgba(255, 255, 255, 0.025)",
+                  border: "1px solid var(--border)",
+                  fontFamily: "var(--mono)",
+                  fontSize: "11px",
+                  color: "var(--text-2)",
+                  letterSpacing: "0.06em",
+                }}
+              >
+                <span>MARKET</span>
+                <span style={{ color: "var(--accent)" }}>→</span>
+                <span>RISK</span>
+                <span style={{ color: "var(--accent)" }}>→</span>
+                <span>PERMISSION</span>
+                <span style={{ color: "var(--accent)" }}>→</span>
+                <span style={{ color: "var(--text)" }}>CREDIT</span>
               </div>
 
               <ul className="hero__status">
@@ -120,7 +151,7 @@ export default function Landing() {
           </div>
 
           <p className="hero__vlabel" aria-hidden="true">
-            Stock universe
+            Market → Risk → Permission → Credit
           </p>
           <p className="hero__scroll" aria-hidden="true">
             Scroll
@@ -129,11 +160,12 @@ export default function Landing() {
 
         <AssetUniverse />
         <CircuitFlow />
-        <FaultLineMatrix />
         <Storm />
         <SafeState />
         <Credit />
         <Technology />
+        <Economics />
+        <FaultLineMatrix />
         <FinalCTA />
       </main>
 

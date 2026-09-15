@@ -43,29 +43,44 @@ pub fn handler(ctx: Context<Borrow>, amount: u64) -> Result<()> {
     let market_open = market::is_market_open(clock.unix_timestamp)?;
     require!(market_open, CircuitError::MarketClosed);
 
-    // -- Step 10: Derive market state independently --
-    // Check custody and liquidity conditions
-    require!(
-        asset.custody_state != CustodyState::Impaired &&
-        asset.custody_state != CustodyState::Delayed,
-        CircuitError::InvalidCustodyState
-    );
-    require!(
-        asset.liquidity_state != LiquidityState::Critical &&
-        asset.liquidity_state != LiquidityState::Thin,
-        CircuitError::InvalidLiquidityState
-    );
+    // -- Step 10: Derive dynamic market state and authoritative Capital Policy --
+    let derived_risk_state = if asset.custody_state == CustodyState::Impaired || asset.liquidity_state == LiquidityState::Critical {
+        MarketState::Emergency
+    } else if asset.custody_state == CustodyState::Delayed || asset.liquidity_state == LiquidityState::Thin || !market_open {
+        MarketState::Restricted
+    } else {
+        MarketState::Safe
+    };
 
-    // All conditions met -> MarketState is Safe
-    // (We derived this independently, not from cached MarketGuard)
     let policy = CapitalPolicy::from_risk_state(
-        MarketState::Safe,
+        derived_risk_state,
         asset.base_ltv_bps,
         position.has_debt(),
         0,
         clock.unix_timestamp,
     );
-    require!(policy.borrow_allowed, CircuitError::CapitalPolicyBlocked);
+
+    if !policy.borrow_allowed {
+        emit!(crate::events::BorrowBlocked {
+            position: position.key(),
+            requested_amount: amount,
+            current_ltv: 0,
+            effective_ltv: policy.effective_ltv_bps,
+            risk_state: derived_risk_state,
+            reason: format!("Risk state {:?} blocks borrowing", derived_risk_state),
+        });
+
+        if asset.custody_state == CustodyState::Delayed || asset.custody_state == CustodyState::Impaired {
+            return err!(CircuitError::InvalidCustodyState);
+        }
+        if asset.liquidity_state == LiquidityState::Thin || asset.liquidity_state == LiquidityState::Critical {
+            return err!(CircuitError::InvalidLiquidityState);
+        }
+        if !market_open {
+            return err!(CircuitError::MarketClosed);
+        }
+        return err!(CircuitError::BorrowDisabledByRiskPolicy);
+    }
 
     // -- Step 11: Calculate collateral value --
     let collateral_value = math::calculate_collateral_value(
@@ -77,13 +92,24 @@ pub fn handler(ctx: Context<Borrow>, amount: u64) -> Result<()> {
     )?;
 
     // -- Step 12: Apply authoritative effective LTV derived from Capital Policy --
-    let max_borrow = math::calculate_max_borrow(collateral_value, policy.effective_ltv_bps)?;
+    let max_borrow = CapitalPolicy::calculate_borrow_capacity(collateral_value as u64, policy.effective_ltv_bps) as u128;
 
     // -- Step 13: Check capacity --
     let new_debt = (position.debt_amount as u128)
         .checked_add(amount as u128)
         .ok_or(CircuitError::MathOverflow)?;
-    require!(new_debt <= max_borrow, CircuitError::BorrowExceedsCapacity);
+
+    if new_debt > max_borrow {
+        emit!(crate::events::BorrowBlocked {
+            position: position.key(),
+            requested_amount: amount,
+            current_ltv: ((position.debt_amount as u128) * 10_000 / collateral_value.max(1)) as u64,
+            effective_ltv: policy.effective_ltv_bps,
+            risk_state: derived_risk_state,
+            reason: "Borrow capacity exceeded".to_string(),
+        });
+        return err!(CircuitError::BorrowExceedsCapacity);
+    }
 
     // -- Step 14: Calculate and check health factor --
     let hf = math::calculate_health_factor(
@@ -92,6 +118,13 @@ pub fn handler(ctx: Context<Borrow>, amount: u64) -> Result<()> {
         new_debt as u64,
     )?;
     require!(hf >= protocol.min_health_factor_bps, CircuitError::HealthFactorTooLow);
+
+    emit!(crate::events::BorrowAllowed {
+        position: position.key(),
+        amount,
+        resulting_ltv: (new_debt * 10_000 / collateral_value.max(1)) as u64,
+        risk_state: derived_risk_state,
+    });
 
     // -- Step 15: Check vault has sufficient liquidity --
     require!(

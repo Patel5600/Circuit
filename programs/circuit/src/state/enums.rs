@@ -115,3 +115,25 @@ impl Default for GuardReason {
         GuardReason::Ok
     }
 }
+
+// --------------------------------------------------------------
+// AuctionStatus - tracks lifecycle of a liquidation Dutch auction
+// --------------------------------------------------------------
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug, InitSpace)]
+pub enum AuctionStatus {
+    /// Auction is active and accepting settlement bids
+    Active,
+    /// Auction has been settled
+    Settled,
+    /// Auction has expired (reached floor price without settlement)
+    Expired,
+    /// Position was healed and auction cancelled
+    Cancelled,
+}
+
+impl Default for AuctionStatus {
+    fn default() -> Self {
+        AuctionStatus::Active
+    }
+}

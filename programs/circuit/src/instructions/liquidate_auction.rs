@@ -23,14 +23,15 @@ pub fn handler(ctx: Context<LiquidateAuction>, requested_repay: u64) -> Result<(
     let protocol = &ctx.accounts.protocol_config;
     let asset = &ctx.accounts.asset_config;
     let position = &mut ctx.accounts.position;
-    let auction = &ctx.accounts.auction;
+    let auction = &mut ctx.accounts.auction;
     let clock = Clock::get()?;
 
     // Position must have debt
     require!(position.has_debt(), CircuitError::NotLiquidatable);
 
-    // Ensure auction matches this position
+    // Ensure auction matches this position and is active
     require!(auction.position == position.key(), CircuitError::AuctionNotActive);
+    require!(auction.status == AuctionStatus::Active, CircuitError::AuctionNotActive);
 
     // Determine liquidation reference price
     let (ref_price, ref_expo) = match oracle::try_validate_pyth_price(
@@ -178,6 +179,31 @@ pub fn handler(ctx: Context<LiquidateAuction>, requested_repay: u64) -> Result<(
 
     }
 
+    // Update auction state
+    auction.settled_amount = auction.settled_amount.saturating_add(actual_seizure);
+    auction.debt_repaid = auction.debt_repaid.saturating_add(debt_to_repay);
+
+    let settlement_price = if auction.start_price > 0 && auction.floor_price > 0 {
+        math::calculate_dutch_auction_price(
+            auction.start_price,
+            auction.floor_price,
+            elapsed_slots,
+            math::DEFAULT_AUCTION_DURATION_SLOTS,
+        ).unwrap_or(ref_price)
+    } else {
+        ref_price
+    };
+
+    emit!(crate::events::AuctionSettled {
+        auction: auction.key(),
+        buyer: ctx.accounts.liquidator.key(),
+        collateral_amount: actual_seizure,
+        settlement_price,
+        debt_repaid: debt_to_repay,
+        fee: 0,
+        timestamp: clock.unix_timestamp,
+    });
+
     msg!(
         "DUTCH AUCTION LIQUIDATION. Repaid: {}. Seized: {}. Bonus: {} bps (elapsed: {} slots). Resolved: {}",
         debt_to_repay, actual_seizure, bonus_bps, elapsed_slots, auction_resolved
@@ -185,6 +211,7 @@ pub fn handler(ctx: Context<LiquidateAuction>, requested_repay: u64) -> Result<(
 
     // If auction resolved, close auction and refund rent
     if auction_resolved {
+        auction.status = AuctionStatus::Settled;
         ctx.accounts.auction.close(ctx.accounts.auction_initiator.to_account_info())?;
     }
 

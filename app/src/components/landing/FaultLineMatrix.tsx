@@ -103,36 +103,36 @@ const DIMENSIONS: DimensionChapter[] = [
       "Guarantees that credit capacity only returns after durable market stabilization has been proven on-chain.",
   },
   {
-    id: "concentration",
+    id: "policy",
     number: 6,
     roman: "VI",
-    title: "Multi-Asset Concentration Penalty",
-    subtitle: "Dynamic Leverage Throttling",
-    badge: "C_max > 40% Penalty",
-    tagline: "Single-stock concentration carries idiosyncratic crash risk. Circuit scales allowable LTV with diversification.",
+    title: "Capital Policy Engine",
+    subtitle: "Authoritative On-Chain Capital Permissions",
+    badge: "Risk State → Policy Gate",
+    tagline: "Market state becomes an on-chain capital policy. The caller cannot supply its own permissions.",
     thesis:
-      "A borrower pledging 90% in a single semiconductor stock carries vastly higher drawdown risk than one holding a diversified basket of indices and mega-caps, yet standard protocols grant them identical LTV.",
+      "Traditional protocols rely on client-side safety checks or delayed admin parameter changes. Circuit derives allowable capital operations deterministically from active on-chain risk states.",
     mechanism:
-      "Circuit calculates single-asset portfolio concentration: C_max = max(w_i). When C_max exceeds 40%, an on-chain penalty scales down allowable borrowing: Effective LTV = max(30%, Base LTV - Penalty), reducing leverage from 70% to 52%.",
-    formula: "Penalty (bps) = (C_max - 40%) × slope_bps",
+      "The program derives effective LTV and operation permissions at the transaction boundary. Borrowing and withdrawals are strictly rejected in Defensive and Emergency states, while repayments and deposits remain unconditionally available.",
+    formula: "Borrow Capacity = max(0, Collateral × LTV_effective - Debt)",
     whyItMatters:
-      "Protects senior lending vaults from single-company gap-downs, earnings misses, or corporate fraud.",
+      "Eliminates bad debt formation by refusing risk-increasing instructions directly on-chain whenever market conditions degrade.",
   },
   {
-    id: "liquidation",
+    id: "recovery",
     number: 7,
     roman: "VII",
-    title: "Severity-Scaled Liquidation Game Theory",
-    subtitle: "Dutch Auction vs Latency Arms Races",
-    badge: "Dynamic Shortfall Slope",
-    tagline: "Flat bonuses create MEV bot races. Continuous severity-scaled discounts eliminate fixed-prize wars.",
+    title: "Dutch Auction Recovery",
+    subtitle: "Bounded Single-Settlement Recovery Engine",
+    badge: "Continuous Linear Decay",
+    tagline: "Fixed bonuses trigger MEV bot latency wars. Bounded Dutch auctions discover fair clearing prices smoothly.",
     thesis:
-      "Flat liquidation bonuses (e.g. fixed 5%) incentivize bot wars to front-run minor under-collateralizations, while under-incentivizing deep under-water positions during extreme volatility.",
+      "Fixed liquidation discounts create priority-gas arms races during minor fluctuations and under-incentivize liquidators during market stress. Continuous Dutch auctions eliminate bot wars and preserve borrower equity.",
     mechanism:
-      "Circuit implements severity-scaled liquidation with Dutch auction ramps: bonus = min(max_cap, base_bonus + shortfall × slope). Healthier positions (HF ~ 0.99) carry lower discounts, while severe distress unlocks higher incentives to guarantee solvency.",
-    formula: "Bonus = min(MaxCap, Floor + (1.0 - HF) × Slope)",
+      "Unhealthy positions enter a bounded Dutch auction decaying linearly from start price to floor price: P(t) = P_start - [(t - t0)/T] * (P_start - P_floor). An exact solver computes the minimum collateral required to restore target health.",
+    formula: "P(t) = P_start - [(t - t0) / T] × (P_start - P_floor)",
     whyItMatters:
-      "Protects borrower equity from excessive penalty extraction while guaranteeing liquidators show up when risk is highest.",
+      "Restores protocol solvency deterministically while protecting borrowers from excessive equity seizure.",
   },
 ];
 

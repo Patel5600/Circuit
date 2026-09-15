@@ -341,6 +341,65 @@ pub fn calculate_dutch_auction_bonus(
 }
 
 // --------------------------------------------------------------
+// Deterministic Dutch Auction Price Calculation
+// --------------------------------------------------------------
+
+/// Calculates the deterministic linear Dutch auction price at elapsed time/slots:
+///   P(t) = P_start - min(t - t_0, T) / T * (P_start - P_floor)
+///
+/// Guaranteed Properties:
+/// - Strictly bounded: floor_price <= P(t) <= start_price
+/// - Monotonically non-increasing: dP/dt <= 0
+/// - Boundary conditions: at t = 0 -> P_start; at t >= T -> floor_price
+/// - Checked integer arithmetic: no floating point math
+pub fn calculate_dutch_auction_price(
+    start_price: i64,
+    floor_price: i64,
+    elapsed_slots: u64,
+    duration_slots: u64,
+) -> Result<i64> {
+    require!(start_price > 0, CircuitError::InvalidPrice);
+    require!(floor_price > 0 && floor_price <= start_price, CircuitError::AuctionPriceOutOfBounds);
+    require!(duration_slots > 0, CircuitError::MathOverflow);
+
+    if elapsed_slots >= duration_slots {
+        return Ok(floor_price);
+    }
+
+    let price_range = (start_price - floor_price) as u128;
+    let price_drop = (elapsed_slots as u128)
+        .checked_mul(price_range)
+        .ok_or(CircuitError::MathOverflow)?
+        / (duration_slots as u128);
+
+    let current_price = (start_price as u128)
+        .checked_sub(price_drop)
+        .ok_or(CircuitError::MathOverflow)? as i64;
+
+    Ok(current_price.clamp(floor_price, start_price))
+}
+
+/// Helper to compute exact collateral tokens q* required for minimum restoration debt d*:
+///   q* = calculate_liquidation_collateral(d*, price, expo, bonus_bps, coll_decimals, quote_decimals)
+pub fn calculate_minimum_restoration_tokens(
+    min_restoration_debt: u64,
+    price: i64,
+    expo: i32,
+    bonus_bps: u64,
+    collateral_decimals: u8,
+    quote_decimals: u8,
+) -> Result<u64> {
+    calculate_liquidation_collateral(
+        min_restoration_debt,
+        price,
+        expo,
+        bonus_bps,
+        collateral_decimals,
+        quote_decimals,
+    )
+}
+
+// --------------------------------------------------------------
 // Partial Liquidation (Close Factor) Calculation
 // --------------------------------------------------------------
 
@@ -1379,6 +1438,104 @@ mod tests {
             100_000_000,
         ).unwrap();
         assert_eq!(min_debt, 0);
+    }
+
+    #[test]
+    fn test_dutch_auction_price_properties() {
+        // Reference: $100 -> start $95, floor $80 over 150 slots
+        let start_price = 95_0000_0000i64; // $95
+        let floor_price = 80_0000_0000i64; // $80
+        let duration = 150u64;
+
+        // 1. Boundary at t = 0
+        let p0 = calculate_dutch_auction_price(start_price, floor_price, 0, duration).unwrap();
+        assert_eq!(p0, start_price, "P(0) must equal start_price");
+
+        // 2. Boundary at t = T
+        let pt = calculate_dutch_auction_price(start_price, floor_price, duration, duration).unwrap();
+        assert_eq!(pt, floor_price, "P(T) must equal floor_price");
+
+        // 3. Boundary at t > T (saturation/expiry)
+        let p_past = calculate_dutch_auction_price(start_price, floor_price, duration + 500, duration).unwrap();
+        assert_eq!(p_past, floor_price, "P(t > T) must equal floor_price");
+
+        // 4. Midpoint price at t = T / 2
+        let p_mid = calculate_dutch_auction_price(start_price, floor_price, 75, duration).unwrap();
+        let expected_mid = 87_5000_0000i64; // $87.50
+        assert_eq!(p_mid, expected_mid, "P(T/2) must equal exact linear midpoint");
+
+        // 5. Monotonic non-increasing property: P(t) <= P(t-1) for all t in [1..T]
+        let mut prev_p = start_price;
+        for t in 1..=duration {
+            let p_curr = calculate_dutch_auction_price(start_price, floor_price, t, duration).unwrap();
+            assert!(
+                p_curr <= prev_p,
+                "Price at slot {} ({}) must be <= price at slot {} ({})",
+                t, p_curr, t - 1, prev_p
+            );
+            assert!(
+                p_curr >= floor_price && p_curr <= start_price,
+                "Price at slot {} ({}) must be bounded within [{}, {}]",
+                t, p_curr, floor_price, start_price
+            );
+            prev_p = p_curr;
+        }
+    }
+
+    #[test]
+    fn test_minimum_restoration_optimality_property() {
+        // Given an unhealthy position:
+        // Debt D = $700.00 (700_000_000 quote units)
+        // Collateral V = $800.00 (800_000_000 quote units)
+        // Liq Threshold tau = 8000 BPS (80%)
+        // Target HF h* = 10500 BPS (1.05)
+        // Bonus beta = 10500 BPS (5% bonus, beta = 1.05)
+        // Current HF: (800 * 0.80) / 700 = 0.914285 (< 1.05 -> unhealthy)
+        let total_debt = 700_000_000u64;
+        let collateral_val = 800_000_000u128;
+        let tau = 8_000u64;
+        let target_hf = 10_500u64;
+        let bonus = 500u64;
+        let dust = 100_000_000u64;
+
+        let d_star = calculate_minimum_restoration_debt(
+            total_debt,
+            collateral_val,
+            tau,
+            target_hf,
+            bonus,
+            dust,
+        ).unwrap();
+
+        // 1. Prove safe(d*) == true
+        let remaining_debt = total_debt - d_star;
+        let seized_val = (d_star as u128) * (10_000 + bonus as u128) / 10_000;
+        let remaining_coll = collateral_val - seized_val;
+        let hf_at_d_star = calculate_health_factor(remaining_coll, tau, remaining_debt).unwrap();
+        assert!(
+            hf_at_d_star >= target_hf,
+            "Health factor at d* ({}) must satisfy target HF ({})",
+            hf_at_d_star, target_hf
+        );
+
+        // Verify exact unrounded condition at d*: (V - d* * beta) * tau >= (D - d*) * target_hf
+        let lhs_d_star = remaining_coll * (tau as u128);
+        let rhs_d_star = (remaining_debt as u128) * (target_hf as u128);
+        assert!(lhs_d_star >= rhs_d_star, "At d*, exact coverage must be satisfied");
+
+        // 2. Prove for any d < d* (e.g. d* - 10_000 or $0.01 shortfall), safe(d) == false
+        let shortfall_d = d_star.saturating_sub(100_000); // $0.10 under-repayment
+        if shortfall_d > 0 {
+            let under_rem_debt = total_debt - shortfall_d;
+            let under_seized = (shortfall_d as u128) * (10_000 + bonus as u128) / 10_000;
+            let under_rem_coll = collateral_val - under_seized;
+            let hf_under = calculate_health_factor(under_rem_coll, tau, under_rem_debt).unwrap();
+            assert!(
+                hf_under < target_hf,
+                "Health factor at shortfall d ({}) MUST be strictly below target HF ({})",
+                hf_under, target_hf
+            );
+        }
     }
 }
 

@@ -16,8 +16,10 @@ const COLUMNS = [
     title: "Product",
     links: [
       { label: "Markets", href: "#markets" },
-      { label: "How it works", href: "#how" },
+      { label: "The Circuit", href: "#how" },
+      { label: "Credit", href: "#product" },
       { label: "Technology", href: "#technology" },
+      { label: "Economics", href: "#economics" },
     ],
   },
 ];

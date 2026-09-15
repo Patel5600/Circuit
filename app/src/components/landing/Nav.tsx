@@ -6,10 +6,11 @@ import { Icon, Pill } from "../ui";
 import { CLUSTER_LABEL } from "../../env";
 
 const LINKS = [
-  { href: "#product", label: "Product" },
   { href: "#markets", label: "Markets" },
-  { href: "#how", label: "How it works" },
+  { href: "#how", label: "The Circuit" },
+  { href: "#product", label: "Credit" },
   { href: "#technology", label: "Technology" },
+  { href: "#economics", label: "Economics" },
 ];
 
 /**

@@ -18,39 +18,50 @@ import { usePinnedSteps } from "../../hooks/useMotion";
 const CHECKS = [
   {
     key: "oracle",
-    label: "Oracle",
-    value: "Fresh, inside the staleness bound",
+    label: "Pyth Oracle",
+    value: "Fresh, validated within staleness bound",
   },
   {
     key: "confidence",
-    label: "Confidence",
-    value: "Interval inside tolerance",
+    label: "Confidence Interval",
+    value: "Uncertainty within tolerance bound",
   },
   {
     key: "market",
-    label: "Market",
-    value: "Venue in session",
+    label: "MarketGuard Session",
+    value: "Venue in regular session",
+  },
+  {
+    key: "policy",
+    label: "Capital Policy",
+    value: "Safe state: full credit permissions active",
   },
 ];
 
 const FIGURES = [
   {
     key: "collateral",
-    label: "Collateral",
+    label: "Collateral Value",
     value: "$10,000",
-    note: "Deposited tokenized equity, valued at the verified price",
+    note: "Deposited tokenized equity, valued at verified oracle price",
+  },
+  {
+    key: "ltv",
+    label: "Effective LTV",
+    value: "70.0%",
+    note: "Derived from active on-chain Capital Policy",
   },
   {
     key: "power",
-    label: "Borrowing power",
+    label: "Borrow Capacity",
     value: "$7,000",
-    note: "70% loan-to-value, the ceiling configured for this asset",
+    note: "Collateral Value × Effective LTV − Debt ($0)",
   },
   {
     key: "health",
     label: "Health factor",
     value: "1.42",
-    note: "80% liquidation threshold against current utilisation",
+    note: "80% liquidation threshold against full 70% utilisation",
   },
 ];
 
@@ -80,6 +91,17 @@ export function SafeState() {
             <br />
             <em>The circuit closes.</em>
           </h2>
+          <p
+            style={{
+              marginTop: "14px",
+              fontFamily: "var(--mono)",
+              fontSize: "12px",
+              letterSpacing: "0.04em",
+              color: "var(--accent)",
+            }}
+          >
+            Verified market inputs + Current risk state + Capital policy = Available credit
+          </p>
 
           <div className="safe__body">
             <div>
@@ -123,6 +145,18 @@ export function SafeState() {
             </div>
 
             <div className="safe__out">
+              <div
+                style={{
+                  marginBottom: "14px",
+                  fontSize: "11px",
+                  fontFamily: "var(--mono)",
+                  color: "var(--accent)",
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                }}
+              >
+                ✦ Illustrative Arithmetic · Not Live Position ✦
+              </div>
               <dl className="safe__figures">
                 {FIGURES.map((f) => (
                   <div key={f.key} className="safe__figure">
@@ -133,9 +167,9 @@ export function SafeState() {
                 ))}
               </dl>
               <p className="safe__caption">
-                Worked example. Illustrative arithmetic at this asset's stated risk
-                parameters, not a live position and not a quote. Real figures
-                appear in the app, read from chain against your own wallet.
+                Worked example. Illustrative arithmetic under configured capital policy parameters,
+                not a live position and not a quote. Real figures appear in the app, read from chain
+                against your own wallet.
               </p>
             </div>
           </div>

@@ -38,11 +38,30 @@ export function AssetUniverse() {
               <em>One programmable layer.</em>
             </h2>
             <p className="sec__lede">
-              Each tokenized equity carries its own oracle feed, its own market
-              calendar and its own risk parameters. circuit reads all of them
-              through one interface, so adding an asset is configuration rather
-              than a new integration.
+              Each supported equity maps to a canonical asset configuration containing its
+              token identity, oracle feed, market-session rules and risk parameters.
+              circuit consumes that configuration through one protocol interface.
             </p>
+
+            <div className="uni__dims" style={{ display: "flex", flexWrap: "wrap", gap: "8px", margin: "20px 0 0" }}>
+              {["ASSET", "TOKEN", "ORACLE", "SESSION", "RISK PARAMETERS"].map((dim) => (
+                <span
+                  key={dim}
+                  style={{
+                    fontSize: "11px",
+                    fontFamily: "var(--mono)",
+                    letterSpacing: "0.1em",
+                    padding: "4px 10px",
+                    borderRadius: "4px",
+                    background: "rgba(255, 255, 255, 0.04)",
+                    border: "1px solid var(--border)",
+                    color: "var(--text-2)",
+                  }}
+                >
+                  {dim}
+                </span>
+              ))}
+            </div>
           </Reveal>
 
           <Reveal className="uni__orbitwrap" delay={120}>

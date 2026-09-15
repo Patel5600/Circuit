@@ -15,19 +15,31 @@ const MOVES = [
     n: "01",
     verb: "Deposit",
     body:
-      "Move tokenized equity into a position account you control. The tokens stay in a program vault, not on a balance sheet.",
+      "Tokenized equity enters a program-controlled position account on Solana. Tokens stay in the protocol vault PDA, never on a company balance sheet.",
   },
   {
     n: "02",
     verb: "Verify",
     body:
-      "Before anything else happens, the price is checked for age and confidence and the venue is checked for session state.",
+      "Price, confidence and market-session conditions are validated before risk-sensitive actions. Stale or uncertain feeds halt new leverage.",
   },
   {
     n: "03",
+    verb: "Policy",
+    body:
+      "The on-chain Capital Policy Engine derives effective LTV and permissions from the 4-State Risk Ratchet. What capital is permitted to do changes dynamically with risk.",
+  },
+  {
+    n: "04",
     verb: "Borrow",
     body:
-      "Draw stable liquidity against the verified value, up to the loan-to-value ceiling configured for that asset.",
+      "Credit is available only within the boundaries set by the active capital policy. Unsafe borrows that violate policy fail at the transaction boundary.",
+  },
+  {
+    n: "05",
+    verb: "Recover",
+    body:
+      "Unsafe positions enter deterministic Dutch auction recovery. The protocol auctions the exact minimum collateral needed to restore health.",
   },
 ];
 
@@ -59,9 +71,9 @@ export function Credit() {
 
         <Reveal>
           <p className="credit__foot">
-            Repaying and withdrawing run the same checks in reverse. Positions
-            that fall below their liquidation threshold can be closed by anyone,
-            which is what keeps the pool solvent without an operator.
+            Repayment remains risk-reducing. Withdrawals remain subject to the active capital
+            policy. Unsafe positions enter bounded recovery auctions to protect protocol
+            solvency without MEV bot liquidation arms races.
           </p>
         </Reveal>
       </div>

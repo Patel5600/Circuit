@@ -59,19 +59,50 @@ pub fn handler(ctx: Context<StartLiquidationAuction>) -> Result<()> {
     // Must be unhealthy to start auction
     require!(hf < protocol.min_health_factor_bps, CircuitError::NotLiquidatable);
 
+    // Calculate floor price: 15% max discount (85% of ref_price)
+    let floor_price = (ref_price as i128)
+        .checked_mul(8_500)
+        .ok_or(CircuitError::MathOverflow)?
+        / 10_000;
+
     // Initialize auction state
     let auction = &mut ctx.accounts.auction;
+    auction.auction_id = clock.slot;
     auction.position = position.key();
-    auction.start_slot = clock.slot;
+    auction.collateral_mint = ctx.accounts.collateral_mint.key();
+    auction.collateral_amount = position.collateral_amount;
+    auction.reference_price = ref_price;
+    auction.reference_expo = ref_expo;
     auction.start_price = ref_price;
     auction.start_expo = ref_expo;
+    auction.floor_price = floor_price as i64;
+    auction.start_slot = clock.slot;
+    auction.end_slot = clock.slot.saturating_add(math::DEFAULT_AUCTION_DURATION_SLOTS);
+    auction.start_time = clock.unix_timestamp;
+    auction.end_time = clock.unix_timestamp.saturating_add(60);
     auction.initial_debt = position.debt_amount;
+    auction.risk_state_at_start = MarketState::Emergency;
+    auction.risk_epoch = 0;
+    auction.status = AuctionStatus::Active;
+    auction.settled_amount = 0;
+    auction.debt_repaid = 0;
     auction.initiator = ctx.accounts.initiator.key();
     auction.bump = ctx.bumps.auction;
 
     // Transition position state to Liquidatable
     position.state = PositionState::Liquidatable;
 
+    emit!(crate::events::AuctionCreated {
+        auction: auction.key(),
+        position: position.key(),
+        collateral_amount: position.collateral_amount,
+        reference_price: ref_price,
+        start_price: ref_price,
+        floor_price: floor_price as i64,
+        start_time: auction.start_time,
+        end_time: auction.end_time,
+        risk_state: MarketState::Emergency,
+    });
 
     msg!(
         "AUCTION STARTED. Position: {}. Start slot: {}. HF: {}. Initial debt: {}",

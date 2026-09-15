@@ -144,7 +144,7 @@ export function FinalCTA() {
       <div className="sec__inner">
         <Reveal className="final__plate">
           <p className="final__index">
-            <span className="final__index__n">08</span>
+            <span className="final__index__n">09</span>
             <span className="final__index__t">Start</span>
           </p>
 
@@ -153,12 +153,12 @@ export function FinalCTA() {
             <br />
             Your collateral.
             <br />
-            <em>Programmable credit.</em>
+            <em>Programmable capital.</em>
           </h2>
 
           <p className="final__sub">
-            Deposit tokenized equity, let the protocol verify the price and the
-            market, and borrow against what it confirms.
+            Deposit tokenized equity. Let circuit verify the market state, derive the
+            active capital policy, and enforce credit and recovery rules on Solana.
           </p>
 
           <div className="final__cta">
@@ -176,7 +176,7 @@ export function FinalCTA() {
             Built on Solana
             <span className="final__meta__sep" aria-hidden="true" />
             <span className="dot" aria-hidden="true" />
-            {CLUSTER_LABEL}
+            {CLUSTER_LABEL} · Unaudited MVP
           </p>
         </Reveal>
       </div>

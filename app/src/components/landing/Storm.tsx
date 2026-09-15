@@ -18,21 +18,26 @@ const FAULTS = [
   {
     key: "stale",
     label: "Oracle stale",
-    detail: "The newest price update is older than the bound this asset allows.",
-    code: "StalePrice",
+    detail: "The newest price update is older than the max oracle age bound.",
+    code: "StaleOracle",
   },
   {
     key: "confidence",
     label: "Confidence too wide",
-    detail:
-      "Publishers disagree. The interval around the price is wider than the tolerance.",
+    detail: "Oracle uncertainty interval exceeds the asset threshold (e.g. > 50 bps).",
     code: "ConfidenceTooWide",
   },
   {
     key: "closed",
-    label: "Market closed",
-    detail: "The underlying venue is not in session, so there is no price to act on.",
+    label: "Market session closed",
+    detail: "The underlying equity venue is not in regular session; off-hours borrowing gated.",
     code: "MarketClosed",
+  },
+  {
+    key: "policy",
+    label: "Capital policy violation",
+    detail: "Operation rejected: active risk ratchet state blocks new risk-increasing leverage.",
+    code: "CapitalPolicyBlocked",
   },
 ];
 
@@ -60,7 +65,7 @@ export function Storm() {
           <h2 className="sec__title">
             When the inputs stop agreeing,
             <br />
-            <em>the circuit opens.</em>
+            <em>the transaction stops.</em>
           </h2>
 
           <div className="storm__body">
@@ -135,13 +140,33 @@ export function Storm() {
 
               <div className="storm__verdict" aria-live="polite">
                 <p className="storm__verdict__kicker">Risk-increasing action</p>
-                <p className="storm__verdict__word">Blocked.</p>
+                <p className="storm__verdict__word">Blocked on-chain.</p>
                 <p className="storm__verdict__note">
-                  Borrowing and withdrawing are refused while any input is
-                  unusable. Repaying and depositing stay open, because both reduce
-                  risk. The protocol never guesses a price in order to stay
-                  available.
+                  This is not a warning banner. The program refuses the state-changing instruction.
+                  Borrowing and withdrawing are refused while any input is unusable or capital policy restricts risk.
+                  Repaying and depositing remain unconditionally open because both reduce risk.
                 </p>
+                <div
+                  style={{
+                    marginTop: "16px",
+                    padding: "10px 14px",
+                    borderRadius: "4px",
+                    background: "rgba(255, 255, 255, 0.03)",
+                    border: "1px solid var(--border)",
+                    fontFamily: "var(--mono)",
+                    fontSize: "11px",
+                    lineHeight: 1.6,
+                    color: "var(--text-2)",
+                  }}
+                >
+                  <div style={{ color: "var(--text-3)", marginBottom: "4px", fontSize: "10px", letterSpacing: "0.08em" }}>
+                    PIPELINE ENFORCEMENT
+                  </div>
+                  <div>MARKET INPUT → GUARD → POLICY → TRANSACTION</div>
+                  <div style={{ color: "var(--accent)", marginTop: "4px" }}>
+                    Borrow request + Unsafe state = TRANSACTION REJECTED
+                  </div>
+                </div>
               </div>
             </div>
           </div>

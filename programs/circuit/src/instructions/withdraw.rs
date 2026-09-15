@@ -53,7 +53,7 @@ pub fn handler(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
         let market_open = market::is_market_open(clock.unix_timestamp)?;
         require!(market_open, CircuitError::MarketClosed);
 
-        // Check custody and liquidity
+        // Check custody and liquidity states explicitly
         require!(
             asset.custody_state != CustodyState::Impaired &&
             asset.custody_state != CustodyState::Delayed,
@@ -65,8 +65,16 @@ pub fn handler(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
             CircuitError::InvalidLiquidityState
         );
 
+        let derived_risk_state = if asset.custody_state == CustodyState::Impaired || asset.liquidity_state == LiquidityState::Critical {
+            MarketState::Emergency
+        } else if asset.custody_state == CustodyState::Delayed || asset.liquidity_state == LiquidityState::Thin || !market_open {
+            MarketState::Restricted
+        } else {
+            MarketState::Safe
+        };
+
         let policy = CapitalPolicy::from_risk_state(
-            MarketState::Safe,
+            derived_risk_state,
             asset.base_ltv_bps,
             position.has_debt(),
             0,

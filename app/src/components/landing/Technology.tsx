@@ -21,25 +21,25 @@ const STACK = [
     key: "SOLANA",
     name: "Solana",
     role: "Settlement",
-    line: "Execution and settlement. Sub-second finality is what makes checking a price on every single action practical rather than aspirational.",
+    line: "Execution and settlement. Sub-second finality is what makes checking a price and deriving capital policy on every single action practical rather than aspirational.",
   },
   {
     key: "PYTH",
     name: "Pyth",
     role: "Price",
-    line: "Price feeds read on chain as PriceUpdateV2 accounts, carrying publisher confidence alongside the value so the program can judge quality, not just magnitude.",
+    line: "Price feeds read on-chain as PriceUpdateV2 accounts, carrying publisher confidence alongside the value so the program can evaluate oracle uncertainty, not just price.",
   },
   {
     key: "RUST",
     name: "Rust",
     role: "Program",
-    line: "The program is Rust with checked arithmetic throughout. There is no unchecked cast anywhere in the risk path.",
+    line: "The program is Rust with checked arithmetic throughout. Evaluates Capital Policy, enforces Effective LTV, and settles Dutch auctions with zero floating-point math.",
   },
   {
     key: "ANCHOR",
     name: "Anchor",
     role: "Accounts",
-    line: "Account validation and PDA derivation are declared rather than described, so the constraints are part of the type and not part of the prose.",
+    line: "Account validation and PDA derivation are declared in types, guaranteeing strict non-custodial isolation and canonical signer authority.",
   },
 ];
 
@@ -109,6 +109,65 @@ export function Technology() {
                 );
               })}
             </ol>
+          </div>
+
+          {/* Authority Boundary Matrix */}
+          <div
+            style={{
+              marginTop: "44px",
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+              gap: "16px",
+              paddingTop: "24px",
+              borderTop: "1px solid var(--border)",
+            }}
+          >
+            <div
+              style={{
+                padding: "18px",
+                borderRadius: "4px",
+                background: "rgba(255, 255, 255, 0.02)",
+                border: "1px solid var(--border)",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                <span style={{ fontSize: "11px", fontFamily: "var(--mono)", color: "var(--text-3)", letterSpacing: "0.08em" }}>
+                  CLIENT (FRONTEND)
+                </span>
+                <span style={{ fontSize: "11px", fontFamily: "var(--mono)", color: "var(--text-3)" }}>
+                  ≠ Authority
+                </span>
+              </div>
+              <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "12px", color: "var(--text-2)", lineHeight: 1.7 }}>
+                <li>Displays state & estimates borrowing power</li>
+                <li>Prepares transaction instructions</li>
+                <li>Cannot override on-chain risk gates</li>
+              </ul>
+            </div>
+
+            <div
+              style={{
+                padding: "18px",
+                borderRadius: "4px",
+                background: "rgba(207, 173, 116, 0.04)",
+                border: "1px solid rgba(207, 173, 116, 0.25)",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                <span style={{ fontSize: "11px", fontFamily: "var(--mono)", color: "var(--accent)", letterSpacing: "0.08em" }}>
+                  PROGRAM (SOLANA SBF)
+                </span>
+                <span style={{ fontSize: "11px", fontFamily: "var(--mono)", color: "var(--accent)", fontWeight: 600 }}>
+                  = Authority
+                </span>
+              </div>
+              <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "12px", color: "var(--text-1)", lineHeight: 1.7 }}>
+                <li>Validates accounts, signer PDAs & vaults</li>
+                <li>Evaluates oracle price freshness & uncertainty</li>
+                <li>Derives Capital Policy & enforces Effective LTV</li>
+                <li>Settles bounded Dutch recovery auctions</li>
+              </ul>
+            </div>
           </div>
         </div>
       </div>
