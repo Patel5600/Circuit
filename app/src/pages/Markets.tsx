@@ -10,6 +10,8 @@ import { MarketHeroPanel } from "../components/market/MarketHeroPanel";
 import { MarketDetailDrawer } from "../components/drawers/MarketDetailDrawer";
 import { useProtocolState } from "../hooks/useProtocolState";
 import { useMarket } from "../context/MarketContext";
+import { useAction } from "../context/ActionContext";
+import { getDeployedMarket } from "../data/markets";
 import { useMarketDataService } from "../lib/market-data/stream";
 import { MarketSnapshot } from "../lib/market-data/types";
 import { CANONICAL_ASSET_REGISTRY } from "../lib/market-data/registry";
@@ -21,6 +23,7 @@ type SortOption = "default" | "gainers" | "losers" | "price_high" | "price_low" 
 export default function Markets() {
   const s = useProtocolState();
   const { selectedMarket, selectMarket } = useMarket();
+  const { openAction } = useAction();
   const { snapshots, loading, isStreamHealthy } = useMarketDataService();
   const navigate = useNavigate();
 
@@ -130,8 +133,13 @@ export default function Markets() {
 
   const handlePickMarket = (row: MarketRow) => {
     selectMarket(row.marketSymbol || row.symbol, row.quoteSymbol);
-    const quoteParam = row.quoteSymbol === "WSOL" ? "&quote=WSOL" : "";
-    navigate(`/app/borrow?market=${row.marketSymbol || row.symbol}${quoteParam}`);
+    const target = getDeployedMarket(row.marketSymbol || row.symbol, row.quoteSymbol);
+    if (target) {
+      openAction({ type: "borrow", market: target });
+    } else {
+      const quoteParam = row.quoteSymbol === "WSOL" ? "&quote=WSOL" : "";
+      navigate(`/app/borrow?market=${row.marketSymbol || row.symbol}${quoteParam}`);
+    }
   };
 
   return (
@@ -169,11 +177,21 @@ export default function Markets() {
             }}
             onBorrow={() => {
               selectMarket(featuredSnapshot.symbol, featuredSnapshot.quoteSymbol);
-              const quoteParam = featuredSnapshot.quoteSymbol === "WSOL" ? "&quote=WSOL" : "";
-              navigate(`/app/borrow?market=${featuredSnapshot.symbol}${quoteParam}`);
+              const target = getDeployedMarket(featuredSnapshot.symbol, featuredSnapshot.quoteSymbol);
+              if (target) {
+                openAction({ type: "borrow", market: target });
+              } else {
+                const quoteParam = featuredSnapshot.quoteSymbol === "WSOL" ? "&quote=WSOL" : "";
+                navigate(`/app/borrow?market=${featuredSnapshot.symbol}${quoteParam}`);
+              }
             }}
             onDeposit={() => {
-              navigate(`/app/position?market=${featuredSnapshot.symbol}`);
+              const target = getDeployedMarket(featuredSnapshot.symbol, featuredSnapshot.quoteSymbol);
+              if (target) {
+                openAction({ type: "deposit", market: target });
+              } else {
+                navigate(`/app/position?market=${featuredSnapshot.symbol}`);
+              }
             }}
           />
         )}

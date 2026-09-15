@@ -8,6 +8,8 @@ import { AssetConfigView } from "../../lib/protocol";
 import { OracleSnapshot } from "../../lib/pyth";
 import { SessionHint } from "../../hooks/useProtocolState";
 import { MarketSnapshot, UnderlyingSession, OracleStatus as OracleStatusType, Candle } from "../../lib/market-data/types";
+import { useAction } from "../../context/ActionContext";
+import { getDeployedMarket } from "../../data/markets";
 
 /** Oracle freshness / certainty summary, reusable across pages. */
 export function OracleStatus({
@@ -117,6 +119,7 @@ export function MarketCard({
   onSelect?: () => void;
   onOpenDetail?: () => void;
 }) {
+  const { openAction } = useAction();
   const isSol = row.quoteSymbol === "WSOL";
   const change = row.change24hPercent ?? 0;
   const isPos = change >= 0;
@@ -302,12 +305,19 @@ export function MarketCard({
         >
           Borrow {isSol ? "SOL" : (row.quoteSymbol || "USDC")}
         </button>
-        <a
-          href={`/app/position?market=${row.marketSymbol || row.symbol}`}
+        <button
+          type="button"
+          onClick={() => {
+            const sym = row.marketSymbol || row.symbol;
+            const target = getDeployedMarket(sym, row.quoteSymbol);
+            if (target) {
+              openAction({ type: "deposit", market: target });
+            }
+          }}
           className="btn btn--secondary btn--sm"
         >
           Deposit
-        </a>
+        </button>
       </div>
     </Card>
   );

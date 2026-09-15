@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import { Pill, Tone, Icon } from "../ui";
 import { LOGOS, type LogoMark } from "../../data/logos";
 import { formatMoney } from "../../lib/format";
+import { useAction } from "../../context/ActionContext";
+import { getDeployedMarket, getDeployedMarketByMint } from "../../data/markets";
 
 /* -------------------------------------------------------------------------- */
 /*  Types                                                                     */
@@ -616,6 +618,7 @@ export function PortfolioRiskGraph({
   onDynamicStateChange,
   onSelectNodeDriver,
 }: PortfolioRiskGraphProps) {
+  const { openAction } = useAction();
   const [zoom, setZoom] = useState<number>(1.0);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<AssetNode | null>(null);
@@ -1301,13 +1304,21 @@ export function PortfolioRiskGraph({
               <strong style={{ color: "var(--warning)" }}>Causal Impact: </strong>
               {selectedAsset.explanation || `Exposure is evaluated under on-chain Risk Ratchet with ${selectedAsset.weightPct}% weight.`}
             </div>
-            <Link
-              to={`/app/position?market=${selectedAsset.symbol}`}
+            <button
+              type="button"
+              onClick={() => {
+                const target =
+                  (selectedAsset.mint ? getDeployedMarketByMint(selectedAsset.mint) : null) ||
+                  getDeployedMarket(selectedAsset.symbol);
+                if (target) {
+                  openAction({ type: "deposit", market: target });
+                }
+              }}
               className="btn btn--accent btn--sm"
               style={{ fontSize: 11, padding: "0 12px", height: 28 }}
             >
               Manage {selectedAsset.symbol} Collateral →
-            </Link>
+            </button>
           </div>
         </aside>
       )}

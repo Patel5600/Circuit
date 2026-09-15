@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useWallet } from "@solana/wallet-adapter-react";
 
 import { PageContainer } from "../components/layout/AppShell";
@@ -20,6 +20,8 @@ import { MarketSelector } from "../components/market/MarketSelector";
 import { useProtocolState } from "../hooks/useProtocolState";
 import { useTransaction } from "../hooks/useTransaction";
 import { useMarket } from "../context/MarketContext";
+import { useAction } from "../context/ActionContext";
+import { getDeployedMarket } from "../data/markets";
 import { useCircuitDomain } from "../lib/domain/context";
 import { activeAssetDisplay } from "../lib/asset";
 import { formatMoney, formatPercent, formatTokens } from "../lib/format";
@@ -83,13 +85,27 @@ function Step({
 
 export default function Borrow() {
   const { selectedMarket, markets, selectMarket } = useMarket();
-  const s = useProtocolState();
+  const [searchParams] = useSearchParams();
+  const { openAction } = useAction();
+
+  const marketQuery = searchParams.get("market");
+  const quoteQuery = searchParams.get("quote");
+
+  const activeMarket = useMemo(() => {
+    if (marketQuery) {
+      const found = getDeployedMarket(marketQuery, quoteQuery ?? undefined);
+      if (found) return found;
+    }
+    return selectedMarket;
+  }, [marketQuery, quoteQuery, selectedMarket]);
+
+  const s = useProtocolState(activeMarket);
   const { connected, publicKey } = useWallet();
   const { invalidate, risk, credit } = useCircuitDomain();
-  const tx = useTransaction();
+  const tx = useTransaction(activeMarket);
 
-  const display = useMemo(() => activeAssetDisplay(selectedMarket), [selectedMarket]);
-  const quoteSymbol = selectedMarket.quoteSymbol || "USDC";
+  const display = useMemo(() => activeAssetDisplay(activeMarket), [activeMarket]);
+  const quoteSymbol = activeMarket.quoteSymbol || "USDC";
   const isSolBorrow = quoteSymbol === "WSOL";
 
   const [amount, setAmount] = useState("");
@@ -325,12 +341,13 @@ export default function Borrow() {
                 You need to deposit {display.symbol} before you can borrow {quoteSymbol} against it.
               </Notice>
               <div className="row g-8 wrap">
-                <Link
-                  to={`/app/position?market=${selectedMarket.symbol}`}
+                <button
+                  type="button"
+                  onClick={() => openAction({ type: "deposit", market: activeMarket })}
                   className="btn btn--accent btn--sm"
                 >
                   Deposit {display.symbol} now
-                </Link>
+                </button>
                 <Link to="/app/faucet" className="btn btn--secondary btn--sm">
                   <Icon name="faucet" size={14} />
                   Get Free Test {display.symbol}

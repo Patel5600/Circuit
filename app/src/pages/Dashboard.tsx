@@ -15,12 +15,14 @@ import {
 import { useProtocolState } from "../hooks/useProtocolState";
 import { useCircuitDomain } from "../lib/domain/context";
 import { useMarket } from "../context/MarketContext";
+import { useAction } from "../context/ActionContext";
 import { activeAssetDisplay } from "../lib/asset";
 import { greeting, formatMoney, formatPercent } from "../lib/format";
 import { toUi } from "../lib/protocol";
 
 export default function Dashboard() {
   const { selectedMarket, markets, selectMarket } = useMarket();
+  const { openAction } = useAction();
   const s = useProtocolState();
   const domain = useCircuitDomain();
   const { connected } = useWallet();
@@ -190,18 +192,20 @@ export default function Dashboard() {
                   </p>
                 </div>
                 <div className="row g-8">
-                  <Link
-                    to={`/app/position?market=${selectedMarket.symbol}`}
+                  <button
+                    type="button"
+                    onClick={() => openAction({ type: "deposit", market: selectedMarket })}
                     className="btn btn--accent btn--sm"
                   >
                     Deposit {display.symbol}
-                  </Link>
-                  <Link
-                    to={`/app/borrow?market=${selectedMarket.symbol}`}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openAction({ type: "borrow", market: selectedMarket })}
                     className="btn btn--secondary btn--sm"
                   >
                     Borrow {quoteSymbol}
-                  </Link>
+                  </button>
                 </div>
               </div>
             </Card>
@@ -216,12 +220,13 @@ export default function Dashboard() {
                 priceUsd={s.oracle?.priceUsd ?? null}
                 logo={display.logo}
                 action={
-                  <Link
-                    to={`/app/position?market=${selectedMarket.symbol}`}
+                  <button
+                    type="button"
+                    onClick={() => openAction({ type: "deposit", market: selectedMarket })}
                     className="btn btn--ghost btn--sm"
                   >
                     Manage
-                  </Link>
+                  </button>
                 }
               />
 
@@ -230,13 +235,15 @@ export default function Dashboard() {
                 risk={s.risk}
                 vaultLiquidity={s.vaultLiquidity}
                 action={
-                  <Link
-                    to={`/app/borrow?market=${selectedMarket.symbol}`}
+                  <button
+                    type="button"
+                    onClick={() => openAction({ type: "borrow", market: selectedMarket })}
                     className="btn btn--accent btn--sm"
+                    disabled={borrowBlocked}
                     aria-disabled={borrowBlocked || undefined}
                   >
                     Borrow {quoteSymbol}
-                  </Link>
+                  </button>
                 }
               />
             </div>
@@ -313,8 +320,7 @@ export default function Dashboard() {
                         style={{ padding: "3px 8px", fontSize: 11.5 }}
                         onClick={() => {
                           selectMarket(m.symbol, m.quoteSymbol);
-                          const quoteParam = isSol ? "&quote=WSOL" : "";
-                          navigate(`/app/borrow?market=${m.symbol}${quoteParam}`);
+                          openAction({ type: "borrow", market: m });
                         }}
                       >
                         Borrow

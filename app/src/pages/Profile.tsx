@@ -15,6 +15,8 @@ import {
   getAssetMark,
 } from "../components/profile/PortfolioRiskGraph";
 import { useLiveDevnetPortfolio } from "../lib/portfolio/live-provider";
+import { useAction } from "../context/ActionContext";
+import { getDeployedMarket, getDeployedMarketByMint } from "../data/markets";
 import { shortenAddress, formatMoney, formatPercent } from "../lib/format";
 import { BPS } from "../lib/protocol";
 import { analyzePortfolioRisk } from "../lib/risk/portfolio";
@@ -79,6 +81,7 @@ function StatBlock({
 export default function Profile() {
   const { connection } = useConnection();
   const { publicKey, connected } = useWallet();
+  const { openAction } = useAction();
   const { snapshot, loading, error, refresh } = useLiveDevnetPortfolio(connection, publicKey);
 
   const hasLiveCollateral = Boolean(snapshot && snapshot.totalCollateralUsd > 0);
@@ -553,13 +556,21 @@ export default function Profile() {
                           </Pill>
                         </td>
                         <td style={{ padding: "10px 12px", textAlign: "right" }}>
-                          <Link
-                            to={`/app/position?market=${p.symbol}`}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const target =
+                                (p.mint ? getDeployedMarketByMint(p.mint) : null) ||
+                                getDeployedMarket(p.symbol);
+                              if (target) {
+                                openAction({ type: "deposit", market: target, position: p });
+                              }
+                            }}
                             className="btn btn--secondary btn--sm"
                             style={{ fontSize: 11, height: 24, padding: "0 8px" }}
                           >
                             Manage →
-                          </Link>
+                          </button>
                         </td>
                       </tr>
                     );

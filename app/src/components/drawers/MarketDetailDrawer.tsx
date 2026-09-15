@@ -6,7 +6,8 @@
 
 import React, { useState } from "react";
 import { Drawer } from "../ui/Drawer";
-import { DeployedMarket } from "../../data/markets";
+import { DeployedMarket, getDeployedMarket } from "../../data/markets";
+import { useAction } from "../../context/ActionContext";
 import { Pill, Icon } from "../ui";
 import { formatMoney, formatPercent, formatAge } from "../../lib/format";
 import { useNavigate } from "react-router-dom";
@@ -27,6 +28,7 @@ export function MarketDetailDrawer({
   onClose: () => void;
 }) {
   const navigate = useNavigate();
+  const { openAction } = useAction();
   const [copiedFeed, setCopiedFeed] = useState(false);
 
   const activeSymbol = snapshot?.symbol ?? market?.symbol ?? "";
@@ -282,8 +284,13 @@ export function MarketDetailDrawer({
             type="button"
             className="btn btn--accent btn--block"
             onClick={() => {
+              const target = getDeployedMarket(activeSymbol, quoteSymbol);
               onClose();
-              navigate(`/app/borrow?market=${activeSymbol}&quote=${quoteSymbol}`);
+              if (target) {
+                openAction({ type: "borrow", market: target });
+              } else {
+                navigate(`/app/borrow?market=${activeSymbol}&quote=${quoteSymbol}`);
+              }
             }}
           >
             Borrow Against {displaySymbol}
@@ -293,8 +300,13 @@ export function MarketDetailDrawer({
             type="button"
             className="btn btn--secondary btn--block"
             onClick={() => {
+              const target = getDeployedMarket(activeSymbol, quoteSymbol);
               onClose();
-              navigate(`/app/position?market=${activeSymbol}`);
+              if (target) {
+                openAction({ type: "deposit", market: target });
+              } else {
+                navigate(`/app/position?market=${activeSymbol}`);
+              }
             }}
           >
             Deposit {displaySymbol} Collateral

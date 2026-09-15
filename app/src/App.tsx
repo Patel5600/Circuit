@@ -5,7 +5,9 @@ import { AppShell } from "./components/layout/AppShell";
 import { IconKeyframes } from "./components/ui/Icon";
 import { Skeleton } from "./components/ui";
 import { MarketProvider } from "./context/MarketContext";
+import { ActionProvider } from "./context/ActionContext";
 import { CircuitProtocolProvider } from "./lib/domain/context";
+import { AssetActionDrawer } from "./components/drawers/AssetActionDrawer";
 
 /**
  * Route table.
@@ -84,9 +86,12 @@ function AppRoute({ children }: { children: React.ReactNode }) {
       <SolanaProviders>
         <CircuitProtocolProvider>
           <MarketProvider>
-            <AppShell>
-              <Suspense fallback={<PageFallback />}>{children}</Suspense>
-            </AppShell>
+            <ActionProvider>
+              <AppShell>
+                <Suspense fallback={<PageFallback />}>{children}</Suspense>
+              </AppShell>
+              <AssetActionDrawer />
+            </ActionProvider>
           </MarketProvider>
         </CircuitProtocolProvider>
       </SolanaProviders>

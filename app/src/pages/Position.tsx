@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
 
@@ -24,6 +24,8 @@ import {
 import { useCircuitDomain } from "../lib/domain/context";
 import { useTransaction } from "../hooks/useTransaction";
 import { useMarket } from "../context/MarketContext";
+import { useAction } from "../context/ActionContext";
+import { DEPLOYED_MARKETS, getDeployedMarket, getDeployedMarketByMint } from "../data/markets";
 import { formatCurrency, formatMoney, formatPercent, formatTokens } from "../lib/format";
 import { getAssetMark } from "../data/logos";
 import { Position as PositionModel } from "../lib/portfolio/provider";
@@ -47,6 +49,9 @@ export default function Position() {
   const { connected, publicKey } = useWallet();
   const { portfolio, risk, credit, invalidate } = useCircuitDomain();
   const { selectedMarket, selectMarket } = useMarket();
+  const [searchParams] = useSearchParams();
+  const marketQuery = searchParams.get("market");
+  const { openAction } = useAction();
   const tx = useTransaction();
 
   // Drawer states
@@ -82,45 +87,54 @@ export default function Position() {
     }));
   }, [positions]);
 
-  // Derive active asset for action form
-  const activePosition = useMemo(() => {
-    return (
-      positions.find((p) => p.symbol === selectedMarket.symbol) ??
-      positions[0] ??
-      null
-    );
-  }, [positions, selectedMarket]);
+  // Canonical market context strictly from URL query if provided:
+  // 1. If ?market= is provided in URL, resolve from DEPLOYED_MARKETS
+  // 2. If invalid/unknown query, resolve to null (safe empty/neutral state, never fallback to Google)
+  // 3. If no query, targetMarket is null (neutral state, user chooses from portfolio or market selector)
+  const targetMarket = useMemo(() => {
+    if (!marketQuery) return null;
+    return getDeployedMarket(marketQuery) ?? null;
+  }, [marketQuery]);
 
-  const activeSymbol = activePosition ? activePosition.symbol : selectedMarket.symbol;
+  // Derive active position strictly for the target market
+  const activePosition = useMemo(() => {
+    if (!targetMarket) return null;
+    return positions.find((p) => p.symbol === targetMarket.symbol) ?? null;
+  }, [positions, targetMarket]);
+
+  const activeSymbol = targetMarket ? targetMarket.symbol : null;
+  const activeTokenSymbol = targetMarket ? targetMarket.tokenSymbol : null;
   const isWithdrawBlocked = credit.permissions.withdraw.status === "BLOCKED";
   const isBorrowBlocked = credit.permissions.borrow.status === "BLOCKED";
 
   const handleDepositClick = (pos: PositionModel) => {
-    selectMarket(pos.symbol);
-    setAction("deposit");
-    setSelectedAsset(null);
+    const m = getDeployedMarketByMint(pos.mint) || getDeployedMarket(pos.symbol);
+    if (m) {
+      openAction({ type: "deposit", market: m, position: pos });
+    }
   };
 
   const handleWithdrawClick = (pos: PositionModel) => {
-    selectMarket(pos.symbol);
-    setAction("withdraw");
-    setSelectedAsset(null);
+    const m = getDeployedMarketByMint(pos.mint) || getDeployedMarket(pos.symbol);
+    if (m) {
+      openAction({ type: "withdraw", market: m, position: pos });
+    }
   };
 
   const executeAction = async () => {
     const parsed = Number(amount);
-    if (!parsed || parsed <= 0 || !publicKey) return;
+    if (!parsed || parsed <= 0 || !publicKey || !targetMarket) return;
 
     setTxOpen(true);
     const amountNative = toNative(parsed);
-    const priceAccount = derivePriceAccount(selectedMarket.feedId || PYTH_FEED_ID, 0);
+    const priceAccount = derivePriceAccount(targetMarket.feedId || PYTH_FEED_ID, 0);
 
     const success = await tx.run({
       verb: action === "deposit" ? "Deposit" : action === "withdraw" ? "Withdraw" : "Repay",
-      summary: `${parsed} ${action === "repay" ? "USDC" : activeSymbol} ${action === "deposit" ? "deposited" : action === "withdraw" ? "withdrawn" : "repaid"}`,
+      summary: `${parsed} ${action === "repay" ? "USDC" : activeTokenSymbol} ${action === "deposit" ? "deposited" : action === "withdraw" ? "withdrawn" : "repaid"}`,
       priceUpdate: priceAccount,
-      equityMint: new PublicKey(selectedMarket.mint),
-      quoteMint: new PublicKey(selectedMarket.quoteMint),
+      equityMint: new PublicKey(targetMarket.mint),
+      quoteMint: new PublicKey(targetMarket.quoteMint),
       build: async (ctx) => {
         if (action === "deposit") return buildDeposit(ctx, amountNative);
         if (action === "withdraw") return buildWithdraw(ctx, amountNative);
@@ -431,81 +445,115 @@ export default function Position() {
             )}
           </Card>
 
-          {/* QUICK EXECUTION DRAWER / CARD */}
-          <Card title={`Manage ${activeSymbol} Collateral`}>
-            <div className="stack g-16" style={{ maxWidth: 520 }}>
-              <Segmented
-                label="Action Type"
-                options={[
-                  { value: "deposit", label: "Deposit" },
-                  { value: "withdraw", label: "Withdraw" },
-                  { value: "repay", label: "Repay Debt" },
-                ]}
-                value={action}
-                onChange={(val) => setAction(val as ActionType)}
-              />
+          {/* QUICK EXECUTION CARD */}
+          {targetMarket ? (
+            <Card title={`Manage ${activeTokenSymbol} Collateral (${targetMarket.name})`}>
+              <div className="stack g-16" style={{ maxWidth: 520 }}>
+                {!activePosition && (
+                  <Notice tone="neutral" title={`No active ${activeTokenSymbol} position`}>
+                    You do not have active {targetMarket.name} ({activeTokenSymbol}) collateral on-chain. Deposit below to initialize this collateral line.
+                  </Notice>
+                )}
 
-              {action === "withdraw" && isWithdrawBlocked && (
-                <div
-                  style={{
-                    padding: 12,
-                    background: "rgba(224, 82, 82, 0.1)",
-                    border: "1px solid var(--danger)",
-                    borderRadius: "var(--r)",
-                  }}
-                >
-                  <div className="row between g-8" style={{ alignItems: "center" }}>
-                    <span style={{ fontWeight: 700, color: "var(--danger)", fontSize: 12.5 }}>
-                      WITHDRAW BLOCKED: Risk Ratchet = {risk.ratchetState}
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setPermissionDrawerAction("Withdraw")}
-                    >
-                      Explain
-                    </Button>
+                <Segmented
+                  label="Action Type"
+                  options={
+                    !activePosition
+                      ? [{ value: "deposit", label: "Deposit" }]
+                      : [
+                          { value: "deposit", label: "Deposit" },
+                          { value: "withdraw", label: "Withdraw" },
+                          { value: "repay", label: "Repay Debt" },
+                        ]
+                  }
+                  value={action}
+                  onChange={(val) => setAction(val as ActionType)}
+                />
+
+                {action === "withdraw" && isWithdrawBlocked && (
+                  <div
+                    style={{
+                      padding: 12,
+                      background: "rgba(224, 82, 82, 0.1)",
+                      border: "1px solid var(--danger)",
+                      borderRadius: "var(--r)",
+                    }}
+                  >
+                    <div className="row between g-8" style={{ alignItems: "center" }}>
+                      <span style={{ fontWeight: 700, color: "var(--danger)", fontSize: 12.5 }}>
+                        WITHDRAW BLOCKED: Risk Ratchet = {risk.ratchetState}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setPermissionDrawerAction("Withdraw")}
+                      >
+                        Explain
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="stack g-6">
+                  <label className="t-label">
+                    Amount ({action === "repay" ? "USDC" : activeTokenSymbol})
+                  </label>
+                  <div className="row g-8" style={{ alignItems: "center" }}>
+                    <input
+                      type="number"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      placeholder="0.00"
+                      style={{
+                        flex: 1,
+                        padding: "10px 14px",
+                        background: "var(--surface-2)",
+                        border: "1px solid var(--border)",
+                        borderRadius: "var(--r)",
+                        color: "var(--text)",
+                        fontSize: 15,
+                        fontFamily: "var(--mono)",
+                      }}
+                    />
                   </div>
                 </div>
-              )}
 
-              <div className="stack g-6">
-                <label className="t-label">
-                  Amount ({action === "repay" ? "USDC" : activeSymbol})
-                </label>
-                <div className="row g-8" style={{ alignItems: "center" }}>
-                  <input
-                    type="number"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    placeholder="0.00"
-                    style={{
-                      flex: 1,
-                      padding: "10px 14px",
-                      background: "var(--surface-2)",
-                      border: "1px solid var(--border)",
-                      borderRadius: "var(--r)",
-                      color: "var(--text)",
-                      fontSize: 15,
-                      fontFamily: "var(--mono)",
-                    }}
-                  />
+                <Button
+                  variant="primary"
+                  disabled={!amount || Number(amount) <= 0 || (action === "withdraw" && isWithdrawBlocked)}
+                  onClick={executeAction}
+                >
+                  {action === "deposit"
+                    ? `Deposit ${amount || "0"} ${activeTokenSymbol}`
+                    : action === "withdraw"
+                    ? `Withdraw ${amount || "0"} ${activeTokenSymbol}`
+                    : `Repay ${amount || "0"} USDC`}
+                </Button>
+              </div>
+            </Card>
+          ) : (
+            <Card title="Collateral Management Terminal">
+              <div className="stack g-12">
+                <p className="t-sm muted" style={{ margin: 0 }}>
+                  Select an asset from your active portfolio holdings table above to withdraw or add collateral, or choose a market below to open a new position.
+                </p>
+                <div className="row g-8 wrap" style={{ marginTop: 4 }}>
+                  {DEPLOYED_MARKETS.map((m) => (
+                    <button
+                      key={m.symbol}
+                      type="button"
+                      className="btn btn--secondary btn--sm"
+                      onClick={() => {
+                        openAction({ type: "deposit", market: m });
+                      }}
+                    >
+                      Manage {m.symbol}x
+                    </button>
+                  ))}
                 </div>
               </div>
-
-              <Button
-                variant="primary"
-                disabled={!amount || Number(amount) <= 0 || (action === "withdraw" && isWithdrawBlocked)}
-                onClick={executeAction}
-              >
-                {action === "deposit"
-                  ? `Deposit ${amount || "0"} ${activeSymbol}`
-                  : action === "withdraw"
-                  ? `Withdraw ${amount || "0"} ${activeSymbol}`
-                  : `Repay ${amount || "0"} USDC`}
-              </Button>
-            </div>
-          </Card>
+            </Card>
+          )}
         </div>
       )}
 
