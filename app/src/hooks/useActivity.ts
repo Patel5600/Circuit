@@ -31,6 +31,8 @@ export interface ActivityItem {
   unit: "collateral" | "quote" | null;
   blockTime: number | null;
   success: boolean;
+  actor: "HUMAN" | "AGENT";
+  reasonCode: string;
 }
 
 /**
@@ -58,16 +60,50 @@ function classify(logs: string[] | null): {
   kind: ActivityKind;
   amount: bigint | null;
   unit: "collateral" | "quote" | null;
+  actor: "HUMAN" | "AGENT";
+  reasonCode: string;
 } {
-  if (!logs) return { kind: "other", amount: null, unit: null };
+  if (!logs) return { kind: "other", amount: null, unit: null, actor: "HUMAN", reasonCode: "ALLOWED" };
   const joined = logs.join("\n");
+  const isAgent =
+    joined.includes("execute_agent_action") ||
+    joined.includes("ActionAllowed") ||
+    joined.includes("ActionDenied") ||
+    joined.includes("AgentAuthority");
+  const actor = isAgent ? "AGENT" : "HUMAN";
+
+  let reasonCode = "ALLOWED";
+  if (joined.includes("BorrowDisabledByRiskPolicy") || joined.includes("BorrowBlocked")) {
+    reasonCode = "BORROW_DISABLED_BY_RISK_STATE";
+  } else if (joined.includes("AgentBorrowLimitExceeded")) {
+    reasonCode = "AGENT_BORROW_LIMIT_EXCEEDED";
+  } else if (joined.includes("AgentActionNotPermitted") || joined.includes("AgentAuthorityUnauthorized")) {
+    reasonCode = "AGENT_UNAUTHORIZED";
+  } else if (joined.includes("AgentAuthorityExpired")) {
+    reasonCode = "AGENT_EXPIRED";
+  } else if (joined.includes("StalePrice") || joined.includes("OracleStale")) {
+    reasonCode = "STALE_ORACLE";
+  } else if (joined.includes("ConfidenceTooWide")) {
+    reasonCode = "CONFIDENCE_TOO_WIDE";
+  } else if (joined.includes("MarketClosed")) {
+    reasonCode = "MARKET_CLOSED";
+  } else if (joined.includes("BorrowExceedsCapacity") || joined.includes("EffectiveLtvExceeded")) {
+    reasonCode = "LTV_EXCEEDED";
+  } else if (joined.includes("HealthFactorTooLow")) {
+    reasonCode = "HEALTH_FACTOR_TOO_LOW";
+  } else if (joined.includes("InsufficientCollateral")) {
+    reasonCode = "INSUFFICIENT_COLLATERAL";
+  } else if (joined.includes("ActionRiskCostExceedsBudget")) {
+    reasonCode = "RISK_BUDGET_EXCEEDED";
+  }
+
   for (const p of PATTERNS) {
     const m = joined.match(p.re);
     if (m) {
-      return { kind: p.kind, amount: BigInt(m[1]), unit: p.unit };
+      return { kind: p.kind, amount: BigInt(m[1]), unit: p.unit, actor, reasonCode };
     }
   }
-  return { kind: "other", amount: null, unit: null };
+  return { kind: "other", amount: null, unit: null, actor, reasonCode };
 }
 
 export const ACTIVITY_DECIMALS = DECIMALS;
@@ -118,14 +154,17 @@ export function useActivity(limit = 25) {
         const out: ActivityItem[] = sigs.map((s, i) => {
           const tx = parsed[i];
           const logs = tx?.meta?.logMessages ?? null;
-          const { kind, amount, unit } = classify(logs);
+          const { kind, amount, unit, actor, reasonCode } = classify(logs);
+          const success = !s.err && !tx?.meta?.err;
           return {
             signature: s.signature,
             kind,
             amount,
             unit,
             blockTime: s.blockTime ?? tx?.blockTime ?? null,
-            success: !s.err && !tx?.meta?.err,
+            success,
+            actor,
+            reasonCode: success ? "ALLOWED" : reasonCode,
           };
         });
 

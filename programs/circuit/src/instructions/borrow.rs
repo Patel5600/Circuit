@@ -44,9 +44,13 @@ pub fn handler(ctx: Context<Borrow>, amount: u64) -> Result<()> {
     require!(market_open, CircuitError::MarketClosed);
 
     // -- Step 10: Derive dynamic market state and authoritative Capital Policy --
-    let derived_risk_state = if asset.custody_state == CustodyState::Impaired || asset.liquidity_state == LiquidityState::Critical {
+    let conf_ratio_bps = math::calculate_confidence_ratio_bps(validated_price.price, validated_price.conf)?;
+
+    let derived_risk_state = if asset.custody_state == CustodyState::Impaired || asset.liquidity_state == LiquidityState::Critical || conf_ratio_bps > 300 {
         MarketState::Emergency
-    } else if asset.custody_state == CustodyState::Delayed || asset.liquidity_state == LiquidityState::Thin || !market_open {
+    } else if asset.custody_state == CustodyState::Delayed || asset.liquidity_state == LiquidityState::Thin || conf_ratio_bps > 150 {
+        MarketState::Defensive
+    } else if !market_open || conf_ratio_bps > 50 {
         MarketState::Restricted
     } else {
         MarketState::Safe

@@ -30,6 +30,7 @@ import {
   InvalidationScope,
   FreshnessMeta,
   ActivityEvent,
+  ControlMode,
 } from "./types";
 import { RpcOrchestrator } from "./orchestrator";
 import { getWalletStatus, verifyClusterGenesis } from "./wallet";
@@ -38,6 +39,11 @@ import { DEPLOYED_MARKETS } from "../../data/markets";
 import { PROGRAM_ID, RPC_URL } from "../../config";
 import { detectActivityPatterns } from "../activity/pattern-engine";
 import { isNyseMarketOpen } from "../session";
+import {
+  evaluatePermission,
+  PermissionResult,
+  ProtocolAction,
+} from "../permission-engine";
 
 interface DomainContextValue {
   wallet: WalletDomainState;
@@ -46,6 +52,13 @@ interface DomainContextValue {
   portfolio: PortfolioDomainState;
   risk: RiskDomainState;
   credit: CreditDomainState;
+  controlMode: ControlMode;
+  setControlMode: (mode: ControlMode) => void;
+  evaluatePermissionForAction: (
+    action: ProtocolAction,
+    amountUsd?: number,
+    symbolOrMint?: string
+  ) => PermissionResult;
   agentAuthority: AgentAuthorityDomainState;
   getAgentAuthorityForAsset: (symbolOrMint: string) => AgentAuthorityDomainState;
   revokeAgentAuthority: (symbolOrMint: string) => void;
@@ -82,6 +95,9 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
   const [isRpcDegraded, setIsRpcDegraded] = useState<boolean>(false);
   const [rpcLatency, setRpcLatency] = useState<number>(0);
   const [currentSlot, setCurrentSlot] = useState<number>(0);
+
+  // Control Mode: MANUAL (default, wallet-first) vs AUTONOMOUS (bounded strategy)
+  const [controlMode, setControlMode] = useState<ControlMode>("MANUAL");
 
   // Portfolio state
   const [portfolioSnap, setPortfolioSnap] = useState<any>(null);
@@ -486,6 +502,56 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
     };
   }, [isRpcDegraded, isDevnet, rpcLatency, currentSlot]);
 
+  const evaluatePermissionForAction = useCallback(
+    (action: ProtocolAction, amountUsd: number = 0, symbolOrMint?: string): PermissionResult => {
+      const sym = (symbolOrMint || activeMarketKey).toUpperCase();
+      const pos = portfolioState.positions.find(
+        (p) => p.symbol.toUpperCase() === sym || p.mint === symbolOrMint
+      );
+      const collatUsd =
+        pos?.collateralValueUsd ?? portfolioState.totalCollateralUsd ?? 0;
+      const debtUsd = pos?.debtUi ?? (portfolioState.totalDebtUsd || 0);
+      const agentAuth = controlMode === "AUTONOMOUS" ? getAgentAuthorityForAsset(sym) : null;
+
+      return evaluatePermission({
+        actor: controlMode === "MANUAL" ? "HUMAN" : "AGENT",
+        action,
+        amountUsd,
+        protocolPaused: protocolState.isFrozen,
+        assetEnabled: true,
+        isMarketOpen: riskState.isMarketOpen,
+        oracleStale: riskState.isStaleOracle,
+        confBps: riskState.maxConfSpreadBps,
+        maxConfBps: 100,
+        riskState: riskState.ratchetState,
+        baseLtvBps: portfolioState.weightedBaseLtvBps || 7000,
+        collateralUsd: collatUsd,
+        currentDebtUsd: debtUsd,
+        minHealthFactorBps: protocolState.minHealthFactorBps || 10_000,
+        liquidationThresholdBps: 8000,
+        agentAuthority: agentAuth
+          ? {
+              active: agentAuth.hasAuthority && agentAuth.status !== "REVOKED",
+              isExpired: agentAuth.isExpired,
+              allowedActions: agentAuth.allowedActions,
+              maxBorrowLimitUsd: agentAuth.maxBorrowLimit,
+              maxWithdrawLimitUsd: agentAuth.maxWithdrawLimit,
+              currentBorrowedUsd: agentAuth.currentBorrowed,
+              riskBudgetUsd: agentAuth.riskBudget,
+            }
+          : null,
+      });
+    },
+    [
+      controlMode,
+      activeMarketKey,
+      portfolioState,
+      riskState,
+      protocolState,
+      getAgentAuthorityForAsset,
+    ]
+  );
+
   const value: DomainContextValue = {
     wallet: walletState,
     protocol: protocolState,
@@ -493,6 +559,9 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
     portfolio: portfolioState,
     risk: riskState,
     credit: creditState,
+    controlMode,
+    setControlMode,
+    evaluatePermissionForAction,
     agentAuthority: activeAgentAuthority,
     getAgentAuthorityForAsset,
     revokeAgentAuthority,

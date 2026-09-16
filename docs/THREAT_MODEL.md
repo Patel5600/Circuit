@@ -331,3 +331,53 @@ This document provides a comprehensive threat model for the Circuit Protocol (`C
   3. Health factor and valuation calculations maintain consistent decimal scaling (`BPS_SCALE = 10,000`, `USD_SCALE = 10^8`, token decimals = 6).
 - **Remaining Risk**: Microscopic sub-token-unit rounding remnants (dust < 1 micro-token).
 - **Test Coverage**: Tested in `fixed_point.rs` unit tests and `tests/circuit.ts` Scenario 20.
+
+---
+
+### Vector 25: Compromised Autonomous Strategy / Agent Key Theft
+- **Attack Description**: An autonomous trading agent's private key is leaked or compromised by an adversary. The attacker attempts to drain the position owner's collateral, draw infinite debt, or withdraw assets to an external wallet.
+- **Trust Boundary**: Autonomous Strategy Agent Key $\rightarrow$ `AgentAuthority` PDA & `execute_agent_action.rs`.
+- **Mitigation Implemented**:
+  1. No Custody Ownership: The agent key possesses zero ownership over the `Position` PDA or the protocol vaults.
+  2. Bounded Delegation Limits: The agent can only borrow up to `max_borrow_limit` and cannot exceed the position's dynamic Effective LTV capacity.
+  3. Action Bitmask: Collateral withdrawal (`ACTION_WITHDRAW`) is disabled by default (`0`) in user delegation.
+  4. Instant Owner Revocation: The human owner can revoke the agent immediately on-chain by calling `update_agent_authority` with `allowed_actions = 0`.
+- **Remaining Risk**: Debt drawn up to the owner-configured `max_borrow_limit` before the owner revokes the agent key (strictly bounded loss ceiling).
+- **Test Coverage**: Tested in `tests/human-first-sovereignty.test.ts` Tests 6, 8, 9, 17.
+
+---
+
+### Vector 26: Complete Agent Daemon Failure or Network Partition
+- **Attack Description**: All off-chain agent infrastructure, AI models, LLM APIs, or strategy servers crash, disconnect, or are permanently deleted, leaving user positions unattended.
+- **Trust Boundary**: Off-chain Execution Daemons $\rightarrow$ On-chain Core Protocol.
+- **Mitigation Implemented**:
+  1. Protocol Sovereignty: The Circuit program has **zero off-chain dependencies** or AI service requirements.
+  2. First-Class Manual Operation: The position owner retains 100% direct control via their wallet and can manually deposit, borrow, repay, and withdraw at any time.
+  3. Automatic Expiry: Delegations automatically expire once `Clock::get().unix_timestamp > expiry_ts`.
+- **Remaining Risk**: Inaction by a passive user during market downturn (mitigated by standard liquidation and emergency repayment access).
+- **Test Coverage**: Tested in `tests/human-first-sovereignty.test.ts` Tests 1, 2, 3, 5, 18.
+
+---
+
+### Vector 27: Replayed Action Intent or Nonce Desynchronization
+- **Attack Description**: A network observer captures a signed agent action intent (e.g. `borrow $500`) and replays the transaction to repeatedly draw liquidity against the owner's position.
+- **Trust Boundary**: Agent Network RPC $\rightarrow$ `ExecuteAgentAction` Replay Protection.
+- **Mitigation Implemented**:
+  1. Monotonic Nonce Enforcement: `AgentAuthority` maintains a strict `nonce` counter. The transaction verifies `auth.nonce == intent_nonce`.
+  2. Atomic Incrementation: Each execution atomically increments `auth.nonce += 1`.
+  3. Replay Failure: Any duplicate or out-of-order transaction fails immediately with `CircuitError::ActionNonceInvalid`.
+- **Remaining Risk**: None; nonces enforce strict linear sequencing.
+- **Test Coverage**: Tested in `tests/adversarial-risk-authority.test.ts` Vectors 36, 51.
+
+---
+
+### Vector 28: Agent Authority Self-Escalation & Parameter Tampering
+- **Attack Description**: An authorized agent attempts to invoke `update_agent_authority` to increase its own borrow limit, extend its expiry timestamp, or enable withdrawal permissions.
+- **Trust Boundary**: Agent Signer $\rightarrow$ `UpdateAgentAuthority` Account Constraints.
+- **Mitigation Implemented**:
+  1. Strict Signer Constraint: `update_agent_authority` enforces `owner: Signer<'info>`.
+  2. Owner-PDA Binding: The program checks `require!(auth.owner == ctx.accounts.owner.key(), CircuitError::InvalidAgentOwner)`.
+  3. The agent's signature is powerless to modify any fields of the `AgentAuthority` PDA.
+- **Remaining Risk**: None; enforced by Solana runtime signature verification.
+- **Test Coverage**: Tested in `tests/human-first-sovereignty.test.ts` Test 9.
+

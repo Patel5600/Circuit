@@ -48,7 +48,7 @@ type ActionType = "deposit" | "repay" | "withdraw";
 
 export default function Position() {
   const { connected, publicKey } = useWallet();
-  const { portfolio, risk, credit, invalidate, getAgentAuthorityForAsset, revokeAgentAuthority } = useCircuitDomain();
+  const { portfolio, risk, credit, invalidate, getAgentAuthorityForAsset, revokeAgentAuthority, controlMode, setControlMode } = useCircuitDomain();
   const { selectedMarket, selectMarket } = useMarket();
   const [searchParams] = useSearchParams();
   const marketQuery = searchParams.get("market");
@@ -160,6 +160,81 @@ export default function Position() {
         <ConnectPrompt what="Your collateral positions" />
       ) : (
         <div className="stack g-24">
+          {/* Sovereign Execution Mode Context */}
+          {controlMode === "MANUAL" ? (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "10px 14px",
+                background: "rgba(127, 195, 154, 0.08)",
+                border: "1px solid rgba(127, 195, 154, 0.25)",
+                borderRadius: "var(--r, 10px)",
+                fontSize: 12.5,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "var(--success)" }} />
+                <span>
+                  <strong>MANUAL CONTROL ACTIVE</strong> — Direct sovereign wallet execution. Zero AI or agent dependency. Direct manual deposit, borrow, repay, and withdraw.
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setControlMode("AUTONOMOUS")}
+                style={{
+                  background: "transparent",
+                  border: "1px solid var(--border)",
+                  color: "var(--text-2)",
+                  borderRadius: 4,
+                  padding: "3px 8px",
+                  fontSize: 11,
+                  cursor: "pointer",
+                  fontFamily: "var(--mono)",
+                }}
+              >
+                Switch to Autonomous Mode &rarr;
+              </button>
+            </div>
+          ) : (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "10px 14px",
+                background: "rgba(96, 165, 250, 0.08)",
+                border: "1px solid rgba(96, 165, 250, 0.25)",
+                borderRadius: "var(--r, 10px)",
+                fontSize: 12.5,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#60a5fa" }} />
+                <span>
+                  <strong>AUTONOMOUS STRATEGY MODE</strong> — Delegated execution active. Bounded by Circuit Risk Ratchet, Capital Policy, and agent authorization limits.
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setControlMode("MANUAL")}
+                style={{
+                  background: "transparent",
+                  border: "1px solid var(--border)",
+                  color: "var(--text-2)",
+                  borderRadius: 4,
+                  padding: "3px 8px",
+                  fontSize: 11,
+                  cursor: "pointer",
+                  fontFamily: "var(--mono)",
+                }}
+              >
+                Switch to Manual Mode &rarr;
+              </button>
+            </div>
+          )}
+
           {/* Top Summary: 6-Stat Terminal Matrix */}
           <div className="grid grid--stats">
             <Card>

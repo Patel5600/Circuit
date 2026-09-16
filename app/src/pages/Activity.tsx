@@ -46,17 +46,9 @@ function ActivityRow({
   const meta = KIND_META[item.kind];
   const unitSymbol =
     item.unit === "collateral" ? collateralSymbol : item.unit === "quote" ? QUOTE_SYMBOL : "";
-  const who = item.kind === "borrow" || item.kind === "repay" ? "Autonomous Strategy" : "Owner";
   const resultText = item.success ? "✓ ALLOWED" : "✕ BLOCKED";
   const riskState = item.success ? "SAFE" : "DEFENSIVE";
-  const reason =
-    item.kind === "repay"
-      ? "Risk-reducing action permitted"
-      : item.kind === "deposit"
-      ? "Collateral-increasing action permitted"
-      : item.success
-      ? "Compliant with on-chain risk & policy limits"
-      : "Additional risk not permitted in DEFENSIVE";
+  const reasonCode = item.reasonCode || (item.success ? "ALLOWED" : "BORROW_DISABLED_BY_RISK_STATE");
 
   return (
     <li
@@ -88,8 +80,18 @@ function ActivityRow({
           >
             {unitSymbol || collateralSymbol}
           </span>
-          <span style={{ fontSize: 11, color: "var(--text-3)" }}>
-            by {who}
+          <span
+            style={{
+              fontSize: 11,
+              padding: "1px 6px",
+              borderRadius: 4,
+              fontFamily: "var(--mono)",
+              fontWeight: 600,
+              background: item.actor === "AGENT" ? "rgba(96, 165, 250, 0.15)" : "rgba(127, 195, 154, 0.15)",
+              color: item.actor === "AGENT" ? "#93c5fd" : "var(--success)",
+            }}
+          >
+            ACTOR: {item.actor === "AGENT" ? "AGENT" : "HUMAN"}
           </span>
           {item.amount !== null && (
             <span
@@ -109,8 +111,17 @@ function ActivityRow({
             Risk State: <strong style={{ color: item.success ? "var(--success)" : "var(--danger)" }}>{riskState}</strong>
           </span>
           <span style={{ color: "var(--text-3)" }}>·</span>
-          <span style={{ color: "var(--text-2)", fontStyle: "italic" }}>
-            {reason}
+          <span
+            className="mono"
+            style={{
+              fontSize: 11,
+              padding: "0 4px",
+              borderRadius: 3,
+              background: item.success ? "rgba(127, 195, 154, 0.1)" : "rgba(224, 82, 82, 0.15)",
+              color: item.success ? "var(--success)" : "var(--danger)",
+            }}
+          >
+            {reasonCode}
           </span>
         </div>
       </div>
@@ -130,6 +141,7 @@ export default function Activity() {
   const { items, loading, error, refresh } = useActivity(50);
   const display = useMemo(activeAssetDisplay, []);
   const [selectedEvent, setSelectedEvent] = useState<ActivityEvent | null>(null);
+  const [actorFilter, setActorFilter] = useState<"ALL" | "HUMAN" | "AGENT">("ALL");
 
   // Normalize into domain ActivityEvent[] for pattern engine
   const domainEvents: ActivityEvent[] = useMemo(() => {
@@ -169,12 +181,17 @@ export default function Activity() {
     const nowSec = Math.floor(Date.now() / 1000);
     const daySec = 86400;
 
+    const filtered = items.filter((it) => {
+      if (actorFilter === "ALL") return true;
+      return it.actor === actorFilter;
+    });
+
     const today: ActivityItem[] = [];
     const yesterday: ActivityItem[] = [];
     const thisWeek: ActivityItem[] = [];
     const older: ActivityItem[] = [];
 
-    items.forEach((it) => {
+    filtered.forEach((it) => {
       const time = it.blockTime ?? nowSec;
       const diff = nowSec - time;
       if (diff <= daySec) {
@@ -189,7 +206,7 @@ export default function Activity() {
     });
 
     return { today, yesterday, thisWeek, older };
-  }, [items]);
+  }, [items, actorFilter]);
 
   const handleRowClick = (item: ActivityItem) => {
     const found = domainEvents.find((e) => e.signature === item.signature);
@@ -317,6 +334,39 @@ export default function Activity() {
               </div>
             </div>
           )}
+
+          {/* ACTOR FILTER SELECTOR */}
+          <div className="row between g-12 wrap" style={{ alignItems: "center", padding: "4px 0" }}>
+            <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-3)" }}>
+              EXECUTION ACTOR
+            </span>
+            <div className="chips" style={{ margin: 0 }}>
+              <button
+                type="button"
+                className={`chip ${actorFilter === "ALL" ? "chip--active" : ""}`}
+                onClick={() => setActorFilter("ALL")}
+                style={{ fontSize: 11, padding: "3px 10px", height: 26 }}
+              >
+                ALL ({items.length})
+              </button>
+              <button
+                type="button"
+                className={`chip ${actorFilter === "HUMAN" ? "chip--active" : ""}`}
+                onClick={() => setActorFilter("HUMAN")}
+                style={{ fontSize: 11, padding: "3px 10px", height: 26 }}
+              >
+                HUMAN ({items.filter((i) => i.actor === "HUMAN").length})
+              </button>
+              <button
+                type="button"
+                className={`chip ${actorFilter === "AGENT" ? "chip--active" : ""}`}
+                onClick={() => setActorFilter("AGENT")}
+                style={{ fontSize: 11, padding: "3px 10px", height: 26 }}
+              >
+                AGENT ({items.filter((i) => i.actor === "AGENT").length})
+              </button>
+            </div>
+          </div>
 
           {/* CHRONOLOGICAL GROUPS */}
           {grouped.today.length > 0 && (

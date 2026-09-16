@@ -7,6 +7,10 @@
 
 import { Position } from "../portfolio/provider";
 import { DeployedMarket } from "../../data/markets";
+import { PermissionResult, PermissionReasonCode, ActorType } from "../permission-engine";
+
+export type ControlMode = "MANUAL" | "AUTONOMOUS";
+export type { PermissionResult, PermissionReasonCode, ActorType };
 
 export type DataFreshness = "LIVE" | "RECENT" | "STALE" | "SYNCING" | "ERROR";
 

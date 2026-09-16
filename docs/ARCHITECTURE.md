@@ -634,3 +634,49 @@ Circuit enforces an on-chain monetization model built on **safe credit execution
 - **Governance**: Maximum fee cap `<= 1,000 BPS` (10.00%). Admin-controlled in MVP with migration path to Squads v4 multisig.
 
 See [`docs/REVENUE_MODEL.md`](file:///c:/Dev/Circuit/docs/REVENUE_MODEL.md) for full economic specifications.
+
+---
+
+## 14. Actor Model, Dual Execution Modes & Protocol Sovereignty
+
+### 14.1 Core Philosophy: “Autonomy is Optional. Safety is Not.”
+Circuit is architected around the core principle:
+> **“Agents decide what to do. Circuit decides what capital they are allowed to risk.”**
+
+The protocol never places autonomous agents or AI systems in authority over user capital. The protocol program and on-chain PDAs remain the sole authoritative control plane.
+
+```
+HUMAN or AGENT
+       ↓
+     ACTION
+       ↓
+CIRCUIT PERMISSION ENGINE
+       ↓
+   MARKETGUARD
+       ↓
+   RISK RATCHET
+       ↓
+ CAPITAL POLICY
+       ↓
+  CREDIT ENGINE
+       ↓
+   EXECUTION
+```
+
+### 14.2 Actor Model & Trust Boundaries
+1. **Collateral Owner (Human)**:
+   - Maintains full, sovereign custody and ownership of their `Position` PDA.
+   - Operates 100% manually through direct wallet signatures with zero agent requirements.
+   - Can delegate, configure, update, or revoke agent permissions at any time.
+2. **Autonomous Agent (AI / Strategy)**:
+   - An untrusted execution delegate with strictly bounded authority defined in an `AgentAuthority` PDA.
+   - Cannot transfer ownership, withdraw collateral (unless explicitly granted), or alter delegation limits.
+   - Subject to dynamic risk budgets ($B_t$), replay protection nonces, and hard financial invariants.
+3. **Protocol Engine (On-Chain Sovereign)**:
+   - Authority intersection: $A_{\text{effective}}(t) = A_{\text{owner}} \cap A_{\text{agent}} \cap A_{\text{risk}}(t) \cap A_{\text{position}}(t)$.
+   - Evaluates identical market safety criteria for both human and agent actions.
+
+### 14.3 Dual Execution Modes
+- **MANUAL MODE**: Default mode. The connected wallet executes directly against `deposit`, `borrow`, `repay`, and `withdraw` instructions. Complete protocol independence from external AI or off-chain agent processes.
+- **AUTONOMOUS MODE**: Delegated mode. Authorized strategy executes via `execute_agent_action` within the delegated permission envelope.
+

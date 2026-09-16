@@ -51,6 +51,7 @@ function SystemHealthPill({ onClick }: { onClick: () => void }) {
 }
 
 function Header({ onOpenHealth }: { onOpenHealth: () => void }) {
+  const { controlMode, setControlMode } = useCircuitDomain();
   return (
     <header className="appbar">
       <div className="row g-8" style={{ alignItems: "center" }}>
@@ -59,7 +60,56 @@ function Header({ onOpenHealth }: { onOpenHealth: () => void }) {
         </NavLink>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12 }}>
+        {/* Protocol Sovereign Control Mode Toggle */}
+        <div
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            background: "var(--surface-2, rgba(255, 255, 255, 0.04))",
+            borderRadius: "var(--r-sm, 6px)",
+            padding: "2px 3px",
+            border: "1px solid var(--border, rgba(255, 255, 255, 0.08))",
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setControlMode("MANUAL")}
+            style={{
+              padding: "4px 10px",
+              fontSize: 11,
+              fontWeight: controlMode === "MANUAL" ? 700 : 500,
+              color: controlMode === "MANUAL" ? "var(--text-1, #fff)" : "var(--text-3, #777)",
+              background: controlMode === "MANUAL" ? "var(--surface-3, rgba(255, 255, 255, 0.12))" : "transparent",
+              borderRadius: "var(--r-sm, 4px)",
+              border: "none",
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+            }}
+            title="Manual Mode: Sovereign direct wallet control without agents"
+          >
+            MANUAL
+          </button>
+          <button
+            type="button"
+            onClick={() => setControlMode("AUTONOMOUS")}
+            style={{
+              padding: "4px 10px",
+              fontSize: 11,
+              fontWeight: controlMode === "AUTONOMOUS" ? 700 : 500,
+              color: controlMode === "AUTONOMOUS" ? "var(--accent, #f59e0b)" : "var(--text-3, #777)",
+              background: controlMode === "AUTONOMOUS" ? "rgba(245, 158, 11, 0.15)" : "transparent",
+              borderRadius: "var(--r-sm, 4px)",
+              border: "none",
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+            }}
+            title="Autonomous Mode: Bounded strategy execution multiplier"
+          >
+            AUTONOMOUS
+          </button>
+        </div>
+
         <SystemHealthPill onClick={onOpenHealth} />
       </div>
 

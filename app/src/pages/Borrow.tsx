@@ -101,7 +101,15 @@ export default function Borrow() {
 
   const s = useProtocolState(activeMarket);
   const { connected, publicKey } = useWallet();
-  const { invalidate, risk, credit, portfolio, getAgentAuthorityForAsset } = useCircuitDomain();
+  const {
+    invalidate,
+    risk,
+    credit,
+    portfolio,
+    getAgentAuthorityForAsset,
+    controlMode,
+    evaluatePermissionForAction,
+  } = useCircuitDomain();
   const tx = useTransaction(activeMarket);
 
   const display = useMemo(() => activeAssetDisplay(activeMarket), [activeMarket]);
@@ -133,6 +141,10 @@ export default function Borrow() {
   const amountNative = valid ? toNative(parsed) : 0n;
 
   const newDebt = debt + amountNative;
+
+  const permResult = useMemo(() => {
+    return evaluatePermissionForAction("borrow", parsed || 0, activeMarket.symbol);
+  }, [evaluatePermissionForAction, parsed, activeMarket.symbol]);
 
   const projectedHf = useMemo<number | null>(() => {
     if (!s.asset || !s.oracle || !valid) return null;
@@ -218,6 +230,45 @@ export default function Borrow() {
       <ConfigNotice />
 
       <div className="stack g-16">
+        {/* Control Mode Context & Authority Pathway Banner */}
+        <div
+          style={{
+            padding: "12px 16px",
+            background:
+              controlMode === "MANUAL"
+                ? "rgba(255, 255, 255, 0.03)"
+                : "rgba(245, 158, 11, 0.05)",
+            border: `1px solid ${
+              controlMode === "MANUAL"
+                ? "rgba(255, 255, 255, 0.08)"
+                : "rgba(245, 158, 11, 0.25)"
+            }`,
+            borderRadius: "var(--r)",
+          }}
+          className="row between g-12"
+        >
+          <div className="row g-10" style={{ alignItems: "center" }}>
+            <Pill tone={controlMode === "MANUAL" ? "neutral" : "warning"} withDot>
+              {controlMode === "MANUAL" ? "MANUAL MODE" : "AUTONOMOUS MODE"}
+            </Pill>
+            <span style={{ fontSize: 12.5, color: "var(--text-2)" }}>
+              {controlMode === "MANUAL"
+                ? "Direct sovereign wallet execution. Evaluated by Circuit Permission Engine."
+                : `Bounded strategy execution (${agentAuth.strategyName}). Subject to owner delegation.`}
+            </span>
+          </div>
+          <span
+            className="mono"
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: permResult.allowed ? "var(--success)" : "var(--danger)",
+            }}
+          >
+            {permResult.reasonCode}
+          </span>
+        </div>
+
         {/* Real Risk Ratchet State & Credit Policy Banner */}
         <div
           style={{
@@ -255,7 +306,8 @@ export default function Borrow() {
               <span style={{ fontSize: 13, color: "var(--text-2)" }}>
                 {risk.ratchetState === "SAFE"
                   ? "Market & oracle nominal. Full credit permissions active."
-                  : credit.permissions.borrow.reason ||
+                  : permResult.message ||
+                    credit.permissions.borrow.reason ||
                     `Credit constrained under ${risk.ratchetState} protocol policy.`}
               </span>
             </div>
@@ -365,31 +417,54 @@ export default function Borrow() {
                 </Pill>
               }
             />
-            <DataRow
-              label="Agent Strategy Authority"
-              value={
-                <Pill
-                  tone={
-                    agentAuth.effectiveAuthority === "FULL"
-                      ? "success"
-                      : agentAuth.effectiveAuthority === "LIMITED"
-                      ? "warning"
-                      : "danger"
+            {controlMode === "MANUAL" ? (
+              <>
+                <DataRow
+                  label="Execution Authority"
+                  value={
+                    <Pill tone="success" withDot>
+                      HUMAN · WALLET DIRECT
+                    </Pill>
                   }
-                  withDot
-                >
-                  {agentAuth.status} · {agentAuth.effectiveAuthority}
-                </Pill>
-              }
-            />
-            <DataRow
-              label="Agent Available Borrow"
-              value={
-                <span className="mono" style={{ fontWeight: 600 }}>
-                  ${formatMoney(agentAuth.availableBorrow)}
-                </span>
-              }
-            />
+                />
+                <DataRow
+                  label="Agent Dependency"
+                  value={
+                    <span className="mono" style={{ fontSize: 12, color: "var(--text-3)" }}>
+                      NONE (SOVEREIGN)
+                    </span>
+                  }
+                />
+              </>
+            ) : (
+              <>
+                <DataRow
+                  label="Agent Strategy Authority"
+                  value={
+                    <Pill
+                      tone={
+                        agentAuth.effectiveAuthority === "FULL"
+                          ? "success"
+                          : agentAuth.effectiveAuthority === "LIMITED"
+                          ? "warning"
+                          : "danger"
+                      }
+                      withDot
+                    >
+                      {agentAuth.status} · {agentAuth.effectiveAuthority}
+                    </Pill>
+                  }
+                />
+                <DataRow
+                  label="Agent Available Borrow"
+                  value={
+                    <span className="mono" style={{ fontWeight: 600 }}>
+                      ${formatMoney(agentAuth.availableBorrow)}
+                    </span>
+                  }
+                />
+              </>
+            )}
           </div>
         </Card>
 
