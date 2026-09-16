@@ -101,12 +101,16 @@ export default function Borrow() {
 
   const s = useProtocolState(activeMarket);
   const { connected, publicKey } = useWallet();
-  const { invalidate, risk, credit } = useCircuitDomain();
+  const { invalidate, risk, credit, portfolio, getAgentAuthorityForAsset } = useCircuitDomain();
   const tx = useTransaction(activeMarket);
 
   const display = useMemo(() => activeAssetDisplay(activeMarket), [activeMarket]);
   const quoteSymbol = activeMarket.quoteSymbol || "USDC";
   const isSolBorrow = quoteSymbol === "WSOL";
+
+  const agentAuth = useMemo(() => {
+    return getAgentAuthorityForAsset(activeMarket.symbol);
+  }, [getAgentAuthorityForAsset, activeMarket.symbol]);
 
   const [amount, setAmount] = useState("");
   const [txOpen, setTxOpen] = useState(false);
@@ -264,6 +268,130 @@ export default function Borrow() {
             </Link>
           </div>
         </div>
+
+        {/* Structured Protocol Rejection Card */}
+        {(risk.ratchetState === "DEFENSIVE" ||
+          risk.ratchetState === "EMERGENCY" ||
+          credit.permissions.borrow.status === "BLOCKED") && (
+          <div
+            style={{
+              padding: 16,
+              background: "rgba(207, 139, 139, 0.08)",
+              border: "1px solid rgba(207, 139, 139, 0.35)",
+              borderRadius: "var(--r)",
+            }}
+            className="stack g-10"
+          >
+            <div className="row between g-8" style={{ alignItems: "center" }}>
+              <span
+                style={{
+                  fontWeight: 750,
+                  color: "var(--danger)",
+                  fontSize: 13,
+                  letterSpacing: "0.04em",
+                }}
+              >
+                BORROW BLOCKED ON-CHAIN
+              </span>
+              <Pill tone="danger" withDot>
+                {risk.ratchetState}
+              </Pill>
+            </div>
+            <div style={{ fontSize: 12.5, color: "var(--text-2)", lineHeight: 1.5 }}>
+              The on-chain Capital Authority has rejected borrow authorization:{" "}
+              <strong>Additional risk is not permitted</strong> under {risk.ratchetState} state.
+            </div>
+            <div className="grid grid--2 g-8" style={{ marginTop: 4 }}>
+              <div style={{ fontSize: 11, color: "var(--text-3)" }}>
+                Risk State: <span style={{ color: "var(--danger)", fontWeight: 650 }}>{risk.ratchetState}</span>
+              </div>
+              <div style={{ fontSize: 11, color: "var(--text-3)" }}>
+                Policy: <span style={{ color: "var(--text-2)", fontWeight: 600 }}>Borrowing Disabled</span>
+              </div>
+              <div style={{ fontSize: 11, color: "var(--text-3)" }}>
+                Oracle: <span style={{ color: "var(--success)", fontWeight: 600 }}>VALID</span>
+              </div>
+              <div style={{ fontSize: 11, color: "var(--text-3)" }}>
+                Authority: <span style={{ color: "var(--text-2)", fontWeight: 600 }}>VERIFIED</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Capital & Authority Parameters Summary Card */}
+        <Card>
+          <div className="t-label" style={{ marginBottom: 12 }}>
+            Capital & Authority Parameters ({display.symbol})
+          </div>
+          <div className="grid grid--2 g-12">
+            <DataRow
+              label="Collateral Deposited"
+              value={`$${formatMoney(toUi(s.risk?.collateralValueNative ?? 0n))}`}
+            />
+            <DataRow
+              label="Current Debt"
+              value={`$${formatMoney(toUi(debt))} ${quoteSymbol}`}
+            />
+            <DataRow
+              label="Current LTV"
+              value={`${(toUi(s.risk?.collateralValueNative ?? 0n) > 0 ? (toUi(debt) / toUi(s.risk?.collateralValueNative ?? 0n)) * 100 : 0).toFixed(1)}%`}
+            />
+            <DataRow
+              label="Effective LTV Limit"
+              value={`${formatPercent(portfolio.effectiveLtvBps)}`}
+            />
+            <DataRow
+              label="Available Borrow"
+              value={
+                <span className="mono" style={{ fontWeight: 700, color: "var(--accent)" }}>
+                  ${formatMoney(toUi(max))} {quoteSymbol}
+                </span>
+              }
+            />
+            <DataRow
+              label="Protocol Risk State"
+              value={
+                <Pill
+                  tone={
+                    risk.ratchetState === "SAFE"
+                      ? "success"
+                      : risk.ratchetState === "RESTRICTED"
+                      ? "warning"
+                      : "danger"
+                  }
+                  withDot
+                >
+                  {risk.ratchetState}
+                </Pill>
+              }
+            />
+            <DataRow
+              label="Agent Strategy Authority"
+              value={
+                <Pill
+                  tone={
+                    agentAuth.effectiveAuthority === "FULL"
+                      ? "success"
+                      : agentAuth.effectiveAuthority === "LIMITED"
+                      ? "warning"
+                      : "danger"
+                  }
+                  withDot
+                >
+                  {agentAuth.status} · {agentAuth.effectiveAuthority}
+                </Pill>
+              }
+            />
+            <DataRow
+              label="Agent Available Borrow"
+              value={
+                <span className="mono" style={{ fontWeight: 600 }}>
+                  ${formatMoney(agentAuth.availableBorrow)}
+                </span>
+              }
+            />
+          </div>
+        </Card>
 
         {/* Step 1 - Market & Collateral Selection */}
         <Step

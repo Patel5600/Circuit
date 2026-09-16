@@ -29,9 +29,15 @@ export const DECIMALS = 6;
 export const TOKEN_UNITS = 10 ** DECIMALS;
 export const BPS = 10_000;
 
+// -- bitmask action flags for autonomous agent delegation ------------------
+export const ACTION_DEPOSIT = 1 << 0;  // 1
+export const ACTION_BORROW = 1 << 1;   // 2
+export const ACTION_REPAY = 1 << 2;    // 4
+export const ACTION_WITHDRAW = 1 << 3; // 8
+
 // -- enums -----------------------------------------------------------------
 
-export type MarketState = "safe" | "restricted" | "emergency";
+export type MarketState = "safe" | "restricted" | "defensive" | "emergency";
 export type CustodyState = "healthy" | "delayed" | "impaired";
 export type LiquidityState = "deep" | "normal" | "thin" | "critical";
 export type PositionState = "healthy" | "liquidatable";
@@ -88,6 +94,21 @@ export interface PositionView {
   state: PositionState;
 }
 
+export interface AgentAuthorityView {
+  owner: PublicKey;
+  agent: PublicKey;
+  assetMint: PublicKey;
+  allowedActions: number;
+  maxBorrowLimit: bigint;
+  maxWithdrawLimit: bigint;
+  currentBorrowed: bigint;
+  riskBudget: bigint;
+  initialRiskBudget: bigint;
+  expiryTs: bigint;
+  nonce: bigint;
+  bump: number;
+}
+
 // -- PDAs ------------------------------------------------------------------
 
 function utf8(s: string): Uint8Array {
@@ -118,9 +139,25 @@ export const marketGuardPda = (feedHex = PYTH_FEED_ID): PublicKey =>
     PROGRAM_ID
   )[0];
 
+export const riskRatchetPda = (feedHex = PYTH_FEED_ID): PublicKey =>
+  PublicKey.findProgramAddressSync(
+    [utf8("ratchet"), feedIdBytes(feedHex)],
+    PROGRAM_ID
+  )[0];
+
 export const positionPda = (owner: PublicKey, mint: PublicKey): PublicKey =>
   PublicKey.findProgramAddressSync(
     [utf8("position"), owner.toBuffer(), mint.toBuffer()],
+    PROGRAM_ID
+  )[0];
+
+export const agentAuthorityPda = (
+  owner: PublicKey,
+  agent: PublicKey,
+  mint: PublicKey
+): PublicKey =>
+  PublicKey.findProgramAddressSync(
+    [utf8("authority"), owner.toBuffer(), agent.toBuffer(), mint.toBuffer()],
     PROGRAM_ID
   )[0];
 
@@ -244,6 +281,53 @@ export async function fetchTokenAmount(
     info.data.byteLength
   );
   return view.getBigUint64(64, true); // SPL token amount
+}
+
+export async function fetchAgentAuthority(
+  program: Program,
+  conn: Connection,
+  owner: PublicKey,
+  agent: PublicKey,
+  mint: PublicKey
+): Promise<AgentAuthorityView | null> {
+  const pda = agentAuthorityPda(owner, agent, mint);
+  const info = await conn.getAccountInfo(pda);
+  if (!info || info.data.length < 162) return null;
+
+  try {
+    const raw = program.coder.accounts.decode("agentAuthority", Buffer.from(info.data));
+    return {
+      owner: raw.owner,
+      agent: raw.agent,
+      assetMint: raw.assetMint,
+      allowedActions: Number(raw.allowedActions),
+      maxBorrowLimit: BigInt(raw.maxBorrowLimit.toString()),
+      maxWithdrawLimit: BigInt(raw.maxWithdrawLimit.toString()),
+      currentBorrowed: BigInt(raw.currentBorrowed.toString()),
+      riskBudget: BigInt(raw.riskBudget.toString()),
+      initialRiskBudget: BigInt(raw.initialRiskBudget.toString()),
+      expiryTs: BigInt(raw.expiryTs.toString()),
+      nonce: BigInt(raw.nonce.toString()),
+      bump: Number(raw.bump),
+    };
+  } catch {
+    const data = info.data;
+    const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+    return {
+      owner: new PublicKey(data.subarray(8, 40)),
+      agent: new PublicKey(data.subarray(40, 72)),
+      assetMint: new PublicKey(data.subarray(72, 104)),
+      allowedActions: view.getUint8(104),
+      maxBorrowLimit: view.getBigUint64(105, true),
+      maxWithdrawLimit: view.getBigUint64(113, true),
+      currentBorrowed: view.getBigUint64(121, true),
+      riskBudget: view.getBigUint64(129, true),
+      initialRiskBudget: view.getBigUint64(137, true),
+      expiryTs: view.getBigInt64(145, true),
+      nonce: view.getBigUint64(153, true),
+      bump: view.getUint8(161),
+    };
+  }
 }
 
 // -- risk math (mirrors programs/circuit/src/math/fixed_point.rs) ----------
@@ -460,6 +544,106 @@ export async function buildRefreshGuard(
   return [ix];
 }
 
+export async function buildCreateAgentAuthority(
+  ctx: ActionContext,
+  agent: PublicKey,
+  allowedActions: number,
+  maxBorrowLimitNative: bigint,
+  maxWithdrawLimitNative: bigint,
+  riskBudgetNative: bigint,
+  expiryTs: bigint | number
+): Promise<TransactionInstruction[]> {
+  const pda = agentAuthorityPda(ctx.owner, agent, ctx.equityMint);
+  const ix = await ctx.program.methods
+    .createAgentAuthority(
+      allowedActions,
+      new BN(maxBorrowLimitNative.toString()),
+      new BN(maxWithdrawLimitNative.toString()),
+      new BN(riskBudgetNative.toString()),
+      new BN(expiryTs.toString())
+    )
+    .accountsPartial({
+      owner: ctx.owner,
+      agent,
+      assetMint: ctx.equityMint,
+      agentAuthority: pda,
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+  return [ix];
+}
+
+export async function buildUpdateAgentAuthority(
+  ctx: ActionContext,
+  agent: PublicKey,
+  allowedActions: number,
+  maxBorrowLimitNative: bigint,
+  maxWithdrawLimitNative: bigint,
+  riskBudgetNative: bigint,
+  expiryTs: bigint | number
+): Promise<TransactionInstruction[]> {
+  const pda = agentAuthorityPda(ctx.owner, agent, ctx.equityMint);
+  const ix = await ctx.program.methods
+    .updateAgentAuthority(
+      allowedActions,
+      new BN(maxBorrowLimitNative.toString()),
+      new BN(maxWithdrawLimitNative.toString()),
+      new BN(riskBudgetNative.toString()),
+      new BN(expiryTs.toString())
+    )
+    .accountsPartial({
+      owner: ctx.owner,
+      agent,
+      assetMint: ctx.equityMint,
+      agentAuthority: pda,
+    })
+    .instruction();
+  return [ix];
+}
+
+export async function buildExecuteAgentAction(
+  ctx: ActionContext,
+  agentWallet: PublicKey,
+  action: "deposit" | "borrow" | "repay" | "withdraw",
+  amountNative: bigint,
+  intentNonce: bigint | number,
+  userCollateralAta?: PublicKey,
+  userQuoteAta?: PublicKey
+): Promise<TransactionInstruction[]> {
+  const pda = agentAuthorityPda(ctx.owner, agentWallet, ctx.equityMint);
+  const ratchetPda = riskRatchetPda();
+  const posPda = positionPda(ctx.owner, ctx.equityMint);
+  const uCollateralAta = userCollateralAta ?? getAssociatedTokenAddressSync(ctx.equityMint, ctx.owner);
+  const uQuoteAta = userQuoteAta ?? getAssociatedTokenAddressSync(ctx.quoteMint, ctx.owner);
+
+  const ix = await ctx.program.methods
+    .executeAgentAction(
+      { [action]: {} } as any,
+      new BN(amountNative.toString()),
+      new BN(intentNonce.toString())
+    )
+    .accountsPartial({
+      agent: agentWallet,
+      owner: ctx.owner,
+      protocolConfig: protocolConfigPda(),
+      assetConfig: assetConfigPda(ctx.equityMint),
+      riskRatchet: ratchetPda,
+      position: posPda,
+      agentAuthority: pda,
+      collateralVault: vaultFor(ctx.equityMint),
+      liquidityVault: vaultFor(ctx.quoteMint),
+      userCollateralAta: uCollateralAta,
+      userQuoteAta: uQuoteAta,
+      collateralMint: ctx.equityMint,
+      quoteMint: ctx.quoteMint,
+      priceUpdate: ctx.priceUpdate,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+  return [ix];
+}
+
 // -- sending ---------------------------------------------------------------
 
 /**
@@ -496,6 +680,8 @@ const VARIANT_MESSAGES: Record<string, string> = {
   AssetDisabled: "This asset is disabled for new positions.",
   MarketClosed:
     "The reference market (NYSE) is closed. Borrowing and withdrawing against debt are gated to the regular session.",
+  MarketRestricted: "Market state is RESTRICTED: additional risk-increasing credit actions are capped or blocked.",
+  MarketEmergency: "Market state is EMERGENCY: all borrow and withdrawal actions are strictly blocked on-chain.",
   StaleOracle:
     "The Pyth price is older than the configured limit. Refresh the guard and retry.",
   ConfidenceTooWide:
@@ -512,6 +698,17 @@ const VARIANT_MESSAGES: Record<string, string> = {
   InvalidPositionOwner: "You are not the owner of this position.",
   Unauthorized: "Only the protocol authority can do that.",
   InvalidPrice: "The oracle price is not usable.",
+  BorrowDisabledByRiskPolicy: "Borrowing is disabled by current on-chain capital policy.",
+  WithdrawDisabledByRiskPolicy: "Withdrawal is disabled by current on-chain capital policy.",
+  EffectiveLtvExceeded: "Proposed operation exceeds effective LTV capacity under current risk state.",
+  AgentAuthorityExpired: "The autonomous strategy's delegated authority has expired.",
+  AgentActionNotPermitted: "The autonomous strategy is not authorized to execute this action.",
+  AgentBorrowLimitExceeded: "Requested borrow exceeds the strategy's delegated credit limit.",
+  AgentWithdrawLimitExceeded: "Requested withdrawal exceeds the strategy's delegated limit.",
+  InsufficientRiskBudget: "Action risk cost exceeds the strategy's remaining dynamic risk budget.",
+  AgentAuthorityUnauthorized: "Signer does not match the delegated autonomous strategy.",
+  InvalidAgentOwner: "The strategy's delegating owner does not match position owner.",
+  ActionNonceInvalid: "Action intent nonce mismatch or replay detected.",
 };
 
 function humanizeVariant(v: string): string {

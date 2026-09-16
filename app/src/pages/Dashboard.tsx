@@ -249,6 +249,111 @@ export default function Dashboard() {
             </div>
           )}
 
+          {/* Autonomous Capital Status Surface */}
+          <Card>
+            <div className="row between g-12 wrap" style={{ alignItems: "center" }}>
+              <div className="row g-10" style={{ alignItems: "center" }}>
+                <span
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: "var(--r-sm, 6px)",
+                    background: "rgba(127, 195, 154, 0.1)",
+                    border: "1px solid rgba(127, 195, 154, 0.25)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "var(--success)",
+                  }}
+                >
+                  <Icon name="layers" size={16} />
+                </span>
+                <div>
+                  <div style={{ fontSize: 11, fontFamily: "var(--mono)", color: "var(--text-3)", letterSpacing: "0.06em" }}>
+                    AUTONOMOUS CAPITAL CONTROL
+                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 700, marginTop: 1 }}>
+                    {domain.agentAuthority.strategyName} ({display.symbol} Collateral)
+                  </div>
+                </div>
+              </div>
+
+              <div className="row g-8 wrap" style={{ alignItems: "center" }}>
+                <div className="row g-4" style={{ alignItems: "center", fontSize: 12 }}>
+                  <span className="muted">Strategy:</span>
+                  <Pill
+                    tone={
+                      domain.agentAuthority.status === "ACTIVE"
+                        ? "success"
+                        : domain.agentAuthority.status === "LIMITED"
+                        ? "warning"
+                        : "danger"
+                    }
+                  >
+                    {domain.agentAuthority.status}
+                  </Pill>
+                </div>
+
+                <div className="row g-4" style={{ alignItems: "center", fontSize: 12 }}>
+                  <span className="muted">Risk:</span>
+                  <Pill
+                    tone={
+                      domain.risk.ratchetState === "SAFE"
+                        ? "success"
+                        : domain.risk.ratchetState === "RESTRICTED"
+                        ? "warning"
+                        : "danger"
+                    }
+                    withDot
+                  >
+                    {domain.risk.ratchetState}
+                  </Pill>
+                </div>
+
+                <div className="row g-4" style={{ alignItems: "center", fontSize: 12 }}>
+                  <span className="muted">Authority:</span>
+                  <Pill
+                    tone={
+                      domain.agentAuthority.effectiveAuthority === "FULL"
+                        ? "success"
+                        : domain.agentAuthority.effectiveAuthority === "LIMITED"
+                        ? "warning"
+                        : "danger"
+                    }
+                  >
+                    {domain.agentAuthority.effectiveAuthority}
+                  </Pill>
+                </div>
+
+                <div className="row g-4" style={{ alignItems: "center", fontSize: 12 }}>
+                  <span className="muted">Borrow:</span>
+                  <span
+                    style={{
+                      fontFamily: "var(--mono)",
+                      fontWeight: 650,
+                      color:
+                        domain.agentAuthority.effectiveAuthority === "BLOCKED"
+                          ? "var(--danger)"
+                          : domain.agentAuthority.effectiveAuthority === "LIMITED"
+                          ? "var(--warning)"
+                          : "var(--success)",
+                    }}
+                  >
+                    {domain.agentAuthority.effectiveAuthority === "BLOCKED"
+                      ? "BLOCKED"
+                      : domain.agentAuthority.effectiveAuthority === "LIMITED"
+                      ? "CONSTRAINED"
+                      : "ENABLED"}
+                  </span>
+                </div>
+
+                <Link to="/app/position" className="btn btn--secondary btn--sm" style={{ fontSize: 11, padding: "2px 8px", height: 26 }}>
+                  Manage Authority &rarr;
+                </Link>
+              </div>
+            </div>
+          </Card>
+
           {borrowBlocked && !s.loading && (
             <Notice tone="warning" title="New borrowing is paused">
               {s.risk!.blockers[0]}

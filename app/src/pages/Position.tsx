@@ -20,6 +20,7 @@ import {
   AssetRiskDrawer,
   PermissionDrawer,
   RiskEventDrawer,
+  AgentAuthorityDrawer,
 } from "../components/drawers";
 import { useCircuitDomain } from "../lib/domain/context";
 import { useTransaction } from "../hooks/useTransaction";
@@ -47,7 +48,7 @@ type ActionType = "deposit" | "repay" | "withdraw";
 
 export default function Position() {
   const { connected, publicKey } = useWallet();
-  const { portfolio, risk, credit, invalidate } = useCircuitDomain();
+  const { portfolio, risk, credit, invalidate, getAgentAuthorityForAsset, revokeAgentAuthority } = useCircuitDomain();
   const { selectedMarket, selectMarket } = useMarket();
   const [searchParams] = useSearchParams();
   const marketQuery = searchParams.get("market");
@@ -58,6 +59,7 @@ export default function Position() {
   const [selectedAsset, setSelectedAsset] = useState<PositionModel | null>(null);
   const [riskDrawerOpen, setRiskDrawerOpen] = useState(false);
   const [permissionDrawerAction, setPermissionDrawerAction] = useState<string | null>(null);
+  const [agentDrawerAsset, setAgentDrawerAsset] = useState<PositionModel | null>(null);
 
   // Action states
   const [action, setAction] = useState<ActionType>("deposit");
@@ -317,18 +319,28 @@ export default function Position() {
                   <thead>
                     <tr style={{ borderBottom: "1px solid var(--border)", color: "var(--text-3)", fontSize: 11 }}>
                       <th style={{ padding: "10px 12px" }}>ASSET</th>
-                      <th style={{ padding: "10px 12px" }}>QUANTITY</th>
-                      <th style={{ padding: "10px 12px" }}>ORACLE PRICE</th>
-                      <th style={{ padding: "10px 12px" }}>24H CHANGE</th>
-                      <th style={{ padding: "10px 12px" }}>POSITION VALUE</th>
-                      <th style={{ padding: "10px 12px" }}>WEIGHT</th>
-                      <th style={{ padding: "10px 12px" }}>CONFIDENCE</th>
+                      <th style={{ padding: "10px 12px" }}>COLLATERAL</th>
+                      <th style={{ padding: "10px 12px" }}>DEBT</th>
+                      <th style={{ padding: "10px 12px" }}>LTV</th>
+                      <th style={{ padding: "10px 12px" }}>RISK STATE</th>
+                      <th style={{ padding: "10px 12px" }}>AGENT AUTHORITY</th>
                       <th style={{ padding: "10px 12px", textAlign: "right" }}>ACTIONS</th>
                     </tr>
                   </thead>
                   <tbody>
                     {positions.map((pos) => {
                       const mark = getAssetMark(pos.symbol);
+                      const ltvPct = pos.collateralValueUsd > 0
+                        ? (pos.debtUi / pos.collateralValueUsd) * 100
+                        : 0;
+                      const auth = getAgentAuthorityForAsset(pos.symbol);
+                      const authTone =
+                        auth.effectiveAuthority === "FULL"
+                          ? "success"
+                          : auth.effectiveAuthority === "LIMITED"
+                          ? "warning"
+                          : "danger";
+
                       return (
                         <tr
                           key={pos.mint}
@@ -372,48 +384,76 @@ export default function Position() {
                             </div>
                           </td>
 
-                          <td style={{ padding: "14px 12px", fontFamily: "var(--mono)", fontWeight: 600 }}>
-                            {formatTokens(pos.collateralUi)}
-                          </td>
-
-                          <td style={{ padding: "14px 12px", fontFamily: "var(--mono)" }}>
-                            {formatCurrency(pos.priceUsd)}
-                          </td>
-
-                          <td
-                            style={{
-                              padding: "14px 12px",
-                              fontFamily: "var(--mono)",
-                              color:
-                                pos.change24hPercent !== null && pos.change24hPercent !== undefined && pos.change24hPercent >= 0
-                                  ? "var(--success)"
-                                  : "var(--danger)",
-                            }}
-                          >
-                            {pos.change24hPercent !== null && pos.change24hPercent !== undefined
-                              ? `${pos.change24hPercent >= 0 ? "+" : ""}${pos.change24hPercent.toFixed(2)}%`
-                              : "--"}
-                          </td>
-
-                          <td style={{ padding: "14px 12px", fontFamily: "var(--mono)", fontWeight: 700 }}>
-                            {formatCurrency(pos.collateralValueUsd)}
-                          </td>
-
                           <td style={{ padding: "14px 12px" }}>
-                            <div className="row g-6" style={{ alignItems: "center" }}>
-                              <span className="mono" style={{ fontSize: 12 }}>
-                                {pos.weightPct.toFixed(1)}%
-                              </span>
-                              {pos.weightPct > 40 && (
-                                <Pill tone="warning">
-                                  Concentrated
-                                </Pill>
-                              )}
+                            <div style={{ fontFamily: "var(--mono)", fontWeight: 700 }}>
+                              {formatCurrency(pos.collateralValueUsd)}
+                            </div>
+                            <div style={{ fontSize: 11, color: "var(--text-3)", fontFamily: "var(--mono)" }}>
+                              {formatTokens(pos.collateralUi)} {pos.symbol}
                             </div>
                           </td>
 
-                          <td style={{ padding: "14px 12px", fontFamily: "var(--mono)", fontSize: 11, color: "var(--text-3)" }}>
-                            ±${pos.confidenceUsd.toFixed(3)}
+                          <td style={{ padding: "14px 12px", fontFamily: "var(--mono)", fontWeight: 600 }}>
+                            {pos.debtUi > 0 ? formatCurrency(pos.debtUi) : "$0.00"}
+                          </td>
+
+                          <td style={{ padding: "14px 12px", fontFamily: "var(--mono)" }}>
+                            <span style={{ color: ltvPct > 50 ? "var(--warning)" : "var(--text)" }}>
+                              {ltvPct.toFixed(1)}%
+                            </span>
+                          </td>
+
+                          <td style={{ padding: "14px 12px" }}>
+                            <Pill
+                              tone={
+                                risk.ratchetState === "SAFE"
+                                  ? "success"
+                                  : risk.ratchetState === "RESTRICTED"
+                                  ? "warning"
+                                  : "danger"
+                              }
+                              withDot
+                            >
+                              {risk.ratchetState}
+                            </Pill>
+                          </td>
+
+                          <td style={{ padding: "14px 12px" }}>
+                            <button
+                              type="button"
+                              className="chip"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setAgentDrawerAsset(pos);
+                              }}
+                              style={{
+                                border: "1px solid var(--border-strong)",
+                                cursor: "pointer",
+                                padding: "3px 8px",
+                                height: 24,
+                                fontSize: 11,
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 6,
+                              }}
+                              title="Inspect Autonomous Strategy Authority"
+                            >
+                              <span
+                                style={{
+                                  width: 6,
+                                  height: 6,
+                                  borderRadius: "50%",
+                                  background:
+                                    authTone === "success"
+                                      ? "var(--success)"
+                                      : authTone === "warning"
+                                      ? "var(--warning)"
+                                      : "var(--danger)",
+                                }}
+                              />
+                              <span style={{ fontWeight: 650 }}>{auth.status}</span>
+                              <span style={{ color: "var(--text-3)", fontSize: 10 }}>· {auth.effectiveAuthority}</span>
+                            </button>
                           </td>
 
                           <td style={{ padding: "14px 12px", textAlign: "right" }}>
@@ -581,6 +621,15 @@ export default function Position() {
         }
         open={Boolean(permissionDrawerAction)}
         onClose={() => setPermissionDrawerAction(null)}
+      />
+
+      {/* Autonomous Strategy Authority Drawer */}
+      <AgentAuthorityDrawer
+        authority={agentDrawerAsset ? getAgentAuthorityForAsset(agentDrawerAsset.symbol) : null}
+        riskState={risk.ratchetState}
+        open={Boolean(agentDrawerAsset)}
+        onClose={() => setAgentDrawerAsset(null)}
+        onRevoke={revokeAgentAuthority}
       />
 
       {/* Execution Lifecycle Modal */}

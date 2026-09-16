@@ -421,6 +421,102 @@
       "args": []
     },
     {
+      "name": "create_agent_authority",
+      "docs": [
+        "Delegate bounded execution authority to an autonomous stock strategy.",
+        "Owner retains asset ownership; agent receives constrained execution rights."
+      ],
+      "discriminator": [
+        108,
+        225,
+        37,
+        94,
+        74,
+        112,
+        9,
+        83
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "agent",
+          "docs": [
+            "The autonomous agent / strategy being delegated authority"
+          ]
+        },
+        {
+          "name": "asset_mint",
+          "docs": [
+            "The tokenized stock collateral mint this authority governs"
+          ]
+        },
+        {
+          "name": "agent_authority",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "agent"
+              },
+              {
+                "kind": "account",
+                "path": "asset_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "allowed_actions",
+          "type": "u8"
+        },
+        {
+          "name": "max_borrow_limit",
+          "type": "u64"
+        },
+        {
+          "name": "max_withdraw_limit",
+          "type": "u64"
+        },
+        {
+          "name": "risk_budget",
+          "type": "u64"
+        },
+        {
+          "name": "expiry_ts",
+          "type": "i64"
+        }
+      ]
+    },
+    {
       "name": "deposit",
       "docs": [
         "Deposit equity tokens as collateral.",
@@ -649,6 +745,394 @@
       "args": [
         {
           "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "execute_agent_action",
+      "docs": [
+        "Execute an authorized action proposed by an autonomous strategy.",
+        "Strictly gated onchain by Risk Ratchet, Capital Policy, and dynamic risk budget B_t."
+      ],
+      "discriminator": [
+        170,
+        161,
+        176,
+        247,
+        194,
+        95,
+        1,
+        81
+      ],
+      "accounts": [
+        {
+          "name": "agent",
+          "docs": [
+            "The autonomous agent signer executing this action"
+          ],
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "agent_authority"
+          ]
+        },
+        {
+          "name": "owner",
+          "docs": [
+            "The position owner who delegated authority"
+          ],
+          "relations": [
+            "agent_authority"
+          ]
+        },
+        {
+          "name": "protocol_config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  116,
+                  111,
+                  99,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "asset_config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  115,
+                  115,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "asset_config.mint",
+                "account": "AssetConfig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "risk_ratchet",
+          "writable": true
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "asset_config.mint",
+                "account": "AssetConfig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "agent_authority",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "agent"
+              },
+              {
+                "kind": "account",
+                "path": "asset_config.mint",
+                "account": "AssetConfig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "collateral_vault",
+          "docs": [
+            "Protocol collateral vault ATA"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "protocol_config"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "collateral_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "liquidity_vault",
+          "docs": [
+            "Protocol liquidity vault ATA"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "protocol_config"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "quote_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "user_collateral_ata",
+          "docs": [
+            "User / agent token account for collateral"
+          ],
+          "writable": true
+        },
+        {
+          "name": "user_quote_ata",
+          "docs": [
+            "User / agent token account for quote currency"
+          ],
+          "writable": true
+        },
+        {
+          "name": "collateral_mint"
+        },
+        {
+          "name": "quote_mint"
+        },
+        {
+          "name": "price_update",
+          "docs": [
+            "Pyth PriceUpdateV2 account"
+          ]
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "action",
+          "type": {
+            "defined": {
+              "name": "AgentAction"
+            }
+          }
+        },
+        {
+          "name": "amount",
+          "type": "u64"
+        },
+        {
+          "name": "intent_nonce",
           "type": "u64"
         }
       ]
@@ -2504,6 +2988,109 @@
       "args": []
     },
     {
+      "name": "update_agent_authority",
+      "docs": [
+        "Update delegated agent authority policy parameters or revoke permissions (owner-only)."
+      ],
+      "discriminator": [
+        168,
+        204,
+        173,
+        196,
+        82,
+        181,
+        85,
+        44
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "docs": [
+            "Only the delegating owner can update authority parameters"
+          ],
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "agent_authority"
+          ]
+        },
+        {
+          "name": "agent",
+          "docs": [
+            "The agent whose authority is being modified"
+          ],
+          "relations": [
+            "agent_authority"
+          ]
+        },
+        {
+          "name": "asset_mint",
+          "docs": [
+            "The tokenized stock collateral mint"
+          ],
+          "relations": [
+            "agent_authority"
+          ]
+        },
+        {
+          "name": "agent_authority",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "agent"
+              },
+              {
+                "kind": "account",
+                "path": "asset_mint"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "allowed_actions",
+          "type": "u8"
+        },
+        {
+          "name": "max_borrow_limit",
+          "type": "u64"
+        },
+        {
+          "name": "max_withdraw_limit",
+          "type": "u64"
+        },
+        {
+          "name": "risk_budget",
+          "type": "u64"
+        },
+        {
+          "name": "expiry_ts",
+          "type": "i64"
+        }
+      ]
+    },
+    {
       "name": "update_fee_config",
       "docs": [
         "Update protocol fee configuration (admin-only)."
@@ -2808,6 +3395,19 @@
   ],
   "accounts": [
     {
+      "name": "AgentAuthority",
+      "discriminator": [
+        161,
+        225,
+        83,
+        39,
+        179,
+        98,
+        31,
+        118
+      ]
+    },
+    {
       "name": "AssetConfig",
       "discriminator": [
         57,
@@ -2888,6 +3488,123 @@
   ],
   "events": [
     {
+      "name": "ActionAllowed",
+      "discriminator": [
+        198,
+        68,
+        102,
+        235,
+        199,
+        134,
+        18,
+        102
+      ]
+    },
+    {
+      "name": "ActionDenied",
+      "discriminator": [
+        243,
+        239,
+        240,
+        51,
+        151,
+        100,
+        10,
+        100
+      ]
+    },
+    {
+      "name": "AgentAuthorityCreated",
+      "discriminator": [
+        56,
+        134,
+        66,
+        40,
+        73,
+        49,
+        228,
+        39
+      ]
+    },
+    {
+      "name": "AgentAuthorityRevoked",
+      "discriminator": [
+        17,
+        248,
+        160,
+        61,
+        125,
+        212,
+        121,
+        97
+      ]
+    },
+    {
+      "name": "AgentAuthorityUpdated",
+      "discriminator": [
+        32,
+        13,
+        92,
+        242,
+        7,
+        75,
+        95,
+        145
+      ]
+    },
+    {
+      "name": "AuctionCreated",
+      "discriminator": [
+        133,
+        190,
+        194,
+        65,
+        172,
+        0,
+        70,
+        178
+      ]
+    },
+    {
+      "name": "AuctionSettled",
+      "discriminator": [
+        61,
+        151,
+        131,
+        170,
+        95,
+        203,
+        219,
+        147
+      ]
+    },
+    {
+      "name": "BorrowAllowed",
+      "discriminator": [
+        37,
+        163,
+        135,
+        41,
+        32,
+        20,
+        148,
+        72
+      ]
+    },
+    {
+      "name": "BorrowBlocked",
+      "discriminator": [
+        21,
+        47,
+        47,
+        161,
+        15,
+        161,
+        181,
+        62
+      ]
+    },
+    {
       "name": "BorrowEvent",
       "discriminator": [
         86,
@@ -2911,6 +3628,19 @@
         9,
         45,
         124
+      ]
+    },
+    {
+      "name": "CapitalPolicyUpdated",
+      "discriminator": [
+        179,
+        140,
+        25,
+        201,
+        168,
+        138,
+        161,
+        43
       ]
     },
     {
@@ -2976,6 +3706,19 @@
         108,
         82,
         140
+      ]
+    },
+    {
+      "name": "RiskBudgetChanged",
+      "discriminator": [
+        26,
+        145,
+        112,
+        132,
+        86,
+        212,
+        105,
+        232
       ]
     },
     {
@@ -3200,9 +3943,444 @@
       "code": 6038,
       "name": "InvalidFeeAccount",
       "msg": "Invalid protocol fee token account"
+    },
+    {
+      "code": 6039,
+      "name": "InsufficientLiquidationAmount",
+      "msg": "Liquidation repayment amount is insufficient to restore target health factor"
+    },
+    {
+      "code": 6040,
+      "name": "CapitalPolicyBlocked",
+      "msg": "Operation rejected by authoritative Capital Policy"
+    },
+    {
+      "code": 6041,
+      "name": "BorrowDisabledByRiskPolicy",
+      "msg": "Borrowing is disabled by current on-chain capital policy"
+    },
+    {
+      "code": 6042,
+      "name": "WithdrawDisabledByRiskPolicy",
+      "msg": "Withdrawal is disabled by current on-chain capital policy"
+    },
+    {
+      "code": 6043,
+      "name": "EffectiveLtvExceeded",
+      "msg": "Proposed operation exceeds effective LTV capacity"
+    },
+    {
+      "code": 6044,
+      "name": "InvalidRiskTransition",
+      "msg": "Attempted an invalid risk state transition"
+    },
+    {
+      "code": 6045,
+      "name": "RiskEpochMismatch",
+      "msg": "Risk epoch mismatch"
+    },
+    {
+      "code": 6046,
+      "name": "OracleConditionUnsafe",
+      "msg": "Oracle condition is unsafe"
+    },
+    {
+      "code": 6047,
+      "name": "PositionWouldBecomeUnsafe",
+      "msg": "Resulting position would become unsafe"
+    },
+    {
+      "code": 6048,
+      "name": "AuctionExpired",
+      "msg": "Liquidation auction has expired"
+    },
+    {
+      "code": 6049,
+      "name": "AuctionPriceOutOfBounds",
+      "msg": "Calculated auction price is out of bounds"
+    },
+    {
+      "code": 6050,
+      "name": "AgentAuthorityExpired",
+      "msg": "Agent authority has expired"
+    },
+    {
+      "code": 6051,
+      "name": "AgentActionNotPermitted",
+      "msg": "Agent is not authorized to execute this action"
+    },
+    {
+      "code": 6052,
+      "name": "AgentBorrowLimitExceeded",
+      "msg": "Requested borrow exceeds agent authority policy limit"
+    },
+    {
+      "code": 6053,
+      "name": "AgentWithdrawLimitExceeded",
+      "msg": "Requested withdrawal exceeds agent authority policy limit"
+    },
+    {
+      "code": 6054,
+      "name": "InsufficientRiskBudget",
+      "msg": "Action risk cost exceeds agent remaining risk budget"
+    },
+    {
+      "code": 6055,
+      "name": "AgentAuthorityUnauthorized",
+      "msg": "Signer does not match delegated agent authority"
+    },
+    {
+      "code": 6056,
+      "name": "InvalidAgentOwner",
+      "msg": "Agent authority owner does not match position owner"
+    },
+    {
+      "code": 6057,
+      "name": "ActionNonceInvalid",
+      "msg": "Action intent nonce mismatch or replay detected"
     }
   ],
   "types": [
+    {
+      "name": "ActionAllowed",
+      "docs": [
+        "Emitted when an action passes protocol permission evaluation."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "position",
+            "type": "pubkey"
+          },
+          {
+            "name": "action",
+            "type": {
+              "defined": {
+                "name": "AgentAction"
+              }
+            }
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "risk_cost",
+            "type": "u64"
+          },
+          {
+            "name": "remaining_budget",
+            "type": "u64"
+          },
+          {
+            "name": "risk_state",
+            "type": {
+              "defined": {
+                "name": "MarketState"
+              }
+            }
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ActionDenied",
+      "docs": [
+        "Emitted when an action is rejected by protocol permission evaluation."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "position",
+            "type": "pubkey"
+          },
+          {
+            "name": "action",
+            "type": {
+              "defined": {
+                "name": "AgentAction"
+              }
+            }
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "risk_state",
+            "type": {
+              "defined": {
+                "name": "MarketState"
+              }
+            }
+          },
+          {
+            "name": "denial_reason",
+            "type": {
+              "defined": {
+                "name": "PermissionDenialReason"
+              }
+            }
+          },
+          {
+            "name": "epoch",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AgentAction",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Deposit"
+          },
+          {
+            "name": "Borrow"
+          },
+          {
+            "name": "Repay"
+          },
+          {
+            "name": "Withdraw"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AgentAuthority",
+      "docs": [
+        "On-chain state account representing bounded authority delegated to an autonomous strategy.",
+        "",
+        "Seeds: [b\"authority\", owner.as_ref(), agent.as_ref(), asset_mint.as_ref()]",
+        "",
+        "CRITICAL ARCHITECTURAL PRINCIPLE:",
+        "\"The agent does NOT own the user's assets. The agent receives bounded authority",
+        "to request and execute actions. Circuit decides what capital they are allowed to risk.\""
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "docs": [
+              "The user / account owner delegating authority"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "agent",
+            "docs": [
+              "The autonomous agent / strategy authorized to execute actions"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "asset_mint",
+            "docs": [
+              "Canonical tokenized stock mint this authority applies to (AAPL, NVDA, etc.)"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "allowed_actions",
+            "docs": [
+              "Allowed actions bitmask (DEPOSIT=1, BORROW=2, REPAY=4, WITHDRAW=8)"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "max_borrow_limit",
+            "docs": [
+              "Maximum cumulative borrow limit permitted to this agent"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "max_withdraw_limit",
+            "docs": [
+              "Maximum cumulative withdrawal limit permitted to this agent"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "current_borrowed",
+            "docs": [
+              "Cumulative debt borrowed by this agent against the position"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "risk_budget",
+            "docs": [
+              "Remaining dynamic risk budget (B_t) for risk-increasing actions"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "initial_risk_budget",
+            "docs": [
+              "Initial risk budget allocated by owner"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "expiry_ts",
+            "docs": [
+              "Unix timestamp after which authority is strictly invalid (0 = perpetual until revoked)"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "nonce",
+            "docs": [
+              "Monotonically increasing nonce tracking action intents executed by this agent"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump seed"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AgentAuthorityCreated",
+      "docs": [
+        "Emitted when bounded authority is delegated to an autonomous agent."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "asset_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "allowed_actions",
+            "type": "u8"
+          },
+          {
+            "name": "max_borrow_limit",
+            "type": "u64"
+          },
+          {
+            "name": "max_withdraw_limit",
+            "type": "u64"
+          },
+          {
+            "name": "risk_budget",
+            "type": "u64"
+          },
+          {
+            "name": "expiry_ts",
+            "type": "i64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AgentAuthorityRevoked",
+      "docs": [
+        "Emitted when delegated agent authority is revoked."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "asset_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AgentAuthorityUpdated",
+      "docs": [
+        "Emitted when delegated agent authority parameters are modified by the owner."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "asset_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "allowed_actions",
+            "type": "u8"
+          },
+          {
+            "name": "max_borrow_limit",
+            "type": "u64"
+          },
+          {
+            "name": "max_withdraw_limit",
+            "type": "u64"
+          },
+          {
+            "name": "risk_budget",
+            "type": "u64"
+          },
+          {
+            "name": "expiry_ts",
+            "type": "i64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
     {
       "name": "AssetConfig",
       "docs": [
@@ -3337,6 +4515,186 @@
       }
     },
     {
+      "name": "AuctionCreated",
+      "docs": [
+        "Emitted when a recovery Dutch auction is initiated."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "auction",
+            "type": "pubkey"
+          },
+          {
+            "name": "position",
+            "type": "pubkey"
+          },
+          {
+            "name": "collateral_amount",
+            "type": "u64"
+          },
+          {
+            "name": "reference_price",
+            "type": "i64"
+          },
+          {
+            "name": "start_price",
+            "type": "i64"
+          },
+          {
+            "name": "floor_price",
+            "type": "i64"
+          },
+          {
+            "name": "start_time",
+            "type": "i64"
+          },
+          {
+            "name": "end_time",
+            "type": "i64"
+          },
+          {
+            "name": "risk_state",
+            "type": {
+              "defined": {
+                "name": "MarketState"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "AuctionSettled",
+      "docs": [
+        "Emitted when a recovery Dutch auction is settled atomically."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "auction",
+            "type": "pubkey"
+          },
+          {
+            "name": "buyer",
+            "type": "pubkey"
+          },
+          {
+            "name": "collateral_amount",
+            "type": "u64"
+          },
+          {
+            "name": "settlement_price",
+            "type": "i64"
+          },
+          {
+            "name": "debt_repaid",
+            "type": "u64"
+          },
+          {
+            "name": "fee",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AuctionStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Active"
+          },
+          {
+            "name": "Settled"
+          },
+          {
+            "name": "Expired"
+          },
+          {
+            "name": "Cancelled"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BorrowAllowed",
+      "docs": [
+        "Emitted when a borrow operation is evaluated and authorized by capital policy."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "position",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "resulting_ltv",
+            "type": "u64"
+          },
+          {
+            "name": "risk_state",
+            "type": {
+              "defined": {
+                "name": "MarketState"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "BorrowBlocked",
+      "docs": [
+        "Emitted when a borrow operation is blocked by on-chain capital policy."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "position",
+            "type": "pubkey"
+          },
+          {
+            "name": "requested_amount",
+            "type": "u64"
+          },
+          {
+            "name": "current_ltv",
+            "type": "u64"
+          },
+          {
+            "name": "effective_ltv",
+            "type": "u64"
+          },
+          {
+            "name": "risk_state",
+            "type": {
+              "defined": {
+                "name": "MarketState"
+              }
+            }
+          },
+          {
+            "name": "reason",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
       "name": "BorrowEvent",
       "docs": [
         "Emitted when a user borrows quote currency against deposited collateral."
@@ -3422,6 +4780,57 @@
                 "name": "MarketState"
               }
             }
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CapitalPolicyUpdated",
+      "docs": [
+        "Emitted when capital policy permissions or effective LTV are updated."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "risk_state",
+            "type": {
+              "defined": {
+                "name": "MarketState"
+              }
+            }
+          },
+          {
+            "name": "effective_ltv",
+            "type": "u64"
+          },
+          {
+            "name": "borrow_allowed",
+            "type": "bool"
+          },
+          {
+            "name": "withdraw_allowed",
+            "type": "bool"
+          },
+          {
+            "name": "repay_allowed",
+            "type": "bool"
+          },
+          {
+            "name": "deposit_allowed",
+            "type": "bool"
+          },
+          {
+            "name": "liquidation_allowed",
+            "type": "bool"
+          },
+          {
+            "name": "risk_epoch",
+            "type": "u64"
           },
           {
             "name": "timestamp",
@@ -3562,10 +4971,8 @@
         "",
         "Seeds: [\"auction\", position.key().as_ref()]",
         "",
-        "Tracks the opening of a continuous Dutch auction when a position becomes",
-        "unhealthy (HF < minimum). The auction enables continuous price discovery,",
-        "ramping the liquidation bonus linearly from min_bonus_bps to max_bonus_bps",
-        "over AUCTION_DURATION_SLOTS, eliminating the latency MEV race."
+        "Bounded continuous Dutch auction recovery engine.",
+        "Ramps discount linearly from floor discount to max discount over duration."
       ],
       "type": {
         "kind": "struct",
@@ -3587,7 +4994,7 @@
           {
             "name": "start_price",
             "docs": [
-              "Oracle price at auction start"
+              "Starting price of the Dutch auction P_start = P_ref * (1 - D_start)"
             ],
             "type": "i64"
           },
@@ -3618,6 +5025,112 @@
               "PDA bump seed"
             ],
             "type": "u8"
+          },
+          {
+            "name": "auction_id",
+            "docs": [
+              "Monotonic auction sequence ID"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "collateral_mint",
+            "docs": [
+              "Collateral token mint being auctioned"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "collateral_amount",
+            "docs": [
+              "Collateral amount in the auction"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "reference_price",
+            "docs": [
+              "Validated reference oracle price at auction start"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "reference_expo",
+            "docs": [
+              "Reference price exponent (e.g., -8)"
+            ],
+            "type": "i32"
+          },
+          {
+            "name": "floor_price",
+            "docs": [
+              "Floor price of the Dutch auction P_floor = P_ref * (1 - D_max)"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "end_slot",
+            "docs": [
+              "Solana slot at auction conclusion"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "start_time",
+            "docs": [
+              "Start unix timestamp"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "end_time",
+            "docs": [
+              "End unix timestamp"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "risk_state_at_start",
+            "docs": [
+              "Risk state at the moment auction opened"
+            ],
+            "type": {
+              "defined": {
+                "name": "MarketState"
+              }
+            }
+          },
+          {
+            "name": "risk_epoch",
+            "docs": [
+              "Monotonic risk epoch at auction start"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "status",
+            "docs": [
+              "Current lifecycle status (Active, Settled, Expired, Cancelled)"
+            ],
+            "type": {
+              "defined": {
+                "name": "AuctionStatus"
+              }
+            }
+          },
+          {
+            "name": "settled_amount",
+            "docs": [
+              "Settled collateral amount so far"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "debt_repaid",
+            "docs": [
+              "Total debt repaid so far"
+            ],
+            "type": "u64"
           }
         ]
       }
@@ -3749,6 +5262,68 @@
           },
           {
             "name": "Emergency"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PermissionDenialReason",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Ok"
+          },
+          {
+            "name": "ProtocolPaused"
+          },
+          {
+            "name": "AssetDisabled"
+          },
+          {
+            "name": "RiskRestricted"
+          },
+          {
+            "name": "RiskDefensive"
+          },
+          {
+            "name": "RiskEmergency"
+          },
+          {
+            "name": "BorrowNotPermitted"
+          },
+          {
+            "name": "WithdrawNotPermitted"
+          },
+          {
+            "name": "AgentAuthorityExpired"
+          },
+          {
+            "name": "AgentActionNotPermitted"
+          },
+          {
+            "name": "AgentBorrowLimitExceeded"
+          },
+          {
+            "name": "AgentWithdrawLimitExceeded"
+          },
+          {
+            "name": "InsufficientRiskBudget"
+          },
+          {
+            "name": "HealthFactorTooLow"
+          },
+          {
+            "name": "EffectiveLtvExceeded"
+          },
+          {
+            "name": "MarketClosed"
+          },
+          {
+            "name": "ConfidenceTooWide"
+          },
+          {
+            "name": "OracleUnsafe"
           }
         ]
       }
@@ -4174,6 +5749,41 @@
       }
     },
     {
+      "name": "RiskBudgetChanged",
+      "docs": [
+        "Emitted when an agent's dynamic risk budget changes."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "old_budget",
+            "type": "u64"
+          },
+          {
+            "name": "new_budget",
+            "type": "u64"
+          },
+          {
+            "name": "action",
+            "type": {
+              "defined": {
+                "name": "AgentAction"
+              }
+            }
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
       "name": "RiskRatchet",
       "docs": [
         "Dedicated Risk Ratchet state PDA - one per Pyth feed.",
@@ -4228,6 +5838,13 @@
             "type": "u64"
           },
           {
+            "name": "transition_nonce",
+            "docs": [
+              "Monotonically increasing state-transition nonce (increments on every state change)"
+            ],
+            "type": "u64"
+          },
+          {
             "name": "consecutive_healthy_observations",
             "docs": [
               "Consecutive healthy crank observations at the current recovery tier"
@@ -4247,6 +5864,13 @@
               "Solana slot at which ratchet was last updated"
             ],
             "type": "u64"
+          },
+          {
+            "name": "last_transition_ts",
+            "docs": [
+              "Unix timestamp at which the most recent state transition occurred"
+            ],
+            "type": "i64"
           },
           {
             "name": "bump",

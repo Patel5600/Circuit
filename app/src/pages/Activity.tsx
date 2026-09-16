@@ -46,6 +46,17 @@ function ActivityRow({
   const meta = KIND_META[item.kind];
   const unitSymbol =
     item.unit === "collateral" ? collateralSymbol : item.unit === "quote" ? QUOTE_SYMBOL : "";
+  const who = item.kind === "borrow" || item.kind === "repay" ? "Autonomous Strategy" : "Owner";
+  const resultText = item.success ? "✓ ALLOWED" : "✕ BLOCKED";
+  const riskState = item.success ? "SAFE" : "DEFENSIVE";
+  const reason =
+    item.kind === "repay"
+      ? "Risk-reducing action permitted"
+      : item.kind === "deposit"
+      ? "Collateral-increasing action permitted"
+      : item.success
+      ? "Compliant with on-chain risk & policy limits"
+      : "Additional risk not permitted in DEFENSIVE";
 
   return (
     <li
@@ -62,25 +73,51 @@ function ActivityRow({
 
       <div className="grow" style={{ minWidth: 0 }}>
         <div className="row g-8 wrap" style={{ alignItems: "center" }}>
-          <span style={{ fontWeight: 600, fontSize: 14 }}>{meta.label}</span>
+          <span style={{ fontWeight: 650, fontSize: 13.5 }}>
+            {meta.label}{item.kind === "borrow" ? " REQUEST" : ""}
+          </span>
+          <span
+            style={{
+              fontSize: 11,
+              fontFamily: "var(--mono)",
+              background: "var(--surface-3)",
+              padding: "1px 6px",
+              borderRadius: 4,
+              color: "var(--text-2)",
+            }}
+          >
+            {unitSymbol || collateralSymbol}
+          </span>
+          <span style={{ fontSize: 11, color: "var(--text-3)" }}>
+            by {who}
+          </span>
           {item.amount !== null && (
             <span
               className="t-sm"
-              style={{ fontVariantNumeric: "tabular-nums", color: "var(--text)" }}
+              style={{ fontVariantNumeric: "tabular-nums", color: "var(--text)", fontWeight: 600 }}
             >
               {formatTokens(toUi(item.amount))} {unitSymbol}
             </span>
           )}
         </div>
-        <div className="act__meta">
-          <span>{formatRelativeTime(item.blockTime)}</span>
+
+        <div className="act__meta" style={{ marginTop: 4 }}>
+          <span style={{ color: "var(--text-3)" }}>{formatRelativeTime(item.blockTime)}</span>
           <span className="mono">{shortenAddress(item.signature, 6, 6)}</span>
+          <span style={{ color: "var(--text-3)" }}>·</span>
+          <span style={{ color: "var(--text-3)" }}>
+            Risk State: <strong style={{ color: item.success ? "var(--success)" : "var(--danger)" }}>{riskState}</strong>
+          </span>
+          <span style={{ color: "var(--text-3)" }}>·</span>
+          <span style={{ color: "var(--text-2)", fontStyle: "italic" }}>
+            {reason}
+          </span>
         </div>
       </div>
 
       <div className="act__right" onClick={(e) => e.stopPropagation()}>
         <Pill tone={item.success ? "success" : "danger"}>
-          {item.success ? "Confirmed" : "Failed"}
+          {resultText}
         </Pill>
         <ExplorerLink kind="tx" id={item.signature} />
       </div>

@@ -110,6 +110,32 @@ export interface CreditDomainState {
   freshness: FreshnessMeta;
 }
 
+export interface AgentAuthorityDomainState {
+  hasAuthority: boolean;
+  strategyName: string;
+  agentAddress: string | null;
+  ownerAddress: string | null;
+  assetMint: string | null;
+  assetSymbol: string;
+  allowedActions: {
+    deposit: boolean;
+    borrow: boolean;
+    repay: boolean;
+    withdraw: boolean;
+  };
+  maxBorrowLimit: number;
+  maxWithdrawLimit: number;
+  currentBorrowed: number;
+  availableBorrow: number;
+  riskBudget: number;
+  initialRiskBudget: number;
+  expiryTs: number;
+  isExpired: boolean;
+  nonce: number;
+  status: "ACTIVE" | "LIMITED" | "BLOCKED" | "REVOKED";
+  effectiveAuthority: "FULL" | "LIMITED" | "BLOCKED";
+}
+
 export type ActivityActionType =
   | "DEPOSIT"
   | "WITHDRAW"
@@ -134,7 +160,10 @@ export interface ActivityEvent {
   timestamp: number;
   signature: string | null;
   wallet: string;
+  who?: "Owner" | "Autonomous Strategy" | "Protocol Keeper";
+  result?: "ALLOWED" | "BLOCKED" | "CONFIRMED" | "FAILED";
   riskStateAtAction?: RiskRatchetState;
+  causalReason?: string;
   logSummary?: string;
 }
 

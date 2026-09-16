@@ -24,6 +24,7 @@ import {
   PortfolioDomainState,
   RiskDomainState,
   CreditDomainState,
+  AgentAuthorityDomainState,
   ActivityDomainState,
   SystemHealthState,
   InvalidationScope,
@@ -45,6 +46,9 @@ interface DomainContextValue {
   portfolio: PortfolioDomainState;
   risk: RiskDomainState;
   credit: CreditDomainState;
+  agentAuthority: AgentAuthorityDomainState;
+  getAgentAuthorityForAsset: (symbolOrMint: string) => AgentAuthorityDomainState;
+  revokeAgentAuthority: (symbolOrMint: string) => void;
   activity: ActivityDomainState;
   systemHealth: SystemHealthState;
   orchestrator: RpcOrchestrator;
@@ -361,6 +365,100 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
     };
   }, [riskState, portfolioState]);
 
+  const [revokedAssets, setRevokedAssets] = useState<Record<string, boolean>>({});
+
+  const revokeAgentAuthority = useCallback((symbolOrMint: string) => {
+    setRevokedAssets((prev) => ({ ...prev, [symbolOrMint.toUpperCase()]: true }));
+  }, []);
+
+  const getAgentAuthorityForAsset = useCallback(
+    (symbolOrMint: string): AgentAuthorityDomainState => {
+      const sym = symbolOrMint.toUpperCase();
+      const isRevoked = Boolean(revokedAssets[sym]);
+      const matchedPos = portfolioState.positions.find(
+        (p) => p.symbol.toUpperCase() === sym || p.mint === symbolOrMint
+      );
+
+      const hasPos = Boolean(matchedPos);
+      const debt = matchedPos?.debtUi ?? 0;
+      const maxBorrow = hasPos ? 3000 : 0;
+      const currentBorrowed = debt;
+      const riskBudget = Math.max(0, maxBorrow - currentBorrowed);
+
+      // Effective authority evaluation:
+      // EffectiveAuthority = OwnerPolicy ∩ AgentAuthority ∩ RiskPolicy ∩ PositionConstraints
+      let status: "ACTIVE" | "LIMITED" | "BLOCKED" | "REVOKED" = "ACTIVE";
+      let effectiveAuthority: "FULL" | "LIMITED" | "BLOCKED" = "FULL";
+
+      if (isRevoked) {
+        status = "REVOKED";
+        effectiveAuthority = "BLOCKED";
+      } else if (!hasPos) {
+        status = "BLOCKED";
+        effectiveAuthority = "BLOCKED";
+      } else if (
+        riskState.hardOverride ||
+        riskState.ratchetState === "EMERGENCY" ||
+        riskState.ratchetState === "DEFENSIVE"
+      ) {
+        status = "BLOCKED";
+        effectiveAuthority = "BLOCKED";
+      } else if (riskState.ratchetState === "RESTRICTED") {
+        status = "LIMITED";
+        effectiveAuthority = "LIMITED";
+      } else if (currentBorrowed >= maxBorrow || riskBudget <= 0) {
+        status = "LIMITED";
+        effectiveAuthority = "LIMITED";
+      }
+
+      let availableBorrow = 0;
+      if (effectiveAuthority === "FULL") {
+        availableBorrow = Math.max(
+          0,
+          Math.min(maxBorrow - currentBorrowed, riskBudget, portfolioState.borrowCapacityUsd)
+        );
+      } else if (effectiveAuthority === "LIMITED") {
+        availableBorrow = Math.max(
+          0,
+          Math.min(750, (maxBorrow - currentBorrowed) * 0.25, portfolioState.borrowCapacityUsd * 0.25)
+        );
+      } else {
+        availableBorrow = 0;
+      }
+
+      return {
+        hasAuthority: hasPos && !isRevoked,
+        strategyName: "Momentum-Alpha v1",
+        agentAddress: "Strat11111111111111111111111111111111111111",
+        ownerAddress: publicKey ? publicKey.toBase58() : null,
+        assetMint: matchedPos?.mint ?? null,
+        assetSymbol: matchedPos?.symbol ?? sym,
+        allowedActions: {
+          deposit: false,
+          borrow: !isRevoked && effectiveAuthority !== "BLOCKED",
+          repay: !isRevoked,
+          withdraw: false,
+        },
+        maxBorrowLimit: maxBorrow,
+        maxWithdrawLimit: 0,
+        currentBorrowed,
+        availableBorrow,
+        riskBudget,
+        initialRiskBudget: maxBorrow,
+        expiryTs: 0,
+        isExpired: false,
+        nonce: hasPos ? (debt > 0 ? 1 : 0) : 0,
+        status,
+        effectiveAuthority,
+      };
+    },
+    [revokedAssets, portfolioState, riskState, publicKey]
+  );
+
+  const activeAgentAuthority: AgentAuthorityDomainState = useMemo(() => {
+    return getAgentAuthorityForAsset(activeMarketKey);
+  }, [getAgentAuthorityForAsset, activeMarketKey]);
+
   const activityPatterns = useMemo(() => {
     return detectActivityPatterns(activityEvents);
   }, [activityEvents]);
@@ -395,6 +493,9 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
     portfolio: portfolioState,
     risk: riskState,
     credit: creditState,
+    agentAuthority: activeAgentAuthority,
+    getAgentAuthorityForAsset,
+    revokeAgentAuthority,
     activity: activityState,
     systemHealth,
     orchestrator,
