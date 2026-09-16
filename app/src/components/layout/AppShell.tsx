@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import React, { useState } from "react";
+import { NavLink } from "react-router-dom";
 
 import { CircuitWordmark } from "../brand/CircuitLogo";
 import { WalletButton } from "../wallet/WalletButton";
 import { Icon, IconName, Pill } from "../ui";
-import { CLUSTER, CLUSTER_LABEL } from "../../env";
+
 import { SystemHealthModal } from "../ui/SystemHealthModal";
 import { ToastProvider } from "../ui/Toaster";
 import { useCircuitDomain } from "../../lib/domain/context";
@@ -20,7 +20,6 @@ const PRIMARY: { to: string; label: string; icon: IconName }[] = [
 ];
 
 const SECONDARY: { to: string; label: string; icon: IconName }[] = [
-  { to: "/app/economics", label: "Economics", icon: "layers" },
   { to: "/app/learn", label: "Learn", icon: "learn" },
   { to: "/app/verify", label: "Verify", icon: "verify" },
   { to: "/app/faucet", label: "Faucet", icon: "faucet" },
@@ -261,18 +260,6 @@ function Sidebar({
             </>
           )}
         </NavLink>
-
-        {!collapsed && (
-          <>
-            <div className="row between g-8 sidebar__hide-collapsed">
-              <span className="t-label">Network</span>
-              <NetworkSelector />
-            </div>
-            <div className="sidebar__hide-collapsed">
-              <WalletButton />
-            </div>
-          </>
-        )}
       </div>
     </aside>
   );

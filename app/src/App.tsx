@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from "react";
-import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 
 import { AppShell } from "./components/layout/AppShell";
 import { IconKeyframes } from "./components/ui/Icon";
@@ -12,41 +12,43 @@ import { AssetActionDrawer } from "./components/drawers/AssetActionDrawer";
 /**
  * Route table.
  *
- * The landing page and each app page are split so the initial visit does not
- * pay for the whole application. The wallet and Solana providers live above this
- * in main.tsx, which keeps a single connection for the entire app.
+ * SolanaProviders, CircuitProtocolProvider, MarketProvider, and ActionProvider
+ * are all mounted ONCE inside AppLayout (the parent layout route). They survive
+ * navigation between /app/* pages — the Solana connection, market data polling
+ * service, and domain context never restart on page switches.
+ *
+ * Individual pages are code-split and lazy-loaded. Only page content swaps on
+ * navigation; the entire provider and shell tree stays mounted.
  */
 const SolanaProviders = lazy(() => import("./providers/SolanaProviders"));
 
-const Landing = lazy(() => import("./pages/Landing"));
+const Landing  = lazy(() => import("./pages/Landing"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
-const Markets = lazy(() => import("./pages/Markets"));
-const Position = lazy(() => import("./pages/Position"));
-const Borrow = lazy(() => import("./pages/Borrow"));
-const Activity = lazy(() => import("./pages/Activity"));
-const Learn = lazy(() => import("./pages/Learn"));
-const Verify = lazy(() => import("./pages/Verify"));
-const Economics = lazy(() => import("./pages/Economics"));
-const Demo = lazy(() => import("./pages/Demo"));
-const Faucet = lazy(() => import("./pages/Faucet"));
-const Profile = lazy(() => import("./pages/Profile"));
-const NotFound = lazy(() => import("./pages/NotFound"));
+const Markets   = lazy(() => import("./pages/Markets"));
+const Position  = lazy(() => import("./pages/Position"));
+const Borrow    = lazy(() => import("./pages/Borrow"));
+const Activity  = lazy(() => import("./pages/Activity"));
+const Learn     = lazy(() => import("./pages/Learn"));
+const Verify    = lazy(() => import("./pages/Verify"));
+const Demo      = lazy(() => import("./pages/Demo"));
+const Faucet    = lazy(() => import("./pages/Faucet"));
+const Profile   = lazy(() => import("./pages/Profile"));
+const NotFound  = lazy(() => import("./pages/NotFound"));
 
-/** Announce route changes so the page title stays meaningful. */
+/** Page title map — Economics entry removed; route redirects to Verify. */
 const TITLES: Record<string, string> = {
-  "/app": "Dashboard",
-  "/app/markets": "Markets",
-  "/app/position": "Position",
-  "/app/borrow": "Borrow",
-  "/app/profile": "Risk Profile",
-  "/app/portfolio-risk": "Portfolio Risk Intelligence",
-  "/app/faucet": "Devnet Faucet",
-  "/app/activity": "Activity",
-  "/app/learn": "How it works",
-  "/learn": "How it works",
-  "/app/verify": "Verification",
-  "/app/economics": "Protocol Economics & Treasury",
-  "/app/demo": "Interactive Demo",
+  "/app":               "Dashboard",
+  "/app/markets":       "Markets",
+  "/app/position":      "Position",
+  "/app/borrow":        "Borrow",
+  "/app/profile":       "Risk Profile",
+  "/app/portfolio-risk":"Portfolio Risk Intelligence",
+  "/app/faucet":        "Devnet Faucet",
+  "/app/activity":      "Activity",
+  "/app/learn":         "How it works",
+  "/learn":             "How it works",
+  "/app/verify":        "Verification",
+  "/app/demo":          "Interactive Demo",
 };
 
 function TitleSync() {
@@ -59,6 +61,7 @@ function TitleSync() {
   return null;
 }
 
+/** Skeleton shown while a lazy page chunk loads. Content-area only. */
 function PageFallback() {
   return (
     <div className="container stack g-16" aria-busy="true">
@@ -77,29 +80,10 @@ function PageFallback() {
 }
 
 /**
- * Wraps an app page in the wallet providers, domain protocol provider, and shell.
- * The providers are lazy so the landing page never downloads them.
+ * Minimal chrome rendered immediately while the wallet providers bootstrap.
+ * Keeps the shell visible (header + sidebar structure) so the user never
+ * sees a blank page during provider initialisation.
  */
-function AppRoute({ children }: { children: React.ReactNode }) {
-  return (
-    <Suspense fallback={<ShellFallback />}>
-      <SolanaProviders>
-        <CircuitProtocolProvider>
-          <MarketProvider>
-            <ActionProvider>
-              <AppShell>
-                <Suspense fallback={<PageFallback />}>{children}</Suspense>
-              </AppShell>
-              <AssetActionDrawer />
-            </ActionProvider>
-          </MarketProvider>
-        </CircuitProtocolProvider>
-      </SolanaProviders>
-    </Suspense>
-  );
-}
-
-/** Minimal chrome shown while the wallet providers load. */
 function ShellFallback() {
   return (
     <div className="shell">
@@ -111,12 +95,43 @@ function ShellFallback() {
   );
 }
 
+/**
+ * Single persistent layout route for all /app/* pages.
+ *
+ * Providers mount once here. Navigating between Dashboard, Markets, Position,
+ * Borrow, Activity, Learn, Verify, Faucet, Profile does NOT remount this tree.
+ * The Solana connection, market data service, and domain context remain alive.
+ *
+ * <Outlet /> is where page-level content swaps in/out.
+ */
+function AppLayout() {
+  return (
+    <Suspense fallback={<ShellFallback />}>
+      <SolanaProviders>
+        <CircuitProtocolProvider>
+          <MarketProvider>
+            <ActionProvider>
+              <AppShell>
+                <Suspense fallback={<PageFallback />}>
+                  <Outlet />
+                </Suspense>
+              </AppShell>
+              <AssetActionDrawer />
+            </ActionProvider>
+          </MarketProvider>
+        </CircuitProtocolProvider>
+      </SolanaProviders>
+    </Suspense>
+  );
+}
+
 export default function App() {
   return (
     <>
       <IconKeyframes />
       <TitleSync />
       <Routes>
+        {/* Public landing page — providers never downloaded unless navigating to /app */}
         <Route
           path="/"
           element={
@@ -126,20 +141,48 @@ export default function App() {
           }
         />
 
-        <Route path="/app" element={<AppRoute><Dashboard /></AppRoute>} />
-        <Route path="/app/markets" element={<AppRoute><Markets /></AppRoute>} />
-        <Route path="/app/position" element={<AppRoute><Position /></AppRoute>} />
-        <Route path="/app/borrow" element={<AppRoute><Borrow /></AppRoute>} />
-        <Route path="/app/profile" element={<AppRoute><Profile /></AppRoute>} />
-        <Route path="/app/portfolio-risk" element={<AppRoute><Profile /></AppRoute>} />
-        <Route path="/app/faucet" element={<AppRoute><Faucet /></AppRoute>} />
-        <Route path="/app/activity" element={<AppRoute><Activity /></AppRoute>} />
-        <Route path="/app/learn" element={<AppRoute><Learn /></AppRoute>} />
-        <Route path="/learn" element={<AppRoute><Learn /></AppRoute>} />
-        <Route path="/app/verify" element={<AppRoute><Verify /></AppRoute>} />
-        <Route path="/app/economics" element={<AppRoute><Economics /></AppRoute>} />
+        {/* Standalone /learn accessible without full app context */}
+        <Route
+          path="/learn"
+          element={
+            <Suspense fallback={<ShellFallback />}>
+              <SolanaProviders>
+                <CircuitProtocolProvider>
+                  <MarketProvider>
+                    <ActionProvider>
+                      <AppShell>
+                        <Suspense fallback={<PageFallback />}>
+                          <Learn />
+                        </Suspense>
+                      </AppShell>
+                    </ActionProvider>
+                  </MarketProvider>
+                </CircuitProtocolProvider>
+              </SolanaProviders>
+            </Suspense>
+          }
+        />
 
-        <Route path="/app/demo" element={<AppRoute><Demo /></AppRoute>} />
+        {/*
+         * Single persistent layout: providers mount once, pages swap via Outlet.
+         * This is the core fix for slow navigation and stock-switching latency.
+         */}
+        <Route element={<AppLayout />}>
+          <Route path="/app"               element={<Dashboard />} />
+          <Route path="/app/markets"        element={<Markets />} />
+          <Route path="/app/position"       element={<Position />} />
+          <Route path="/app/borrow"         element={<Borrow />} />
+          <Route path="/app/profile"        element={<Profile />} />
+          <Route path="/app/portfolio-risk" element={<Profile />} />
+          <Route path="/app/faucet"         element={<Faucet />} />
+          <Route path="/app/activity"       element={<Activity />} />
+          <Route path="/app/learn"          element={<Learn />} />
+          <Route path="/app/verify"         element={<Verify />} />
+          <Route path="/app/demo"           element={<Demo />} />
+
+          {/* /app/economics → redirect to Verify (contains treasury section inline) */}
+          <Route path="/app/economics" element={<Navigate to="/app/verify" replace />} />
+        </Route>
 
         <Route
           path="*"

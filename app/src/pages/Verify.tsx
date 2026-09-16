@@ -473,12 +473,7 @@ export default function Verify() {
               note={`Accumulates ${selectedMarket.quoteSymbol} origination fees from executed borrows across all tokenized equity markets.`}
             />
           </div>
-          <div style={{ marginTop: 14 }}>
-            <Link to="/app/economics" className="btn btn--secondary btn--sm">
-              <Icon name="layers" size={13} />
-              Open Dedicated Economics Dashboard
-            </Link>
-          </div>
+
         </Card>
 
         {/* -- Security & Verifiable Build ---------------------------- */}

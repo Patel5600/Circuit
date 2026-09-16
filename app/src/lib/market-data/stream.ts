@@ -216,15 +216,19 @@ export function useMarketDataService() {
         }
 
         // 5. Calculate Real 24h Performance & Intraday Metrics
-        let ref24h = serverItem?.previousClose;
-        if (!ref24h || ref24h <= 0) {
-          ref24h = asset.initial24hPercent !== 0
-            ? activePriceUsd / (1 + asset.initial24hPercent / 100)
-            : activePriceUsd;
-        }
+        // ref24h MUST come from a real server previousClose to be treated as valid.
+        // If it is unavailable, we record the fact and mark changeStatus UNAVAILABLE
+        // so the UI shows "INSUFFICIENT HISTORY" rather than a hardcoded percentage.
+        const serverRef24h = serverItem?.previousClose;
+        const hasRealRef24h = Boolean(serverRef24h && serverRef24h > 0);
+        let ref24h = hasRealRef24h
+          ? serverRef24h!
+          : activePriceUsd; // neutral fallback — keeps math safe, but marked UNAVAILABLE
 
-        const changeUsd = activePriceUsd - ref24h;
-        const changePercent = ref24h > 0 ? (changeUsd / ref24h) * 100 : 0;
+        const changeUsd    = hasRealRef24h ? activePriceUsd - ref24h : null;
+        const changePercent = hasRealRef24h && ref24h > 0
+          ? ((activePriceUsd - ref24h) / ref24h) * 100
+          : null;
 
         // Maintain real rolling observation buffer
         let history = rollingHistoryRef.current[asset.symbol];
@@ -323,10 +327,10 @@ export function useMarketDataService() {
           sessionDescription: sessionDetail.label,
           onchainAvailability,
           collateralStatus,
-          referencePrice24h: ref24h,
+          referencePrice24h: hasRealRef24h ? ref24h : null,
           change24hUsd: changeUsd,
           change24hPercent: changePercent,
-          changeStatus: "AVAILABLE",
+          changeStatus: hasRealRef24h ? "AVAILABLE" : "UNAVAILABLE",
           dayHighUsd: dayHigh,
           dayLowUsd: dayLow,
           sparkline,
@@ -426,7 +430,7 @@ export function useLiveQuotes() {
         referencePrice24h: s.referencePrice24h,
         change24hUsd: s.change24hUsd,
         change24hPercent: s.change24hPercent,
-        changeStatus: "AVAILABLE",
+        changeStatus: s.changeStatus === "AVAILABLE" ? "AVAILABLE" : "UNAVAILABLE",
         sessionState: s.underlyingSession === "REGULAR" ? "REGULAR" : "CLOSED",
         marketOpen: s.underlyingSession === "REGULAR",
         pythFeedIdHex: s.pythFeedId ?? "",
