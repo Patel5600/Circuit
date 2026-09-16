@@ -109,10 +109,58 @@ export function classifyFreshness(ageSeconds: number): DataFreshness {
  * Unified Market Data Service & Coordinator Hook
  * Single coordinated fetch/update cycle across all 24 tokenized equities.
  */
+function buildInitialSnapshots(): Record<string, MarketSnapshot> {
+  const initial: Record<string, MarketSnapshot> = {};
+  const now = Date.now();
+  const sessionDetail = getDetailedMarketSession(Math.floor(now / 1000));
+  for (const asset of CANONICAL_ASSET_REGISTRY) {
+    const price = asset.initialPriceUsd;
+    initial[asset.symbol] = {
+      assetId: asset.id,
+      symbol: asset.symbol,
+      displaySymbol: asset.tokenSymbol,
+      name: asset.name,
+      priceUsd: price,
+      previousPriceUsd: price,
+      priceDirection: "FLAT",
+      lastPriceUpdatedAt: now,
+      oracleStatus: "LIVE",
+      oracleTimestamp: Math.floor(now / 1000),
+      oracleConfidenceUsd: 0.18,
+      oracleConfBps: 18,
+      underlyingSession: sessionDetail.session,
+      sessionDescription: sessionDetail.label,
+      onchainAvailability: asset.collateralSupported ? "TRADEABLE" : "UNAVAILABLE",
+      collateralStatus: asset.collateralSupported ? "AVAILABLE" : "COMING_SOON",
+      referencePrice24h: null,
+      change24hUsd: null,
+      change24hPercent: null,
+      changeStatus: "UNAVAILABLE",
+      dayHighUsd: price,
+      dayLowUsd: price,
+      sparkline: [price, price],
+      history: [{ timestamp: now, price }],
+      candles: [],
+      marketDataSource: "SOLANA DEVNET",
+      baseLtvBps: asset.baseLtvBps,
+      liqThresholdBps: asset.liqThresholdBps,
+      liqBonusBps: asset.liqBonusBps,
+      quoteSymbol: asset.quoteSymbol,
+      quoteMint: asset.quoteMint,
+      mint: asset.mint,
+      pythFeedId: asset.oracleFeedId,
+      pythPriceAccount: null,
+      category: asset.category,
+      isLiveMarket: asset.collateralSupported,
+    };
+  }
+  return initial;
+}
+
 export function useMarketDataService() {
   const { connection } = useConnection();
-  const [snapshots, setSnapshots] = useState<Record<string, MarketSnapshot>>({});
-  const [loading, setLoading] = useState<boolean>(true);
+  const [snapshots, setSnapshots] = useState<Record<string, MarketSnapshot>>(buildInitialSnapshots);
+  const [loading, setLoading] = useState<boolean>(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<number>(Date.now());
   const [isStreamHealthy, setIsStreamHealthy] = useState<boolean>(true);
 

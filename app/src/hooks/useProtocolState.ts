@@ -109,6 +109,9 @@ export function nyseSessionHint(unixSeconds: number): SessionHint {
   return { open: true, label: "Regular session" };
 }
 
+type FetchedProtocolState = Omit<ProtocolState, "refresh" | "risk" | "session" | "isAuthority">;
+const marketStateCache = new Map<string, FetchedProtocolState>();
+
 export function useProtocolState(overrideMarket?: DeployedMarket): ProtocolState {
   const { connection } = useConnection();
   const { publicKey } = useWallet();
@@ -139,21 +142,31 @@ export function useProtocolState(overrideMarket?: DeployedMarket): ProtocolState
   const [nonce, setNonce] = useState(0);
   const refresh = useCallback(() => setNonce((n) => n + 1), []);
   const inFlight = useRef(false);
+  const marketKey = activeMarket ? `${activeMarket.symbol}-${activeMarket.quoteSymbol}` : "default";
 
   useEffect(() => {
     let cancelled = false;
 
+    // Fast-path: If we already have fresh state cached for this market, serve it immediately with 0ms delay.
+    const cached = marketStateCache.get(marketKey);
+    if (cached) {
+      setState(cached);
+    } else {
+      setState((s) => ({ ...s, loading: true, market: activeMarket }));
+    }
+
     async function load(conn: Connection) {
       if (inFlight.current) return;
       inFlight.current = true;
+
       try {
         const program = readOnlyProgram(conn);
 
-        // Use the cluster's own clock so oracle age matches what the program
-        // would compute, rather than the browser's possibly-skewed clock.
-        const slot = await conn.getSlot();
-        const blockTime = await conn.getBlockTime(slot).catch(() => null);
-        const chainUnixTime = blockTime ?? Math.floor(Date.now() / 1000);
+        // Fetch cluster clock in parallel with initial preparations
+        const slotPromise = conn.getSlot().then(async (slot) => {
+          const blockTime = await conn.getBlockTime(slot).catch(() => null);
+          return { slot, chainUnixTime: blockTime ?? Math.floor(Date.now() / 1000) };
+        });
 
         const equityMint = activeMarket
           ? new PublicKey(activeMarket.mint)
@@ -169,45 +182,37 @@ export function useProtocolState(overrideMarket?: DeployedMarket): ProtocolState
           ? new PublicKey(activeMarket.liquidityVault)
           : (quoteMint ? vaultFor(quoteMint) : null);
 
-        const [protocol, oracle] = await Promise.all([
+        const { slot, chainUnixTime } = await slotPromise;
+
+        // Execute all independent on-chain account queries in a single parallel batch
+        const [
+          protocol,
+          oracle,
+          asset,
+          guard,
+          vaultCollateral,
+          vaultLiquidity,
+          position,
+          walletEquity,
+          walletQuote,
+        ] = await Promise.all([
           fetchProtocolConfig(program, conn),
           fetchOracle(conn, chainUnixTime, feedId),
+          equityMint ? fetchAssetConfig(program, conn, equityMint) : Promise.resolve(null),
+          equityMint ? fetchMarketGuard(program, conn, feedId) : Promise.resolve(null),
+          collateralVault ? fetchTokenAmount(conn, collateralVault) : Promise.resolve(0n),
+          liquidityVault ? fetchTokenAmount(conn, liquidityVault) : Promise.resolve(0n),
+          publicKey && equityMint ? fetchPosition(program, conn, publicKey, equityMint) : Promise.resolve(null),
+          publicKey && equityMint
+            ? fetchTokenAmount(conn, getAssociatedTokenAddressSync(equityMint, publicKey))
+            : Promise.resolve(0n),
+          publicKey && quoteMint
+            ? fetchTokenAmount(conn, getAssociatedTokenAddressSync(quoteMint, publicKey))
+            : Promise.resolve(0n),
         ]);
 
-        let asset: AssetConfigView | null = null;
-        let guard: MarketGuardView | null = null;
-        let position: PositionView | null = null;
-        let walletEquity = 0n;
-        let walletQuote = 0n;
-        let vaultLiquidity = 0n;
-        let vaultCollateral = 0n;
-
-        if (equityMint) {
-          asset = await fetchAssetConfig(program, conn, equityMint);
-          guard = await fetchMarketGuard(program, conn, feedId);
-          if (collateralVault) {
-            vaultCollateral = await fetchTokenAmount(conn, collateralVault);
-          }
-        }
-        if (liquidityVault) {
-          vaultLiquidity = await fetchTokenAmount(conn, liquidityVault);
-        }
-        if (publicKey && equityMint) {
-          position = await fetchPosition(program, conn, publicKey, equityMint);
-          walletEquity = await fetchTokenAmount(
-            conn,
-            getAssociatedTokenAddressSync(equityMint, publicKey)
-          );
-        }
-        if (publicKey && quoteMint) {
-          walletQuote = await fetchTokenAmount(
-            conn,
-            getAssociatedTokenAddressSync(quoteMint, publicKey)
-          );
-        }
-
         if (cancelled) return;
-        setState({
+        const nextState = {
           loading: false,
           error: null,
           slot,
@@ -222,7 +227,11 @@ export function useProtocolState(overrideMarket?: DeployedMarket): ProtocolState
           walletQuote,
           vaultLiquidity,
           vaultCollateral,
-        });
+        };
+
+        // Cache for instant return when switching back
+        marketStateCache.set(marketKey, nextState);
+        setState(nextState);
       } catch (e: any) {
         if (cancelled) return;
         setState((s) => ({

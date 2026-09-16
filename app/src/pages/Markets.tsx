@@ -11,8 +11,8 @@ import { MarketDetailDrawer } from "../components/drawers/MarketDetailDrawer";
 import { useProtocolState } from "../hooks/useProtocolState";
 import { useMarket } from "../context/MarketContext";
 import { useAction } from "../context/ActionContext";
+import { useMarketData } from "../context/MarketDataContext";
 import { getDeployedMarket } from "../data/markets";
-import { useMarketDataService } from "../lib/market-data/stream";
 import { MarketSnapshot } from "../lib/market-data/types";
 import { CANONICAL_ASSET_REGISTRY } from "../lib/market-data/registry";
 import { AssetLogo } from "../components/brand/AssetLogo";
@@ -24,7 +24,7 @@ export default function Markets() {
   const s = useProtocolState();
   const { selectedMarket, selectMarket } = useMarket();
   const { openAction } = useAction();
-  const { snapshots, loading, isStreamHealthy } = useMarketDataService();
+  const { snapshots, loading, isStreamHealthy } = useMarketData();
   const navigate = useNavigate();
 
   const [filter, setFilter] = useState<FilterTab>("all");

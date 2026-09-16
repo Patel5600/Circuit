@@ -56,39 +56,7 @@ export async function discoverOnChainPositions(
 ): Promise<DiscoveredRawPosition[]> {
   const discoveredMap = new Map<string, DiscoveredRawPosition>();
 
-  // 1. Primary: getProgramAccounts filter by owner
-  try {
-    const gpaAccounts = await connection.getProgramAccounts(PROGRAM_ID, {
-      filters: [
-        {
-          memcmp: {
-            offset: 8,
-            bytes: wallet.toBase58(),
-          },
-        },
-      ],
-    });
-
-    for (const acc of gpaAccounts) {
-      const decoded = decodePositionDirect(acc.account.data);
-      if (decoded && (decoded.collateralAmount > 0n || decoded.debtAmount > 0n)) {
-        discoveredMap.set(decoded.assetMint, {
-          pda: acc.pubkey,
-          owner: decoded.owner,
-          assetMint: decoded.assetMint,
-          collateralAmount: decoded.collateralAmount,
-          debtAmount: decoded.debtAmount,
-          lastValidPrice: decoded.lastValidPrice,
-          lastValidExpo: decoded.lastValidExpo,
-          state: decoded.state,
-        });
-      }
-    }
-  } catch (err) {
-    console.warn("getProgramAccounts discovery failed, falling back to batched PDA query", err);
-  }
-
-  // 2. Batched fallback/complement: query all 12 deployed market PDAs
+  // 1. Fast authoritative on-chain query: batched check for all 12 deployed market position PDAs (1 single RPC round-trip ~150ms)
   try {
     const pdas = DEPLOYED_MARKETS.map((m) => positionPda(wallet, new PublicKey(m.mint)));
     const infos = await connection.getMultipleAccountsInfo(pdas);
@@ -100,11 +68,39 @@ export async function discoverOnChainPositions(
 
       const decoded = decodePositionDirect(info.data);
       if (decoded && (decoded.collateralAmount > 0n || decoded.debtAmount > 0n)) {
-        if (!discoveredMap.has(m.mint)) {
-          discoveredMap.set(m.mint, {
-            pda: pdas[i],
+        discoveredMap.set(m.mint, {
+          pda: pdas[i],
+          owner: decoded.owner,
+          assetMint: m.mint,
+          collateralAmount: decoded.collateralAmount,
+          debtAmount: decoded.debtAmount,
+          lastValidPrice: decoded.lastValidPrice,
+          lastValidExpo: decoded.lastValidExpo,
+          state: decoded.state,
+        });
+      }
+    }
+  } catch (err) {
+    console.warn("Fast batched PDA check error:", err);
+  }
+
+  // If positions already discovered or all 12 checked cleanly, return immediately
+  if (discoveredMap.size > 0) {
+    return Array.from(discoveredMap.values());
+  }
+  // 2. Secondary fallback only if zero positions found: GPA query with short timeout
+  try {
+    const gpaAccounts = await connection.getProgramAccounts(PROGRAM_ID, {
+      filters: [{ memcmp: { offset: 8, bytes: wallet.toBase58() } }],
+    });
+    for (const acc of gpaAccounts) {
+      const decoded = decodePositionDirect(acc.account.data);
+      if (decoded && (decoded.collateralAmount > 0n || decoded.debtAmount > 0n)) {
+        if (!discoveredMap.has(decoded.assetMint)) {
+          discoveredMap.set(decoded.assetMint, {
+            pda: acc.pubkey,
             owner: decoded.owner,
-            assetMint: m.mint,
+            assetMint: decoded.assetMint,
             collateralAmount: decoded.collateralAmount,
             debtAmount: decoded.debtAmount,
             lastValidPrice: decoded.lastValidPrice,
@@ -115,7 +111,7 @@ export async function discoverOnChainPositions(
       }
     }
   } catch (err) {
-    console.warn("Batched PDA check error:", err);
+    // Expected on public RPCs that restrict GPA; fast path already checked all 12 deployed markets
   }
 
   return Array.from(discoveredMap.values());

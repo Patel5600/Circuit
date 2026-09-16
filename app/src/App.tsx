@@ -7,6 +7,7 @@ import { Skeleton } from "./components/ui";
 import { MarketProvider } from "./context/MarketContext";
 import { ActionProvider } from "./context/ActionContext";
 import { CircuitProtocolProvider } from "./lib/domain/context";
+import { MarketDataProvider } from "./context/MarketDataContext";
 import { AssetActionDrawer } from "./components/drawers/AssetActionDrawer";
 
 /**
@@ -110,14 +111,16 @@ function AppLayout() {
       <SolanaProviders>
         <CircuitProtocolProvider>
           <MarketProvider>
-            <ActionProvider>
-              <AppShell>
-                <Suspense fallback={<PageFallback />}>
-                  <Outlet />
-                </Suspense>
-              </AppShell>
-              <AssetActionDrawer />
-            </ActionProvider>
+            <MarketDataProvider>
+              <ActionProvider>
+                <AppShell>
+                  <Suspense fallback={<PageFallback />}>
+                    <Outlet />
+                  </Suspense>
+                </AppShell>
+                <AssetActionDrawer />
+              </ActionProvider>
+            </MarketDataProvider>
           </MarketProvider>
         </CircuitProtocolProvider>
       </SolanaProviders>

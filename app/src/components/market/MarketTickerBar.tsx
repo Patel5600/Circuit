@@ -68,8 +68,9 @@ export function MarketTickerBar({
 
         {items.map((item) => {
           const isSelected = selectedSymbol === item.symbol;
-          const change = item.change24hPercent ?? 0;
-          const isPos = change >= 0;
+          const change = item.change24hPercent;
+          const hasChange = item.changeStatus === "AVAILABLE" && change != null;
+          const isPos = (change ?? 0) >= 0;
 
           return (
             <button
@@ -122,10 +123,14 @@ export function MarketTickerBar({
                   fontSize: 11,
                   fontFamily: "var(--mono)",
                   fontWeight: 600,
-                  color: isPos ? "var(--mint, #7fc39a)" : "var(--danger, #cf8b8b)",
+                  color: hasChange
+                    ? isPos ? "var(--mint, #7fc39a)" : "var(--danger, #cf8b8b)"
+                    : "var(--text-3)",
                 }}
               >
-                {isPos ? "+" : ""}{change.toFixed(2)}%
+                {hasChange
+                  ? `${isPos ? "+" : ""}${change!.toFixed(2)}%`
+                  : "—"}
               </span>
             </button>
           );
