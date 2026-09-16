@@ -9,6 +9,7 @@ import { RiskPosture } from "../components/profile/RiskPosture";
 import { RiskPermissions } from "../components/profile/RiskPermissions";
 import { RiskHistory } from "../components/profile/RiskHistory";
 import { WhyBorrowPowerChanged } from "../components/profile/WhyBorrowPowerChanged";
+import { AutonomousAuthorityCard } from "../components/profile/AutonomousAuthorityCard";
 import {
   PortfolioRiskGraph,
   AssetNode,
@@ -451,7 +452,10 @@ export default function Profile() {
           </div>
         </Card>
 
-        {/* ── Section 2: On-Chain Deposited Holdings Breakdown Table (When N >= 1) ── */}
+        {/* ── Section 2: Autonomous Strategy Authority Control Center ── */}
+        <AutonomousAuthorityCard />
+
+        {/* ── Section 3: On-Chain Deposited Holdings Breakdown Table (When N >= 1) ── */}
         {snapshot && snapshot.positions.length > 0 && (
           <Card title={`On-Chain Deposited Equities (${snapshot.positions.length})`}>
             <div style={{ overflowX: "auto" }}>

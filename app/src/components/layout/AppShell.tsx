@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { NavLink } from "react-router-dom";
 
 import { CircuitWordmark } from "../brand/CircuitLogo";
@@ -28,29 +28,64 @@ const SECONDARY: { to: string; label: string; icon: IconName }[] = [
 function SystemHealthPill({ onClick }: { onClick: () => void }) {
   const { systemHealth } = useCircuitDomain();
   const isHealthy = systemHealth.status === "SYSTEM_HEALTHY";
+  const latency = systemHealth.rpcLatencyMs;
   return (
     <button
       type="button"
       onClick={onClick}
       style={{
-        background: "transparent",
-        border: "none",
-        padding: 0,
+        background: "var(--surface-2)",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--r-sm, 6px)",
+        padding: "4px 8px",
         cursor: "pointer",
         display: "inline-flex",
         alignItems: "center",
+        gap: 6,
+        fontSize: 11,
+        fontFamily: "var(--mono)",
+        color: "var(--text-2)",
+        transition: "all var(--t-fast)",
       }}
-      title="View System Health & RPC Diagnostics"
+      title="Solana Devnet RPC Connectivity & Diagnostics"
     >
-      <Pill tone={isHealthy ? "success" : "warning"} withDot>
-        {isHealthy ? "HEALTHY" : "DEGRADED"}
-      </Pill>
+      <span
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: "50%",
+          background: isHealthy ? "var(--mint, #79c2a4)" : "var(--warning, #cfad74)",
+          boxShadow: isHealthy ? "0 0 6px rgba(121, 194, 164, 0.4)" : "none",
+          display: "inline-block",
+        }}
+      />
+      <span>RPC {latency > 0 ? `${latency}ms` : "OK"}</span>
     </button>
   );
 }
 
 function Header({ onOpenHealth }: { onOpenHealth: () => void }) {
-  const { controlMode, setControlMode } = useCircuitDomain();
+  const {
+    controlMode,
+    setControlMode,
+    hasActiveAuthority,
+    onChainAuthorities,
+    openAuthoritySetup,
+  } = useCircuitDomain();
+
+  const authorityStatusBadge = useMemo(() => {
+    if (hasActiveAuthority) {
+      return { label: "ACTIVE", tone: "active" as const };
+    }
+    if (onChainAuthorities.some((a) => a.isExpired)) {
+      return { label: "EXPIRED", tone: "warning" as const };
+    }
+    if (onChainAuthorities.some((a) => a.isRevoked)) {
+      return { label: "REVOKED", tone: "danger" as const };
+    }
+    return { label: "SETUP REQUIRED", tone: "setup" as const };
+  }, [hasActiveAuthority, onChainAuthorities]);
+
   return (
     <header className="appbar">
       <div className="row g-8" style={{ alignItems: "center" }}>
@@ -60,52 +95,93 @@ function Header({ onOpenHealth }: { onOpenHealth: () => void }) {
       </div>
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12 }}>
-        {/* Protocol Sovereign Control Mode Toggle */}
+        {/* Authoritative Execution Actor Switcher */}
         <div
           style={{
             display: "inline-flex",
             alignItems: "center",
-            background: "var(--surface-2, rgba(255, 255, 255, 0.04))",
+            background: "var(--surface-2)",
             borderRadius: "var(--r-sm, 6px)",
             padding: "2px 3px",
-            border: "1px solid var(--border, rgba(255, 255, 255, 0.08))",
+            border: "1px solid var(--border)",
           }}
         >
           <button
             type="button"
             onClick={() => setControlMode("MANUAL")}
             style={{
-              padding: "4px 10px",
+              padding: "5px 12px",
               fontSize: 11,
               fontWeight: controlMode === "MANUAL" ? 700 : 500,
-              color: controlMode === "MANUAL" ? "var(--text-1, #fff)" : "var(--text-3, #777)",
-              background: controlMode === "MANUAL" ? "var(--surface-3, rgba(255, 255, 255, 0.12))" : "transparent",
+              color: controlMode === "MANUAL" ? "var(--text-1)" : "var(--text-3)",
+              background: controlMode === "MANUAL" ? "var(--surface-3)" : "transparent",
+              border: controlMode === "MANUAL" ? "1px solid var(--border)" : "1px solid transparent",
               borderRadius: "var(--r-sm, 4px)",
-              border: "none",
               cursor: "pointer",
-              transition: "all 0.15s ease",
+              transition: "all var(--t-fast)",
             }}
-            title="Manual Mode: Sovereign direct wallet control without agents"
+            title="Manual Mode: Sovereign direct wallet execution"
           >
             MANUAL
           </button>
           <button
             type="button"
-            onClick={() => setControlMode("AUTONOMOUS")}
+            onClick={() => {
+              if (!hasActiveAuthority) {
+                openAuthoritySetup();
+              } else {
+                setControlMode("AUTONOMOUS");
+              }
+            }}
             style={{
-              padding: "4px 10px",
+              padding: "5px 10px",
               fontSize: 11,
               fontWeight: controlMode === "AUTONOMOUS" ? 700 : 500,
-              color: controlMode === "AUTONOMOUS" ? "var(--accent, #f59e0b)" : "var(--text-3, #777)",
-              background: controlMode === "AUTONOMOUS" ? "rgba(245, 158, 11, 0.15)" : "transparent",
+              color: controlMode === "AUTONOMOUS" ? "var(--accent)" : "var(--text-3)",
+              background: controlMode === "AUTONOMOUS" ? "rgba(236, 234, 230, 0.08)" : "transparent",
+              border: controlMode === "AUTONOMOUS" ? "1px solid var(--border-strong)" : "1px solid transparent",
               borderRadius: "var(--r-sm, 4px)",
-              border: "none",
               cursor: "pointer",
-              transition: "all 0.15s ease",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              transition: "all var(--t-fast)",
             }}
-            title="Autonomous Mode: Bounded strategy execution multiplier"
+            title="Autonomous Mode: Delegated execution under bounded Circuit authority"
           >
-            AUTONOMOUS
+            <span>AUTONOMOUS</span>
+            <span
+              style={{
+                fontSize: 9,
+                fontWeight: 700,
+                fontFamily: "var(--mono)",
+                letterSpacing: "0.04em",
+                padding: "1px 5px",
+                borderRadius: 3,
+                background:
+                  authorityStatusBadge.tone === "active"
+                    ? "rgba(121, 194, 164, 0.18)"
+                    : authorityStatusBadge.tone === "danger"
+                    ? "rgba(207, 139, 139, 0.18)"
+                    : authorityStatusBadge.tone === "warning"
+                    ? "rgba(207, 173, 116, 0.18)"
+                    : "rgba(255, 255, 255, 0.06)",
+                color:
+                  authorityStatusBadge.tone === "active"
+                    ? "var(--mint, #79c2a4)"
+                    : authorityStatusBadge.tone === "danger"
+                    ? "var(--danger, #cf8b8b)"
+                    : authorityStatusBadge.tone === "warning"
+                    ? "var(--warning, #cfad74)"
+                    : "var(--text-3)",
+                border:
+                  authorityStatusBadge.tone === "active"
+                    ? "1px solid rgba(121, 194, 164, 0.3)"
+                    : "1px solid transparent",
+              }}
+            >
+              {authorityStatusBadge.label}
+            </span>
           </button>
         </div>
 

@@ -44,8 +44,15 @@ import {
   PermissionResult,
   ProtocolAction,
 } from "../permission-engine";
+import {
+  OnChainAgentAuthority,
+  fetchOwnerAgentAuthorities,
+  buildRevokeAgentAuthorityInstruction,
+  CIRCUIT_DEVNET_AGENT_KEY,
+} from "../agentAuthority";
+import { Transaction } from "@solana/web3.js";
 
-interface DomainContextValue {
+export interface DomainContextValue {
   wallet: WalletDomainState;
   protocol: ProtocolDomainState;
   markets: MarketDomainState;
@@ -61,6 +68,14 @@ interface DomainContextValue {
   ) => PermissionResult;
   agentAuthority: AgentAuthorityDomainState;
   getAgentAuthorityForAsset: (symbolOrMint: string) => AgentAuthorityDomainState;
+  onChainAuthorities: OnChainAgentAuthority[];
+  hasActiveAuthority: boolean;
+  authoritiesLoading: boolean;
+  isAuthoritySetupOpen: boolean;
+  openAuthoritySetup: () => void;
+  closeAuthoritySetup: () => void;
+  refreshAuthorities: () => Promise<void>;
+  revokeAuthorityOnChain: (agent: PublicKey, assetMint: PublicKey) => Promise<string>;
   revokeAgentAuthority: (symbolOrMint: string) => void;
   activity: ActivityDomainState;
   systemHealth: SystemHealthState;
@@ -84,7 +99,7 @@ function makeFreshness(source: string, error: string | null = null): FreshnessMe
 
 export function CircuitProtocolProvider({ children }: { children: React.ReactNode }) {
   const { connection } = useConnection();
-  const { publicKey, connected, connecting } = useWallet();
+  const { publicKey, connected, connecting, sendTransaction } = useWallet();
 
   const orchestrator = useMemo(() => new RpcOrchestrator(connection), [connection]);
   const [activeMarketKey, setActiveMarketKey] = useState<string>("NVDA");
@@ -97,7 +112,12 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
   const [currentSlot, setCurrentSlot] = useState<number>(0);
 
   // Control Mode: MANUAL (default, wallet-first) vs AUTONOMOUS (bounded strategy)
-  const [controlMode, setControlMode] = useState<ControlMode>("MANUAL");
+  const [controlMode, setControlModeState] = useState<ControlMode>("MANUAL");
+
+  // Real On-Chain Agent Authorities
+  const [onChainAuthorities, setOnChainAuthorities] = useState<OnChainAgentAuthority[]>([]);
+  const [authoritiesLoading, setAuthoritiesLoading] = useState<boolean>(false);
+  const [isAuthoritySetupOpen, setIsAuthoritySetupOpen] = useState<boolean>(false);
 
   // Portfolio state
   const [portfolioSnap, setPortfolioSnap] = useState<any>(null);
@@ -167,22 +187,41 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
     }
   }, [connection]);
 
+  // Real on-chain authority fetching
+  const fetchAuthorities = useCallback(async () => {
+    if (!publicKey) {
+      setOnChainAuthorities([]);
+      return;
+    }
+    setAuthoritiesLoading(true);
+    try {
+      const list = await fetchOwnerAgentAuthorities(connection, publicKey);
+      setOnChainAuthorities(list);
+    } catch (err) {
+      console.warn("fetchOwnerAgentAuthorities error:", err);
+    } finally {
+      setAuthoritiesLoading(false);
+    }
+  }, [connection, publicKey]);
+
   // Initial and periodic refresh
   useEffect(() => {
     fetchBalance();
     fetchPortfolio();
     fetchHealth();
+    fetchAuthorities();
 
     const interval = setInterval(() => {
       if (orchestrator.isVisible()) {
         fetchBalance();
         fetchPortfolio();
         fetchHealth();
+        fetchAuthorities();
       }
     }, 10000);
 
     return () => clearInterval(interval);
-  }, [fetchBalance, fetchPortfolio, fetchHealth, orchestrator]);
+  }, [fetchBalance, fetchPortfolio, fetchHealth, fetchAuthorities, orchestrator]);
 
   // Invalidation listener
   useEffect(() => {
@@ -212,8 +251,8 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
   );
 
   const refreshAll = useCallback(async () => {
-    await Promise.all([fetchBalance(), fetchPortfolio(), fetchHealth()]);
-  }, [fetchBalance, fetchPortfolio, fetchHealth]);
+    await Promise.all([fetchBalance(), fetchPortfolio(), fetchHealth(), fetchAuthorities()]);
+  }, [fetchBalance, fetchPortfolio, fetchHealth, fetchAuthorities]);
 
   // Build canonical domain models
   const walletState: WalletDomainState = useMemo(() => {
@@ -381,6 +420,43 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
     };
   }, [riskState, portfolioState]);
 
+  const hasActiveAuthority = useMemo(() => {
+    return onChainAuthorities.some((a) => a.isActive);
+  }, [onChainAuthorities]);
+
+  // If currently in AUTONOMOUS mode and authority becomes revoked/expired, fall back to MANUAL
+  useEffect(() => {
+    if (controlMode === "AUTONOMOUS" && !hasActiveAuthority && !authoritiesLoading) {
+      setControlModeState("MANUAL");
+    }
+  }, [controlMode, hasActiveAuthority, authoritiesLoading]);
+
+  // Governed mode switch: cannot activate AUTONOMOUS if no active on-chain authority exists
+  const setControlMode = useCallback((mode: ControlMode) => {
+    if (mode === "AUTONOMOUS" && !hasActiveAuthority) {
+      setIsAuthoritySetupOpen(true);
+      return;
+    }
+    setControlModeState(mode);
+  }, [hasActiveAuthority]);
+
+  const openAuthoritySetup = useCallback(() => setIsAuthoritySetupOpen(true), []);
+  const closeAuthoritySetup = useCallback(() => setIsAuthoritySetupOpen(false), []);
+
+  // Real On-Chain Revocation
+  const revokeAuthorityOnChain = useCallback(async (agent: PublicKey, assetMint: PublicKey) => {
+    if (!publicKey) throw new Error("Wallet not connected");
+    const { instruction } = await buildRevokeAgentAuthorityInstruction(connection, publicKey, agent, assetMint);
+    const tx = new Transaction().add(instruction);
+    tx.feePayer = publicKey;
+    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
+    tx.recentBlockhash = blockhash;
+    const sig = await sendTransaction(tx, connection);
+    await connection.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, "confirmed");
+    await fetchAuthorities();
+    return sig;
+  }, [connection, publicKey, sendTransaction, fetchAuthorities]);
+
   const [revokedAssets, setRevokedAssets] = useState<Record<string, boolean>>({});
 
   const revokeAgentAuthority = useCallback((symbolOrMint: string) => {
@@ -390,40 +466,63 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
   const getAgentAuthorityForAsset = useCallback(
     (symbolOrMint: string): AgentAuthorityDomainState => {
       const sym = symbolOrMint.toUpperCase();
-      const isRevoked = Boolean(revokedAssets[sym]);
-      const matchedPos = portfolioState.positions.find(
-        (p) => p.symbol.toUpperCase() === sym || p.mint === symbolOrMint
+      const isLocalRevoked = Boolean(revokedAssets[sym]);
+      const market = DEPLOYED_MARKETS.find(
+        (m) => m.symbol.toUpperCase() === sym || m.mint === symbolOrMint
+      );
+      const mintStr = market?.mint;
+
+      const auth = onChainAuthorities.find(
+        (a) =>
+          (mintStr && a.assetMint.toBase58() === mintStr) ||
+          a.assetMint.toBase58() === symbolOrMint
       );
 
-      const hasPos = Boolean(matchedPos);
-      const debt = matchedPos?.debtUi ?? 0;
-      const maxBorrow = hasPos ? 3000 : 0;
-      const currentBorrowed = debt;
-      const riskBudget = Math.max(0, maxBorrow - currentBorrowed);
+      // If no on-chain authority exists for this asset, strictly report NOT_CONFIGURED (zero fake data)
+      if (!auth) {
+        return {
+          hasAuthority: false,
+          strategyName: "Not Configured",
+          agentAddress: null,
+          ownerAddress: publicKey ? publicKey.toBase58() : null,
+          assetMint: mintStr ?? null,
+          assetSymbol: sym,
+          allowedActions: { deposit: false, borrow: false, repay: false, withdraw: false },
+          maxBorrowLimit: 0,
+          maxWithdrawLimit: 0,
+          currentBorrowed: 0,
+          availableBorrow: 0,
+          riskBudget: 0,
+          initialRiskBudget: 0,
+          expiryTs: 0,
+          isExpired: false,
+          nonce: 0,
+          status: "NOT_CONFIGURED",
+          effectiveAuthority: "BLOCKED",
+        };
+      }
+
+      const isRevoked = auth.isRevoked || isLocalRevoked;
+      const isExpired = auth.isExpired;
+      const maxBorrow = auth.maxBorrowLimitUi;
+      const currentBorrowed = auth.currentBorrowedUi;
+      const riskBudget = auth.riskBudgetUi;
 
       // Effective authority evaluation:
       // EffectiveAuthority = OwnerPolicy ∩ AgentAuthority ∩ RiskPolicy ∩ PositionConstraints
-      let status: "ACTIVE" | "LIMITED" | "BLOCKED" | "REVOKED" = "ACTIVE";
       let effectiveAuthority: "FULL" | "LIMITED" | "BLOCKED" = "FULL";
 
-      if (isRevoked) {
-        status = "REVOKED";
-        effectiveAuthority = "BLOCKED";
-      } else if (!hasPos) {
-        status = "BLOCKED";
+      if (isRevoked || isExpired) {
         effectiveAuthority = "BLOCKED";
       } else if (
         riskState.hardOverride ||
         riskState.ratchetState === "EMERGENCY" ||
         riskState.ratchetState === "DEFENSIVE"
       ) {
-        status = "BLOCKED";
         effectiveAuthority = "BLOCKED";
       } else if (riskState.ratchetState === "RESTRICTED") {
-        status = "LIMITED";
         effectiveAuthority = "LIMITED";
       } else if (currentBorrowed >= maxBorrow || riskBudget <= 0) {
-        status = "LIMITED";
         effectiveAuthority = "LIMITED";
       }
 
@@ -442,33 +541,33 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
         availableBorrow = 0;
       }
 
+      const strategyName =
+        auth.agent.toBase58() === CIRCUIT_DEVNET_AGENT_KEY.toBase58()
+          ? "Circuit Sovereign Sentinel"
+          : "External Delegated Strategy";
+
       return {
-        hasAuthority: hasPos && !isRevoked,
-        strategyName: "Momentum-Alpha v1",
-        agentAddress: "Strat11111111111111111111111111111111111111",
-        ownerAddress: publicKey ? publicKey.toBase58() : null,
-        assetMint: matchedPos?.mint ?? null,
-        assetSymbol: matchedPos?.symbol ?? sym,
-        allowedActions: {
-          deposit: false,
-          borrow: !isRevoked && effectiveAuthority !== "BLOCKED",
-          repay: !isRevoked,
-          withdraw: false,
-        },
+        hasAuthority: auth.isActive && !isLocalRevoked,
+        strategyName,
+        agentAddress: auth.agent.toBase58(),
+        ownerAddress: auth.owner.toBase58(),
+        assetMint: auth.assetMint.toBase58(),
+        assetSymbol: sym,
+        allowedActions: auth.allowedActions,
         maxBorrowLimit: maxBorrow,
-        maxWithdrawLimit: 0,
+        maxWithdrawLimit: auth.maxWithdrawLimitUi,
         currentBorrowed,
         availableBorrow,
         riskBudget,
-        initialRiskBudget: maxBorrow,
-        expiryTs: 0,
-        isExpired: false,
-        nonce: hasPos ? (debt > 0 ? 1 : 0) : 0,
-        status,
+        initialRiskBudget: auth.initialRiskBudgetUi,
+        expiryTs: auth.expiryTs,
+        isExpired,
+        nonce: auth.nonce,
+        status: isRevoked ? "REVOKED" : isExpired ? "EXPIRED" : auth.status,
         effectiveAuthority,
       };
     },
-    [revokedAssets, portfolioState, riskState, publicKey]
+    [onChainAuthorities, revokedAssets, portfolioState, riskState, publicKey]
   );
 
   const activeAgentAuthority: AgentAuthorityDomainState = useMemo(() => {
@@ -533,6 +632,8 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
           ? {
               active: agentAuth.hasAuthority && agentAuth.status !== "REVOKED",
               isExpired: agentAuth.isExpired,
+              targetAssetMint: agentAuth.assetMint ?? undefined,
+              currentAssetMint: pos?.mint ?? DEPLOYED_MARKETS.find((m) => m.symbol.toUpperCase() === sym)?.mint,
               allowedActions: agentAuth.allowedActions,
               maxBorrowLimitUsd: agentAuth.maxBorrowLimit,
               maxWithdrawLimitUsd: agentAuth.maxWithdrawLimit,
@@ -564,6 +665,14 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
     evaluatePermissionForAction,
     agentAuthority: activeAgentAuthority,
     getAgentAuthorityForAsset,
+    onChainAuthorities,
+    hasActiveAuthority,
+    authoritiesLoading,
+    isAuthoritySetupOpen,
+    openAuthoritySetup,
+    closeAuthoritySetup,
+    refreshAuthorities: fetchAuthorities,
+    revokeAuthorityOnChain,
     revokeAgentAuthority,
     activity: activityState,
     systemHealth,

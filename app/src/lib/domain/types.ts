@@ -136,7 +136,7 @@ export interface AgentAuthorityDomainState {
   expiryTs: number;
   isExpired: boolean;
   nonce: number;
-  status: "ACTIVE" | "LIMITED" | "BLOCKED" | "REVOKED";
+  status: "ACTIVE" | "LIMITED" | "BLOCKED" | "REVOKED" | "EXPIRED" | "NOT_CONFIGURED";
   effectiveAuthority: "FULL" | "LIMITED" | "BLOCKED";
 }
 

@@ -6,10 +6,12 @@
  */
 
 import React, { useState } from "react";
+import { PublicKey } from "@solana/web3.js";
 import { Drawer } from "../ui/Drawer";
-import { Pill, Button, Icon, DataRow } from "../ui";
+import { Pill, Button, Icon, DataRow, Notice } from "../ui";
 import { AgentAuthorityDomainState, RiskRatchetState } from "../../lib/domain/types";
 import { shortenAddress, formatMoney } from "../../lib/format";
+import { useCircuitDomain } from "../../lib/domain/context";
 
 export function AgentAuthorityDrawer({
   authority,
@@ -25,6 +27,8 @@ export function AgentAuthorityDrawer({
   onRevoke?: (assetSymbol: string) => void;
 }) {
   const [revoking, setRevoking] = useState(false);
+  const [revokeError, setRevokeError] = useState<string | null>(null);
+  const { revokeAuthorityOnChain, revokeAgentAuthority } = useCircuitDomain();
 
   if (!authority) return null;
 
@@ -42,13 +46,26 @@ export function AgentAuthorityDrawer({
       ? "warning"
       : "danger";
 
-  const handleRevoke = () => {
+  const handleRevoke = async () => {
+    if (!authority) return;
     setRevoking(true);
-    setTimeout(() => {
+    setRevokeError(null);
+    try {
+      if (authority.agentAddress && authority.assetMint) {
+        await revokeAuthorityOnChain(
+          new PublicKey(authority.agentAddress),
+          new PublicKey(authority.assetMint)
+        );
+      }
+      revokeAgentAuthority(authority.assetSymbol);
       onRevoke?.(authority.assetSymbol);
-      setRevoking(false);
       onClose();
-    }, 400);
+    } catch (err: any) {
+      console.error("Revocation failed:", err);
+      setRevokeError(err?.message || "Failed to revoke on-chain authority on Devnet");
+    } finally {
+      setRevoking(false);
+    }
   };
 
   return (
@@ -239,6 +256,11 @@ export function AgentAuthorityDrawer({
 
         {/* Owner Revocation Action */}
         <div style={{ marginTop: 8 }} className="stack g-8">
+          {revokeError && (
+            <Notice tone="danger" title="Revocation Failed">
+              {revokeError}
+            </Notice>
+          )}
           <Button
             variant="danger"
             block

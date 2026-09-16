@@ -97,6 +97,8 @@ export interface PermissionEvaluationParams {
   agentAuthority?: {
     active: boolean;
     isExpired: boolean;
+    targetAssetMint?: string;
+    currentAssetMint?: string;
     allowedActions: {
       deposit: boolean;
       borrow: boolean;
@@ -260,6 +262,23 @@ export function evaluatePermission(params: PermissionEvaluationParams): Permissi
     }
     if (agentAuthority.isExpired) {
       return makeResult(false, "AGENT_EXPIRED", "Autonomous strategy delegation has expired.", riskState, effectiveLtvBps, 0, null, 0, 0);
+    }
+    if (
+      agentAuthority.targetAssetMint &&
+      agentAuthority.currentAssetMint &&
+      agentAuthority.targetAssetMint !== agentAuthority.currentAssetMint
+    ) {
+      return makeResult(
+        false,
+        "AGENT_UNAUTHORIZED",
+        "Agent authority is asset-scoped and not authorized for this asset.",
+        riskState,
+        effectiveLtvBps,
+        0,
+        null,
+        0,
+        0
+      );
     }
 
     if (action === "borrow") {
