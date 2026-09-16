@@ -21,6 +21,9 @@ pub mod cancel_liquidation_auction;
 pub mod liquidate_auction;
 pub mod pause;
 pub mod update_fee_config;
+pub mod create_agent_authority;
+pub mod update_agent_authority;
+pub mod execute_agent_action;
 
 pub use initialize_protocol::*;
 pub use register_asset::*;
@@ -37,4 +40,8 @@ pub use cancel_liquidation_auction::*;
 pub use liquidate_auction::*;
 pub use pause::*;
 pub use update_fee_config::*;
+pub use create_agent_authority::*;
+pub use update_agent_authority::*;
+pub use execute_agent_action::*;
+
 

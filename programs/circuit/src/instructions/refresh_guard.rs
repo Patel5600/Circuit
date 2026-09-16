@@ -53,8 +53,10 @@ pub fn handler(ctx: Context<RefreshGuard>) -> Result<()> {
         ratchet.state = candidate_state;
         ratchet.reason = candidate_reason;
         ratchet.risk_epoch = 0;
+        ratchet.transition_nonce = 0;
         ratchet.consecutive_healthy_observations = 0;
         ratchet.last_stress_slot = if candidate_severity > 0 { clock.slot } else { 0 };
+        ratchet.last_transition_ts = clock.unix_timestamp;
     } else {
         let current_severity = state_severity(ratchet.state);
 
@@ -64,8 +66,10 @@ pub fn handler(ctx: Context<RefreshGuard>) -> Result<()> {
             ratchet.state = candidate_state;
             ratchet.reason = candidate_reason;
             ratchet.risk_epoch = ratchet.risk_epoch.saturating_add(1);
+            ratchet.transition_nonce = ratchet.transition_nonce.saturating_add(1);
             ratchet.consecutive_healthy_observations = 0;
             ratchet.last_stress_slot = clock.slot;
+            ratchet.last_transition_ts = clock.unix_timestamp;
 
             emit!(crate::events::RiskStateChanged {
                 feed_id: ratchet.feed_id,
@@ -93,19 +97,19 @@ pub fn handler(ctx: Context<RefreshGuard>) -> Result<()> {
                     oracle_result.is_some()
                         && asset.custody_state != CustodyState::Impaired
                         && asset.liquidity_state != LiquidityState::Critical
-                        && conf_ratio_bps <= 250
+                        && conf_ratio_bps <= RiskRatchet::RECOVERY_DEADBAND_EMERGENCY_DEFENSIVE
                 }
                 MarketState::Defensive => {
                     // To step up to Restricted: conf <= 100 BPS (50 BPS deadband below 150)
                     oracle_result.is_some()
                         && asset.custody_state != CustodyState::Impaired
                         && asset.liquidity_state != LiquidityState::Critical
-                        && conf_ratio_bps <= 100
+                        && conf_ratio_bps <= RiskRatchet::RECOVERY_DEADBAND_DEFENSIVE_RESTRICTED
                 }
                 MarketState::Restricted => {
                     // To step up to Safe: conf <= 30 BPS (20 BPS deadband below 50)
                     // NYSE open, custody healthy, liquidity deep
-                    candidate_state == MarketState::Safe && conf_ratio_bps <= 30
+                    candidate_state == MarketState::Safe && conf_ratio_bps <= RiskRatchet::RECOVERY_DEADBAND_RESTRICTED_SAFE
                 }
                 MarketState::Safe => true,
             };
@@ -124,8 +128,16 @@ pub fn handler(ctx: Context<RefreshGuard>) -> Result<()> {
                         MarketState::Restricted => MarketState::Safe,
                         MarketState::Safe => MarketState::Safe,
                     };
+
+                    require!(
+                        RiskRatchet::is_legal_transition(prev_state, next_state),
+                        crate::errors::CircuitError::IllegalStateTransition
+                    );
+
                     ratchet.state = next_state;
                     ratchet.consecutive_healthy_observations = 0;
+                    ratchet.transition_nonce = ratchet.transition_nonce.saturating_add(1);
+                    ratchet.last_transition_ts = clock.unix_timestamp;
                     ratchet.reason = if next_state == MarketState::Safe {
                         GuardReason::Ok
                     } else {
@@ -142,6 +154,7 @@ pub fn handler(ctx: Context<RefreshGuard>) -> Result<()> {
                     });
 
                     msg!("Ratchet stepped up to {:?} after 5 clean observations", next_state);
+
                 } else {
                     ratchet.reason = GuardReason::RatchetRecoveryPending;
                     emit!(crate::events::RecoveryObserved {

@@ -252,6 +252,78 @@ export function AssetActionDrawer() {
           </div>
         </div>
 
+        {/* Risk-Adaptive Capital Authority Badge */}
+        <div
+          style={{
+            padding: "12px 14px",
+            background: "var(--surface-2, #0d0f15)",
+            borderRadius: "var(--r, 10px)",
+            border: "1px solid var(--border, #1a1d26)",
+          }}
+        >
+          <div className="row between" style={{ alignItems: "center", marginBottom: 6 }}>
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+                color: "var(--text-3)",
+              }}
+            >
+              Capital Authority
+            </span>
+            <Pill
+              tone={
+                domainRisk.ratchetState === "SAFE"
+                  ? "success"
+                  : domainRisk.ratchetState === "RESTRICTED"
+                  ? "warning"
+                  : domainRisk.ratchetState === "DEFENSIVE"
+                  ? "warning"
+                  : "danger"
+              }
+              withDot
+            >
+              {domainRisk.ratchetState}
+            </Pill>
+          </div>
+          <div
+            style={{
+              fontSize: 12,
+              color: "var(--text-2)",
+              lineHeight: 1.4,
+              marginBottom: 8,
+              fontStyle: "italic",
+            }}
+          >
+            &ldquo;Agents decide what to do. circuit decides what capital they are allowed to risk.&rdquo;
+          </div>
+          <div
+            className="row between"
+            style={{
+              fontSize: 11,
+              color: "var(--text-3)",
+              borderTop: "1px solid var(--border, #1a1d26)",
+              paddingTop: 6,
+            }}
+          >
+            <span>
+              Agent Authority:{" "}
+              <strong style={{ color: "var(--text-2)", fontWeight: 600 }}>
+                Bounded by Onchain Policy
+              </strong>
+            </span>
+            <span style={{ fontFamily: "var(--mono)" }}>
+              {action === "borrow" && isBorrowBlocked
+                ? "BORROW_BLOCKED"
+                : action === "withdraw" && isWithdrawBlocked
+                ? "WITHDRAW_BLOCKED"
+                : "ACTION_PERMITTED"}
+            </span>
+          </div>
+        </div>
+
         {/* Action Type Selector */}
         <Segmented
           label="Action Mode"

@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use crate::state::enums::{MarketState, GuardReason};
+use crate::state::enums::{MarketState, GuardReason, AgentAction, PermissionDenialReason};
 
 /// Emitted when a user deposits tokenized equities into collateral vault.
 #[event]
@@ -165,3 +165,75 @@ pub struct AuctionSettled {
     pub fee: u64,
     pub timestamp: i64,
 }
+
+/// Emitted when bounded authority is delegated to an autonomous agent.
+#[event]
+pub struct AgentAuthorityCreated {
+    pub owner: Pubkey,
+    pub agent: Pubkey,
+    pub asset_mint: Pubkey,
+    pub allowed_actions: u8,
+    pub max_borrow_limit: u64,
+    pub max_withdraw_limit: u64,
+    pub risk_budget: u64,
+    pub expiry_ts: i64,
+    pub timestamp: i64,
+}
+
+/// Emitted when delegated agent authority parameters are modified by the owner.
+#[event]
+pub struct AgentAuthorityUpdated {
+    pub owner: Pubkey,
+    pub agent: Pubkey,
+    pub asset_mint: Pubkey,
+    pub allowed_actions: u8,
+    pub max_borrow_limit: u64,
+    pub max_withdraw_limit: u64,
+    pub risk_budget: u64,
+    pub expiry_ts: i64,
+    pub timestamp: i64,
+}
+
+/// Emitted when delegated agent authority is revoked.
+#[event]
+pub struct AgentAuthorityRevoked {
+    pub owner: Pubkey,
+    pub agent: Pubkey,
+    pub asset_mint: Pubkey,
+    pub timestamp: i64,
+}
+
+/// Emitted when an action passes protocol permission evaluation.
+#[event]
+pub struct ActionAllowed {
+    pub position: Pubkey,
+    pub action: AgentAction,
+    pub amount: u64,
+    pub risk_cost: u64,
+    pub remaining_budget: u64,
+    pub risk_state: MarketState,
+    pub timestamp: i64,
+}
+
+/// Emitted when an action is rejected by protocol permission evaluation.
+#[event]
+pub struct ActionDenied {
+    pub position: Pubkey,
+    pub action: AgentAction,
+    pub amount: u64,
+    pub risk_state: MarketState,
+    pub denial_reason: PermissionDenialReason,
+    pub epoch: u64,
+    pub timestamp: i64,
+}
+
+/// Emitted when an agent's dynamic risk budget changes.
+#[event]
+pub struct RiskBudgetChanged {
+    pub authority: Pubkey,
+    pub old_budget: u64,
+    pub new_budget: u64,
+    pub action: AgentAction,
+    pub timestamp: i64,
+}
+

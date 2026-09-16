@@ -15,62 +15,75 @@ import { usePinnedSteps } from "../../hooks/useMotion";
  * `1 - var(--p)` and needs no getTotalLength() measurement or resize handling.
  */
 
-const STAGES = [
+interface FlowStage {
+  key: string;
+  label: string;
+  beat: string;
+  detail: string;
+  stateHighlight?: string;
+  actionsList?: string;
+  equations?: boolean;
+  postDetail?: string;
+}
+
+const STAGES: FlowStage[] = [
   {
     key: "equity",
     label: "Tokenized Equity",
-    detail:
-      "Tokenized equity enters circuit as programmable collateral. The position is represented on Solana and governed by protocol rules rather than a frontend balance.",
     beat: "Collateral",
-    formula: "Non-Custodial: Repay & Deposit unconditionally open",
+    detail:
+      "A stock-backed position enters circuit as collateral with a canonical asset identity and defined ownership.",
   },
   {
-    key: "oracle",
-    label: "Pyth Price + Confidence",
+    key: "observation",
+    label: "Market Observation",
+    beat: "Observation",
     detail:
-      "Pyth supplies the market observation. circuit validates price freshness and oracle uncertainty before allowing risk-sensitive actions.",
-    beat: "Oracle",
-    formula: "Conservative bound: p_conservative = max(0, p - conf)",
+      "Pyth supplies price, confidence, and freshness. circuit validates the observation rather than trusting a client or cached value.",
   },
   {
-    key: "market",
-    label: "MarketGuard Session",
+    key: "marketguard",
+    label: "MarketGuard",
+    beat: "MarketGuard",
     detail:
-      "Checks whether the observation is usable under market-session policy (Price + Confidence + Session). Distinguishes underlying venue session state from on-chain token availability.",
-    beat: "Session",
-    formula: "Usability: Fresh ∧ ConfWithinBound ∧ SessionActive",
+      "Oracle validity and market-session conditions become one protocol-level market state. Unsafe or unusable observations cannot authorize additional risk.",
   },
   {
     key: "ratchet",
-    label: "4-State Risk Ratchet",
-    detail:
-      "Converts market conditions into deterministic protocol states: Safe → Restricted → Defensive → Emergency. Recovery is staged with monotonic hysteresis to prevent abrupt re-enabling.",
+    label: "Risk Ratchet",
     beat: "Ratchet",
-    formula: "Recovery Invariant: Emergency ↛ Safe (Staged 5-Epoch Crank)",
+    detail:
+      "Market conditions become a deterministic capital state:",
+    stateHighlight: "SAFE → RESTRICTED → DEFENSIVE → EMERGENCY",
+    postDetail:
+      "Recovery is staged in the opposite direction. Risk is no longer a number displayed to the user. It becomes protocol state.",
   },
   {
-    key: "policy",
-    label: "Capital Policy Engine",
+    key: "authority",
+    label: "Capital Authority",
+    beat: "Authority",
     detail:
-      "Market state becomes an on-chain capital policy. The protocol derives what a position is allowed to do from risk state. Unsafe capital actions fail on-chain.",
-    beat: "Policy",
-    formula: "Defensive/Emergency: Borrow & Withdraw BLOCKED on-chain",
+      "The current risk state determines what capital is allowed to do. An autonomous strategy receives bounded authority, never unrestricted control.",
+    actionsList: "Borrow. Withdraw. Repay. Deposit.",
+    postDetail:
+      "Each action is evaluated against the owner's policy, the agent's authority, the current risk state, and the position's financial constraints.",
   },
   {
     key: "credit",
     label: "Programmable Credit",
-    detail:
-      "Credit is the last step, never the first. Borrow capacity = Collateral Value × Effective LTV − Existing Debt. The frontend estimates power; the program verifies the transaction itself.",
     beat: "Credit",
-    formula: "LTV = Debt / Collateral Value (Enforced at tx boundary)",
+    detail:
+      "Only after those conditions pass does credit become available.",
+    equations: true,
+    postDetail:
+      "Credit is therefore an output of the system, not the starting point.",
   },
   {
     key: "recovery",
-    label: "Dutch Auction Recovery",
-    detail:
-      "Unsafe positions recover through bounded collateral auctions. The protocol auctions the exact minimum collateral necessary to restore the position according to policy.",
+    label: "Recovery",
     beat: "Recovery",
-    formula: "P(t) = P_start - [(t - t0)/T] * (P_start - P_floor)",
+    detail:
+      "When conditions deteriorate, risk-increasing authority contracts first. Repayment, deposits, and protocol-defined recovery actions remain available. As the system recovers, permissions return through the ratchet rather than appearing instantly.",
   },
 ];
 
@@ -100,6 +113,16 @@ export function CircuitFlow() {
 
   const active = STAGES[index] ?? STAGES[0];
 
+  const scrollToStep = (stepIndex: number) => {
+    if (!section.current) return;
+    const rect = section.current.getBoundingClientRect();
+    const currentScroll = window.scrollY;
+    const sectionTop = currentScroll + rect.top;
+    const travel = Math.max(1, rect.height - window.innerHeight);
+    const targetY = sectionTop + (stepIndex / (STAGES.length - 1)) * travel * 0.88;
+    window.scrollTo({ top: targetY, behavior: "smooth" });
+  };
+
   return (
     <section
       className="sec pin flow"
@@ -119,6 +142,19 @@ export function CircuitFlow() {
               <br />
               <em>never the first.</em>
             </h2>
+            <p
+              className="flow__head__desc"
+              style={{
+                marginTop: "8px",
+                color: "var(--text-2)",
+                maxWidth: "620px",
+                fontSize: "14px",
+                lineHeight: "1.5",
+                letterSpacing: "-0.01em",
+              }}
+            >
+              Tokenized equity becomes programmable capital only after the protocol understands the market it is operating in.
+            </p>
           </header>
 
           <div className="flow__grid">
@@ -160,9 +196,9 @@ export function CircuitFlow() {
                     (i < index ? " is-done" : "")
                   }
                   aria-current={i === index ? "step" : undefined}
+                  onClick={() => scrollToStep(i)}
+                  title={`Jump to step ${i + 1}: ${s.label}`}
                 >
-                  {/* The rail fills across the active step only, which is the
-                      readable signal that scrolling is advancing a sequence. */}
                   <span className="flow__rail" aria-hidden="true">
                     <span className="flow__rail__fill" />
                   </span>
@@ -170,36 +206,162 @@ export function CircuitFlow() {
                     {String(i + 1).padStart(2, "0")}
                   </span>
                   <span className="flow__stage__label">{s.label}</span>
-                  <span className="flow__stage__detail">{s.detail}</span>
-                  {s.formula && (
-                    <code
-                      style={{
-                        display: "inline-block",
-                        marginTop: "8px",
-                        fontSize: "11px",
-                        fontFamily: "var(--mono)",
-                        color: i === index ? "var(--accent)" : "var(--text-3)",
-                        background: i === index ? "rgba(207, 173, 116, 0.08)" : "rgba(255, 255, 255, 0.02)",
-                        padding: "3px 8px",
-                        borderRadius: "4px",
-                        border: "1px solid",
-                        borderColor: i === index ? "rgba(207, 173, 116, 0.3)" : "rgba(255, 255, 255, 0.06)",
-                        transition: "all 0.3s ease",
-                      }}
-                    >
-                      {s.formula}
-                    </code>
-                  )}
+                  <div className="flow__stage__detail">
+                    <div>{s.detail}</div>
+
+                    {s.stateHighlight && (
+                      <div
+                        style={{
+                          margin: "6px 0",
+                          padding: "4px 8px",
+                          background: "rgba(255, 255, 255, 0.03)",
+                          border: "1px solid var(--border, #1a1d26)",
+                          borderRadius: "4px",
+                          fontFamily: "var(--mono)",
+                          fontSize: "10.5px",
+                          fontWeight: 700,
+                          letterSpacing: "0.03em",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <span style={{ color: "var(--success, #34d399)" }}>SAFE</span>
+                        <span style={{ color: "var(--text-3)" }}>→</span>
+                        <span style={{ color: "var(--warning, #fbbf24)" }}>RESTRICTED</span>
+                        <span style={{ color: "var(--text-3)" }}>→</span>
+                        <span style={{ color: "var(--warning, #f59e0b)" }}>DEFENSIVE</span>
+                        <span style={{ color: "var(--text-3)" }}>→</span>
+                        <span style={{ color: "var(--danger, #f87171)" }}>EMERGENCY</span>
+                      </div>
+                    )}
+
+                    {s.actionsList && (
+                      <div
+                        style={{
+                          margin: "6px 0",
+                          display: "flex",
+                          gap: "6px",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        {["Borrow", "Withdraw", "Repay", "Deposit"].map((act) => (
+                          <span
+                            key={act}
+                            style={{
+                              padding: "1px 7px",
+                              background: "rgba(255, 255, 255, 0.04)",
+                              border: "1px solid var(--border, #262b3a)",
+                              borderRadius: "4px",
+                              fontSize: "10.5px",
+                              fontFamily: "var(--mono)",
+                              fontWeight: 600,
+                              color: "var(--text)",
+                            }}
+                          >
+                            {act}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {s.equations && (
+                      <div
+                        style={{
+                          margin: "6px 0",
+                          padding: "6px 10px",
+                          background: "rgba(207, 173, 116, 0.05)",
+                          border: "1px solid rgba(207, 173, 116, 0.2)",
+                          borderRadius: "4px",
+                          fontFamily: "var(--mono)",
+                          fontSize: "10.5px",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "4px",
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          <span style={{ color: "var(--accent, #cfad74)", fontWeight: 700 }}>LTV</span>
+                          <span>= Debt / Collateral Value</span>
+                        </div>
+                        <div>
+                          <span style={{ color: "var(--accent, #cfad74)", fontWeight: 700 }}>Borrowable</span>
+                          <span> = max(0, Collateral × EffectiveLTV − Debt)</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {s.postDetail && (
+                      <div style={{ marginTop: "4px", fontSize: "12px", color: "var(--text-3)" }}>
+                        {s.postDetail}
+                      </div>
+                    )}
+                  </div>
                 </li>
               ))}
             </ol>
 
-            <p className="flow__beat" aria-live="polite">
+            <div className="flow__beat" aria-live="polite">
               <span className="flow__beat__word">{active.beat}</span>
               <span className="flow__beat__count">
                 {String(index + 1).padStart(2, "0")} / {String(STAGES.length).padStart(2, "0")}
               </span>
-            </p>
+
+              {/* The Invariant */}
+              <div
+                style={{
+                  marginTop: "14px",
+                  padding: "12px 14px",
+                  background: "var(--surface-2, #0d0f15)",
+                  border: "1px solid var(--border, #1a1d26)",
+                  borderRadius: "var(--r, 8px)",
+                  borderLeft: "3px solid var(--accent, #cfad74)",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "10px",
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    color: "var(--text-3)",
+                    marginBottom: "8px",
+                  }}
+                >
+                  The invariant
+                </div>
+                <blockquote
+                  style={{
+                    margin: 0,
+                    padding: 0,
+                    fontSize: "11.5px",
+                    lineHeight: "1.55",
+                    color: "var(--text)",
+                    border: "none",
+                  }}
+                >
+                  <p style={{ margin: 0 }}>
+                    <strong>Market state determines risk.</strong><br />
+                    <strong>Risk determines authority.</strong><br />
+                    <strong>Authority determines permission.</strong><br />
+                    <strong>Permission determines credit.</strong>
+                  </p>
+                </blockquote>
+                <div
+                  style={{
+                    marginTop: "10px",
+                    paddingTop: "8px",
+                    borderTop: "1px solid var(--border, #1a1d26)",
+                    fontSize: "11px",
+                    color: "var(--accent, #cfad74)",
+                    fontWeight: 600,
+                  }}
+                >
+                  Credit is the last step, <em>never the first.</em>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

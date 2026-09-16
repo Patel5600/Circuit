@@ -203,5 +203,38 @@ pub enum CircuitError {
     /// Calculated auction price is out of bounds
     #[msg("Calculated auction price is out of bounds")]
     AuctionPriceOutOfBounds,
+
+    /// Agent delegation authority has expired
+    #[msg("Agent authority has expired")]
+    AgentAuthorityExpired,
+
+    /// Action flag is not granted in the agent's delegation bitmask
+    #[msg("Agent is not authorized to execute this action")]
+    AgentActionNotPermitted,
+
+    /// Borrow exceeds agent authority policy limit
+    #[msg("Requested borrow exceeds agent authority policy limit")]
+    AgentBorrowLimitExceeded,
+
+    /// Withdrawal exceeds agent authority policy limit
+    #[msg("Requested withdrawal exceeds agent authority policy limit")]
+    AgentWithdrawLimitExceeded,
+
+    /// Action risk cost exceeds remaining dynamic risk budget
+    #[msg("Action risk cost exceeds agent remaining risk budget")]
+    InsufficientRiskBudget,
+
+    /// Signer does not match delegated agent authority
+    #[msg("Signer does not match delegated agent authority")]
+    AgentAuthorityUnauthorized,
+
+    /// Agent authority owner does not match position owner
+    #[msg("Agent authority owner does not match position owner")]
+    InvalidAgentOwner,
+
+    /// Action intent nonce mismatch or replay detected
+    #[msg("Action intent nonce mismatch or replay detected")]
+    ActionNonceInvalid,
 }
+
 

@@ -544,13 +544,164 @@ export class Harness {
   }
 
   // -------------------------------------------------------------------------
+  // Agent Authority instruction builders
+  // -------------------------------------------------------------------------
+
+  async ixCreateAgentAuthority(
+    owner = this.user,
+    agent: Keypair,
+    opts: {
+      allowedActions?: number;
+      maxBorrowLimit?: bigint | number;
+      maxWithdrawLimit?: bigint | number;
+      riskBudget?: bigint | number;
+      expiryTs?: bigint | number;
+      mint?: PublicKey;
+    } = {}
+  ): Promise<TransactionInstruction> {
+    const assetMint = opts.mint ?? this.equityMint;
+    const [authorityPda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("authority"),
+        owner.publicKey.toBuffer(),
+        agent.publicKey.toBuffer(),
+        assetMint.toBuffer(),
+      ],
+      this.programId
+    );
+
+    return this.program.methods
+      .createAgentAuthority(
+        opts.allowedActions ?? 0x0f, // all actions by default (1 | 2 | 4 | 8)
+        new BN((opts.maxBorrowLimit ?? 10_000 * TOKEN).toString()),
+        new BN((opts.maxWithdrawLimit ?? 100 * TOKEN).toString()),
+        new BN((opts.riskBudget ?? 10_000 * TOKEN).toString()),
+        new BN((opts.expiryTs ?? 0).toString())
+      )
+      .accountsPartial({
+        owner: owner.publicKey,
+        agent: agent.publicKey,
+        assetMint,
+        agentAuthority: authorityPda,
+        systemProgram: SystemProgram.programId,
+      })
+      .instruction();
+  }
+
+  async ixUpdateAgentAuthority(
+    owner = this.user,
+    agent: Keypair,
+    opts: {
+      allowedActions?: number;
+      maxBorrowLimit?: bigint | number;
+      maxWithdrawLimit?: bigint | number;
+      riskBudget?: bigint | number;
+      expiryTs?: bigint | number;
+      mint?: PublicKey;
+    } = {}
+  ): Promise<TransactionInstruction> {
+    const assetMint = opts.mint ?? this.equityMint;
+    const [authorityPda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("authority"),
+        owner.publicKey.toBuffer(),
+        agent.publicKey.toBuffer(),
+        assetMint.toBuffer(),
+      ],
+      this.programId
+    );
+
+    return this.program.methods
+      .updateAgentAuthority(
+        opts.allowedActions ?? 0x0f,
+        new BN((opts.maxBorrowLimit ?? 10_000 * TOKEN).toString()),
+        new BN((opts.maxWithdrawLimit ?? 100 * TOKEN).toString()),
+        new BN((opts.riskBudget ?? 10_000 * TOKEN).toString()),
+        new BN((opts.expiryTs ?? 0).toString())
+      )
+      .accountsPartial({
+        owner: owner.publicKey,
+        agent: agent.publicKey,
+        assetMint,
+        agentAuthority: authorityPda,
+      })
+      .instruction();
+  }
+
+  async ixExecuteAgentAction(
+    agent: Keypair,
+    owner = this.user,
+    opts: {
+      action: "deposit" | "borrow" | "repay" | "withdraw";
+      amount: bigint | number;
+      nonce?: bigint | number;
+      mint?: PublicKey;
+      userCollateralAta?: PublicKey;
+      userQuoteAta?: PublicKey;
+      priceUpdate?: PublicKey;
+    }
+  ): Promise<TransactionInstruction> {
+    const assetMint = opts.mint ?? this.equityMint;
+    const [authorityPda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("authority"),
+        owner.publicKey.toBuffer(),
+        agent.publicKey.toBuffer(),
+        assetMint.toBuffer(),
+      ],
+      this.programId
+    );
+
+    const [posPda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("position"),
+        owner.publicKey.toBuffer(),
+        assetMint.toBuffer(),
+      ],
+      this.programId
+    );
+
+    const [assetConfigPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("asset"), assetMint.toBuffer()],
+      this.programId
+    );
+
+    return this.program.methods
+      .executeAgentAction(
+        { [opts.action]: {} } as any,
+        new BN(opts.amount.toString()),
+        new BN((opts.nonce ?? 0).toString())
+      )
+      .accountsPartial({
+        agent: agent.publicKey,
+        owner: owner.publicKey,
+        protocolConfig: this.protocolConfig,
+        assetConfig: assetConfigPda,
+        riskRatchet: this.riskRatchet,
+        position: posPda,
+        agentAuthority: authorityPda,
+        collateralVault: this.collateralVault,
+        liquidityVault: this.liquidityVault,
+        userCollateralAta: opts.userCollateralAta ?? this.userEquityAta,
+        userQuoteAta: opts.userQuoteAta ?? this.userQuoteAta,
+        collateralMint: assetMint,
+        quoteMint: this.quoteMint,
+        priceUpdate: opts.priceUpdate ?? this.priceUpdate,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .instruction();
+  }
+
+
+  // -------------------------------------------------------------------------
   // Composite helpers
   // -------------------------------------------------------------------------
 
   /** initialize_protocol + register_asset + seed the liquidity vault. */
-  async bootstrapProtocol(liquidityUsd = 100_000): Promise<void> {
+  async bootstrapProtocol(liquidityUsd = 100_000, maxConfBps = MAX_CONF_BPS): Promise<void> {
     this.sendOk([await this.ixInitializeProtocol()], [this.admin]);
-    this.sendOk([await this.ixRegisterAsset()], [this.admin]);
+    this.sendOk([await this.ixRegisterAsset(this.admin, { maxConfBps })], [this.admin]);
     this.sendOk(
       [
         createMintToInstruction(
@@ -563,6 +714,7 @@ export class Harness {
       [this.admin]
     );
   }
+
 }
 
 // ---------------------------------------------------------------------------

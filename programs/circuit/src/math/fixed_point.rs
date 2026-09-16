@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
 use crate::errors::CircuitError;
+use crate::state::enums::{MarketState, AgentAction};
 
 // --------------------------------------------------------------
 // Constants
@@ -741,6 +742,73 @@ fn pow10(n: u32) -> Result<u128> {
     Ok(10u128.pow(n))
 }
 
+// --------------------------------------------------------------
+// Action Risk Cost & Risk Budget Math
+// --------------------------------------------------------------
+
+/// Computes the action risk cost C(a, x_t) for an autonomous agent action.
+///
+/// Deterministic On-Chain Invariants:
+/// - Risk-increasing actions (Borrow, Withdraw) carry positive risk cost scaled by:
+///     1. Nominal action size
+///     2. Relative oracle uncertainty (10,000 + conf_ratio_bps) / 10,000
+///     3. Risk state severity multiplier:
+///        - Safe: 1x
+///        - Restricted: 2x
+///        - Defensive: 4x
+///        - Emergency: strictly prohibited (returns RiskEmergency error)
+/// - Risk-reducing actions (Repay, Deposit) carry zero risk cost.
+/// - Integer arithmetic only, checked against overflow.
+pub fn calculate_action_risk_cost(
+    action: AgentAction,
+    amount: u64,
+    conf_ratio_bps: u64,
+    market_state: MarketState,
+) -> Result<u64> {
+    match action {
+        AgentAction::Repay | AgentAction::Deposit => Ok(0),
+        AgentAction::Borrow | AgentAction::Withdraw => {
+            if amount == 0 {
+                return Ok(0);
+            }
+
+            let state_multiplier: u128 = match market_state {
+                MarketState::Safe => 1,
+                MarketState::Restricted => 2,
+                MarketState::Defensive => 4,
+                MarketState::Emergency => return err!(CircuitError::RiskEmergency),
+            };
+
+            // Uncertainty factor: (10_000 + conf_ratio_bps)
+            let uncertainty_factor = (BPS_SCALE as u128)
+                .checked_add(conf_ratio_bps as u128)
+                .ok_or(CircuitError::MathOverflow)?;
+
+            // Cost = amount * uncertainty_factor * state_multiplier / 10_000
+            let intermediate = (amount as u128)
+                .checked_mul(uncertainty_factor)
+                .ok_or(CircuitError::MathOverflow)?
+                .checked_mul(state_multiplier)
+                .ok_or(CircuitError::MathOverflow)?;
+
+            let cost = intermediate / (BPS_SCALE as u128);
+            require!(cost <= u64::MAX as u128, CircuitError::MathOverflow);
+            Ok(cost as u64)
+        }
+    }
+}
+
+/// Computes risk budget restoration amount for risk-reducing actions.
+/// Repay and deposit restore risk capacity (bounded by the owner's initial budget).
+pub fn calculate_risk_budget_restoration(
+    action: AgentAction,
+    amount: u64,
+) -> u64 {
+    match action {
+        AgentAction::Repay | AgentAction::Deposit => amount,
+        _ => 0,
+    }
+}
 
 // ==============================================================
 // Unit Tests
@@ -1537,5 +1605,58 @@ mod tests {
             );
         }
     }
+
+    // -- Action Risk Cost & Budget Tests --
+
+    #[test]
+    fn test_action_risk_cost_repay_and_deposit_are_zero() {
+        assert_eq!(
+            calculate_action_risk_cost(AgentAction::Repay, 1_000_000, 20, MarketState::Safe).unwrap(),
+            0
+        );
+        assert_eq!(
+            calculate_action_risk_cost(AgentAction::Deposit, 5_000_000, 100, MarketState::Defensive).unwrap(),
+            0
+        );
+    }
+
+    #[test]
+    fn test_action_risk_cost_borrow_safe_state() {
+        // $1000 borrow, 50 BPS conf ratio, Safe state (multiplier 1)
+        // Cost = 1_000_000_000 * 10_050 * 1 / 10_000 = 1_005_000_000
+        let cost = calculate_action_risk_cost(AgentAction::Borrow, 1_000_000_000, 50, MarketState::Safe).unwrap();
+        assert_eq!(cost, 1_005_000_000);
+    }
+
+    #[test]
+    fn test_action_risk_cost_borrow_restricted_state() {
+        // $1000 borrow, 100 BPS conf ratio, Restricted state (multiplier 2)
+        // Cost = 1_000_000_000 * 10_100 * 2 / 10_000 = 2_020_000_000
+        let cost = calculate_action_risk_cost(AgentAction::Borrow, 1_000_000_000, 100, MarketState::Restricted).unwrap();
+        assert_eq!(cost, 2_020_000_000);
+    }
+
+    #[test]
+    fn test_action_risk_cost_borrow_defensive_state() {
+        // $1000 borrow, 200 BPS conf ratio, Defensive state (multiplier 4)
+        // Cost = 1_000_000_000 * 10_200 * 4 / 10_000 = 4_080_000_000
+        let cost = calculate_action_risk_cost(AgentAction::Borrow, 1_000_000_000, 200, MarketState::Defensive).unwrap();
+        assert_eq!(cost, 4_080_000_000);
+    }
+
+    #[test]
+    fn test_action_risk_cost_emergency_blocks_borrow() {
+        let err = calculate_action_risk_cost(AgentAction::Borrow, 1_000_000_000, 50, MarketState::Emergency);
+        assert!(err.is_err());
+    }
+
+    #[test]
+    fn test_risk_budget_restoration() {
+        assert_eq!(calculate_risk_budget_restoration(AgentAction::Repay, 500_000), 500_000);
+        assert_eq!(calculate_risk_budget_restoration(AgentAction::Deposit, 1_000_000), 1_000_000);
+        assert_eq!(calculate_risk_budget_restoration(AgentAction::Borrow, 1_000_000), 0);
+        assert_eq!(calculate_risk_budget_restoration(AgentAction::Withdraw, 1_000_000), 0);
+    }
 }
+
 

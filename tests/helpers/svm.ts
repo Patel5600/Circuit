@@ -75,6 +75,10 @@ export function isFailure(res: SvmResult): boolean {
   return res instanceof FailedTransactionMetadata;
 }
 
+export function isSuccess(res: SvmResult): boolean {
+  return res instanceof TransactionMetadata;
+}
+
 export function logsOf(res: SvmResult): string[] {
   if (res instanceof FailedTransactionMetadata) {
     return res.meta()?.logs() ?? [];

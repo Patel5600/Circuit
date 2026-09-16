@@ -184,5 +184,58 @@ pub mod circuit {
     pub fn liquidate_auction(ctx: Context<LiquidateAuction>, requested_repay: u64) -> Result<()> {
         instructions::liquidate_auction::handler(ctx, requested_repay)
     }
+
+    // -- Autonomous Strategy & Risk-Adaptive Capital Authority --
+
+    /// Delegate bounded execution authority to an autonomous stock strategy.
+    /// Owner retains asset ownership; agent receives constrained execution rights.
+    pub fn create_agent_authority(
+        ctx: Context<CreateAgentAuthority>,
+        allowed_actions: u8,
+        max_borrow_limit: u64,
+        max_withdraw_limit: u64,
+        risk_budget: u64,
+        expiry_ts: i64,
+    ) -> Result<()> {
+        instructions::create_agent_authority::handler(
+            ctx,
+            allowed_actions,
+            max_borrow_limit,
+            max_withdraw_limit,
+            risk_budget,
+            expiry_ts,
+        )
+    }
+
+    /// Update delegated agent authority policy parameters or revoke permissions (owner-only).
+    pub fn update_agent_authority(
+        ctx: Context<UpdateAgentAuthority>,
+        allowed_actions: u8,
+        max_borrow_limit: u64,
+        max_withdraw_limit: u64,
+        risk_budget: u64,
+        expiry_ts: i64,
+    ) -> Result<()> {
+        instructions::update_agent_authority::handler(
+            ctx,
+            allowed_actions,
+            max_borrow_limit,
+            max_withdraw_limit,
+            risk_budget,
+            expiry_ts,
+        )
+    }
+
+    /// Execute an authorized action proposed by an autonomous strategy.
+    /// Strictly gated onchain by Risk Ratchet, Capital Policy, and dynamic risk budget B_t.
+    pub fn execute_agent_action(
+        ctx: Context<ExecuteAgentAction>,
+        action: AgentAction,
+        amount: u64,
+        intent_nonce: u64,
+    ) -> Result<()> {
+        instructions::execute_agent_action::handler(ctx, action, amount, intent_nonce)
+    }
 }
+
 

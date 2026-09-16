@@ -49,6 +49,16 @@ export function Storm() {
 
   const blocked = index >= FAULTS.length;
 
+  const scrollToStep = (stepIndex: number) => {
+    if (!section.current) return;
+    const rect = section.current.getBoundingClientRect();
+    const currentScroll = window.scrollY;
+    const sectionTop = currentScroll + rect.top;
+    const travel = Math.max(1, rect.height - window.innerHeight);
+    const targetY = sectionTop + (stepIndex / (STEPS - 1)) * travel * 0.88;
+    window.scrollTo({ top: targetY, behavior: "smooth" });
+  };
+
   return (
     <section
       className={`sec pin storm${blocked ? " is-blocked" : ""}`}
@@ -78,6 +88,8 @@ export function Storm() {
                     (i === index ? " is-active" : "") +
                     (i <= index ? " is-on" : "")
                   }
+                  onClick={() => scrollToStep(i)}
+                  title={`Jump to condition: ${f.label}`}
                 >
                   <span className="flow__rail" aria-hidden="true">
                     <span className="flow__rail__fill" />

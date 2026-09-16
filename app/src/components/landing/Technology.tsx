@@ -53,6 +53,16 @@ export function Technology() {
   const active = STACK[index] ?? STACK[0];
   const mark = LOGOS[active.key];
 
+  const scrollToStep = (stepIndex: number) => {
+    if (!section.current) return;
+    const rect = section.current.getBoundingClientRect();
+    const currentScroll = window.scrollY;
+    const sectionTop = currentScroll + rect.top;
+    const travel = Math.max(1, rect.height - window.innerHeight);
+    const targetY = sectionTop + (stepIndex / (STACK.length - 1)) * travel * 0.88;
+    window.scrollTo({ top: targetY, behavior: "smooth" });
+  };
+
   return (
     <section
       className="sec pin tech"
@@ -76,7 +86,7 @@ export function Technology() {
             {/* The active dependency, held large. */}
             <div className="tech__focus" aria-live="polite">
               <span className="tech__focus__mark" key={active.key}>
-                {mark ? <Mark mark={mark} size={64} tone="brand" /> : null}
+                {mark ? <Mark mark={mark} size={48} tone="brand" /> : null}
               </span>
               <p className="tech__focus__role">{active.role}</p>
               <h3 className="tech__focus__name">{active.name}</h3>
@@ -96,12 +106,14 @@ export function Technology() {
                       (i < index ? " is-done" : "")
                     }
                     aria-current={i === index ? "step" : undefined}
+                    onClick={() => scrollToStep(i)}
+                    title={`Jump to technology: ${s.name}`}
                   >
                     <span className="flow__rail" aria-hidden="true">
                       <span className="flow__rail__fill" />
                     </span>
                     <span className="tech__item__mark">
-                      {m ? <Mark mark={m} size={22} tone={i === index ? "brand" : "mono"} /> : null}
+                      {m ? <Mark mark={m} size={20} tone={i === index ? "brand" : "mono"} /> : null}
                     </span>
                     <span className="tech__item__name">{s.name}</span>
                     <span className="tech__item__role">{s.role}</span>
@@ -114,59 +126,54 @@ export function Technology() {
           {/* Authority Boundary Matrix */}
           <div
             style={{
-              marginTop: "44px",
+              marginTop: "16px",
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-              gap: "16px",
-              paddingTop: "24px",
+              gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+              gap: "10px",
+              paddingTop: "12px",
               borderTop: "1px solid var(--border)",
             }}
           >
             <div
               style={{
-                padding: "18px",
+                padding: "8px 12px",
                 borderRadius: "4px",
                 background: "rgba(255, 255, 255, 0.02)",
                 border: "1px solid var(--border)",
               }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
-                <span style={{ fontSize: "11px", fontFamily: "var(--mono)", color: "var(--text-3)", letterSpacing: "0.08em" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                <span style={{ fontSize: "10.5px", fontFamily: "var(--mono)", color: "var(--text-3)", letterSpacing: "0.08em", fontWeight: 650 }}>
                   CLIENT (FRONTEND)
                 </span>
-                <span style={{ fontSize: "11px", fontFamily: "var(--mono)", color: "var(--text-3)" }}>
+                <span style={{ fontSize: "10.5px", fontFamily: "var(--mono)", color: "var(--text-3)" }}>
                   ≠ Authority
                 </span>
               </div>
-              <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "12px", color: "var(--text-2)", lineHeight: 1.7 }}>
-                <li>Displays state & estimates borrowing power</li>
-                <li>Prepares transaction instructions</li>
-                <li>Cannot override on-chain risk gates</li>
-              </ul>
+              <div style={{ fontSize: "11px", color: "var(--text-2)", lineHeight: 1.45 }}>
+                Displays state & prepares tx · Cannot override on-chain risk gates
+              </div>
             </div>
 
             <div
               style={{
-                padding: "18px",
+                padding: "8px 12px",
                 borderRadius: "4px",
                 background: "rgba(207, 173, 116, 0.04)",
                 border: "1px solid rgba(207, 173, 116, 0.25)",
               }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
-                <span style={{ fontSize: "11px", fontFamily: "var(--mono)", color: "var(--accent)", letterSpacing: "0.08em" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                <span style={{ fontSize: "10.5px", fontFamily: "var(--mono)", color: "var(--accent)", letterSpacing: "0.08em", fontWeight: 650 }}>
                   PROGRAM (SOLANA SBF)
                 </span>
-                <span style={{ fontSize: "11px", fontFamily: "var(--mono)", color: "var(--accent)", fontWeight: 600 }}>
+                <span style={{ fontSize: "10.5px", fontFamily: "var(--mono)", color: "var(--accent)", fontWeight: 700 }}>
                   = Authority
                 </span>
               </div>
-              <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "12px", color: "var(--text-1)", lineHeight: 1.7 }}>
-                <li>Validates accounts, signer PDAs & vaults</li>
-                <li>Evaluates oracle price freshness & uncertainty</li>
-                <li>Derives Capital Policy & enforces Effective LTV</li>
-                <li>Settles bounded Dutch recovery auctions</li>
-              </ul>
+              <div style={{ fontSize: "11px", color: "var(--text-1)", lineHeight: 1.45 }}>
+                Validates feeds & signers · Enforces Capital Policy · Settles Dutch auctions
+              </div>
             </div>
           </div>
         </div>

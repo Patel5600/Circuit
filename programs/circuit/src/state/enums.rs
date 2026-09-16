@@ -137,3 +137,72 @@ impl Default for AuctionStatus {
         AuctionStatus::Active
     }
 }
+
+// --------------------------------------------------------------
+// AgentAction - canonical action types an autonomous strategy may propose
+// --------------------------------------------------------------
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug, InitSpace)]
+pub enum AgentAction {
+    Deposit,
+    Borrow,
+    Repay,
+    Withdraw,
+}
+
+impl Default for AgentAction {
+    fn default() -> Self {
+        AgentAction::Deposit
+    }
+}
+
+// --------------------------------------------------------------
+// PermissionDenialReason - machine-readable reasons for action authorization or denial
+// --------------------------------------------------------------
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug, InitSpace)]
+pub enum PermissionDenialReason {
+    /// Action is authorized
+    Ok,
+    /// Protocol is globally paused
+    ProtocolPaused,
+    /// Asset collateral is disabled
+    AssetDisabled,
+    /// Risk Ratchet is in Restricted state
+    RiskRestricted,
+    /// Risk Ratchet is in Defensive state
+    RiskDefensive,
+    /// Risk Ratchet is in Emergency state
+    RiskEmergency,
+    /// Capital Policy prohibits borrowing in this risk state
+    BorrowNotPermitted,
+    /// Capital Policy prohibits collateral withdrawal with outstanding debt
+    WithdrawNotPermitted,
+    /// Agent delegation authority has expired
+    AgentAuthorityExpired,
+    /// Action flag is not granted in the agent's delegation bitmask
+    AgentActionNotPermitted,
+    /// Borrow exceeds agent authority limit
+    AgentBorrowLimitExceeded,
+    /// Withdrawal exceeds agent authority limit
+    AgentWithdrawLimitExceeded,
+    /// Action risk cost C(a) exceeds agent's remaining risk budget B_t
+    InsufficientRiskBudget,
+    /// Resulting health factor would fall below protocol threshold
+    HealthFactorTooLow,
+    /// Proposed borrow exceeds effective LTV capacity
+    EffectiveLtvExceeded,
+    /// Reference market (NYSE) is currently closed
+    MarketClosed,
+    /// Pyth oracle confidence interval is too wide
+    ConfidenceTooWide,
+    /// Pyth oracle price is stale or unverified
+    OracleUnsafe,
+}
+
+impl Default for PermissionDenialReason {
+    fn default() -> Self {
+        PermissionDenialReason::Ok
+    }
+}
+

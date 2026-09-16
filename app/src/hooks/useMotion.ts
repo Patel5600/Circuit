@@ -21,30 +21,20 @@ import { useEffect, useRef, useState } from "react";
  * moves, which reads as jitter rather than as depth.
  */
 
-/** Sampling ceiling. 30Hz is plenty for scroll-linked work. */
-const SAMPLE_MS = 1000 / 30;
-
 const clamp01 = (n: number) => (n < 0 ? 0 : n > 1 ? 1 : n);
 
 /**
- * Run `sample` on scroll and resize, coalesced into one rAF and rate-limited to
- * SAMPLE_MS. Returns a teardown.
+ * Run `sample` on scroll and resize, coalesced into requestAnimationFrame
+ * at the screen's native refresh rate (60Hz / 120Hz) for fluid 40fps+ scrolling.
+ * Returns a teardown.
  */
 function trackScroll(sample: () => void): () => void {
   let frame = 0;
-  let last = 0;
   let alive = true;
 
-  const run = (now: number) => {
+  const run = () => {
     frame = 0;
     if (!alive) return;
-    if (now - last < SAMPLE_MS) {
-      // Too soon. Re-arm rather than drop the update, so the resting position
-      // after a fling is always sampled.
-      frame = requestAnimationFrame(run);
-      return;
-    }
-    last = now;
     sample();
   };
 
@@ -55,7 +45,7 @@ function trackScroll(sample: () => void): () => void {
 
   sample();
   window.addEventListener("scroll", schedule, { passive: true });
-  window.addEventListener("resize", schedule);
+  window.addEventListener("resize", schedule, { passive: true });
 
   return () => {
     alive = false;
