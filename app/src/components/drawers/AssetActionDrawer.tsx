@@ -5,7 +5,7 @@ import { Drawer } from "../ui/Drawer";
 import { Button, Card, DataRow, Icon, Notice, Pill, Segmented } from "../ui";
 import { AssetLogo } from "../brand/AssetLogo";
 import { TransactionStatus } from "../transactions/TransactionModal";
-import { useAction, ActionType } from "../../context/ActionContext";
+import { useAction, ActionType, ActionIntent } from "../../context/ActionContext";
 import { useProtocolState } from "../../hooks/useProtocolState";
 import { useTransaction } from "../../hooks/useTransaction";
 import { useCircuitDomain } from "../../lib/domain/context";
@@ -24,16 +24,24 @@ import { derivePriceAccount } from "../../lib/pyth";
 import { PYTH_FEED_ID } from "../../config";
 
 export function AssetActionDrawer() {
-  const { actionIntent, closeAction, setActionType } = useAction();
+  const { actionIntent } = useAction();
+
+  if (!actionIntent || !actionIntent.market) return null;
+
+  return <AssetActionDrawerContent intent={actionIntent} />;
+}
+
+function AssetActionDrawerContent({ intent }: { intent: ActionIntent }) {
+  const { closeAction, setActionType } = useAction();
   const { connected, publicKey } = useWallet();
   const { invalidate, risk: domainRisk, credit } = useCircuitDomain();
 
-  const market = actionIntent?.market ?? null;
-  const action = actionIntent?.type ?? "deposit";
+  const market = intent.market;
+  const action = intent.type;
 
   // Authoritative live state queried specifically for this market
-  const s = useProtocolState(market ?? undefined);
-  const tx = useTransaction(market ?? undefined);
+  const s = useProtocolState(market);
+  const tx = useTransaction(market);
 
   const [amount, setAmount] = useState("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -43,9 +51,7 @@ export function AssetActionDrawer() {
     setAmount("");
     setErrorMsg(null);
     tx.reset?.();
-  }, [actionIntent?.market?.symbol, actionIntent?.type]);
-
-  if (!actionIntent || !market) return null;
+  }, [intent.market.symbol, intent.type]);
 
   const quoteSymbol = market.quoteSymbol || "USDC";
   const displaySymbol = market.symbol;
@@ -187,7 +193,7 @@ export function AssetActionDrawer() {
 
   return (
     <Drawer
-      open={Boolean(actionIntent)}
+      open={true}
       onClose={closeAction}
       title={`${market.name} (${tokenSymbol})`}
       subtitle={`Authoritative Contextual Execution · ${market.symbol}/${quoteSymbol}`}
