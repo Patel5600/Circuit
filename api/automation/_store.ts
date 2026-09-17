@@ -26,22 +26,48 @@ export function syncTasks(owner: string, tasks: AutomationTask[]): void {
   }
 }
 
+export function createTask(task: AutomationTask): AutomationTask {
+  taskStore.set(task.id, task);
+  return task;
+}
+
 export function getAllActiveTasks(): AutomationTask[] {
   return Array.from(taskStore.values()).filter(
     t => t.status === "ACTIVE" || t.status === "WAITING"
   );
 }
 
+export function getTasksByOwner(owner: string): AutomationTask[] {
+  return Array.from(taskStore.values()).filter(t => t.owner === owner);
+}
+
 export function getTask(id: string): AutomationTask | undefined {
   return taskStore.get(id);
 }
 
-export function updateTask(id: string, patch: Partial<AutomationTask>): void {
+export function updateTask(id: string, patch: Partial<AutomationTask>): AutomationTask | undefined {
   const existing = taskStore.get(id);
-  if (existing) taskStore.set(id, { ...existing, ...patch });
+  if (existing) {
+    const updated = { ...existing, ...patch };
+    taskStore.set(id, updated);
+    return updated;
+  }
+  return undefined;
+}
+
+export function deleteTask(id: string, owner?: string): boolean {
+  const existing = taskStore.get(id);
+  if (!existing) return false;
+  if (owner && existing.owner !== owner) return false;
+  return taskStore.delete(id);
 }
 
 export function logExecution(owner: string, execId: string, result: unknown): void {
   executionLog.unshift({ id: execId, ts: Date.now(), owner, result });
   if (executionLog.length > MAX_EXEC_LOG) executionLog.length = MAX_EXEC_LOG;
+}
+
+export function getExecutionLogs(owner?: string): Array<{ id: string; ts: number; owner: string; result: unknown }> {
+  if (!owner) return executionLog;
+  return executionLog.filter(l => l.owner === owner);
 }

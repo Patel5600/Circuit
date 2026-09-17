@@ -20,7 +20,7 @@ import { WatchesPanel } from "../components/autonomous/WatchesPanel";
 import { StrategiesPanel } from "../components/autonomous/StrategiesPanel";
 import { ExecutionFeed } from "../components/autonomous/ExecutionFeed";
 import { PolicyPreview } from "../components/autonomous/PolicyPreview";
-import { loadTasks, syncToServer, parseTaskProposal } from "../lib/automation/store";
+import { loadTasks, loadExecutions, syncToServer, parseTaskProposal, subscribeTasks } from "../lib/automation/store";
 import type { ParsedTaskProposal } from "../lib/automation/types";
 
 type AgentState =
@@ -274,7 +274,7 @@ export default function Autonomous() {
   } = useCircuitDomain();
 
   const [activeTab, setActiveTab] = useState<TabId>("CHAT");
-  const [taskCounts, setTaskCounts] = useState({ total: 0, watches: 0, strategies: 0 });
+  const [taskCounts, setTaskCounts] = useState({ total: 0, watches: 0, strategies: 0, executions: 0 });
 
   const [msgs, setMsgs] = useState<ChatMessage[]>([{
     id: uid(), role: "system",
@@ -296,13 +296,18 @@ export default function Autonomous() {
     const all = loadTasks().filter(t => t.owner === wallet.address || !wallet.address);
     const watches = all.filter(t => ["WATCH", "OBSERVE", "ANALYZE", "REPORT"].includes(t.type)).length;
     const strategies = all.filter(t => ["REPAY", "BORROW", "DEPOSIT", "WITHDRAW", "RECOVER"].includes(t.type)).length;
-    setTaskCounts({ total: all.length, watches, strategies });
+    const execs = loadExecutions().filter(e => e.owner === wallet.address || !wallet.address).length;
+    setTaskCounts({ total: all.length, watches, strategies, executions: execs });
   }, [wallet.address]);
 
   useEffect(() => {
     updateCounts();
+    const unsub = subscribeTasks(updateCounts);
     const id = setInterval(updateCounts, 5_000);
-    return () => clearInterval(id);
+    return () => {
+      unsub();
+      clearInterval(id);
+    };
   }, [updateCounts]);
 
   // Sync to server when wallet connects or changes
@@ -451,7 +456,7 @@ export default function Autonomous() {
           <div style={{ display: "inline-flex", background: "var(--surface-2)", borderRadius: "var(--r-sm, 6px)", padding: 2, border: "1px solid var(--border)", marginLeft: 8 }}>
             {(["CHAT", "TASKS", "WATCHES", "STRATEGIES", "EXECUTIONS"] as TabId[]).map(tab => {
               const isActive = activeTab === tab;
-              const count = tab === "TASKS" ? taskCounts.total : tab === "WATCHES" ? taskCounts.watches : tab === "STRATEGIES" ? taskCounts.strategies : null;
+              const count = tab === "TASKS" ? taskCounts.total : tab === "WATCHES" ? taskCounts.watches : tab === "STRATEGIES" ? taskCounts.strategies : tab === "EXECUTIONS" ? taskCounts.executions : null;
               const label = tab === "STRATEGIES" ? "AUTO MANAGE" : tab;
               return (
                 <button

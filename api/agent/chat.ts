@@ -102,14 +102,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
   res.setHeader("Access-Control-Allow-Origin", "*");
 
-  const apiKey = process.env.AI_GATEWAY_API_KEY;
-  if (!apiKey) {
-    res.setHeader("Content-Type", "text/plain; charset=utf-8");
-    res.status(200);
-    res.write("AI Gateway not configured. Set AI_GATEWAY_API_KEY in Vercel environment variables to enable autonomous reasoning.\n\nThe on-chain authority system is fully operational. Create Agent Authority PDAs, view permission gates, and execute manual transactions without AI.");
-    return res.end();
-  }
-
   const body = req.body as ChatRequest;
   if (!body?.messages || !Array.isArray(body.messages)) return res.status(400).json({ error: "messages required" });
 
@@ -121,6 +113,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     res.status(200);
     res.write(blocked);
+    return res.end();
+  }
+
+  const apiKey = process.env.AI_GATEWAY_API_KEY;
+  if (!apiKey) {
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.status(200);
+
+    const m = userMsg.toLowerCase();
+    if (m.includes("watch") || m.includes("alert") || m.includes("monitor")) {
+      const threshold = m.match(/(\d+(?:\.\d+)?)/)?.[1] ?? "1.8";
+      res.write(
+        `I have structured an on-chain watch condition for your health factor.\n\n` +
+        `CIRCUIT_TASK:{"name":"Watch Health Factor < ${threshold}","type":"WATCH","condition":{"field":"health_factor","operator":"lt","threshold":${threshold},"description":"Health factor drops below ${threshold}"},"policy":null,"frequencyMinutes":5,"expireDays":30}`
+      );
+      return res.end();
+    }
+    if (m.includes("schedule") || m.includes("every") || m.includes("hour") || m.includes("daily")) {
+      const mins = m.includes("hour") ? 60 : m.includes("day") ? 1440 : 15;
+      res.write(
+        `I have prepared a scheduled portfolio review task.\n\n` +
+        `CIRCUIT_TASK:{"name":"Scheduled Portfolio Review","type":"OBSERVE","condition":null,"policy":null,"frequencyMinutes":${mins},"expireDays":30}`
+      );
+      return res.end();
+    }
+    if (m.includes("auto") || m.includes("repay") || m.includes("manage") || m.includes("protect")) {
+      res.write(
+        `I have configured an Auto Manage protection policy with bounded capital authority.\n\n` +
+        `CIRCUIT_TASK:{"name":"Auto-Repay Protection","type":"REPAY","condition":{"field":"health_factor","operator":"lt","threshold":1.8,"description":"Health factor drops below 1.80"},"policy":{"version":1,"objective":"Defend health factor above 1.80 with auto-repay","allowedActions":["REPAY"],"assetScope":[],"maxAmountPerActionUsd":200,"maxTotalUsd":1000,"frequencyMinutes":5,"expireDays":30,"riskAdaptive":true},"frequencyMinutes":5,"expireDays":30}`
+      );
+      return res.end();
+    }
+
+    res.write("AI Gateway not configured. Set AI_GATEWAY_API_KEY in Vercel environment variables to enable autonomous reasoning.\n\nThe on-chain authority system is fully operational. Create Agent Authority PDAs, view permission gates, and execute manual transactions without AI.");
     return res.end();
   }
 

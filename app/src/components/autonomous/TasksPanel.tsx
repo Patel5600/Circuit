@@ -3,7 +3,7 @@
  * Shows all automation tasks with status, last result, next run.
  */
 import React, { useState, useEffect, useCallback } from "react";
-import { loadTasks, pauseTask, resumeTask, deleteTask, triggerNow } from "../../lib/automation/store";
+import { loadTasks, pauseTask, resumeTask, deleteTask, triggerNow, subscribeTasks } from "../../lib/automation/store";
 import type { AutomationTask, ExecutionRecord } from "../../lib/automation/types";
 
 function statusColor(s: string): string {
@@ -44,7 +44,12 @@ export function TasksPanel({ owner, onAddTask }: { owner: string; onAddTask: () 
   const [lastResults, setLastResults] = useState<Record<string, ExecutionRecord>>({});
 
   const refresh = useCallback(() => setTasks(loadTasks().filter(t => t.owner === owner || !owner)), [owner]);
-  useEffect(() => { refresh(); const id = setInterval(refresh, 10_000); return () => clearInterval(id); }, [refresh]);
+  useEffect(() => {
+    refresh();
+    const unsub = subscribeTasks(refresh);
+    const id = setInterval(refresh, 10_000);
+    return () => { unsub(); clearInterval(id); };
+  }, [refresh]);
 
   const handlePause = useCallback((id: string) => { pauseTask(id); refresh(); }, [refresh]);
   const handleResume = useCallback((id: string) => { resumeTask(id); refresh(); }, [refresh]);

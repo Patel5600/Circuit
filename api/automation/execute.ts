@@ -29,6 +29,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       taskType: task.type,
       owner,
     };
+    logExecution(owner, result.executionId, record);
     return res.status(200).json(record);
   } catch (err) {
     console.error("Execute pipeline error:", err);

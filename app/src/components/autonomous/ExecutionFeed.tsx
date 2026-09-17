@@ -3,7 +3,7 @@
  * Real-time log of all automation execution records from localStorage.
  */
 import React, { useState, useEffect, useCallback } from "react";
-import { loadExecutions } from "../../lib/automation/store";
+import { loadExecutions, subscribeTasks } from "../../lib/automation/store";
 import type { ExecutionRecord } from "../../lib/automation/types";
 
 function outcomeColor(o: string): string {
@@ -31,7 +31,12 @@ export function ExecutionFeed({ owner }: { owner: string }) {
     setRecords(owner ? all.filter(r => r.owner === owner) : all);
   }, [owner]);
 
-  useEffect(() => { refresh(); const id = setInterval(refresh, 5_000); return () => clearInterval(id); }, [refresh]);
+  useEffect(() => {
+    refresh();
+    const unsub = subscribeTasks(refresh);
+    const id = setInterval(refresh, 5_000);
+    return () => { unsub(); clearInterval(id); };
+  }, [refresh]);
 
   if (records.length === 0) {
     return (

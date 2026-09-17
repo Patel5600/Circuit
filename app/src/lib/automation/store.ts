@@ -33,7 +33,23 @@ export function loadTasks(): AutomationTask[] {
 export function saveTasks(tasks: AutomationTask[]): void {
   try {
     localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("circuit_tasks_changed"));
+    }
   } catch { /* storage full — ignore */ }
+}
+
+export function subscribeTasks(cb: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  const handler = () => cb();
+  window.addEventListener("circuit_tasks_changed", handler);
+  window.addEventListener("circuit_executions_changed", handler);
+  window.addEventListener("storage", handler);
+  return () => {
+    window.removeEventListener("circuit_tasks_changed", handler);
+    window.removeEventListener("circuit_executions_changed", handler);
+    window.removeEventListener("storage", handler);
+  };
 }
 
 export function createTask(
@@ -63,6 +79,17 @@ export function createTask(
   };
   const tasks = loadTasks();
   saveTasks([...tasks, task]);
+
+  // Push to server asynchronously
+  if (owner) {
+    syncToServer(owner);
+    fetch("/api/automation/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(task),
+    }).catch(() => {});
+  }
+
   return task;
 }
 
@@ -75,6 +102,17 @@ export function updateTask(id: string, patch: Partial<AutomationTask>): Automati
   void _ignored;
   tasks[idx] = { ...tasks[idx], ...safePatch };
   saveTasks(tasks);
+
+  // Sync patch to server
+  const updated = tasks[idx];
+  if (updated && updated.owner) {
+    fetch("/api/automation/tasks", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, patch: safePatch, owner: updated.owner }),
+    }).catch(() => {});
+  }
+
   return tasks[idx];
 }
 
@@ -87,8 +125,17 @@ export function resumeTask(id: string): void {
 }
 
 export function deleteTask(id: string): void {
-  const tasks = loadTasks().filter(t => t.id !== id);
-  saveTasks(tasks);
+  const tasks = loadTasks();
+  const target = tasks.find(t => t.id === id);
+  const remaining = tasks.filter(t => t.id !== id);
+  saveTasks(remaining);
+
+  // Sync deletion to server
+  if (target && target.owner) {
+    fetch(`/api/automation/tasks?id=${encodeURIComponent(id)}&owner=${encodeURIComponent(target.owner)}`, {
+      method: "DELETE",
+    }).catch(() => {});
+  }
 }
 
 export function loadExecutions(): ExecutionRecord[] {
@@ -106,6 +153,9 @@ export function addExecution(record: ExecutionRecord): void {
   const updated = [record, ...execs].slice(0, MAX_EXECUTIONS_HISTORY);
   try {
     localStorage.setItem(EXECUTIONS_KEY, JSON.stringify(updated));
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("circuit_executions_changed"));
+    }
   } catch { /* ignore */ }
 }
 
