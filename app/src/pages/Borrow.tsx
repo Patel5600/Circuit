@@ -251,7 +251,7 @@ export default function Borrow() {
         >
           <div className="row g-10" style={{ alignItems: "center" }}>
             <Pill tone={controlMode === "MANUAL" ? "neutral" : "warning"} withDot>
-              {controlMode === "MANUAL" ? "MANUAL MODE" : "AUTONOMOUS MODE"}
+              {controlMode === "MANUAL" ? "MANUAL MODE" : "AGENT MODE"}
             </Pill>
             <span style={{ fontSize: 12.5, color: "var(--text-2)" }}>
               {controlMode === "MANUAL"

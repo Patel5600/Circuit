@@ -995,7 +995,7 @@ export default function Autonomous() {
   const initialGreeting = useMemo(() => {
     if (!wallet.address) {
       return (
-        "Circuit Autonomous Agent online.\n\n" +
+        "Circuit Agent online.\n\n" +
         "Connect your Solana Devnet wallet to inspect your live positions, evaluate risk ratchet states, and test bounded autonomous permissions."
       );
     }
@@ -1006,7 +1006,7 @@ export default function Autonomous() {
       : "No open positions";
 
     return (
-      `Circuit Autonomous Agent online.\n\n` +
+      `Circuit Agent online.\n\n` +
       `Connected wallet: ${shortenAddress(wallet.address)}\n` +
       `• Total Collateral: $${portfolio.totalCollateralUsd.toFixed(2)}\n` +
       `• Outstanding Debt: $${portfolio.totalDebtUsd.toFixed(2)}\n` +
@@ -1294,7 +1294,7 @@ export default function Autonomous() {
       <div style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 16px", borderBottom: "1px solid var(--border)", background: "var(--surface-1)", gap: 10, flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
           <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", color: "var(--text)", fontFamily: "var(--mono)", flexShrink: 0 }}>
-            AUTONOMOUS
+            AGENT
           </span>
           <span
             style={{

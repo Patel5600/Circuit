@@ -52,7 +52,7 @@ const TITLES: Record<string, string> = {
   "/learn":             "How it works",
   "/app/verify":        "Verification",
   "/app/demo":          "Interactive Demo",
-  "/app/autonomous":    "Autonomous Agent",
+  "/app/autonomous":    "Agent",
 };
 
 function TitleSync() {

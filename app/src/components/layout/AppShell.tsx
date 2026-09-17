@@ -25,46 +25,7 @@ const SECONDARY: { to: string; label: string; icon: IconName }[] = [
   { to: "/app/faucet", label: "Faucet", icon: "faucet" },
 ];
 
-function SystemHealthPill({ onClick }: { onClick: () => void }) {
-  const { systemHealth } = useCircuitDomain();
-  const isHealthy = systemHealth.status === "SYSTEM_HEALTHY";
-  const latency = systemHealth.rpcLatencyMs;
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        background: "var(--surface-2)",
-        border: "1px solid var(--border)",
-        borderRadius: "var(--r-sm, 6px)",
-        padding: "4px 8px",
-        cursor: "pointer",
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-        fontSize: 11,
-        fontFamily: "var(--mono)",
-        color: "var(--text-2)",
-        transition: "all var(--t-fast)",
-      }}
-      title="Solana Devnet RPC Connectivity & Diagnostics"
-    >
-      <span
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: "50%",
-          background: isHealthy ? "var(--mint, #79c2a4)" : "var(--warning, #cfad74)",
-          boxShadow: isHealthy ? "0 0 6px rgba(121, 194, 164, 0.4)" : "none",
-          display: "inline-block",
-        }}
-      />
-      <span>RPC {latency > 0 ? `${latency}ms` : "OK"}</span>
-    </button>
-  );
-}
-
-function Header({ onOpenHealth }: { onOpenHealth: () => void }) {
+function Header({ onOpenHealth }: { onOpenHealth?: () => void }) {
   const navigate = useNavigate();
   const location = useLocation();
   const isAutonomous = location.pathname.startsWith("/app/autonomous");
@@ -91,13 +52,13 @@ function Header({ onOpenHealth }: { onOpenHealth: () => void }) {
 
   return (
     <header className="appbar">
-      <div className="row g-8" style={{ alignItems: "center", flexShrink: 0 }}>
+      <div className="row g-8 appbar__left" style={{ alignItems: "center", flexShrink: 0 }}>
         <NavLink to="/" aria-label="circuit home" style={{ display: "flex", alignItems: "center" }}>
           <CircuitWordmark size={22} />
         </NavLink>
       </div>
 
-      <div className="appbar__center" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+      <div className="appbar__center">
         {/* Authoritative Execution Actor Switcher */}
         <div
           style={{
@@ -118,7 +79,7 @@ function Header({ onOpenHealth }: { onOpenHealth: () => void }) {
               }
             }}
             style={{
-              padding: "5px 10px",
+              padding: "5px 12px",
               fontSize: 11,
               fontWeight: !isAutonomous ? 700 : 500,
               color: !isAutonomous ? "var(--text-1)" : "var(--text-3)",
@@ -141,7 +102,7 @@ function Header({ onOpenHealth }: { onOpenHealth: () => void }) {
               }
             }}
             style={{
-              padding: "5px 9px",
+              padding: "5px 10px",
               fontSize: 11,
               fontWeight: isAutonomous ? 700 : 500,
               color: isAutonomous ? "var(--accent)" : "var(--text-3)",
@@ -154,9 +115,9 @@ function Header({ onOpenHealth }: { onOpenHealth: () => void }) {
               gap: 5,
               transition: "all var(--t-fast)",
             }}
-            title="Autonomous Mode: Agent execution within your risk limits"
+            title="Agent Mode: Bounded execution within your risk limits"
           >
-            <span>AUTONOMOUS</span>
+            <span>AGENT</span>
             <span
               className="appbar__mode-badge"
               style={{
@@ -192,13 +153,9 @@ function Header({ onOpenHealth }: { onOpenHealth: () => void }) {
             </span>
           </button>
         </div>
-
-        <div className="appbar__hide-mobile">
-          <SystemHealthPill onClick={onOpenHealth} />
-        </div>
       </div>
 
-      <div className="row g-8" style={{ alignItems: "center", flexShrink: 0 }}>
+      <div className="row g-8 appbar__right" style={{ alignItems: "center", flexShrink: 0 }}>
         <div className="appbar__hide-mobile">
           <NetworkSelector />
         </div>

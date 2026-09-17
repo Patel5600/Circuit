@@ -637,6 +637,20 @@ svg {
   }
 }
 
+.appbar__center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (min-width: 641px) {
+  .appbar__center {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+}
+
 @media (max-width: 640px) {
   .appbar {
     padding: 0 10px;

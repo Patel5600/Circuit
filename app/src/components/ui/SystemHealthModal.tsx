@@ -83,7 +83,7 @@ export function SystemHealthModal({
           </div>
 
           <div className="row between g-8" style={{ alignItems: "center" }}>
-            <span style={{ fontSize: 12.5, fontWeight: 600 }}>AUTONOMOUS</span>
+            <span style={{ fontSize: 12.5, fontWeight: 600 }}>AGENT</span>
             <Pill
               tone={
                 hasActiveAuthority

@@ -275,7 +275,7 @@ export default function Dashboard() {
                 </span>
                 <div>
                   <div style={{ fontSize: 11, fontFamily: "var(--mono)", color: "var(--text-3)", letterSpacing: "0.06em" }}>
-                    AUTONOMOUS CAPITAL CONTROL
+                    AGENT CAPITAL CONTROL
                   </div>
                   <div style={{ fontSize: 14, fontWeight: 700, marginTop: 1 }}>
                     {domain.agentAuthority.strategyName} ({display.symbol} Collateral)

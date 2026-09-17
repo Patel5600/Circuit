@@ -194,7 +194,7 @@ export default function Position() {
                   fontFamily: "var(--mono)",
                 }}
               >
-                Switch to Autonomous Mode &rarr;
+                Switch to Agent Mode &rarr;
               </button>
             </div>
           ) : (
@@ -213,7 +213,7 @@ export default function Position() {
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#60a5fa" }} />
                 <span>
-                  <strong>AUTONOMOUS STRATEGY MODE</strong> — Delegated execution active. Bounded by Circuit Risk Ratchet, Capital Policy, and agent authorization limits.
+                  <strong>AGENT STRATEGY MODE</strong> — Delegated execution active. Bounded by Circuit Risk Ratchet, Capital Policy, and agent authorization limits.
                 </span>
               </div>
               <button
