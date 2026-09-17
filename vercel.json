@@ -3,6 +3,12 @@
   "installCommand": "npm --prefix app ci",
   "buildCommand": "npm --prefix app run build",
   "outputDirectory": "app/dist",
+  "crons": [
+    {
+      "path": "/api/automation/tick",
+      "schedule": "*/5 * * * *"
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/(.*)",

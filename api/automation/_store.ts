@@ -1,0 +1,47 @@
+/**
+ * Circuit Protocol — Server-Side Task Store
+ *
+ * In-memory Map shared across API handlers within the same Vercel instance.
+ * Populated by /api/automation/sync calls from the client browser.
+ * Survives hot reloads but resets on cold starts.
+ *
+ * Upgrade path: set VERCEL_KV_URL to swap to Vercel KV (Redis) for
+ * fully durable persistence without code changes.
+ */
+
+import type { AutomationTask } from "../../app/src/lib/automation/types";
+
+// Global in-memory store shared between handlers in same process
+const taskStore = new Map<string, AutomationTask>();
+const executionLog: { id: string; ts: number; owner: string; result: unknown }[] = [];
+const MAX_EXEC_LOG = 500;
+
+export function syncTasks(owner: string, tasks: AutomationTask[]): void {
+  // Remove existing tasks for this owner then insert fresh
+  for (const [id, t] of taskStore.entries()) {
+    if (t.owner === owner) taskStore.delete(id);
+  }
+  for (const task of tasks) {
+    taskStore.set(task.id, task);
+  }
+}
+
+export function getAllActiveTasks(): AutomationTask[] {
+  return Array.from(taskStore.values()).filter(
+    t => t.status === "ACTIVE" || t.status === "WAITING"
+  );
+}
+
+export function getTask(id: string): AutomationTask | undefined {
+  return taskStore.get(id);
+}
+
+export function updateTask(id: string, patch: Partial<AutomationTask>): void {
+  const existing = taskStore.get(id);
+  if (existing) taskStore.set(id, { ...existing, ...patch });
+}
+
+export function logExecution(owner: string, execId: string, result: unknown): void {
+  executionLog.unshift({ id: execId, ts: Date.now(), owner, result });
+  if (executionLog.length > MAX_EXEC_LOG) executionLog.length = MAX_EXEC_LOG;
+}

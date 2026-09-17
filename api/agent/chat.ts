@@ -72,7 +72,9 @@ RULES:
 - Analyze feasibility using only the real numbers above
 - When proposing a strategy, list: objective, constraints, actions with amounts
 - If blocked, state the exact Circuit reason code (RISK_STATE_RESTRICTED, LTV_EXCEEDED, AGENT_UNAUTHORIZED, etc.)
-- Be concise and direct. No fluff.`;
+- When the user asks to SCHEDULE, WATCH, or AUTO MANAGE (e.g. "Watch my health factor", "Keep HF above 1.8", "Check risk every hour"), explain the plan clearly AND append a machine-readable JSON task proposal on its own line:
+CIRCUIT_TASK:{"name":"<Short Title>","type":"<WATCH|OBSERVE|REPAY|BORROW|RECOVER|REPORT>","condition":{"field":"<health_factor|risk_state|borrow_capacity_usd|collateral_usd|oracle_staleness_ms|ltv_bps>","operator":"<lt|gt|eq|lte|gte>","threshold":<value>,"description":"<human readable condition>"} or null,"policy":{"version":1,"objective":"<objective string>","allowedActions":["<REPAY|BORROW|...>"],"assetScope":["<NVDA|AAPL|etc>"],"maxAmountPerActionUsd":<number>,"maxTotalUsd":<number>,"frequencyMinutes":<1|5|15|60|1440>,"expireDays":<number>,"riskAdaptive":true} or null,"frequencyMinutes":<1|5|15|60|1440>,"expireDays":<number>}
+- Be concise and direct. No fluff. Never fabricate fake balances or transactions.`;
 }
 
 function preflightCheck(snap: ProtocolSnapshot, msg: string): string | null {

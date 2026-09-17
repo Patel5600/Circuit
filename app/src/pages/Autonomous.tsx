@@ -1,10 +1,12 @@
 /**
  * Circuit Protocol — Autonomous Agent Workspace
  *
- * Full-page workspace (NOT a drawer). Layout:
- *   [Header: AUTONOMOUS • state badge • authority status]
- *   [Chat 55%] | [Strategy + Live State + Authority 45%]
- *              | [Execution Timeline 180px]
+ * Full-page workspace supporting:
+ *   1. CHAT & STRATEGY PLANNER
+ *   2. SCHEDULED TASKS (Vercel Cron powered)
+ *   3. REAL ON-CHAIN WATCHES
+ *   4. AUTO MANAGE (Bounded policy auto-repay / recovery)
+ *   5. EXECUTION FEED (Live verified Devnet history)
  *
  * Lazy-loaded — zero impact on Dashboard startup.
  * Zero fake data. If nothing executes: IDLE.
@@ -13,10 +15,19 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { useNavigate } from "react-router-dom";
 import { useCircuitDomain } from "../lib/domain/context";
 import { DEPLOYED_MARKETS } from "../data/markets-registry";
+import { TasksPanel } from "../components/autonomous/TasksPanel";
+import { WatchesPanel } from "../components/autonomous/WatchesPanel";
+import { StrategiesPanel } from "../components/autonomous/StrategiesPanel";
+import { ExecutionFeed } from "../components/autonomous/ExecutionFeed";
+import { PolicyPreview } from "../components/autonomous/PolicyPreview";
+import { loadTasks, syncToServer, parseTaskProposal } from "../lib/automation/store";
+import type { ParsedTaskProposal } from "../lib/automation/types";
 
 type AgentState =
   | "IDLE" | "PLANNING" | "AWAITING_APPROVAL" | "CHECKING_PERMISSION"
   | "EXECUTING" | "CONFIRMING" | "COMPLETED" | "BLOCKED" | "FAILED" | "PAUSED" | "EXPIRED";
+
+type TabId = "CHAT" | "TASKS" | "WATCHES" | "STRATEGIES" | "EXECUTIONS";
 
 interface ChatMessage {
   id: string;
@@ -24,6 +35,7 @@ interface ChatMessage {
   content: string;
   timestamp: number;
   streaming?: boolean;
+  taskProposal?: ParsedTaskProposal | null;
 }
 
 interface StrategyAction {
@@ -75,9 +87,16 @@ function StateBadge({ state }: { state: AgentState }) {
   );
 }
 
-function Bubble({ msg }: { msg: ChatMessage }) {
+function Bubble({ msg, owner, onTaskCreated }: { msg: ChatMessage; owner: string; onTaskCreated: (name: string) => void }) {
   const isUser = msg.role === "user";
   const isSys = msg.role === "system";
+  const [dismissed, setDismissed] = useState(false);
+
+  // Clean raw CIRCUIT_TASK json from display
+  const displayContent = useMemo(() => {
+    return msg.content.replace(/CIRCUIT_TASK:\s*\{[\s\S]+?\}/g, "").trim();
+  }, [msg.content]);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: isUser ? "flex-end" : "flex-start", gap: 3, marginBottom: 14 }}>
       <div style={{ fontSize: 10, fontFamily: "var(--mono)", color: "var(--text-3)" }}>
@@ -92,9 +111,20 @@ function Bubble({ msg }: { msg: ChatMessage }) {
         color: isSys ? "var(--warning, #cfad74)" : "var(--text)",
         whiteSpace: "pre-wrap", wordBreak: "break-word",
       }}>
-        {msg.content}
+        {displayContent}
         {msg.streaming && <span style={{ display: "inline-block", width: 2, height: 13, background: "var(--accent)", marginLeft: 3, verticalAlign: "middle", animation: "agBlink 1s step-end infinite" }} />}
       </div>
+
+      {msg.taskProposal && !dismissed && (
+        <div style={{ maxWidth: "88%", marginTop: 6 }}>
+          <PolicyPreview
+            proposal={msg.taskProposal}
+            owner={owner}
+            onCreated={(name) => onTaskCreated(name)}
+            onDismiss={() => setDismissed(true)}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -243,9 +273,14 @@ export default function Autonomous() {
     portfolio, risk, credit, markets, wallet, openAuthoritySetup,
   } = useCircuitDomain();
 
+  const [activeTab, setActiveTab] = useState<TabId>("CHAT");
+  const [taskCounts, setTaskCounts] = useState({ total: 0, watches: 0, strategies: 0 });
+
   const [msgs, setMsgs] = useState<ChatMessage[]>([{
     id: uid(), role: "system",
-    content: "Circuit Autonomous Agent initialized.\n\nI have access to your real-time Devnet state: positions, market prices, risk ratchet state, and on-chain authorities.\n\nTell me what you want to achieve.",
+    content: "Circuit Autonomous Agent initialized.\n\n" +
+      "I have access to your real-time Devnet state: positions, market prices, risk ratchet state, and on-chain authorities.\n\n" +
+      "You can ask me to SCHEDULE periodic reviews, WATCH risk/health conditions, or AUTO MANAGE bounded positions within Circuit authority limits.",
     timestamp: Date.now(),
   }]);
   const [input, setInput] = useState("");
@@ -255,6 +290,27 @@ export default function Autonomous() {
   const [streaming, setStreaming] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  // Refresh task counts
+  const updateCounts = useCallback(() => {
+    const all = loadTasks().filter(t => t.owner === wallet.address || !wallet.address);
+    const watches = all.filter(t => ["WATCH", "OBSERVE", "ANALYZE", "REPORT"].includes(t.type)).length;
+    const strategies = all.filter(t => ["REPAY", "BORROW", "DEPOSIT", "WITHDRAW", "RECOVER"].includes(t.type)).length;
+    setTaskCounts({ total: all.length, watches, strategies });
+  }, [wallet.address]);
+
+  useEffect(() => {
+    updateCounts();
+    const id = setInterval(updateCounts, 5_000);
+    return () => clearInterval(id);
+  }, [updateCounts]);
+
+  // Sync to server when wallet connects or changes
+  useEffect(() => {
+    if (wallet.address) {
+      syncToServer(wallet.address);
+    }
+  }, [wallet.address]);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs]);
 
@@ -285,8 +341,8 @@ export default function Autonomous() {
     setEvents(prev => [...prev, { id: uid(), timestamp: Date.now(), type, message, txSignature: tx }]);
   }, []);
 
-  const send = useCallback(async () => {
-    const text = input.trim();
+  const sendWithText = useCallback(async (customText?: string) => {
+    const text = (customText ?? input).trim();
     if (!text || streaming) return;
     setInput("");
     const userMsg: ChatMessage = { id: uid(), role: "user", content: text, timestamp: Date.now() };
@@ -329,16 +385,24 @@ export default function Autonomous() {
             if (d === "[DONE]") break outer;
             try {
               const delta = JSON.parse(d).choices?.[0]?.delta?.content;
-              if (delta) { full += delta; setMsgs(prev => prev.map(m => m.id === agentId ? { ...m, content: full, streaming: true } : m)); }
+              if (delta) {
+                full += delta;
+                const parsedTask = parseTaskProposal(full);
+                setMsgs(prev => prev.map(m => m.id === agentId ? { ...m, content: full, streaming: true, taskProposal: parsedTask } : m));
+              }
             } catch { /* skip malformed */ }
           }
         }
       } else {
         full = await res.text();
       }
-      setMsgs(prev => prev.map(m => m.id === agentId ? { ...m, content: full || "(no response)", streaming: false } : m));
+
+      const parsedTask = parseTaskProposal(full);
+      setMsgs(prev => prev.map(m => m.id === agentId ? { ...m, content: full || "(no response)", streaming: false, taskProposal: parsedTask } : m));
+
       const p = parseStrategyFromText(full);
       if (p) { setPlan(p); addEvent("info", `Strategy: ${p.actions.length} action(s) identified`); }
+      if (parsedTask) { addEvent("info", `Policy proposal detected: ${parsedTask.name} (${parsedTask.type})`); }
       setAgentState("IDLE");
       addEvent("info", "Analysis complete.");
     } catch (err: any) {
@@ -351,8 +415,8 @@ export default function Autonomous() {
   }, [input, streaming, msgs, snap, addEvent]);
 
   const onKey = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
-  }, [send]);
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendWithText(); }
+  }, [sendWithText]);
 
   const stop = useCallback(() => { abortRef.current?.abort(); setAgentState("IDLE"); setStreaming(false); }, []);
   const clear = useCallback(() => {
@@ -360,18 +424,133 @@ export default function Autonomous() {
     setPlan(null); setEvents([]); setAgentState("IDLE");
   }, []);
 
+  const handleTaskCreated = useCallback((name: string) => {
+    addEvent("confirmed", `Task activated: "${name}". Synced to Vercel Cron engine.`);
+    if (wallet.address) syncToServer(wallet.address);
+    updateCounts();
+  }, [addEvent, wallet.address, updateCounts]);
+
   const connected = !!wallet.address;
+
+  // Quick action pre-fills
+  const startAction = (promptText: string) => {
+    setActiveTab("CHAT");
+    setInput(promptText);
+  };
 
   return (
     <div style={{ height: "calc(100vh - 57px)", display: "flex", flexDirection: "column", background: "var(--surface-0, #0c0c0d)", overflow: "hidden" }}>
-      {/* Header */}
+      {/* ── Top Workspace Header ── */}
       <div style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 18px", borderBottom: "1px solid var(--border)", background: "var(--surface-1)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", color: "var(--text)", fontFamily: "var(--mono)" }}>AUTONOMOUS</span>
           <span style={{ width: 1, height: 14, background: "var(--border)", display: "inline-block" }} />
           <StateBadge state={agentState} />
+
+          {/* ── Tab Switcher ── */}
+          <div style={{ display: "inline-flex", background: "var(--surface-2)", borderRadius: "var(--r-sm, 6px)", padding: 2, border: "1px solid var(--border)", marginLeft: 8 }}>
+            {(["CHAT", "TASKS", "WATCHES", "STRATEGIES", "EXECUTIONS"] as TabId[]).map(tab => {
+              const isActive = activeTab === tab;
+              const count = tab === "TASKS" ? taskCounts.total : tab === "WATCHES" ? taskCounts.watches : tab === "STRATEGIES" ? taskCounts.strategies : null;
+              const label = tab === "STRATEGIES" ? "AUTO MANAGE" : tab;
+              return (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setActiveTab(tab)}
+                  style={{
+                    padding: "4px 10px",
+                    fontSize: 10,
+                    fontWeight: isActive ? 700 : 500,
+                    fontFamily: "var(--mono)",
+                    color: isActive ? "var(--text-1)" : "var(--text-3)",
+                    background: isActive ? "var(--surface-3)" : "transparent",
+                    border: isActive ? "1px solid var(--border)" : "1px solid transparent",
+                    borderRadius: "var(--r-sm, 4px)",
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
+                    transition: "all var(--t-fast)",
+                  }}
+                >
+                  <span>{label}</span>
+                  {count !== null && count > 0 && (
+                    <span style={{
+                      fontSize: 9,
+                      padding: "1px 4px",
+                      borderRadius: 3,
+                      background: isActive ? "rgba(236,234,230,0.12)" : "rgba(255,255,255,0.06)",
+                      color: isActive ? "var(--accent)" : "var(--text-3)",
+                    }}>
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
+
+        {/* ── Header Controls & Quick Actions ── */}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {/* Quick Action Shortcuts */}
+          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <button
+              type="button"
+              onClick={() => startAction("Watch my portfolio health factor and alert if below 1.8")}
+              style={{
+                padding: "3px 8px",
+                fontSize: 10,
+                fontWeight: 700,
+                fontFamily: "var(--mono)",
+                background: "rgba(121,194,164,0.08)",
+                border: "1px solid rgba(121,194,164,0.25)",
+                borderRadius: 4,
+                color: "var(--mint,#79c2a4)",
+                cursor: "pointer",
+              }}
+            >
+              + WATCH
+            </button>
+            <button
+              type="button"
+              onClick={() => startAction("Every 1 hour, check my portfolio risk state and borrow capacity")}
+              style={{
+                padding: "3px 8px",
+                fontSize: 10,
+                fontWeight: 700,
+                fontFamily: "var(--mono)",
+                background: "rgba(207,173,116,0.08)",
+                border: "1px solid rgba(207,173,116,0.25)",
+                borderRadius: 4,
+                color: "var(--warning,#cfad74)",
+                cursor: "pointer",
+              }}
+            >
+              + SCHEDULE
+            </button>
+            <button
+              type="button"
+              onClick={() => startAction("Auto manage: keep my health factor above 1.8, auto-repaying up to $200")}
+              style={{
+                padding: "3px 8px",
+                fontSize: 10,
+                fontWeight: 700,
+                fontFamily: "var(--mono)",
+                background: "rgba(236,234,230,0.08)",
+                border: "1px solid var(--border)",
+                borderRadius: 4,
+                color: "var(--text)",
+                cursor: "pointer",
+              }}
+            >
+              + AUTO MANAGE
+            </button>
+          </div>
+
+          <span style={{ width: 1, height: 14, background: "var(--border)", display: "inline-block" }} />
+
           <span style={{ width: 6, height: 6, borderRadius: "50%", background: hasActiveAuthority ? "var(--mint,#79c2a4)" : "var(--text-3)", display: "inline-block" }} />
           <span style={{ fontSize: 10, fontFamily: "var(--mono)", color: hasActiveAuthority ? "var(--mint,#79c2a4)" : "var(--text-3)" }}>
             {hasActiveAuthority ? "AUTHORITY ACTIVE" : "NO AUTHORITY"}
@@ -386,86 +565,145 @@ export default function Autonomous() {
         </div>
       </div>
 
-      {/* Body */}
-      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-        {/* Chat panel */}
-        <div style={{ flex: "0 0 55%", display: "flex", flexDirection: "column", borderRight: "1px solid var(--border)", overflow: "hidden" }}>
-          <div style={{ flex: 1, overflowY: "auto", padding: "18px 18px 12px", scrollbarWidth: "thin" }}>
-            {msgs.map(m => <Bubble key={m.id} msg={m} />)}
-            <div ref={endRef} />
-          </div>
-          <div style={{ flexShrink: 0, padding: "12px 14px", borderTop: "1px solid var(--border)", display: "flex", gap: 8, alignItems: "flex-end" }}>
-            <textarea
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={onKey}
-              placeholder={!connected ? "Connect wallet to start..." : "Describe your strategy intent... (Enter to send, Shift+Enter for newline)"}
-              disabled={!connected || streaming}
-              rows={2}
-              style={{ flex: 1, background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 8, padding: "9px 12px", fontSize: 13, color: "var(--text)", fontFamily: "var(--sans)", resize: "none", outline: "none", lineHeight: 1.5 }}
-            />
-            {streaming
-              ? <button type="button" onClick={stop} style={{ padding: "10px 14px", background: "rgba(207,139,139,0.15)", border: "1px solid rgba(207,139,139,0.4)", borderRadius: 8, color: "var(--danger,#cf8b8b)", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "var(--mono)", whiteSpace: "nowrap" }}>STOP</button>
-              : <button type="button" onClick={send} disabled={!input.trim() || !connected} style={{ padding: "10px 16px", background: !input.trim() || !connected ? "var(--surface-2)" : "rgba(236,234,230,0.1)", border: "1px solid var(--border)", borderRadius: 8, color: !input.trim() || !connected ? "var(--text-3)" : "var(--text)", fontSize: 12, fontWeight: 700, cursor: !input.trim() || !connected ? "not-allowed" : "pointer", fontFamily: "var(--mono)", whiteSpace: "nowrap" }}>SEND {"\u2191"}</button>
-            }
-          </div>
-        </div>
+      {/* ── Body: Swapped based on active tab ── */}
+      {activeTab === "CHAT" && (
+        <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+          {/* Chat panel */}
+          <div style={{ flex: "0 0 55%", display: "flex", flexDirection: "column", borderRight: "1px solid var(--border)", overflow: "hidden" }}>
+            <div style={{ flex: 1, overflowY: "auto", padding: "18px 18px 12px", scrollbarWidth: "thin" }}>
+              {msgs.map(m => (
+                <Bubble key={m.id} msg={m} owner={wallet.address || ""} onTaskCreated={handleTaskCreated} />
+              ))}
+              <div ref={endRef} />
+            </div>
 
-        {/* Right panel */}
-        <div style={{ flex: "0 0 45%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-          <div style={{ flex: 1, overflowY: "auto", padding: 16, borderBottom: "1px solid var(--border)", scrollbarWidth: "thin" }}>
-            <SectionLabel>STRATEGY</SectionLabel>
-            {plan
-              ? <PlanCard plan={plan} />
-              : (
-                <div style={{ padding: 16, background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12, color: "var(--text-3)", lineHeight: 1.6 }}>
-                  No strategy yet. Describe your intent in the chat.
-                  <br /><br />
-                  <span style={{ fontFamily: "var(--mono)", fontSize: 11 }}>Examples:</span>
-                  <ul style={{ margin: "6px 0 0 14px", color: "var(--text-2)" }}>
-                    <li style={{ marginBottom: 3 }}>"Borrow $500 against my NVDA position"</li>
-                    <li style={{ marginBottom: 3 }}>"What is my current borrowing capacity?"</li>
-                    <li style={{ marginBottom: 3 }}>"Is it safe to borrow more right now?"</li>
-                  </ul>
-                </div>
-              )
-            }
+            {/* Quick intent suggestions */}
+            <div style={{ padding: "6px 14px", borderTop: "1px solid var(--border)", display: "flex", gap: 6, overflowX: "auto", background: "var(--surface-1)" }}>
+              {[
+                "Watch my health factor",
+                "Keep HF > 1.8 with auto repay",
+                "Check risk every hour",
+                "What is my borrowing capacity?",
+              ].map(prompt => (
+                <button
+                  key={prompt}
+                  type="button"
+                  onClick={() => setInput(prompt)}
+                  style={{
+                    padding: "3px 8px",
+                    fontSize: 10,
+                    fontFamily: "var(--mono)",
+                    background: "var(--surface-2)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 4,
+                    color: "var(--text-3)",
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
 
-            <div style={{ marginTop: 14 }}>
-              <SectionLabel>LIVE STATE</SectionLabel>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                {[
-                  { label: "Risk State", value: risk.ratchetState, mono: true },
-                  { label: "Market", value: risk.isMarketOpen ? "OPEN" : "CLOSED", mono: true },
-                  { label: "Collateral", value: `$${portfolio.totalCollateralUsd.toFixed(2)}` },
-                  { label: "Debt", value: `$${portfolio.totalDebtUsd.toFixed(2)}` },
-                  { label: "Credit", value: `$${credit.availableCreditUsd.toFixed(2)}` },
-                  { label: "Health", value: portfolio.healthFactor !== null ? portfolio.healthFactor.toFixed(3) : "N/A" },
-                ].map(item => (
-                  <div key={item.label} style={{ padding: "8px 10px", background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 6 }}>
-                    <div style={{ fontSize: 10, color: "var(--text-3)", marginBottom: 2 }}>{item.label}</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", fontFamily: item.mono ? "var(--mono)" : undefined }}>{item.value}</div>
+            <div style={{ flexShrink: 0, padding: "12px 14px", borderTop: "1px solid var(--border)", display: "flex", gap: 8, alignItems: "flex-end" }}>
+              <textarea
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={onKey}
+                placeholder={!connected ? "Connect wallet to start..." : "Describe your strategy intent, watch condition, or schedule... (Enter to send)"}
+                disabled={!connected || streaming}
+                rows={2}
+                style={{ flex: 1, background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 8, padding: "9px 12px", fontSize: 13, color: "var(--text)", fontFamily: "var(--sans)", resize: "none", outline: "none", lineHeight: 1.5 }}
+              />
+              {streaming
+                ? <button type="button" onClick={stop} style={{ padding: "10px 14px", background: "rgba(207,139,139,0.15)", border: "1px solid rgba(207,139,139,0.4)", borderRadius: 8, color: "var(--danger,#cf8b8b)", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "var(--mono)", whiteSpace: "nowrap" }}>STOP</button>
+                : <button type="button" onClick={() => sendWithText()} disabled={!input.trim() || !connected} style={{ padding: "10px 16px", background: !input.trim() || !connected ? "var(--surface-2)" : "rgba(236,234,230,0.1)", border: "1px solid var(--border)", borderRadius: 8, color: !input.trim() || !connected ? "var(--text-3)" : "var(--text)", fontSize: 12, fontWeight: 700, cursor: !input.trim() || !connected ? "not-allowed" : "pointer", fontFamily: "var(--mono)", whiteSpace: "nowrap" }}>SEND {"\u2191"}</button>
+              }
+            </div>
+          </div>
+
+          {/* Right panel */}
+          <div style={{ flex: "0 0 45%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+            <div style={{ flex: 1, overflowY: "auto", padding: 16, borderBottom: "1px solid var(--border)", scrollbarWidth: "thin" }}>
+              <SectionLabel>STRATEGY</SectionLabel>
+              {plan
+                ? <PlanCard plan={plan} />
+                : (
+                  <div style={{ padding: 16, background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12, color: "var(--text-3)", lineHeight: 1.6 }}>
+                    No active strategy plan yet. Describe your intent in the chat to generate one.
+                    <br /><br />
+                    <span style={{ fontFamily: "var(--mono)", fontSize: 11 }}>Examples:</span>
+                    <ul style={{ margin: "6px 0 0 14px", color: "var(--text-2)" }}>
+                      <li style={{ marginBottom: 3 }}>"Watch health factor &lt; 1.8 and alert"</li>
+                      <li style={{ marginBottom: 3 }}>"Auto-repay $150 when HF approaches 1.7"</li>
+                      <li style={{ marginBottom: 3 }}>"Check NVDA price &amp; oracle every 5m"</li>
+                    </ul>
                   </div>
-                ))}
+                )
+              }
+
+              <div style={{ marginTop: 14 }}>
+                <SectionLabel>LIVE STATE</SectionLabel>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                  {[
+                    { label: "Risk State", value: risk.ratchetState, mono: true },
+                    { label: "Market", value: risk.isMarketOpen ? "OPEN" : "CLOSED", mono: true },
+                    { label: "Collateral", value: `$${portfolio.totalCollateralUsd.toFixed(2)}` },
+                    { label: "Debt", value: `$${portfolio.totalDebtUsd.toFixed(2)}` },
+                    { label: "Credit", value: `$${credit.availableCreditUsd.toFixed(2)}` },
+                    { label: "Health", value: portfolio.healthFactor !== null ? portfolio.healthFactor.toFixed(3) : "N/A" },
+                  ].map(item => (
+                    <div key={item.label} style={{ padding: "8px 10px", background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 6 }}>
+                      <div style={{ fontSize: 10, color: "var(--text-3)", marginBottom: 2 }}>{item.label}</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", fontFamily: item.mono ? "var(--mono)" : undefined }}>{item.value}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ marginTop: 14 }}>
+                <SectionLabel>AUTHORITY</SectionLabel>
+                <AuthPanel auths={onChainAuthorities.map(a => {
+                  const sym = DEPLOYED_MARKETS.find(m => m.mint === a.assetMint.toBase58())?.symbol ?? a.assetMint.toBase58().slice(0, 6);
+                  return { agentAddress: a.agent.toBase58(), assetSymbol: sym, isExpired: a.isExpired, isRevoked: a.isRevoked, maxBorrowLimit: a.maxBorrowLimitUi, expiryTs: a.expiryTs };
+                })} />
               </div>
             </div>
 
-            <div style={{ marginTop: 14 }}>
-              <SectionLabel>AUTHORITY</SectionLabel>
-              <AuthPanel auths={onChainAuthorities.map(a => {
-                const sym = DEPLOYED_MARKETS.find(m => m.mint === a.assetMint.toBase58())?.symbol ?? a.assetMint.toBase58().slice(0, 6);
-                return { agentAddress: a.agent.toBase58(), assetSymbol: sym, isExpired: a.isExpired, isRevoked: a.isRevoked, maxBorrowLimit: a.maxBorrowLimitUi, expiryTs: a.expiryTs };
-              })} />
+            {/* Execution timeline */}
+            <div style={{ flexShrink: 0, height: 182, padding: "12px 16px", background: "var(--surface-1)", borderTop: "1px solid var(--border)" }}>
+              <SectionLabel>EXECUTION TIMELINE</SectionLabel>
+              <div style={{ height: 132, overflowY: "auto", scrollbarWidth: "thin" }}><Timeline events={events} /></div>
             </div>
           </div>
-
-          {/* Execution timeline */}
-          <div style={{ flexShrink: 0, height: 182, padding: "12px 16px", background: "var(--surface-1)", borderTop: "1px solid var(--border)" }}>
-            <SectionLabel>EXECUTION TIMELINE</SectionLabel>
-            <div style={{ height: 132, overflowY: "auto", scrollbarWidth: "thin" }}><Timeline events={events} /></div>
-          </div>
         </div>
-      </div>
+      )}
+
+      {activeTab === "TASKS" && (
+        <div style={{ flex: 1, overflowY: "auto", background: "var(--surface-0)", padding: 0 }}>
+          <TasksPanel owner={wallet.address || ""} onAddTask={() => startAction("Schedule portfolio check every 1 hour")} />
+        </div>
+      )}
+
+      {activeTab === "WATCHES" && (
+        <div style={{ flex: 1, overflowY: "auto", background: "var(--surface-0)", padding: 0 }}>
+          <WatchesPanel owner={wallet.address || ""} onAddWatch={() => startAction("Watch my health factor and notify if below 1.8")} />
+        </div>
+      )}
+
+      {activeTab === "STRATEGIES" && (
+        <div style={{ flex: 1, overflowY: "auto", background: "var(--surface-0)", padding: 0 }}>
+          <StrategiesPanel owner={wallet.address || ""} onAddStrategy={() => startAction("Auto manage: keep my portfolio health above 1.8 with repay up to $200")} />
+        </div>
+      )}
+
+      {activeTab === "EXECUTIONS" && (
+        <div style={{ flex: 1, overflowY: "auto", background: "var(--surface-0)", padding: 0 }}>
+          <ExecutionFeed owner={wallet.address || ""} />
+        </div>
+      )}
+
       <style>{`@keyframes agPulse{0%,100%{opacity:1}50%{opacity:0.4}}@keyframes agBlink{0%,100%{opacity:1}50%{opacity:0}}`}</style>
     </div>
   );
