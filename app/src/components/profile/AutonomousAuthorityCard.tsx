@@ -8,6 +8,7 @@
 
 import React, { useState } from "react";
 import { PublicKey } from "@solana/web3.js";
+import { useNavigate } from "react-router-dom";
 import { Card, Button, Pill, Icon, Notice } from "../ui";
 import { useCircuitDomain } from "../../lib/domain/context";
 import { shortenAddress, formatMoney } from "../../lib/format";
@@ -15,13 +16,13 @@ import { DEPLOYED_MARKETS } from "../../data/markets";
 import { OnChainAgentAuthority } from "../../lib/agentAuthority";
 
 export function AutonomousAuthorityCard() {
+  const navigate = useNavigate();
   const {
     controlMode,
     setControlMode,
     hasActiveAuthority,
     onChainAuthorities,
     authoritiesLoading,
-    openAuthoritySetup,
     revokeAuthorityOnChain,
     refreshAuthorities,
   } = useCircuitDomain();
@@ -124,7 +125,7 @@ export function AutonomousAuthorityCard() {
               variant="secondary"
               size="sm"
               icon="shield"
-              onClick={openAuthoritySetup}
+              onClick={() => navigate("/app/autonomous?tab=permissions")}
             >
               Configure Strategy Authority
             </Button>
@@ -188,7 +189,7 @@ export function AutonomousAuthorityCard() {
             <div style={{ fontSize: 12, color: "var(--text-3)", maxWidth: 520, margin: "0 auto 16px auto", lineHeight: 1.4 }}>
               Your wallet is operating under direct MANUAL sovereignty. You have not authorized any autonomous bot on Devnet. To delegate bounded execution to a strategy bot, click below.
             </div>
-            <Button variant="accent" size="sm" onClick={openAuthoritySetup} icon="shield">
+            <Button variant="accent" size="sm" onClick={() => navigate("/app/autonomous?tab=permissions")} icon="shield">
               Configure Autonomous Authority
             </Button>
           </div>

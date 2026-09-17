@@ -117,7 +117,8 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
   // Real On-Chain Agent Authorities
   const [onChainAuthorities, setOnChainAuthorities] = useState<OnChainAgentAuthority[]>([]);
   const [authoritiesLoading, setAuthoritiesLoading] = useState<boolean>(false);
-  const [isAuthoritySetupOpen, setIsAuthoritySetupOpen] = useState<boolean>(false);
+  // Authority setup drawer is removed — these are kept as no-ops for interface compat.
+  const isAuthoritySetupOpen = false;
 
   // Portfolio state
   const [portfolioSnap, setPortfolioSnap] = useState<any>(null);
@@ -431,17 +432,14 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
     }
   }, [controlMode, hasActiveAuthority, authoritiesLoading]);
 
-  // Governed mode switch: cannot activate AUTONOMOUS if no active on-chain authority exists
+  // Governed mode switch
   const setControlMode = useCallback((mode: ControlMode) => {
-    if (mode === "AUTONOMOUS" && !hasActiveAuthority) {
-      setIsAuthoritySetupOpen(true);
-      return;
-    }
     setControlModeState(mode);
-  }, [hasActiveAuthority]);
+  }, []);
 
-  const openAuthoritySetup = useCallback(() => setIsAuthoritySetupOpen(true), []);
-  const closeAuthoritySetup = useCallback(() => setIsAuthoritySetupOpen(false), []);
+  // No-ops — the global setup drawer is removed. Navigation to /app/autonomous?tab=permissions is used instead.
+  const openAuthoritySetup = useCallback(() => {}, []);
+  const closeAuthoritySetup = useCallback(() => {}, []);
 
   // Real On-Chain Revocation
   const revokeAuthorityOnChain = useCallback(async (agent: PublicKey, assetMint: PublicKey) => {

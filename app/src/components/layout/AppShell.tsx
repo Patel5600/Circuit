@@ -72,7 +72,6 @@ function Header({ onOpenHealth }: { onOpenHealth: () => void }) {
     setControlMode,
     hasActiveAuthority,
     onChainAuthorities,
-    openAuthoritySetup,
   } = useCircuitDomain();
 
   const authorityStatusBadge = useMemo(() => {

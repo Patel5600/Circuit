@@ -13,7 +13,7 @@
  * Zero fake data. If nothing executes: IDLE.
  */
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { PublicKey, Transaction } from "@solana/web3.js";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useCircuitDomain } from "../lib/domain/context";
@@ -1140,13 +1140,19 @@ function parseStrategyFromText(text: string): StrategyPlan | null {
 
 export default function Autonomous() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { openAction } = useAction();
   const {
     controlMode, setControlMode, hasActiveAuthority, onChainAuthorities,
     portfolio, risk, credit, markets, wallet,
   } = useCircuitDomain();
 
-  const [activeTab, setActiveTab] = useState<TabId>("CHAT");
+  // Read ?tab= from URL and use it as the initial tab (case-insensitive).
+  const tabFromUrl = searchParams.get("tab")?.toUpperCase() as TabId | null;
+  const validTabs: TabId[] = ["CHAT", "STRATEGY", "WATCH", "AUTO MANAGE", "SCHEDULE", "PERMISSIONS"];
+  const initialTab: TabId = (tabFromUrl && validTabs.includes(tabFromUrl)) ? tabFromUrl : "CHAT";
+
+  const [activeTab, setActiveTab] = useState<TabId>(initialTab);
   const [taskCounts, setTaskCounts] = useState({ total: 0, watches: 0, strategies: 0, executions: 0 });
 
   const initialGreeting = useMemo(() => {

@@ -21,7 +21,6 @@ export function PolicyVisualizationCard({ assetSymbol }: { assetSymbol?: string 
     risk,
     controlMode,
     evaluatePermissionForAction,
-    openAuthoritySetup,
   } = useCircuitDomain();
 
   const sym = (assetSymbol || activeMarketKey).toUpperCase();

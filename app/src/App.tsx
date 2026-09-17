@@ -9,7 +9,7 @@ import { ActionProvider } from "./context/ActionContext";
 import { CircuitProtocolProvider, useCircuitDomain } from "./lib/domain/context";
 import { MarketDataProvider } from "./context/MarketDataContext";
 import { AssetActionDrawer } from "./components/drawers/AssetActionDrawer";
-import { AutonomousSetupModal } from "./components/authority/AutonomousSetupModal";
+
 
 /**
  * Route table.
@@ -108,15 +108,6 @@ function ShellFallback() {
  *
  * <Outlet /> is where page-level content swaps in/out.
  */
-function GlobalAuthorityModal() {
-  const { isAuthoritySetupOpen, closeAuthoritySetup } = useCircuitDomain();
-  return (
-    <AutonomousSetupModal
-      open={isAuthoritySetupOpen}
-      onClose={closeAuthoritySetup}
-    />
-  );
-}
 
 function AppLayout() {
   return (
@@ -132,7 +123,6 @@ function AppLayout() {
                   </Suspense>
                 </AppShell>
                 <AssetActionDrawer />
-                <GlobalAuthorityModal />
               </ActionProvider>
             </MarketDataProvider>
           </MarketProvider>
