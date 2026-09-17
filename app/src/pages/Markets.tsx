@@ -145,7 +145,7 @@ export default function Markets() {
   return (
     <PageContainer
       title="Markets Terminal"
-      subtitle="Institutional real-time credit markets for tokenized equities on Solana Devnet. Continuous 24/7 onchain price observability, verified Pyth oracle feeds, and real historical 24h performance."
+      subtitle="Real-time credit markets for tokenized equities on Solana Devnet. Continuous 24/7 onchain price observability, verified Pyth oracle feeds, and real historical 24h performance."
       action={
         <div className="row g-8" style={{ alignItems: "center" }}>
           <Pill tone={isStreamHealthy ? "success" : "warning"} withDot>

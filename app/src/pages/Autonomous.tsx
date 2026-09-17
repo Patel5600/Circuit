@@ -1296,6 +1296,23 @@ export default function Autonomous() {
           <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", color: "var(--text)", fontFamily: "var(--mono)", flexShrink: 0 }}>
             AUTONOMOUS
           </span>
+          <span
+            style={{
+              fontSize: 9.5,
+              fontWeight: 700,
+              fontFamily: "var(--mono)",
+              padding: "2px 6px",
+              borderRadius: 4,
+              background: "rgba(207, 173, 116, 0.15)",
+              color: "var(--warning, #cfad74)",
+              border: "1px solid rgba(207, 173, 116, 0.3)",
+              letterSpacing: "0.04em",
+              flexShrink: 0,
+            }}
+            title="Interactive execution: Browser client routes all transaction signing to your connected wallet. Headless daemon execution requires server-side AGENT_SIGNER_SECRET."
+          >
+            MODE: INTERACTIVE (Wallet-Signed)
+          </span>
           <span style={{ width: 1, height: 14, background: "var(--border)", display: "inline-block", flexShrink: 0 }} />
           <div style={{ flexShrink: 0 }}>
             <StateBadge state={agentState} />

@@ -6,6 +6,12 @@ Circuit verifies market conditions before credit risk increases. It combines ver
 
 **⚠️ DEVNET ONLY — This is an MVP demonstration. Not audited. Not production-ready.**
 
+### 📚 Documentation & Hackathon Evaluation
+- **[Judge Demo Guide](docs/DEMO_GUIDE.md)** — 2-minute walkthrough, proof steps, and deterministic agent prompts
+- **[Judge Verification Guide](docs/VERIFICATION_GUIDE.md)** — Step-by-step cryptographic, CLI, and on-chain verification
+- **[Architecture & Math](docs/ARCHITECTURE.md)** — PDAs, state machines, and fixed-point formulas
+- **[Security Architecture](docs/SECURITY.md)** — Threat model and defensive guarantees
+
 ---
 
 ## Problem
@@ -176,6 +182,39 @@ so the happy path is untestable against a live cluster outside market hours; and
 the stale-oracle, wide-confidence, wrong-feed and frozen-price branches need
 price accounts a real cluster will not produce on demand. LiteSVM's `setClock`
 and `setAccount` make all of it deterministic.
+
+## Release Verification Matrix
+
+| Layer | Authority / Source | Execution Type | Status | Evidence |
+|---|---|---|---|---|
+| **Lending & Collateral Core** | Anchor Program (`Cq4Lvd6...`) | Solana Devnet On-Chain | Live / Verified | Program ID, PDAs & Vault ATAs |
+| **Oracle Pricing** | Pyth Network Receiver | Pull Oracle (PriceUpdateV2) | Live / Verified | `rec5EKMG...` on Solana Devnet |
+| **MarketGuard & Calendar** | Deterministic NYSE Engine | On-Chain / Client Evaluator | Live / Verified | 37 Rust unit tests passing |
+| **Risk Ratchet Engine** | Monotonic Staged Recovery | Dynamic Hysteresis State Machine | Live / Verified | 16-scenario invariant suite passing |
+| **Permission Engine** | Canonical 7-Attribute Evaluator | Gated Pre-Execution Check | Live / Verified | `PermissionPreviewCard` + Anchor gates |
+| **Autonomous Agent** | Interactive Bounded Delegation | Client-Validated Proposals | Live / Verified | `MODE: INTERACTIVE (Wallet-Signed)` |
+| **Trading Venue (DBC)** | Meteora Dynamic Bonding Curve | Devnet Curve Test Pools | Live / Verified | Program `dbcij3LW...` on Devnet |
+| **Stress Simulation Harness** | `/app/demo` Isolated Sandbox | Client Controlled Scenario | Isolated / Verified | Visual & architectural isolation |
+
+## 15 Protocol Security Invariants
+
+| # | Invariant | Description | Verification Surface |
+|---|---|---|---|
+| 1 | **Canonical PDA Derivation** | State accounts can only be derived from immutable protocol seeds. | Anchor constraints on all instruction contexts |
+| 2 | **Centralized Oracle Gate** | All price updates pass through a single validation bottleneck. | `oracle/validation.rs::validate_price_update` |
+| 3 | **Unified Risk Engine** | Single source of truth for risk across chain and UI. | `risk/engine.rs` & `app/src/lib/risk-engine` |
+| 4 | **Monotonic Staged Recovery** | Recovery requires consecutive healthy epochs; no skipping tiers. | Monotonic step-down hysteresis in `RiskRatchet` |
+| 5 | **Unified Permission Engine** | All financial actions pass through the canonical evaluator. | `permissions/evaluator.rs::evaluate_permission` |
+| 6 | **Conservative Collateral Valuation** | Collateral priced at lower bound: \( p_{\text{conservative}} = \max(0, p - \text{conf}) \). | Rust unit tests in `math/fixed_point.rs` |
+| 7 | **Concentration Penalty** | Multi-asset collateral receives LTV haircuts when \( C_{\text{max}} > 40\% \). | Mathematical formulas in `fixed_point.rs` |
+| 8 | **Risk-Increasing Gate** | Borrowing & unhedged withdrawal blocked in Defensive/Emergency. | Instruction handlers return `RiskDefensive`/`RiskEmergency` |
+| 9 | **Risk-Reducing Exemption** | Repay and collateral additions are always permitted, even in Emergency. | Evaluator explicitly exempts debt reduction |
+| 10 | **Trading Venue Isolation** | Meteora DBC is an execution venue, not the protocol risk authority. | Validates program ID against `dbcij3LW...` |
+| 11 | **Emergency Liquidity Exit** | LP positions can always be withdrawn during defensive regimes. | `execute_dbc_action.rs` permits `ExitLiquidity` |
+| 12 | **Bounded Agent Delegation** | Agents cannot exceed owner limits or execute unauthorized operations. | `AgentAuthority` PDA enforced on-chain |
+| 13 | **Idempotent Automation** | Automation tasks follow strict FSM; never mark success before confirmation. | State machine in `api/automation/_engine.ts` |
+| 14 | **Checked Arithmetic Safety** | Zero floating-point math on-chain; all operations checked u128. | Arithmetic invariant test suite passing |
+| 15 | **Harness State Isolation** | Simulation sandbox state never contaminates production routes. | `DemoHarnessContext` isolation audit |
 
 ## Known Limitations
 

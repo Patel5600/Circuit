@@ -8,127 +8,163 @@ import { StepRecoveryMeter } from '../components/demo/StepRecoveryMeter';
 import { ConcentrationSandbox } from '../components/demo/ConcentrationSandbox';
 import { SimulationModal } from '../components/demo/SimulationModal';
 
-const LIFECYCLE_STEPS = [
+export interface LifecycleStep {
+  step: number;
+  concept: string;
+  title: string;
+  actor: string;
+  collateral: string;
+  debt: string;
+  ratchet: "SAFE" | "RESTRICTED" | "DEFENSIVE" | "EMERGENCY";
+  authority: string;
+  statusText: string;
+  tone: "success" | "warning" | "danger";
+  environment: "REAL DEVNET" | "SIMULATED SCENARIO";
+}
+
+const LIFECYCLE_STEPS: LifecycleStep[] = [
   {
     step: 1,
-    title: "Human Deposits Collateral (Zero Agents)",
+    concept: "Human owns the asset",
+    title: "1. Human Owns Collateral Asset",
     actor: "Human Owner",
     collateral: "100 AAPLx ($10,000)",
     debt: "$0.00 USDC",
     ratchet: "SAFE",
     authority: "SOVEREIGN",
-    statusText: "Position established on-chain by direct wallet signer. Zero agents exist or required. Collateral locked in Protocol Vault ATA.",
-    tone: "success" as const,
+    statusText: "Position established on-chain by direct wallet signer. Collateral locked in protocol vault ATA. Human retains root sovereignty; zero agents exist or required.",
+    tone: "success",
+    environment: "REAL DEVNET",
   },
   {
     step: 2,
-    title: "Human Borrows Under SAFE Conditions",
+    concept: "Market data is observed",
+    title: "2. Market Data Is Observed",
+    actor: "Pyth Hermes & On-Chain Feed",
+    collateral: "100 AAPLx ($10,000)",
+    debt: "$0.00 USDC",
+    ratchet: "SAFE",
+    authority: "SOVEREIGN",
+    statusText: "Pyth price account continuously reports price $100.00 and confidence interval ±$0.18 (18 bps). Conservative valuation uses lower bound: p_conservative = p - conf.",
+    tone: "success",
+    environment: "REAL DEVNET",
+  },
+  {
+    step: 3,
+    concept: "MarketGuard validates input",
+    title: "3. MarketGuard Validates Input",
+    actor: "MarketGuard Circuit Breaker",
+    collateral: "100 AAPLx ($10,000)",
+    debt: "$0.00 USDC",
+    ratchet: "SAFE",
+    authority: "OBSERVING",
+    statusText: "MarketGuard PDA validates reference NYSE session (Regular Hours), Pyth feed ID binding, confidence interval threshold (<150 bps), and clock freshness (<60s).",
+    tone: "success",
+    environment: "REAL DEVNET",
+  },
+  {
+    step: 4,
+    concept: "Risk state is derived",
+    title: "4. Risk State Is Derived",
+    actor: "Risk Ratchet Engine",
+    collateral: "100 AAPLx ($10,000)",
+    debt: "$0.00 USDC",
+    ratchet: "SAFE",
+    authority: "NOMINAL",
+    statusText: "Dynamic Risk Ratchet combines confidence ratio, velocity, and session state. Nominal conditions derive SAFE state. Monotonic 4-state machine protects capital.",
+    tone: "success",
+    environment: "REAL DEVNET",
+  },
+  {
+    step: 5,
+    concept: "Capital policy changes",
+    title: "5. Capital Policy Updates",
+    actor: "Capital Control Plane",
+    collateral: "100 AAPLx ($10,000)",
+    debt: "$0.00 USDC",
+    ratchet: "SAFE",
+    authority: "ACTIVE",
+    statusText: "Under SAFE state, Capital Policy derives: 100% borrow capacity unlocked (70% base LTV, 80% liquidation threshold, full $7,000 credit ceiling).",
+    tone: "success",
+    environment: "REAL DEVNET",
+  },
+  {
+    step: 6,
+    concept: "Permission changes",
+    title: "6. Permission Engine Updates",
+    actor: "Permission Evaluator PDA",
+    collateral: "100 AAPLx ($10,000)",
+    debt: "$0.00 USDC",
+    ratchet: "SAFE",
+    authority: "ACTIVE",
+    statusText: "evaluate_permission confirms: borrow = ALLOWED, withdraw = ALLOWED, deposit = ALLOWED, repay = ALLOWED. Both human and agent share this identical evaluator.",
+    tone: "success",
+    environment: "REAL DEVNET",
+  },
+  {
+    step: 7,
+    concept: "Manual action is evaluated",
+    title: "7. Manual Action Is Evaluated",
     actor: "Human Owner",
     collateral: "100 AAPLx ($10,000)",
     debt: "$1,000.00 USDC",
     ratchet: "SAFE",
     authority: "SOVEREIGN",
-    statusText: "✓ ALLOWED: Manual borrow executed. Protocol verifies LTV (10% < 70% max) and HF (7.00 > 1.00). Deterministic code: ALLOWED.",
-    tone: "success" as const,
+    statusText: "✓ ALLOWED: Manual borrow of $1,000 USDC passes on-chain evaluation. Protocol verifies LTV (10% < 70% max) and Health Factor (7.00 > 1.00 minimum).",
+    tone: "success",
+    environment: "REAL DEVNET",
   },
   {
-    step: 3,
-    title: "Human Delegates Bounded Agent Authority",
-    actor: "Human Owner",
-    collateral: "100 AAPLx ($10,000)",
-    debt: "$1,000.00 USDC",
-    ratchet: "SAFE",
-    authority: "DELEGATED",
-    statusText: "AgentAuthority PDA initialized: Max Borrow = $500 | Allowed Actions = [BORROW, REPAY] | Withdraw = DISABLED | Risk Budget = $500.",
-    tone: "success" as const,
-  },
-  {
-    step: 4,
-    title: "Agent Executes Permitted Borrow ($500)",
+    step: 8,
+    concept: "Agent action evaluated through same path",
+    title: "8. Agent Evaluated Through Same Path",
     actor: "Autonomous Strategy",
     collateral: "100 AAPLx ($10,000)",
     debt: "$1,500.00 USDC",
     ratchet: "SAFE",
     authority: "BOUNDED",
-    statusText: "✓ ALLOWED: Strategy calls execute_agent_action. Within delegated $500 limit and risk budget. Nonce = 1. Total debt = $1,500.",
-    tone: "success" as const,
-  },
-  {
-    step: 5,
-    title: "Market Volatility Shock: Confidence Widens",
-    actor: "Pyth Oracle & MarketGuard",
-    collateral: "100 AAPLx ($10,000)",
-    debt: "$1,500.00 USDC",
-    ratchet: "RESTRICTED",
-    authority: "CONSTRAINED",
-    statusText: "Pyth confidence interval widens past 50 bps. MarketGuard initiates instant step-up: Risk Ratchet moves to RESTRICTED (Epoch = 1).",
-    tone: "warning" as const,
-  },
-  {
-    step: 6,
-    title: "Capital Policy Restricts New Risk",
-    actor: "Capital Control Plane",
-    collateral: "100 AAPLx ($10,000)",
-    debt: "$1,500.00 USDC",
-    ratchet: "RESTRICTED",
-    authority: "DEFENSIVE",
-    statusText: "Capital policy updates dynamically: borrow_allowed = false. Outstanding loans protected; new debt origination frozen on-chain.",
-    tone: "warning" as const,
-  },
-  {
-    step: 7,
-    title: "Agent Attempts Borrow: Blocked by Circuit",
-    actor: "Autonomous Strategy",
-    collateral: "100 AAPLx ($10,000)",
-    debt: "$1,500.00 USDC",
-    ratchet: "RESTRICTED",
-    authority: "BLOCKED",
-    statusText: "✕ BLOCKED ON-CHAIN: Protocol halts instruction before CPI. Reason: BORROW_DISABLED_BY_RISK_STATE (error 0x1787). Circuit bounds AI.",
-    tone: "danger" as const,
-  },
-  {
-    step: 8,
-    title: "Human Attempts Borrow: Identical Rejection",
-    actor: "Human Owner",
-    collateral: "100 AAPLx ($10,000)",
-    debt: "$1,500.00 USDC",
-    ratchet: "RESTRICTED",
-    authority: "BLOCKED",
-    statusText: "✕ BLOCKED ON-CHAIN: Human manual borrow also rejected with identical reason: BORROW_DISABLED_BY_RISK_STATE. Protocol treats all actors equally under market risk.",
-    tone: "danger" as const,
+    statusText: "✓ ALLOWED: Strategy calls execute_agent_action for $500 borrow. Evaluator checks owner authority delegation, risk budget, and LTV. Total debt = $1,500.",
+    tone: "success",
+    environment: "REAL DEVNET",
   },
   {
     step: 9,
-    title: "Human Manually Repays $500 (Always Open)",
-    actor: "Human Owner",
+    concept: "Risk increases",
+    title: "9. Risk Increases (Pyth Shock)",
+    actor: "Pyth Oracle Simulation",
     collateral: "100 AAPLx ($10,000)",
-    debt: "$1,000.00 USDC",
-    ratchet: "RESTRICTED",
-    authority: "SOVEREIGN",
-    statusText: "✓ ALLOWED: Repayment reduces position risk. Always permitted even in RESTRICTED, DEFENSIVE, or EMERGENCY states. Health factor increases.",
-    tone: "success" as const,
+    debt: "$1,500.00 USDC",
+    ratchet: "DEFENSIVE",
+    authority: "CONSTRAINED",
+    statusText: "Simulated stress event: Pyth confidence interval widens past 150 bps. MarketGuard triggers instant tightening: Risk Ratchet steps up to DEFENSIVE (Epoch = 1).",
+    tone: "warning",
+    environment: "SIMULATED SCENARIO",
   },
   {
     step: 10,
-    title: "Human Revokes Agent Authority Instantly",
-    actor: "Human Owner",
+    concept: "Risk-increasing action becomes blocked",
+    title: "10. Risk-Increasing Action Blocked",
+    actor: "Protocol Gate (Human & Agent)",
     collateral: "100 AAPLx ($10,000)",
-    debt: "$1,000.00 USDC",
-    ratchet: "RESTRICTED",
-    authority: "REVOKED",
-    statusText: "Human closes AgentAuthority PDA. Agent authority revoked instantly on-chain. Any future agent transaction is unconditionally rejected.",
-    tone: "success" as const,
+    debt: "$1,500.00 USDC",
+    ratchet: "DEFENSIVE",
+    authority: "BLOCKED",
+    statusText: "✕ BLOCKED ON-CHAIN: Both Agent and Human borrow attempts are rejected before CPI. Error: BORROW_DISABLED_BY_RISK_STATE (0x1787). Circuit bounds all actors equally.",
+    tone: "danger",
+    environment: "SIMULATED SCENARIO",
   },
   {
     step: 11,
-    title: "Protocol Operates Normally (Zero Agents)",
-    actor: "Protocol Sovereign",
+    concept: "Recovery-safe behavior remains permitted",
+    title: "11. Recovery Actions Remain Permitted",
+    actor: "Human Owner",
     collateral: "100 AAPLx ($10,000)",
     debt: "$1,000.00 USDC",
-    ratchet: "SAFE",
+    ratchet: "DEFENSIVE",
     authority: "SOVEREIGN",
-    statusText: "Proof complete: Autonomy is optional; safety is not. Disabling, crashing, or revoking every agent leaves Circuit 100% operational for human manual users.",
-    tone: "success" as const,
+    statusText: "✓ ALWAYS ALLOWED: Repayment of $500 reduces risk. Deleveraging and liquidity exits are unconditionally open across all risk states. Solvency defended.",
+    tone: "success",
+    environment: "REAL DEVNET",
   },
 ];
 
@@ -140,10 +176,12 @@ function AutonomousStrategyLifecycle() {
     <Card
       title={
         <div className="row between g-12 wrap" style={{ alignItems: "center" }}>
-          <span>Human-First Protocol Sovereignty: 11-Step Proof</span>
+          <span>Deterministic Protocol Integrity: 11-Step Proof</span>
           <div className="row g-6">
-            <Pill tone="accent">SECTION 26</Pill>
-            <Pill tone={cur.tone} withDot>
+            <Pill tone={cur.environment === "REAL DEVNET" ? "success" : "warning"} withDot>
+              {cur.environment}
+            </Pill>
+            <Pill tone={cur.tone}>
               STEP {cur.step}/11: {cur.ratchet}
             </Pill>
           </div>
@@ -152,8 +190,8 @@ function AutonomousStrategyLifecycle() {
     >
       <div className="stack g-16">
         <p className="t-sm muted" style={{ margin: 0 }}>
-          Interactive execution proof of the canonical thesis:{" "}
-          <strong>"Agents decide what to do. Circuit decides what capital they are allowed to risk."</strong>
+          Interactive proof of Circuit&apos;s core thesis:{" "}
+          <strong>&ldquo;Market conditions derive risk. Risk derives policy. Policy derives permissions. The same permissions govern humans and agents.&rdquo;</strong>
         </p>
 
         {/* Step Indicator Bar */}
@@ -189,10 +227,15 @@ function AutonomousStrategyLifecycle() {
         >
           <div className="row between g-12 wrap" style={{ alignItems: "center" }}>
             <div>
-              <span className="t-label" style={{ color: "var(--text-3)" }}>
-                Step {cur.step} of 9 · {cur.actor}
-              </span>
-              <h3 style={{ margin: "2px 0 0 0", fontSize: 16, fontWeight: 700 }}>
+              <div className="row g-8" style={{ alignItems: "center" }}>
+                <span className="t-label" style={{ color: "var(--text-3)" }}>
+                  Step {cur.step} of 11 · {cur.actor}
+                </span>
+                <Pill tone={cur.environment === "REAL DEVNET" ? "success" : "warning"}>
+                  {cur.environment}
+                </Pill>
+              </div>
+              <h3 style={{ margin: "4px 0 0 0", fontSize: 16, fontWeight: 700 }}>
                 {cur.title}
               </h3>
             </div>

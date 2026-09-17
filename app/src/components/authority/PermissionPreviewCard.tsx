@@ -18,14 +18,18 @@ export function PermissionPreviewCard({
   actor,
   authorityStatus,
   riskState,
+  policy,
+  limit,
   result,
 }: {
   action: ProtocolAction;
   assetSymbol: string;
-  amountUsd: number;
-  actor: ActorType;
+  amountUsd?: number;
+  actor?: ActorType;
   authorityStatus: string;
   riskState: RiskRatchetState;
+  policy?: string;
+  limit?: string;
   result: PermissionResult;
 }) {
   const isAllowed = result.allowed;
@@ -36,6 +40,24 @@ export function PermissionPreviewCard({
       : riskState === "RESTRICTED"
       ? "warning"
       : "danger";
+
+  // Canonical policy label fallback
+  const displayPolicy =
+    policy ||
+    (riskState === "SAFE"
+      ? "Standard Capital Policy (Max LTV 65%)"
+      : riskState === "RESTRICTED"
+      ? "Restricted Volatility Policy (Max LTV 40%)"
+      : "Defensive Preservation Policy (0% New Debt)");
+
+  // Canonical limit label fallback
+  const displayLimit =
+    limit ||
+    (amountUsd && amountUsd > 0
+      ? `$${formatMoney(amountUsd)}`
+      : riskState === "DEFENSIVE" || riskState === "EMERGENCY"
+      ? "$0.00 (Risk Blocked)"
+      : "Ratchet Constrained");
 
   return (
     <div
@@ -58,7 +80,7 @@ export function PermissionPreviewCard({
             color: "var(--text-3)",
           }}
         >
-          CIRCUIT PROTOCOL PERMISSION PREVIEW
+          CIRCUIT PROTOCOL PERMISSION EVALUATOR (7-ATTRIBUTE PROOF)
         </span>
         <Pill tone={resultTone} withDot>
           {isAllowed ? "ALLOWED" : "BLOCKED"}
@@ -73,34 +95,55 @@ export function PermissionPreviewCard({
           fontSize: 12,
         }}
       >
+        {/* 1. ACTION */}
         <div>
-          <div style={{ color: "var(--text-3)", fontSize: 10, fontFamily: "var(--mono)" }}>ACTION</div>
+          <div style={{ color: "var(--text-3)", fontSize: 10, fontFamily: "var(--mono)" }}>1. ACTION</div>
           <div style={{ fontWeight: 700, textTransform: "uppercase" }}>{action}</div>
         </div>
+
+        {/* 2. ASSET */}
         <div>
-          <div style={{ color: "var(--text-3)", fontSize: 10, fontFamily: "var(--mono)" }}>ASSET</div>
-          <div style={{ fontWeight: 700 }}>{assetSymbol}x</div>
+          <div style={{ color: "var(--text-3)", fontSize: 10, fontFamily: "var(--mono)" }}>2. ASSET</div>
+          <div style={{ fontWeight: 700 }}>{assetSymbol}</div>
         </div>
+
+        {/* 3. RISK */}
         <div>
-          <div style={{ color: "var(--text-3)", fontSize: 10, fontFamily: "var(--mono)" }}>AMOUNT</div>
-          <div style={{ fontWeight: 700, fontFamily: "var(--mono)" }}>
-            {amountUsd > 0 ? `$${formatMoney(amountUsd)}` : "—"}
-          </div>
-        </div>
-        <div>
-          <div style={{ color: "var(--text-3)", fontSize: 10, fontFamily: "var(--mono)" }}>ACTOR</div>
-          <div style={{ fontWeight: 650, color: actor === "AGENT" ? "var(--accent)" : "var(--text-1)" }}>
-            {actor === "AGENT" ? "AGENT" : "HUMAN (OWNER)"}
-          </div>
-        </div>
-        <div>
-          <div style={{ color: "var(--text-3)", fontSize: 10, fontFamily: "var(--mono)" }}>AUTHORITY</div>
-          <div style={{ fontWeight: 650 }}>{authorityStatus}</div>
-        </div>
-        <div>
-          <div style={{ color: "var(--text-3)", fontSize: 10, fontFamily: "var(--mono)" }}>RISK STATE</div>
+          <div style={{ color: "var(--text-3)", fontSize: 10, fontFamily: "var(--mono)" }}>3. RISK</div>
           <div>
             <Pill tone={riskTone}>{riskState}</Pill>
+          </div>
+        </div>
+
+        {/* 4. POLICY */}
+        <div>
+          <div style={{ color: "var(--text-3)", fontSize: 10, fontFamily: "var(--mono)" }}>4. POLICY</div>
+          <div style={{ fontWeight: 600, fontSize: 11, color: "var(--text-2)" }} title={displayPolicy}>
+            {displayPolicy}
+          </div>
+        </div>
+
+        {/* 5. AUTHORITY */}
+        <div>
+          <div style={{ color: "var(--text-3)", fontSize: 10, fontFamily: "var(--mono)" }}>5. AUTHORITY</div>
+          <div style={{ fontWeight: 650, color: actor === "AGENT" ? "var(--accent)" : "var(--text-1)" }}>
+            {authorityStatus}
+          </div>
+        </div>
+
+        {/* 6. LIMIT */}
+        <div>
+          <div style={{ color: "var(--text-3)", fontSize: 10, fontFamily: "var(--mono)" }}>6. LIMIT</div>
+          <div style={{ fontWeight: 700, fontFamily: "var(--mono)", fontSize: 11.5 }}>
+            {displayLimit}
+          </div>
+        </div>
+
+        {/* 7. RESULT */}
+        <div>
+          <div style={{ color: "var(--text-3)", fontSize: 10, fontFamily: "var(--mono)" }}>7. RESULT</div>
+          <div style={{ fontWeight: 700, color: isAllowed ? "var(--success)" : "var(--danger)" }}>
+            {isAllowed ? "PERMITTED" : "REJECTED"}
           </div>
         </div>
       </div>
@@ -118,7 +161,7 @@ export function PermissionPreviewCard({
             lineHeight: 1.4,
           }}
         >
-          <strong>Reason:</strong> <code style={{ color: "var(--danger)", fontWeight: 700 }}>{result.reasonCode}</code>
+          <strong>Reason Code:</strong> <code style={{ color: "var(--danger)", fontWeight: 700 }}>{result.reasonCode}</code>
           {result.message && <div style={{ marginTop: 2, color: "var(--text-2)" }}>{result.message}</div>}
         </div>
       )}

@@ -277,7 +277,7 @@ function AssetActionDrawerContent({ intent }: { intent: ActionIntent }) {
                 color: "var(--text-3)",
               }}
             >
-              Capital Authority
+              Permission Engine
             </span>
             <Pill
               tone={

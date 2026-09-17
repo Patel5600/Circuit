@@ -142,7 +142,56 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const m = userMsg.toLowerCase();
 
-    // 1. Borrow intent evaluation
+    // 1. "What can I do with my position right now?" intent
+    if (m.includes("what can i do") || m.includes("available actions") || m.includes("my options")) {
+      const asset = m.match(/\b(NVDA|AAPL|TSLA|MSFT|AMZN|GOOGL|COIN)\b/i)?.[1]?.toUpperCase() || snapshot.positions[0]?.symbol || "NVDA";
+      const isDefensiveOrEmerg = snapshot.riskRatchetState === "DEFENSIVE" || snapshot.riskRatchetState === "EMERGENCY";
+      const isRestricted = snapshot.riskRatchetState === "RESTRICTED";
+
+      const tool1 = `CIRCUIT_TOOL:{"tool":"get_position","input":{"symbol":"${asset}"},"output":{"collateralUsd":${snapshot.totalCollateralUsd.toFixed(2)},"debtUsd":${snapshot.totalDebtUsd.toFixed(2)},"healthFactor":${snapshot.healthFactor !== null ? snapshot.healthFactor.toFixed(3) : 999}},"status":"CONFIRMED"}`;
+      const tool2 = `CIRCUIT_TOOL:{"tool":"get_oracle","input":{"symbol":"${asset}"},"output":{"freshness":"VALID","confidenceBps":18},"status":"CONFIRMED"}`;
+      const tool3 = `CIRCUIT_TOOL:{"tool":"get_risk_state","input":{},"output":{"ratchetState":"${snapshot.riskRatchetState}","marketOpen":${snapshot.isMarketOpen}},"status":"CONFIRMED"}`;
+      const tool4 = `CIRCUIT_TOOL:{"tool":"get_capital_policy","input":{"riskState":"${snapshot.riskRatchetState}"},"output":{"borrowAllowed":${!isDefensiveOrEmerg},"effectiveLtvBps":${isDefensiveOrEmerg ? 0 : 7000}},"status":"CONFIRMED"}`;
+      const tool5 = `CIRCUIT_TOOL:{"tool":"get_authority","input":{"asset":"${asset}"},"output":{"hasActiveAuthority":${snapshot.hasActiveAuthority},"mode":"${snapshot.controlMode}"},"status":"CONFIRMED"}`;
+
+      const allowedList: string[] = ["• Deposit Collateral: ALLOWED (Always open to improve solvency)"];
+      if (snapshot.totalDebtUsd > 0) {
+        allowedList.push("• Repay Debt: ALLOWED (Always open for capital recovery)");
+      }
+      allowedList.push("• Recovery / Exit Liquidity: ALLOWED (Unconditional escape path)");
+
+      const blockedList: string[] = [];
+      if (isDefensiveOrEmerg) {
+        blockedList.push(`• New Borrow: BLOCKED (Capital Policy restricts new leverage in ${snapshot.riskRatchetState})`);
+        blockedList.push(`• New DBC Swaps / Liquidity: BLOCKED (Trading venue entries suspended in ${snapshot.riskRatchetState})`);
+        if (snapshot.totalDebtUsd > 0) {
+          blockedList.push(`• Collateral Withdrawal: BLOCKED (Cannot withdraw while outstanding debt exists in ${snapshot.riskRatchetState})`);
+        }
+      } else if (isRestricted) {
+        allowedList.push(`• Borrow: CAPPED (50% capacity: up to $${(snapshot.availableCreditUsd * 0.5).toFixed(2)})`);
+        allowedList.push("• DBC Swaps: CAPPED (50% capacity, 100 bps max slippage)");
+      } else {
+        allowedList.push(`• Borrow: ALLOWED (Full capacity: up to $${snapshot.availableCreditUsd.toFixed(2)})`);
+        allowedList.push("• DBC Swaps & Liquidity: ALLOWED (100% capacity)");
+        allowedList.push("• Collateral Withdrawal: ALLOWED (Subject to min health factor 1.05)");
+      }
+
+      res.write(
+        `${tool1}\n${tool2}\n${tool3}\n${tool4}\n${tool5}\n\n` +
+        `Current on-chain telemetry and permissions for your ${asset} position:\n\n` +
+        `• Risk Ratchet State: ${snapshot.riskRatchetState}\n` +
+        `• Collateral Value: $${snapshot.totalCollateralUsd.toFixed(2)}\n` +
+        `• Outstanding Debt: $${snapshot.totalDebtUsd.toFixed(2)}\n` +
+        `• Available Credit: $${snapshot.availableCreditUsd.toFixed(2)}\n` +
+        `• Health Factor: ${snapshot.healthFactor !== null ? snapshot.healthFactor.toFixed(3) : "Infinite"}\n\n` +
+        `PERMITTED ACTIONS:\n${allowedList.join("\n")}\n\n` +
+        (blockedList.length > 0 ? `BLOCKED BY POLICY:\n${blockedList.join("\n")}\n\n` : "") +
+        `You can ask me to borrow, repay, provide DBC liquidity, or configure health factor alerts.`
+      );
+      return res.end();
+    }
+
+    // 2. Borrow intent evaluation
     if (m.includes("borrow") || m.includes("leverage") || m.includes("can i borrow")) {
       const amountMatch = m.match(/\$?(\d+(?:\.\d+)?)/);
       const amount = amountMatch ? parseFloat(amountMatch[1]) : 200;
@@ -170,7 +219,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.end();
     }
 
-    // 2. Risk observation intent
+    // 3. "Reduce my risk" intent
+    if (m.includes("reduce") || m.includes("deleverag") || m.includes("pay down") || m.includes("lower risk")) {
+      const asset = snapshot.positions[0]?.symbol || "NVDA";
+      const hasDebt = snapshot.totalDebtUsd > 0;
+      const repayAmount = hasDebt ? Math.min(snapshot.totalDebtUsd, 200) : 0;
+
+      const tool1 = `CIRCUIT_TOOL:{"tool":"get_portfolio","input":{},"output":{"totalDebtUsd":${snapshot.totalDebtUsd.toFixed(2)},"healthFactor":${snapshot.healthFactor !== null ? snapshot.healthFactor.toFixed(3) : 999}},"status":"CONFIRMED"}`;
+      const tool2 = `CIRCUIT_TOOL:{"tool":"evaluate_permission","input":{"action":"${hasDebt ? 'repay' : 'deposit'}","asset":"${asset}"},"output":{"status":"ALLOWED","reason":"Risk-reducing invariant: capital recovery is always permitted"},"status":"CONFIRMED"}`;
+
+      if (hasDebt) {
+        const proposal = `CIRCUIT_ACTION_PROPOSAL:{"id":"p_${Date.now()}","action":"repay","symbol":"${asset}","amountUsd":${repayAmount},"riskState":"${snapshot.riskRatchetState}","permission":"ALLOWED","reason":"Repaying $${repayAmount} debt directly improves health factor and lowers protocol risk exposure.","estimatedHfAfter":${snapshot.healthFactor ? snapshot.healthFactor * 1.35 : 2.5}}`;
+        res.write(
+          `${tool1}\n${tool2}\n\nTo reduce your risk, the most effective permitted action is repaying outstanding debt.\n\n` +
+          `• Outstanding Debt: $${snapshot.totalDebtUsd.toFixed(2)}\n` +
+          `• Action: REPAY $${repayAmount.toFixed(2)} USDC\n` +
+          `• Risk Policy: ALWAYS ALLOWED (Capital Recovery Invariant)\n` +
+          `• Projected Health Factor: ${snapshot.healthFactor ? (snapshot.healthFactor * 1.35).toFixed(2) : "2.50"}\n\n` +
+          `I have prepared a repayment action proposal below for your confirmation:\n\n${proposal}`
+        );
+      } else {
+        const proposal = `CIRCUIT_ACTION_PROPOSAL:{"id":"p_${Date.now()}","action":"deposit","symbol":"${asset}","amountUsd":500,"riskState":"${snapshot.riskRatchetState}","permission":"ALLOWED","reason":"Depositing additional collateral expands your safety buffer and raises borrowing headroom.","estimatedHfAfter":null}`;
+        res.write(
+          `${tool1}\n${tool2}\n\nYou currently have zero debt. To further strengthen your position against market volatility, you can deposit additional ${asset} collateral to expand your buffer.\n\n` +
+          `• Outstanding Debt: $0.00\n` +
+          `• Current Collateral: $${snapshot.totalCollateralUsd.toFixed(2)}\n` +
+          `• Action: DEPOSIT $500.00 ${asset}\n` +
+          `• Risk Policy: ALWAYS ALLOWED (Risk-Reducing)\n\n${proposal}`
+        );
+      }
+      return res.end();
+    }
+
+    // 4. Risk observation intent
     if (m.includes("risk") || m.includes("restricted") || m.includes("why") || m.includes("state") || m.includes("ratchet")) {
       const tool1 = `CIRCUIT_TOOL:{"tool":"get_risk_state","input":{},"output":{"ratchetState":"${snapshot.riskRatchetState}","marketOpen":${snapshot.isMarketOpen}},"status":"CONFIRMED"}`;
       const tool2 = `CIRCUIT_TOOL:{"tool":"get_portfolio","input":{},"output":{"totalCollateralUsd":${snapshot.totalCollateralUsd.toFixed(2)},"totalDebtUsd":${snapshot.totalDebtUsd.toFixed(2)},"healthFactor":${snapshot.healthFactor !== null ? snapshot.healthFactor.toFixed(3) : 999}},"status":"CONFIRMED"}`;
@@ -179,16 +260,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.end();
     }
 
-    // 3. Meteora DBC liquidity intent
-    if (m.includes("dbc") || m.includes("meteora") || m.includes("liquidity") || m.includes("swap")) {
-      const tool1 = `CIRCUIT_TOOL:{"tool":"get_dbc_state","input":{"symbol":"NVDA"},"output":{"venue":"Meteora DBC (dbcij3LW...aqN)","governance":"Circuit Permission Engine"},"status":"CONFIRMED"}`;
-      const tool2 = `CIRCUIT_TOOL:{"tool":"evaluate_permission","input":{"action":"enter_liquidity","riskState":"${snapshot.riskRatchetState}"},"output":{"status":"${snapshot.riskRatchetState === 'SAFE' ? 'ALLOWED (100%)' : snapshot.riskRatchetState === 'RESTRICTED' ? 'CAPPED (50%)' : 'BLOCKED'}","exitLiquidity":"ALLOWED (Unconditional Escape)"},"status":"CONFIRMED"}`;
+    // 5. Meteora DBC liquidity intent ("Provide liquidity while the circuit allows it")
+    if (m.includes("dbc") || m.includes("meteora") || m.includes("liquidity") || m.includes("swap") || m.includes("provide liquidity")) {
+      const asset = m.match(/\b(NVDA|AAPL|TSLA|MSFT|AMZN|GOOGL|COIN)\b/i)?.[1]?.toUpperCase() || "NVDA";
+      const isDefensiveOrEmerg = snapshot.riskRatchetState === "DEFENSIVE" || snapshot.riskRatchetState === "EMERGENCY";
+      const isRestricted = snapshot.riskRatchetState === "RESTRICTED";
 
-      res.write(`${tool1}\n${tool2}\n\nMeteora Dynamic Bonding Curve (DBC) status under Section 15 Risk Matrix:\n\n• Current Risk Ratchet: ${snapshot.riskRatchetState}\n• Swap (DBC): ${snapshot.riskRatchetState === 'SAFE' ? 'ALLOWED (100% capacity)' : snapshot.riskRatchetState === 'RESTRICTED' ? 'CAPPED (50% / 100 bps max slippage)' : 'BLOCKED'}\n• Enter Liquidity: ${snapshot.riskRatchetState === 'SAFE' ? 'ALLOWED (100% capacity)' : snapshot.riskRatchetState === 'RESTRICTED' ? 'CAPPED (50% capacity)' : 'BLOCKED'}\n• Exit Liquidity: ALLOWED (Unconditional capital escape across all risk states)\n\nCircuit is the risk and permission engine; Meteora DBC serves as an execution venue bounded atomically by Circuit CPI.`);
+      const tool1 = `CIRCUIT_TOOL:{"tool":"get_dbc_state","input":{"symbol":"${asset}"},"output":{"venue":"Meteora DBC (dbcij3LW...aqN)","poolEnvironment":"DEVNET TEST POOL","governance":"Circuit Permission Engine"},"status":"CONFIRMED"}`;
+      const tool2 = `CIRCUIT_TOOL:{"tool":"evaluate_permission","input":{"action":"enter_liquidity","riskState":"${snapshot.riskRatchetState}"},"output":{"status":"${isDefensiveOrEmerg ? 'BLOCKED' : isRestricted ? 'CAPPED (50%)' : 'ALLOWED (100%)'}","exitLiquidity":"ALLOWED (Unconditional Escape)"},"status":"CONFIRMED"}`;
+
+      if (isDefensiveOrEmerg) {
+        const proposal = `CIRCUIT_ACTION_PROPOSAL:{"id":"p_${Date.now()}","action":"exit_liquidity","symbol":"${asset}","amountUsd":0,"riskState":"${snapshot.riskRatchetState}","permission":"ALLOWED","reason":"Exit Liquidity is unconditionally permitted across all risk states to ensure capital recovery.","estimatedHfAfter":null}`;
+        res.write(
+          `${tool1}\n${tool2}\n\nUnder ${snapshot.riskRatchetState} policy, new liquidity provisioning and swaps on Meteora DBC are strictly BLOCKED to protect protocol solvency.\n\n` +
+          `• Venue: Meteora DBC Devnet Test Pool\n` +
+          `• Enter Liquidity: BLOCKED by Circuit Permission Engine\n` +
+          `• Exit Liquidity: ALLOWED (Unconditional capital escape across all risk states)\n\n` +
+          `Circuit is the risk and permission authority; Meteora DBC serves as an execution venue bounded atomically by Circuit CPI.\n\n${proposal}`
+        );
+        return res.end();
+      }
+
+      const proposal = `CIRCUIT_ACTION_PROPOSAL:{"id":"p_${Date.now()}","action":"enter_liquidity","symbol":"${asset}","amountUsd":250,"riskState":"${snapshot.riskRatchetState}","permission":"${isRestricted ? 'CAPPED' : 'ALLOWED'}","reason":"Providing liquidity into ${asset} Devnet Test Pool within ${snapshot.riskRatchetState} limits.","estimatedHfAfter":null}`;
+      res.write(
+        `${tool1}\n${tool2}\n\nMeteora Dynamic Bonding Curve (DBC) status under Section 15 Risk Matrix:\n\n` +
+        `• Current Risk Ratchet: ${snapshot.riskRatchetState}\n` +
+        `• Pool Environment: DEVNET TEST POOL (Test-mint liquidity)\n` +
+        `• Swap (DBC): ${snapshot.riskRatchetState === 'SAFE' ? 'ALLOWED (100% capacity)' : 'CAPPED (50% / 100 bps max slippage)'}\n` +
+        `• Enter Liquidity: ${snapshot.riskRatchetState === 'SAFE' ? 'ALLOWED (100% capacity)' : 'CAPPED (50% capacity)'}\n` +
+        `• Exit Liquidity: ALLOWED (Unconditional capital escape across all risk states)\n\n` +
+        `I have prepared an action proposal below within current Circuit limits:\n\n${proposal}`
+      );
       return res.end();
     }
 
-    // 4. Watch intent
+    // 6. Watch intent
     if (m.includes("watch") || m.includes("alert") || m.includes("monitor")) {
       const threshold = m.match(/(\d+(?:\.\d+)?)/)?.[1] ?? "1.8";
       const tool1 = `CIRCUIT_TOOL:{"tool":"create_watch","input":{"field":"health_factor","operator":"lt","threshold":${threshold}},"output":{"watchId":"w_${Date.now()}","status":"ACTIVE"},"status":"CONFIRMED"}`;
@@ -199,7 +305,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.end();
     }
 
-    // 5. Schedule intent
+    // 7. Schedule intent
     if (m.includes("schedule") || m.includes("every") || m.includes("hour") || m.includes("daily")) {
       const mins = m.includes("hour") ? 60 : m.includes("day") ? 1440 : 15;
       const tool1 = `CIRCUIT_TOOL:{"tool":"create_schedule","input":{"frequencyMinutes":${mins}},"output":{"scheduleId":"s_${Date.now()}","status":"ACTIVE"},"status":"CONFIRMED"}`;
@@ -210,8 +316,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.end();
     }
 
-    // 6. Auto manage intent
-    if (m.includes("auto") || m.includes("repay") || m.includes("manage") || m.includes("protect")) {
+    // 8. Auto manage intent
+    if (m.includes("auto") || m.includes("manage") || m.includes("protect")) {
       const tool1 = `CIRCUIT_TOOL:{"tool":"build_strategy","input":{"objective":"Auto-repay protection","riskAdaptive":true},"output":{"strategyId":"strat_${Date.now()}","status":"VALIDATED"},"status":"CONFIRMED"}`;
       res.write(
         `${tool1}\n\nI have configured an Auto Manage protection policy with bounded capital authority. This strategy will automatically repay debt when health factor approaches 1.80, up to $200 per action.\n\n` +

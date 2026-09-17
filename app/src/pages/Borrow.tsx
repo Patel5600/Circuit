@@ -356,7 +356,7 @@ export default function Borrow() {
               </Pill>
             </div>
             <div style={{ fontSize: 12.5, color: "var(--text-2)", lineHeight: 1.5 }}>
-              The on-chain Capital Authority has rejected borrow authorization:{" "}
+              The on-chain Permission Engine has rejected borrow authorization:{" "}
               <strong>Additional risk is not permitted</strong> under {risk.ratchetState} state.
             </div>
             <div className="grid grid--2 g-8" style={{ marginTop: 4 }}>
@@ -735,6 +735,18 @@ export default function Borrow() {
             actor={controlMode === "MANUAL" ? "HUMAN" : "AGENT"}
             authorityStatus={controlMode === "MANUAL" ? "SOVEREIGN OWNER" : agentAuth.status}
             riskState={risk.ratchetState}
+            policy={
+              risk.ratchetState === "SAFE"
+                ? "Standard (Max LTV 65%)"
+                : risk.ratchetState === "RESTRICTED"
+                ? "Restricted Volatility (Max LTV 40%)"
+                : "Defensive Preservation (0% New Debt)"
+            }
+            limit={
+              controlMode === "MANUAL"
+                ? `$${formatMoney(toUi(max))} ${quoteSymbol}`
+                : `$${formatMoney(agentAuth.availableBorrow)} ${quoteSymbol}`
+            }
             result={permResult}
           />
         )}
