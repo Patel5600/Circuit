@@ -28,7 +28,16 @@
  *   A_effective(t) = A_owner ∩ A_agent ∩ A_risk(t) ∩ A_position(t)
  */
 
-export type ProtocolAction = "deposit" | "borrow" | "repay" | "withdraw" | "liquidate";
+export type ProtocolAction =
+  | "deposit"
+  | "borrow"
+  | "repay"
+  | "withdraw"
+  | "liquidate"
+  | "swap"
+  | "enter_liquidity"
+  | "exit_liquidity"
+  | "rebalance";
 
 export type ActorType = "HUMAN" | "AGENT";
 
@@ -247,6 +256,68 @@ export function evaluatePermission(params: PermissionEvaluationParams): Permissi
   if (action === "withdraw" && currentDebtUsd > 0) {
     if (riskState === "DEFENSIVE" || riskState === "EMERGENCY") {
       return makeResult(false, "WITHDRAW_DISABLED", `Collateral withdrawal blocked during ${riskState} state while outstanding debt exists.`, riskState, effectiveLtvBps, 0, null, 0, 0);
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // 4b. METEORA DBC / LIQUIDITY SURFACES (Section 15 Risk Matrix)
+  // --------------------------------------------------------------------------
+  if (action === "exit_liquidity") {
+    return makeResult(
+      true,
+      "ALLOWED",
+      "DBC liquidity exit permitted across all market states for recovery.",
+      riskState,
+      effectiveLtvBps,
+      0,
+      null,
+      0,
+      agentAuthority?.riskBudgetUsd ?? 0
+    );
+  }
+
+  if (action === "swap" || action === "enter_liquidity" || action === "rebalance") {
+    if (riskState === "EMERGENCY") {
+      return makeResult(
+        false,
+        "RISK_STATE_RESTRICTED",
+        "Protocol containment: Meteora DBC swap/liquidity blocked in EMERGENCY state.",
+        riskState,
+        0,
+        0,
+        null,
+        0,
+        0
+      );
+    }
+    if (riskState === "DEFENSIVE") {
+      return makeResult(
+        false,
+        "RISK_STATE_RESTRICTED",
+        "Protocol containment: Meteora DBC swap/liquidity blocked in DEFENSIVE state.",
+        riskState,
+        effectiveLtvBps,
+        0,
+        null,
+        0,
+        0
+      );
+    }
+    if (riskState === "RESTRICTED") {
+      const cap = Math.min(250, (agentAuthority?.maxBorrowLimitUsd ?? 500) / 2);
+      if (amountUsd > cap) {
+        return makeResult(
+          false,
+          "RISK_STATE_RESTRICTED",
+          `Meteora DBC volume capped to $${cap} in RESTRICTED state.`,
+          riskState,
+          effectiveLtvBps,
+          0,
+          null,
+          0,
+          0
+        );
+      }
     }
   }
 

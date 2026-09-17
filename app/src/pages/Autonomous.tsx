@@ -217,54 +217,171 @@ function Timeline({ events }: { events: ExecEvent[] }) {
   );
 }
 
-function AuthPanel({ auths }: { auths: Array<{ agentAddress: string; assetSymbol: string; isExpired: boolean; isRevoked: boolean; maxBorrowLimit: number; expiryTs: number }> }) {
-  if (auths.length === 0) {
-    return (
-      <div style={{ padding: "12px 14px", background: "rgba(207,139,139,0.06)", border: "1px solid rgba(207,139,139,0.2)", borderRadius: 8, fontSize: 12, color: "var(--text-2)" }}>
-        <div style={{ fontWeight: 700, color: "var(--danger,#cf8b8b)", marginBottom: 4 }}>No Agent Authority</div>
-        <div style={{ lineHeight: 1.5 }}>Create an Agent Authority PDA to enable autonomous execution. The agent cannot borrow or withdraw without a valid on-chain authority.</div>
-      </div>
-    );
-  }
+function AuthPanel({
+  auths,
+  agentState = "IDLE",
+}: {
+  auths: Array<{
+    agentAddress: string;
+    assetSymbol: string;
+    isExpired: boolean;
+    isRevoked: boolean;
+    maxBorrowLimit: number;
+    expiryTs: number;
+  }>;
+  agentState?: AgentState;
+}) {
   const active = auths.filter(a => !a.isExpired && !a.isRevoked);
   const inactive = auths.filter(a => a.isExpired || a.isRevoked);
+
+  // Derive top-level authority status state: AUTHORIZED, EXPIRED, REVOKED, IDLE, EXECUTING
+  const operatingStatus: "AUTHORIZED" | "EXPIRED" | "REVOKED" | "IDLE" | "EXECUTING" =
+    agentState === "EXECUTING" || agentState === "CONFIRMING"
+      ? "EXECUTING"
+      : active.length > 0
+      ? "AUTHORIZED"
+      : inactive.some(a => a.isRevoked)
+      ? "REVOKED"
+      : inactive.some(a => a.isExpired)
+      ? "EXPIRED"
+      : "IDLE";
+
+  const statusTone =
+    operatingStatus === "EXECUTING" || operatingStatus === "AUTHORIZED"
+      ? "var(--mint, #79c2a4)"
+      : operatingStatus === "REVOKED"
+      ? "var(--danger, #cf8b8b)"
+      : operatingStatus === "EXPIRED"
+      ? "var(--warning, #cfad74)"
+      : "var(--text-3)";
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {active.map(a => (
-        <div key={a.agentAddress} style={{ padding: "9px 12px", background: "rgba(121,194,164,0.06)", border: "1px solid rgba(121,194,164,0.25)", borderRadius: 7, fontSize: 12 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontWeight: 700, color: "var(--mint,#79c2a4)" }}>{a.assetSymbol} Authority</span>
-            <span style={{ fontSize: 9, fontFamily: "var(--mono)", background: "rgba(121,194,164,0.15)", color: "var(--mint,#79c2a4)", padding: "1px 5px", borderRadius: 3 }}>ACTIVE</span>
-          </div>
-          <div style={{ color: "var(--text-3)", marginTop: 4, fontFamily: "var(--mono)", fontSize: 10 }}>
-            Max Borrow: ${a.maxBorrowLimit.toFixed(2)} {"\u00b7"} Expires: {new Date(a.expiryTs * 1000).toLocaleDateString()}
-          </div>
-          <div style={{ color: "var(--text-3)", marginTop: 2, fontFamily: "var(--mono)", fontSize: 10 }}>
-            Agent: {a.agentAddress.slice(0, 8)}...{a.agentAddress.slice(-6)}
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {/* Authority Hierarchy Breadcrumb */}
+      <div
+        style={{
+          padding: "8px 10px",
+          background: "var(--surface-2)",
+          border: "1px solid var(--border)",
+          borderRadius: 6,
+          fontSize: 10,
+          fontFamily: "var(--mono)",
+          color: "var(--text-3)",
+        }}
+      >
+        <div style={{ color: "var(--text-2)", fontWeight: 700, marginBottom: 3, letterSpacing: "0.04em" }}>
+          AUTHORITY PIPELINE
+        </div>
+        <div style={{ color: "var(--accent)", letterSpacing: "0.02em" }}>
+          USER {"\u2192"} AGENT {"\u2192"} RISK RATCHET {"\u2192"} PERMISSION ENGINE {"\u2192"} SOLANA
+        </div>
+      </div>
+
+      {/* Authority Intersection Formula Box */}
+      <div
+        style={{
+          padding: "8px 10px",
+          background: "var(--surface-3, #151821)",
+          border: "1px solid var(--border)",
+          borderRadius: 6,
+          fontSize: 10,
+          lineHeight: 1.45,
+          color: "var(--text-2)",
+          fontFamily: "var(--mono)",
+        }}
+      >
+        <span style={{ color: "var(--text-3)" }}>Effective Authority:</span>
+        <div style={{ color: "var(--mint, #79c2a4)", marginTop: 2, fontSize: 9.5 }}>
+          Owner Auth {"\u2229"} Agent Auth {"\u2229"} Risk Policy {"\u2229"} Pos Constraints {"\u2229"} Action Constraints
+        </div>
+      </div>
+
+      {/* Operating Status Pill */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "6px 10px",
+          background: "var(--surface-2)",
+          borderRadius: 6,
+          border: "1px solid var(--border)",
+        }}
+      >
+        <span style={{ fontSize: 10, fontFamily: "var(--mono)", color: "var(--text-3)" }}>
+          OPERATING STATUS
+        </span>
+        <span
+          style={{
+            fontSize: 9.5,
+            fontWeight: 700,
+            fontFamily: "var(--mono)",
+            padding: "2px 7px",
+            borderRadius: 4,
+            background: "rgba(255,255,255,0.05)",
+            border: `1px solid ${statusTone}`,
+            color: statusTone,
+            letterSpacing: "0.04em",
+          }}
+        >
+          {operatingStatus}
+        </span>
+      </div>
+
+      {auths.length === 0 ? (
+        <div style={{ padding: "12px 14px", background: "rgba(207,139,139,0.06)", border: "1px solid rgba(207,139,139,0.2)", borderRadius: 8, fontSize: 12, color: "var(--text-2)" }}>
+          <div style={{ fontWeight: 700, color: "var(--danger,#cf8b8b)", marginBottom: 4 }}>No Agent Authority PDA</div>
+          <div style={{ lineHeight: 1.5, fontSize: 11 }}>
+            Create an Agent Authority PDA to grant bounded delegation. The agent cannot borrow, withdraw, or execute DBC swaps without a valid on-chain delegation.
           </div>
         </div>
-      ))}
-      {inactive.map(a => (
-        <div key={a.agentAddress} style={{ padding: "7px 10px", background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--text-3)" }}>
-          <span style={{ fontWeight: 600 }}>{a.assetSymbol}</span> {"\u2014"} {a.isRevoked ? "REVOKED" : "EXPIRED"}
-        </div>
-      ))}
+      ) : (
+        <>
+          {active.map(a => (
+            <div key={a.agentAddress} style={{ padding: "9px 12px", background: "rgba(121,194,164,0.06)", border: "1px solid rgba(121,194,164,0.25)", borderRadius: 7, fontSize: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontWeight: 700, color: "var(--mint,#79c2a4)" }}>{a.assetSymbol} Authority</span>
+                <span style={{ fontSize: 9, fontFamily: "var(--mono)", background: "rgba(121,194,164,0.15)", color: "var(--mint,#79c2a4)", padding: "1px 5px", borderRadius: 3, fontWeight: 700 }}>AUTHORIZED</span>
+              </div>
+              <div style={{ color: "var(--text-3)", marginTop: 4, fontFamily: "var(--mono)", fontSize: 10 }}>
+                Max Borrow: ${a.maxBorrowLimit.toFixed(2)} {"\u00b7"} Expires: {new Date(a.expiryTs * 1000).toLocaleDateString()}
+              </div>
+              <div style={{ color: "var(--text-3)", marginTop: 2, fontFamily: "var(--mono)", fontSize: 10 }}>
+                Agent: {a.agentAddress.slice(0, 8)}...{a.agentAddress.slice(-6)}
+              </div>
+            </div>
+          ))}
+          {inactive.map(a => (
+            <div key={a.agentAddress} style={{ padding: "7px 10px", background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--text-3)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontWeight: 600 }}>{a.assetSymbol}</span>
+                <span style={{ fontSize: 9, fontFamily: "var(--mono)", color: a.isRevoked ? "var(--danger,#cf8b8b)" : "var(--warning,#cfad74)" }}>
+                  {a.isRevoked ? "REVOKED" : "EXPIRED"}
+                </span>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
     </div>
   );
 }
 
 function parseStrategyFromText(text: string): StrategyPlan | null {
-  if (!/deposit|borrow|repay|withdraw/i.test(text)) return null;
-  if (!/\$[\d,]+|\d+\s*USD/i.test(text)) return null;
+  if (!/deposit|borrow|repay|withdraw|swap|rebalance|enter_liquidity|exit_liquidity|enter\s+liquidity|exit\s+liquidity/i.test(text)) return null;
+  if (!/\$[\d,]+|\d+\s*(?:USD|NVDA|TSLA|AAPL|BTC|ETH|SOL|USDC)/i.test(text)) return null;
   const actions: StrategyAction[] = [];
   for (const line of text.split("\n")) {
-    const aM = line.match(/\b(deposit|borrow|repay|withdraw)\b/i);
-    const uM = line.match(/\$?([\d,]+(?:\.\d+)?)\s*(?:USD)?/i);
+    const aM = line.match(/\b(deposit|borrow|repay|withdraw|swap|rebalance|enter_liquidity|exit_liquidity|enter\s+liquidity|exit\s+liquidity)\b/i);
+    const uM = line.match(/\$?([\d,]+(?:\.\d+)?)\s*(?:USD|NVDA|TSLA|AAPL|BTC|ETH|SOL|USDC)?/i);
     const sM = line.match(/\b(NVDA|TSLA|AAPL|BTC|ETH|SOL|USDC)\b/i);
-    if (aM && uM && sM) {
+    if (aM && uM) {
+      let normAction = aM[1].toLowerCase().replace(/\s+/, "_");
+      if (normAction === "enter") normAction = "enter_liquidity";
+      if (normAction === "exit") normAction = "exit_liquidity";
       actions.push({
-        action: aM[1].toLowerCase() as StrategyAction["action"],
-        asset: sM[1].toUpperCase(),
+        action: normAction as StrategyAction["action"],
+        asset: sM ? sM[1].toUpperCase() : "USDC",
         amountUsd: parseFloat(uM[1].replace(",", "")),
         reason: line.trim(),
       });
@@ -272,10 +389,15 @@ function parseStrategyFromText(text: string): StrategyPlan | null {
   }
   if (actions.length === 0) return null;
   return {
-    objective: text.split("\n").find(l => l.trim().length > 10)?.slice(0, 120) ?? "Strategy",
-    constraints: ["Circuit permission engine governs all actions", "Bounded by on-chain authority limits"],
+    objective: text.split("\n").find(l => l.trim().length > 10)?.slice(0, 120) ?? "Strategy Plan",
+    constraints: [
+      "Circuit permission engine governs all credit and DBC liquidity actions",
+      "Bounded by on-chain Agent Authority PDA limits",
+      "DBC slippage bounded strictly <= 200 bps",
+      "Dynamic Risk Ratchet enforcement (Blocked in Defensive/Emergency)",
+    ],
     actions,
-    riskAssessment: "Verify collateral ratio and LTV before execution",
+    riskAssessment: "Evaluate collateral ratio, oracle confidence spread, and Section 15 DBC Risk Matrix before atomic execution.",
   };
 }
 
@@ -682,10 +804,13 @@ export default function Autonomous() {
 
               <div style={{ marginTop: 14 }}>
                 <SectionLabel>AUTHORITY</SectionLabel>
-                <AuthPanel auths={onChainAuthorities.map(a => {
-                  const sym = DEPLOYED_MARKETS.find(m => m.mint === a.assetMint.toBase58())?.symbol ?? a.assetMint.toBase58().slice(0, 6);
-                  return { agentAddress: a.agent.toBase58(), assetSymbol: sym, isExpired: a.isExpired, isRevoked: a.isRevoked, maxBorrowLimit: a.maxBorrowLimitUi, expiryTs: a.expiryTs };
-                })} />
+                <AuthPanel
+                  auths={onChainAuthorities.map(a => {
+                    const sym = DEPLOYED_MARKETS.find(m => m.mint === a.assetMint.toBase58())?.symbol ?? a.assetMint.toBase58().slice(0, 6);
+                    return { agentAddress: a.agent.toBase58(), assetSymbol: sym, isExpired: a.isExpired, isRevoked: a.isRevoked, maxBorrowLimit: a.maxBorrowLimitUi, expiryTs: a.expiryTs };
+                  })}
+                  agentState={agentState}
+                />
               </div>
             </div>
 

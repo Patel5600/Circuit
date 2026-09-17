@@ -32,14 +32,14 @@ const STAGES: FlowStage[] = [
     label: "Tokenized Equity",
     beat: "Collateral",
     detail:
-      "A stock-backed position enters circuit as collateral with a canonical asset identity and defined ownership.",
+      "A stock-backed position enters circuit as programmable capital with a canonical asset identity, verified depository backing, and defined ownership.",
   },
   {
     key: "observation",
     label: "Market Observation",
     beat: "Observation",
     detail:
-      "Pyth supplies price, confidence, and freshness. circuit validates the observation rather than trusting a client or cached value.",
+      "Pyth supplies price, confidence, and freshness. circuit validates the observation directly on-chain rather than trusting a client or cached value.",
   },
   {
     key: "marketguard",
@@ -56,34 +56,34 @@ const STAGES: FlowStage[] = [
       "Market conditions become a deterministic capital state:",
     stateHighlight: "SAFE → RESTRICTED → DEFENSIVE → EMERGENCY",
     postDetail:
-      "Recovery is staged in the opposite direction. Risk is no longer a number displayed to the user. It becomes protocol state.",
+      "Recovery is staged monotonically in the opposite direction. Risk is no longer a number displayed to the user. It becomes protocol state.",
   },
   {
     key: "authority",
     label: "Capital Authority",
     beat: "Authority",
     detail:
-      "The current risk state determines what capital is allowed to do. An autonomous strategy receives bounded authority, never unrestricted control.",
-    actionsList: "Borrow. Withdraw. Repay. Deposit.",
+      "The current risk state determines what capital is allowed to do. Humans decide delegation; autonomous strategies operate only within bounded authority.",
+    actionsList: "Borrow. Withdraw. Repay. Deposit. Liquidity.",
     postDetail:
-      "Each action is evaluated against the owner's policy, the agent's authority, the current risk state, and the position's financial constraints.",
+      "Each action is evaluated at the intersection of owner policy, agent authority, active risk state, and on-chain constraints.",
   },
   {
     key: "credit",
     label: "Programmable Credit",
     beat: "Credit",
     detail:
-      "Only after those conditions pass does credit become available.",
+      "Only after those conditions pass does credit or liquidity execution become available.",
     equations: true,
     postDetail:
-      "Credit is therefore an output of the system, not the starting point.",
+      "Execution is therefore an output of the system, not the starting point.",
   },
   {
     key: "recovery",
     label: "Recovery",
     beat: "Recovery",
     detail:
-      "When conditions deteriorate, risk-increasing authority contracts first. Repayment, deposits, and protocol-defined recovery actions remain available. As the system recovers, permissions return through the ratchet rather than appearing instantly.",
+      "When conditions deteriorate, risk-increasing authority contracts first. Repayment, deposits, and recovery actions remain available according to policy. Permissions recover gradually through the ratchet.",
   },
 ];
 

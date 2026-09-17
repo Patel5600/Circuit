@@ -77,7 +77,7 @@ export default function Landing() {
             <div className="hero__copy">
               <p className="hero__eyebrow">
                 <span className="dot" aria-hidden="true" />
-                Solana {CLUSTER_LABEL} · Programmable Credit Infrastructure
+                Solana Devnet · Programmable Capital Infrastructure
               </p>
 
               <h1 className="hero__title">
@@ -85,12 +85,11 @@ export default function Landing() {
                 <br />
                 circuit makes them
                 <br />
-                <em>programmable collateral.</em>
+                <em>programmable capital.</em>
               </h1>
 
               <p className="hero__lede">
-                circuit turns verified market conditions into capital permissions,
-                credit limits and deterministic recovery actions enforced on-chain.
+                circuit turns verified market conditions into enforceable capital permissions for credit, liquidity and recovery.
               </p>
 
               <p style={{ margin: "10px 0 0", fontSize: "14px", color: "var(--text-3)", lineHeight: 1.5 }}>
@@ -130,7 +129,7 @@ export default function Landing() {
                 <span style={{ color: "var(--accent)" }}>→</span>
                 <span>PERMISSION</span>
                 <span style={{ color: "var(--accent)" }}>→</span>
-                <span style={{ color: "var(--text)" }}>CREDIT</span>
+                <span style={{ color: "var(--text)" }}>EXECUTION</span>
               </div>
 
               <ul className="hero__status">
@@ -151,7 +150,7 @@ export default function Landing() {
           </div>
 
           <p className="hero__vlabel" aria-hidden="true">
-            Market → Risk → Permission → Credit
+            Market → Risk → Permission → Execution
           </p>
           <p className="hero__scroll" aria-hidden="true">
             Scroll

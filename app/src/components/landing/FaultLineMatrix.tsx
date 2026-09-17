@@ -23,11 +23,11 @@ export interface DimensionChapter {
 
 const DIMENSIONS: DimensionChapter[] = [
   {
-    id: "custody",
+    id: "equity",
     number: 1,
     roman: "I",
-    title: "Qualified Collateral Custody",
-    subtitle: "Real Asset Backing vs Synthetic Rehypothecation",
+    title: "Tokenized Equity",
+    subtitle: "Real Depository Backing vs Synthetic Rehypothecation",
     badge: "1:1 Custody Isolation",
     tagline: "Tokenized equities are legally enforceable shares held in regulated custody, not synthetic contracts.",
     thesis:
@@ -39,10 +39,10 @@ const DIMENSIONS: DimensionChapter[] = [
       "Eliminates counterparty rehypothecation risk and guarantees that every dollar of collateral on Solana is backed by physical securities in depository trust.",
   },
   {
-    id: "oracle",
+    id: "observation",
     number: 2,
     roman: "II",
-    title: "Conservative Pyth Valuation",
+    title: "Market Observation",
     subtitle: "Lower-Bound Confidence Interval Pricing",
     badge: "p - conf Lower Bound",
     tagline: "Point estimates fail when spreads explode. Circuit evaluates collateral strictly at the confidence lower bound.",
@@ -55,11 +55,11 @@ const DIMENSIONS: DimensionChapter[] = [
       "Prevents flash-crash overborrowing and immunizes the liquidity pool from transient publisher disagreement.",
   },
   {
-    id: "session",
+    id: "marketguard",
     number: 3,
     roman: "III",
-    title: "Deterministic NYSE Session Guard",
-    subtitle: "Market Calendar Aware Credit",
+    title: "MarketGuard",
+    subtitle: "Deterministic NYSE Session & Oracle State",
     badge: "On-Chain MarketGuard",
     tagline: "Equities do not trade 24/7. Credit generation must halt when underlying venues close.",
     thesis:
@@ -74,65 +74,65 @@ const DIMENSIONS: DimensionChapter[] = [
     id: "ratchet",
     number: 4,
     roman: "IV",
-    title: "4-State Risk Ratchet",
-    subtitle: "Asymmetric Fast-Tightening State Machine",
-    badge: "4-State Machine",
+    title: "Risk Ratchet",
+    subtitle: "Asymmetric Fast-Tightening & Monotonic Recovery",
+    badge: "4-State Dynamic Ratchet",
     tagline: "Binary risk states create liquidation cascades. Circuit introduces a 4-tier gradual defensive posture.",
     thesis:
-      "Binary systems (solvent vs liquidatable) wait until debt exceeds threshold, causing sudden liquidations. Circuit proactively constrains new leverage as soon as stress metrics degrade.",
+      "Binary systems wait until debt exceeds threshold, causing sudden liquidations. Circuit proactively constrains new leverage as soon as stress metrics degrade, requiring consecutive healthy observations (hysteresis) to step back up.",
     mechanism:
-      "A dedicated on-chain RiskRatchet PDA tracks states: Safe → Restricted → Defensive → Emergency. Any breach of confidence bounds (> 50, > 150, > 300 bps) or custody impairment instantly ratchets state downward in the same slot.",
-    formula: "State Transition: Tightening occurs instantly (slot t = t_stress)",
+      "A dedicated on-chain RiskRatchet PDA tracks states: Safe → Restricted → Defensive → Emergency. Any breach of confidence bounds or custody impairment instantly ratchets state downward in the same slot. Recovery requires 5 clean ticks.",
+    formula: "Monotonic Recovery: Emergency → Defensive → Restricted → Safe",
     whyItMatters:
-      "Limits downside exposure early by restricting new borrowing while keeping repayment paths 100% open.",
+      "Limits downside exposure early by restricting new borrowing while keeping repayment and recovery paths 100% open.",
   },
   {
-    id: "hysteresis",
+    id: "authority",
     number: 5,
     roman: "V",
-    title: "Monotonic Hysteresis Recovery",
-    subtitle: "Evidence-Based Monotonic Upgrades",
-    badge: "5 Clean Ticks Hysteresis",
-    tagline: "A single clean tick does not mean calm has returned. Recovery requires consecutive verified proofs.",
+    title: "Capital Authority",
+    subtitle: "Human Root Sovereignty & Bounded Agent Delegation",
+    badge: "Bounded Authority PDA",
+    tagline: "Humans decide delegation. Autonomous agents execute within hard mathematical limits.",
     thesis:
-      "Markets often experience false bounces. If borrowing permissions re-enable on a single favorable tick, borrowers can re-lever during the eye of the storm (flapping hazard).",
+      "Autonomous agents need execution autonomy without custodial control. Circuit implements non-custodial AgentAuthority PDAs bounded by asset scope, expiry, max borrow caps, and dynamic risk budgets.",
     mechanism:
-      "The protocol enforces strict monotonic recovery with deadbands. Direct Emergency → Safe transitions are mathematically prohibited. Upgrading each tier requires N (e.g. 5) consecutive verified clean observations via permissionless cranks.",
-    formula: "Recovery Condition: consecutive_observations ≥ 5 ∧ conf_ratio ≤ deadband",
+      "Authority is strictly scoped: seeds = [b'authority', owner, agent, asset_mint]. The agent can never borrow beyond authorized caps, can never execute outside asset scope, and has no separate risk engine.",
+    formula: "EffectiveAuthority = OwnerAuthority ∩ AgentAuthority ∩ RiskPolicy ∩ PositionConstraints",
     whyItMatters:
-      "Guarantees that credit capacity only returns after durable market stabilization has been proven on-chain.",
+      "Allows autonomous automated strategies to manage positions 24/7 without exposing user funds to rogue agent draining.",
   },
   {
-    id: "policy",
+    id: "permission",
     number: 6,
     roman: "VI",
-    title: "Capital Policy Engine",
-    subtitle: "Authoritative On-Chain Capital Permissions",
-    badge: "Risk State → Policy Gate",
-    tagline: "Market state becomes an on-chain capital policy. The caller cannot supply its own permissions.",
+    title: "Permission Engine",
+    subtitle: "Canonical Unified Gate Across Credit & Liquidity",
+    badge: "ONE Permission Engine",
+    tagline: "Market state becomes an on-chain capital policy. Humans and agents share the exact same rules.",
     thesis:
-      "Traditional protocols rely on client-side safety checks or delayed admin parameter changes. Circuit derives allowable capital operations deterministically from active on-chain risk states.",
+      "Traditional protocols rely on client-side safety checks or fragmented validation. Circuit routes all actions—credit, withdrawals, and Meteora DBC swaps—through ONE canonical Permission Engine.",
     mechanism:
-      "The program derives effective LTV and operation permissions at the transaction boundary. Borrowing and withdrawals are strictly rejected in Defensive and Emergency states, while repayments and deposits remain unconditionally available.",
-    formula: "Borrow Capacity = max(0, Collateral × LTV_effective - Debt)",
+      "The program evaluates permissions at the instruction boundary. In Safe, operations are authorized up to capacity; in Restricted, volume is capped at 50%; in Defensive, new leverage is blocked; in Emergency, only recovery actions execute.",
+    formula: "evaluate_permission(actor, action, asset, amount, owner, debt, collateral, policy)",
     whyItMatters:
-      "Eliminates bad debt formation by refusing risk-increasing instructions directly on-chain whenever market conditions degrade.",
+      "Guarantees that neither a human nor an autonomous agent can ever bypass protocol risk limits.",
   },
   {
-    id: "recovery",
+    id: "execution",
     number: 7,
     roman: "VII",
-    title: "Dutch Auction Recovery",
-    subtitle: "Bounded Single-Settlement Recovery Engine",
-    badge: "Continuous Linear Decay",
-    tagline: "Fixed bonuses trigger MEV bot latency wars. Bounded Dutch auctions discover fair clearing prices smoothly.",
+    title: "Recovery / Execution",
+    subtitle: "Meteora DBC Liquidity Venue & Dutch Auction Solvency",
+    badge: "Meteora DBC + Dutch Auction",
+    tagline: "Liquidity is an execution venue. Recovery is deterministic and non-extractive.",
     thesis:
-      "Fixed liquidation discounts create priority-gas arms races during minor fluctuations and under-incentivize liquidators during market stress. Continuous Dutch auctions eliminate bot wars and preserve borrower equity.",
+      "Meteora Dynamic Bonding Curves provide secondary market liquidity, while single-settlement Dutch auctions restore underwater accounts smoothly without MEV liquidation front-running.",
     mechanism:
-      "Unhealthy positions enter a bounded Dutch auction decaying linearly from start price to floor price: P(t) = P_start - [(t - t0)/T] * (P_start - P_floor). An exact solver computes the minimum collateral required to restore target health.",
+      "Swaps and liquidity actions execute atomically via on-chain CPI to Meteora DBC (dbcij3LW...). Unhealthy positions enter bounded Dutch auctions decaying smoothly to restore target health factors.",
     formula: "P(t) = P_start - [(t - t0) / T] × (P_start - P_floor)",
     whyItMatters:
-      "Restores protocol solvency deterministically while protecting borrowers from excessive equity seizure.",
+      "Preserves capital, protects borrowers from excessive liquidation penalties, and executes trades directly against verified on-chain liquidity.",
   },
 ];
 

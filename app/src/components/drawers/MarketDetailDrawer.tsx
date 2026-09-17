@@ -4,7 +4,7 @@
  * Comprehensive forensic parameters for tokenized equity markets.
  */
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Drawer } from "../ui/Drawer";
 import { DeployedMarket, getDeployedMarket } from "../../data/markets";
 import { useAction } from "../../context/ActionContext";
@@ -15,6 +15,9 @@ import { MarketSnapshot } from "../../lib/market-data/types";
 import { MarketRow } from "../market/MarketParts";
 import { AssetLogo } from "../brand/AssetLogo";
 import { MarketCandlestick } from "../market/MarketCandlestick";
+import { PublicKey } from "@solana/web3.js";
+import { useCircuitDomain } from "../../lib/domain/context";
+import { deriveDbcPoolAddress, METEORA_DBC_PROGRAM_ID } from "../../lib/meteora/dbc";
 
 export function MarketDetailDrawer({
   market,
@@ -29,7 +32,11 @@ export function MarketDetailDrawer({
 }) {
   const navigate = useNavigate();
   const { openAction } = useAction();
+  const { risk } = useCircuitDomain();
   const [copiedFeed, setCopiedFeed] = useState(false);
+  const [copiedPool, setCopiedPool] = useState(false);
+
+  const currentRiskState = risk?.riskState ?? "SAFE";
 
   const activeSymbol = snapshot?.symbol ?? market?.symbol ?? "";
   const name = snapshot?.name ?? market?.name ?? activeSymbol;
@@ -48,6 +55,21 @@ export function MarketDetailDrawer({
   const confUsd = snapshot?.oracleConfidenceUsd ?? ((priceUsd ?? 100) * (confBps / 10000));
   const ageSeconds = snapshot ? Math.max(0, Math.floor(Date.now() / 1000) - snapshot.oracleTimestamp) : 12;
 
+  const deployed = getDeployedMarket(activeSymbol, quoteSymbol);
+  const baseMintStr = deployed?.mint ?? (market as any)?.mint;
+  const quoteMintStr = deployed?.quoteMint ?? (market as any)?.quoteMint;
+
+  const [dbcPoolPda] = useMemo(() => {
+    try {
+      if (baseMintStr && quoteMintStr) {
+        return deriveDbcPoolAddress(new PublicKey(baseMintStr), new PublicKey(quoteMintStr));
+      }
+    } catch {
+      // ignore invalid keys
+    }
+    return [null, 0];
+  }, [baseMintStr, quoteMintStr]);
+
   if (!open) return null;
 
   const handleCopyFeed = () => {
@@ -55,6 +77,13 @@ export function MarketDetailDrawer({
     navigator.clipboard.writeText(feedId);
     setCopiedFeed(true);
     setTimeout(() => setCopiedFeed(false), 2000);
+  };
+
+  const handleCopyPool = () => {
+    if (!dbcPoolPda) return;
+    navigator.clipboard.writeText(dbcPoolPda.toBase58());
+    setCopiedPool(true);
+    setTimeout(() => setCopiedPool(false), 2000);
   };
 
   return (
@@ -235,6 +264,127 @@ export function MarketDetailDrawer({
             <span className="mono" style={{ fontWeight: 650 }}>
               {(liqBonus / 100).toFixed(2)}%
             </span>
+          </div>
+        </div>
+
+        {/* Meteora DBC Liquidity & Execution Surface */}
+        <div
+          className="stack g-10"
+          style={{
+            padding: 16,
+            background: "var(--surface-2, #0d0f15)",
+            borderRadius: "var(--r, 10px)",
+            border: "1px solid var(--border, #1a1d26)",
+          }}
+        >
+          <div className="row between g-8" style={{ alignItems: "center" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-3)", textTransform: "uppercase" }}>
+              Meteora DBC Liquidity & Execution Surface
+            </div>
+            <Pill tone="neutral">
+              CIRCUIT GOVERNED
+            </Pill>
+          </div>
+
+          <div style={{ fontSize: 11, color: "var(--text-3)", lineHeight: 1.45 }}>
+            Meteora DBC serves as an execution venue. All swaps, liquidity entries, and rebalances are bounded onchain by the Circuit Permission Engine.
+          </div>
+
+          <div className="row between g-8" style={{ alignItems: "center" }}>
+            <span className="t-label">Execution Venue</span>
+            <span className="mono" style={{ fontSize: 11, color: "var(--text-2)" }} title={METEORA_DBC_PROGRAM_ID.toBase58()}>
+              Meteora DBC ({METEORA_DBC_PROGRAM_ID.toBase58().slice(0, 6)}...{METEORA_DBC_PROGRAM_ID.toBase58().slice(-4)})
+            </span>
+          </div>
+
+          <div className="row between g-8" style={{ alignItems: "center" }}>
+            <span className="t-label">DBC Virtual Pool PDA</span>
+            {dbcPoolPda ? (
+              <div className="row g-6" style={{ alignItems: "center" }}>
+                <span className="mono" style={{ fontSize: 11, color: "var(--text)" }}>
+                  {dbcPoolPda.toBase58().slice(0, 6)}...{dbcPoolPda.toBase58().slice(-4)}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleCopyPool}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: copiedPool ? "var(--mint, #7fc39a)" : "var(--accent)",
+                    fontSize: 10,
+                    fontFamily: "var(--mono)",
+                    cursor: "pointer",
+                    padding: 0,
+                  }}
+                >
+                  {copiedPool ? "Copied" : "Copy"}
+                </button>
+              </div>
+            ) : (
+              <span className="mono" style={{ fontSize: 11, color: "var(--text-3)" }}>
+                Unavailable
+              </span>
+            )}
+          </div>
+
+          <div className="row between g-8" style={{ alignItems: "center" }}>
+            <span className="t-label">Risk Ratchet State</span>
+            <Pill
+              tone={
+                currentRiskState === "SAFE"
+                  ? "success"
+                  : currentRiskState === "RESTRICTED"
+                  ? "warning"
+                  : "danger"
+              }
+              withDot
+            >
+              {currentRiskState}
+            </Pill>
+          </div>
+
+          {/* Section 15 Risk Matrix Status Table */}
+          <div
+            style={{
+              padding: "10px 12px",
+              background: "var(--surface-3, #151821)",
+              borderRadius: "var(--r-sm, 6px)",
+              border: "1px solid var(--border, #212634)",
+            }}
+          >
+            <div style={{ fontSize: 10, fontWeight: 700, fontFamily: "var(--mono)", color: "var(--text-3)", marginBottom: 8, letterSpacing: "0.04em" }}>
+              PERMITTED DBC OPERATIONS ({currentRiskState})
+            </div>
+            <div className="stack g-6" style={{ fontSize: 11 }}>
+              <div className="row between">
+                <span style={{ color: "var(--text-2)" }}>Swap (DBC)</span>
+                <span style={{ fontFamily: "var(--mono)", fontWeight: 600, color: currentRiskState === "SAFE" ? "var(--mint, #79c2a4)" : currentRiskState === "RESTRICTED" ? "var(--warning, #cfad74)" : "var(--danger, #cf8b8b)" }}>
+                  {currentRiskState === "SAFE" ? "ALLOWED (100% capacity)" : currentRiskState === "RESTRICTED" ? "CAPPED (50% / 100 bps max)" : "BLOCKED"}
+                </span>
+              </div>
+              <div className="row between">
+                <span style={{ color: "var(--text-2)" }}>Enter Liquidity</span>
+                <span style={{ fontFamily: "var(--mono)", fontWeight: 600, color: currentRiskState === "SAFE" ? "var(--mint, #79c2a4)" : currentRiskState === "RESTRICTED" ? "var(--warning, #cfad74)" : "var(--danger, #cf8b8b)" }}>
+                  {currentRiskState === "SAFE" ? "ALLOWED (100% capacity)" : currentRiskState === "RESTRICTED" ? "CAPPED (50% capacity)" : "BLOCKED"}
+                </span>
+              </div>
+              <div className="row between">
+                <span style={{ color: "var(--text-2)" }}>Exit Liquidity</span>
+                <span style={{ fontFamily: "var(--mono)", fontWeight: 600, color: "var(--mint, #79c2a4)" }}>
+                  ALLOWED (unconditional escape)
+                </span>
+              </div>
+              <div className="row between">
+                <span style={{ color: "var(--text-2)" }}>Rebalance</span>
+                <span style={{ fontFamily: "var(--mono)", fontWeight: 600, color: currentRiskState === "SAFE" ? "var(--mint, #79c2a4)" : currentRiskState === "RESTRICTED" ? "var(--warning, #cfad74)" : "var(--danger, #cf8b8b)" }}>
+                  {currentRiskState === "SAFE" ? "ALLOWED (100% capacity)" : currentRiskState === "RESTRICTED" ? "CAPPED (50% capacity)" : "BLOCKED"}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ fontSize: 10, color: "var(--text-3)", fontStyle: "italic", lineHeight: 1.4 }}>
+            Curve Depth Telemetry: Not observed on Devnet (secondary pool uninitialized). Circuit strictly reports real state and avoids synthetic liquidity metrics.
           </div>
         </div>
 

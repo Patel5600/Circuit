@@ -32,13 +32,15 @@ export function Economics() {
             <span className="sec__index__t">The Economic Engine</span>
           </p>
           <h2 className="sec__title">
-            Safe credit creates
+            Safe execution creates
             <br />
             <em>protocol revenue.</em>
           </h2>
           <p className="sec__lede" style={{ maxWidth: 720, marginTop: "14px" }}>
-            circuit monetizes the infrastructure between tokenized assets and programmable capital.
-            The protocol monetizes safe execution, not user liquidations or user losses.
+            circuit monetizes programmable capital infrastructure.
+            Successful protocol execution may generate configurable protocol fees.
+            Blocked unsafe actions generate no execution fee.
+            Liquidation and recovery protect protocol solvency rather than acting as a business model.
           </p>
         </Reveal>
 

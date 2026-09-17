@@ -27,13 +27,13 @@ const MOVES = [
     n: "03",
     verb: "Policy",
     body:
-      "The on-chain Capital Policy Engine derives effective LTV and permissions from the 4-State Risk Ratchet. What capital is permitted to do changes dynamically with risk.",
+      "The on-chain Capital Policy Engine derives effective LTV and permissions from the 4-State Risk Ratchet. Credit is one execution surface governed by the same unified permission system as liquidity and recovery.",
   },
   {
     n: "04",
     verb: "Borrow",
     body:
-      "Credit is available only within the boundaries set by the active capital policy. Unsafe borrows that violate policy fail at the transaction boundary.",
+      "Credit drawdown is authorized only after passing the canonical Permission Engine gate: Deposit → Verify → Risk → Policy → Permission → Borrow. Unsafe borrowing fails directly at the transaction boundary.",
   },
   {
     n: "05",
@@ -71,9 +71,9 @@ export function Credit() {
 
         <Reveal>
           <p className="credit__foot">
-            Repayment remains risk-reducing. Withdrawals remain subject to the active capital
-            policy. Unsafe positions enter bounded recovery auctions to protect protocol
-            solvency without MEV bot liquidation arms races.
+            Credit, liquidity provision, and recovery are execution surfaces governed by one
+            canonical Permission Engine. Humans and autonomous strategies operate under identical
+            risk invariants, ensuring unsafe transactions are rejected directly on Solana.
           </p>
         </Reveal>
       </div>

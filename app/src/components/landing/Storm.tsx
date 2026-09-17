@@ -35,9 +35,21 @@ const FAULTS = [
   },
   {
     key: "policy",
-    label: "Capital policy violation",
-    detail: "Operation rejected: active risk ratchet state blocks new risk-increasing leverage.",
-    code: "CapitalPolicyBlocked",
+    label: "Risk Ratchet containment",
+    detail: "Defensive or Emergency state blocks risk-increasing credit drawdown on-chain.",
+    code: "RiskStateBlocked",
+  },
+  {
+    key: "authority",
+    label: "Agent authority exceeded",
+    detail: "Delegated transaction exceeds authorized per-action limit or action bitmask.",
+    code: "AgentAuthorityExceeded",
+  },
+  {
+    key: "scope",
+    label: "Asset scope violation",
+    detail: "Target asset does not match the isolated authority PDA scope.",
+    code: "AssetScopeViolation",
   },
 ];
 

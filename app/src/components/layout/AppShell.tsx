@@ -193,6 +193,28 @@ function Header({ onOpenHealth }: { onOpenHealth: () => void }) {
       <div className="row g-8" style={{ alignItems: "center" }}>
         <NetworkSelector />
         <WalletButton compact />
+        <NavLink
+          to="/app/profile"
+          style={({ isActive }) => ({
+            padding: "5px 9px",
+            fontSize: 12,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 5,
+            border: `1px solid ${isActive ? "var(--accent)" : "var(--border)"}`,
+            borderRadius: "var(--r-sm, 6px)",
+            background: isActive ? "var(--surface-3)" : "var(--surface-2)",
+            color: isActive ? "var(--text)" : "var(--text-2)",
+            textDecoration: "none",
+            height: 32,
+            boxSizing: "border-box",
+            transition: "all var(--t-fast)",
+          })}
+          title="Risk Profile & Account Settings"
+        >
+          <Icon name="user" size={14} />
+          <span style={{ fontSize: 11, fontWeight: 600, fontFamily: "var(--sans)" }}>Profile</span>
+        </NavLink>
       </div>
     </header>
   );

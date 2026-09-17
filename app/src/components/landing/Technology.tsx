@@ -172,7 +172,7 @@ export function Technology() {
                 </span>
               </div>
               <div style={{ fontSize: "11px", color: "var(--text-1)", lineHeight: 1.45 }}>
-                Validates feeds & signers · Enforces Capital Policy · Settles Dutch auctions
+                Dynamic Risk Engine · Canonical Permission Engine · Agent Authority PDA · Meteora DBC Atomic CPI
               </div>
             </div>
           </div>
