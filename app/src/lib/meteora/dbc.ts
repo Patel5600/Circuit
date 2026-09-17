@@ -236,3 +236,80 @@ export function buildExecuteDbcActionInstruction(params: {
     data: buffer,
   });
 }
+
+/**
+ * Validates that the provided program ID matches the canonical Meteora DBC program ID.
+ */
+export function validateDbcProgramId(programId: PublicKey): boolean {
+  return programId.equals(METEORA_DBC_PROGRAM_ID);
+}
+
+/**
+ * Validates that the provided DBC pool matches the authoritative pool in AssetRegistryEntry.
+ */
+export function validateDbcPool(registryDbcPool: PublicKey, providedDbcPool: PublicKey): boolean {
+  return registryDbcPool.equals(providedDbcPool);
+}
+
+/**
+ * Classifies whether a DBC action increases risk or is recovery-safe (risk-reducing).
+ * ExitLiquidity is recovery-safe (risk-reducing).
+ * Swap, EnterLiquidity, and Rebalance are risk-increasing.
+ */
+export function isDbcActionRiskIncreasing(actionType: DbcActionType): boolean {
+  return (
+    actionType === DbcActionType.SWAP ||
+    actionType === DbcActionType.ENTER_LIQUIDITY ||
+    actionType === DbcActionType.REBALANCE
+  );
+}
+
+/**
+ * Evaluates whether a DBC action is permitted under the given canonical MarketState.
+ * - In EMERGENCY: Only ExitLiquidity is permitted as a recovery-safe action.
+ * - In DEFENSIVE: ExitLiquidity is permitted; Swaps, EnterLiquidity, and Rebalance are blocked.
+ * - In RESTRICTED: All actions permitted, but risk-increasing volume is capped at 50%.
+ * - In SAFE: All actions permitted at 100% capacity.
+ */
+export function isDbcActionAllowed(
+  actionType: DbcActionType,
+  riskState: "SAFE" | "RESTRICTED" | "DEFENSIVE" | "EMERGENCY"
+): { allowed: boolean; reason?: string } {
+  if (riskState === "EMERGENCY") {
+    if (actionType === DbcActionType.EXIT_LIQUIDITY) {
+      return { allowed: true };
+    }
+    return {
+      allowed: false,
+      reason: "DBC action blocked: Only ExitLiquidity is permitted in Emergency state for capital recovery.",
+    };
+  }
+
+  if (riskState === "DEFENSIVE") {
+    if (actionType === DbcActionType.EXIT_LIQUIDITY) {
+      return { allowed: true };
+    }
+    return {
+      allowed: false,
+      reason: "DBC action blocked: Swaps and new liquidity entry are blocked in Defensive state.",
+    };
+  }
+
+  if (riskState === "RESTRICTED") {
+    return {
+      allowed: true,
+      reason: isDbcActionRiskIncreasing(actionType)
+        ? "Restricted state: volume is capped to 50% of capacity."
+        : undefined,
+    };
+  }
+
+  return { allowed: true };
+}
+
+/**
+ * Validates that slippage is within Circuit safety bounds (10 to 200 bps).
+ */
+export function validateSlippageBounds(slippageBps: number): boolean {
+  return slippageBps >= 10 && slippageBps <= 200;
+}

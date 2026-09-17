@@ -637,6 +637,22 @@ svg {
   }
 }
 
+@media (max-width: 640px) {
+  .appbar {
+    padding: 0 10px;
+    gap: 6px;
+  }
+  .appbar__hide-mobile {
+    display: none !important;
+  }
+}
+
+@media (max-width: 440px) {
+  .appbar__mode-badge {
+    display: none !important;
+  }
+}
+
 .shell__body {
   display: flex;
   flex: 1 1 auto;

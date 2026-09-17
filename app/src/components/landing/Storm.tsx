@@ -23,7 +23,7 @@ const FAULTS = [
   },
   {
     key: "confidence",
-    label: "Confidence too wide",
+    label: "Oracle uncertainty is too high",
     detail: "Oracle uncertainty interval exceeds the asset threshold (e.g. > 50 bps).",
     code: "ConfidenceTooWide",
   },

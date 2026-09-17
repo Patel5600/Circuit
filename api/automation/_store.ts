@@ -16,6 +16,23 @@ const taskStore = new Map<string, AutomationTask>();
 const executionLog: { id: string; ts: number; owner: string; result: unknown }[] = [];
 const MAX_EXEC_LOG = 500;
 
+// Concurrency control for idempotent task execution
+const runningTaskLocks = new Set<string>();
+
+export function acquireTaskLock(taskId: string): boolean {
+  if (runningTaskLocks.has(taskId)) return false;
+  runningTaskLocks.add(taskId);
+  return true;
+}
+
+export function releaseTaskLock(taskId: string): void {
+  runningTaskLocks.delete(taskId);
+}
+
+export function isTaskLocked(taskId: string): boolean {
+  return runningTaskLocks.has(taskId);
+}
+
 export function syncTasks(owner: string, tasks: AutomationTask[]): void {
   // Remove existing tasks for this owner then insert fresh
   for (const [id, t] of taskStore.entries()) {
@@ -63,6 +80,11 @@ export function deleteTask(id: string, owner?: string): boolean {
 }
 
 export function logExecution(owner: string, execId: string, result: unknown): void {
+  const existingIdx = executionLog.findIndex(l => l.id === execId);
+  if (existingIdx >= 0) {
+    executionLog[existingIdx] = { id: execId, ts: Date.now(), owner, result };
+    return;
+  }
   executionLog.unshift({ id: execId, ts: Date.now(), owner, result });
   if (executionLog.length > MAX_EXEC_LOG) executionLog.length = MAX_EXEC_LOG;
 }

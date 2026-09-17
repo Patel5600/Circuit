@@ -34,6 +34,39 @@ const KIND_META: Record<
   other: { label: "Position update", icon: "activity", color: "var(--text-3)" },
 };
 
+function humanizeReasonCode(code: string): string {
+  switch (code) {
+    case "BORROW_DISABLED_BY_RISK_STATE":
+    case "CAPITAL_POLICY_VIOLATION":
+    case "CAPITAL_POLICY_BLOCKED":
+      return "Blocked by your current risk limits";
+    case "CONFIDENCE_TOO_WIDE":
+      return "Oracle uncertainty is too high";
+    case "AGENT_UNAUTHORIZED":
+      return "Agent access unauthorized";
+    case "AGENT_EXPIRED":
+      return "Agent access expired";
+    case "AGENT_BORROW_LIMIT_EXCEEDED":
+      return "Agent borrow limit reached";
+    case "RISK_BUDGET_EXCEEDED":
+      return "Risk budget exceeded";
+    case "STALE_ORACLE":
+      return "Stale oracle feed";
+    case "MARKET_CLOSED":
+      return "Market session closed";
+    case "LTV_EXCEEDED":
+      return "Borrow limit exceeded";
+    case "HEALTH_FACTOR_TOO_LOW":
+      return "Health factor too low";
+    case "INSUFFICIENT_COLLATERAL":
+      return "Insufficient collateral";
+    case "ALLOWED":
+      return "Approved";
+    default:
+      return code.replace(/_/g, " ").toLowerCase().replace(/^\w/, (c) => c.toUpperCase());
+  }
+}
+
 function ActivityRow({
   item,
   collateralSymbol,
@@ -91,7 +124,7 @@ function ActivityRow({
               color: item.actor === "AGENT" ? "#93c5fd" : "var(--success)",
             }}
           >
-            ACTOR: {item.actor === "AGENT" ? "AGENT" : "HUMAN"}
+            {item.actor === "AGENT" ? "AGENT" : "MANUAL"}
           </span>
           {item.amount !== null && (
             <span
@@ -113,15 +146,16 @@ function ActivityRow({
           <span style={{ color: "var(--text-3)" }}>·</span>
           <span
             className="mono"
+            title={`Machine Reason Code: ${reasonCode}`}
             style={{
               fontSize: 11,
-              padding: "0 4px",
+              padding: "1px 6px",
               borderRadius: 3,
               background: item.success ? "rgba(127, 195, 154, 0.1)" : "rgba(224, 82, 82, 0.15)",
               color: item.success ? "var(--success)" : "var(--danger)",
             }}
           >
-            {reasonCode}
+            {humanizeReasonCode(reasonCode)}
           </span>
         </div>
       </div>

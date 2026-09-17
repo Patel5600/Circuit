@@ -12,7 +12,7 @@ import { Connection, Keypair, PublicKey, Transaction, sendAndConfirmTransaction 
 import { AnchorProvider, BN, Program } from "@anchor-lang/core";
 import { idl, PROGRAM_ID, RPC_URL } from "../app/src/config";
 import { deriveAgentAuthorityPda, fetchSpecificAgentAuthority } from "../app/src/lib/agentAuthority";
-import { DEPLOYED_MARKETS } from "../app/src/data/markets";
+import { DEPLOYED_MARKETS } from "../app/src/data/markets-registry";
 
 async function main() {
   const args = process.argv.slice(2);
@@ -50,7 +50,7 @@ async function main() {
   console.log(`Agent Key:    ${agentKey.toBase58()}`);
 
   const authorityPda = deriveAgentAuthorityPda(ownerPubkey, agentKey, assetMint);
-  console.log(`Authority PDA: ${authorityPda.toBase58()}`);
+  console.log(`Authority PDA: ${authorityPda[0].toBase58()}`);
 
   const onChainAccount = await fetchSpecificAgentAuthority(connection, ownerPubkey, agentKey, assetMint);
 

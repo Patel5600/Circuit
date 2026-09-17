@@ -85,13 +85,19 @@ function preflightCheck(snap: ProtocolSnapshot, msg: string): string | null {
   const m = msg.toLowerCase();
   const wantsBorrow = /borrow|leverage/.test(m);
   const wantsWithdraw = /withdraw/.test(m);
+  const action = wantsBorrow ? "borrow" : "withdraw";
+
   if ((wantsBorrow || wantsWithdraw) && snap.controlMode === "AUTONOMOUS") {
     if (!snap.onChainAuthorities.some(a => !a.isExpired && !a.isRevoked)) {
-      return "BLOCKED [AGENT_UNAUTHORIZED] — No active Agent Authority PDA. Create one via Permissions tab or execute directly in sovereign Manual mode. Deposit and Repay remain available.";
+      const tool = `CIRCUIT_TOOL:{"tool":"evaluate_permission","input":{"action":"${action}","controlMode":"AUTONOMOUS"},"output":{"status":"BLOCKED","reason":"AGENT_UNAUTHORIZED: No active Agent Authority PDA"},"status":"BLOCKED"}`;
+      const proposal = `CIRCUIT_ACTION_PROPOSAL:{"id":"p_${Date.now()}","action":"${action}","symbol":"NVDA","amountUsd":0,"riskState":"${snap.riskRatchetState}","permission":"BLOCKED","reason":"BLOCKED [AGENT_UNAUTHORIZED] — No active Agent Authority PDA. Create one via Permissions tab or execute directly in sovereign Manual mode. Deposit and Repay remain available.","estimatedHfAfter":null}`;
+      return `${tool}\n\nBLOCKED [AGENT_UNAUTHORIZED] — No active Agent Authority PDA. Create one via Permissions tab or execute directly in sovereign Manual mode. Deposit and Repay remain available.\n\n${proposal}`;
     }
   }
   if (snap.riskRatchetState === "EMERGENCY" && (wantsBorrow || wantsWithdraw)) {
-    return "BLOCKED [RISK_STATE_RESTRICTED] — Risk Ratchet is EMERGENCY. Borrow and Withdraw suspended. Only Repay, Deposit, and Liquidity Exit permitted.";
+    const tool = `CIRCUIT_TOOL:{"tool":"evaluate_permission","input":{"action":"${action}","riskState":"EMERGENCY"},"output":{"status":"BLOCKED","reason":"RISK_STATE_RESTRICTED: Risk Ratchet in EMERGENCY"},"status":"BLOCKED"}`;
+    const proposal = `CIRCUIT_ACTION_PROPOSAL:{"id":"p_${Date.now()}","action":"${action}","symbol":"NVDA","amountUsd":0,"riskState":"EMERGENCY","permission":"BLOCKED","reason":"BLOCKED [RISK_STATE_RESTRICTED] — Risk Ratchet is EMERGENCY. Borrow and Withdraw suspended. Only Repay, Deposit, and Liquidity Exit permitted.","estimatedHfAfter":null}`;
+    return `${tool}\n\nBLOCKED [RISK_STATE_RESTRICTED] — Risk Ratchet is EMERGENCY. Borrow and Withdraw suspended. Only Repay, Deposit, and Liquidity Exit permitted.\n\n${proposal}`;
   }
   return null;
 }

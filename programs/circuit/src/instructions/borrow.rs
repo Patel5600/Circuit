@@ -65,10 +65,15 @@ pub fn handler(ctx: Context<Borrow>, amount: u64) -> Result<()> {
         clock.unix_timestamp,
     );
 
-    // -- Step 11: Calculate collateral value --
+    // -- Step 11: Calculate collateral value (Conservative Pyth Valuation: p_conservative = max(0, p - conf)) --
+    let conservative_price = math::calculate_conservative_pyth_price(
+        validated_price.price,
+        validated_price.conf,
+    )?;
+
     let collateral_value = math::calculate_collateral_value(
         position.collateral_amount,
-        validated_price.price,
+        conservative_price,
         validated_price.expo,
         ctx.accounts.collateral_mint.decimals,
         ctx.accounts.quote_mint.decimals,
@@ -194,7 +199,7 @@ pub fn handler(ctx: Context<Borrow>, amount: u64) -> Result<()> {
 
     // -- Step 17: Update position --
     position.debt_amount = new_debt as u64;
-    position.last_valid_price = validated_price.price;
+    position.last_valid_price = conservative_price;
     position.last_valid_expo = validated_price.expo;
 
     let resulting_ltv_bps = if collateral_value > 0 {

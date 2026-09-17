@@ -5,6 +5,7 @@
     "lib": ["es2020", "dom"],
     "module": "commonjs",
     "target": "es2020",
+    "jsx": "react-jsx",
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "moduleResolution": "node",
@@ -17,3 +18,5 @@
   "include": ["tests/**/*.ts", "scripts/**/*.ts"],
   "exclude": ["node_modules", "app", "dist"]
 }
+
+

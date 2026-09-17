@@ -95,7 +95,7 @@ export function AutonomousAuthorityCard() {
                     textTransform: "uppercase",
                   }}
                 >
-                  Autonomous Strategy Authority
+                  Autonomous Agent Access
                 </h3>
                 <Pill
                   tone={
@@ -115,7 +115,7 @@ export function AutonomousAuthorityCard() {
                 </Pill>
               </div>
               <div style={{ fontSize: 11.5, color: "var(--text-3)", marginTop: 2 }}>
-                Sovereign on-chain delegated execution bounded by Risk Ratchet and MarketGuard.
+                Sovereign delegated execution bounded by your risk limits and market conditions.
               </div>
             </div>
           </div>
@@ -127,14 +127,14 @@ export function AutonomousAuthorityCard() {
               icon="shield"
               onClick={() => navigate("/app/autonomous?tab=permissions")}
             >
-              Configure Strategy Authority
+              Configure Agent Access
             </Button>
           </div>
         </div>
 
         {/* Notices */}
         {revokeSuccessSig && (
-          <Notice tone="success" title="Authority Revoked On-Chain">
+          <Notice tone="success" title="Agent Access Revoked On-Chain">
             Transaction confirmed on Solana Devnet:{" "}
             <a
               href={`https://explorer.solana.com/tx/${revokeSuccessSig}?cluster=devnet`}
@@ -165,13 +165,13 @@ export function AutonomousAuthorityCard() {
             lineHeight: 1.5,
           }}
         >
-          <strong style={{ color: "var(--text-1)" }}>Protocol Principle:</strong> Manual execution is the foundation of Circuit. Autonomous mode delegates strictly bounded execution rights to an agent key via an on-chain PDA. The agent can never withdraw your collateral to an arbitrary address and cannot bypass Risk Ratchet caps.
+          <strong style={{ color: "var(--text-1)" }}>Protocol Principle:</strong> Manual execution is the foundation of Circuit. Autonomous mode delegates strictly bounded execution rights via on-chain agent access. The agent can never withdraw your collateral to an arbitrary address and cannot bypass your risk limits.
         </div>
 
         {/* On-Chain Authorities List */}
         {authoritiesLoading ? (
           <div style={{ padding: "20px 0", textAlign: "center", color: "var(--text-3)", fontSize: 12 }}>
-            <Icon name="spinner" size={16} spin /> Reading Devnet AgentAuthority PDAs...
+            <Icon name="spinner" size={16} spin /> Checking on-chain agent access...
           </div>
         ) : onChainAuthorities.length === 0 ? (
           <div
@@ -184,13 +184,13 @@ export function AutonomousAuthorityCard() {
             }}
           >
             <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-2)", marginBottom: 4 }}>
-              No Agent Authority Active on Devnet
+              No Active Agent Access
             </div>
             <div style={{ fontSize: 12, color: "var(--text-3)", maxWidth: 520, margin: "0 auto 16px auto", lineHeight: 1.4 }}>
-              Your wallet is operating under direct MANUAL sovereignty. You have not authorized any autonomous bot on Devnet. To delegate bounded execution to a strategy bot, click below.
+              Your wallet is operating in Manual mode. You have not granted agent access on Devnet. To delegate bounded execution within safe limits, click below.
             </div>
             <Button variant="accent" size="sm" onClick={() => navigate("/app/autonomous?tab=permissions")} icon="shield">
-              Configure Autonomous Authority
+              Configure Agent Access
             </Button>
           </div>
         ) : (
@@ -204,7 +204,7 @@ export function AutonomousAuthorityCard() {
                 letterSpacing: "0.06em",
               }}
             >
-              Active On-Chain Delegations ({onChainAuthorities.length})
+              Active Agent Access Delegations ({onChainAuthorities.length})
             </div>
 
             <div style={{ overflowX: "auto" }}>

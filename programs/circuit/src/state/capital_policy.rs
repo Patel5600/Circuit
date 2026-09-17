@@ -170,4 +170,23 @@ impl CapitalPolicy {
     pub fn calculate_withdraw_capacity(collateral_value: u64, required_collateral_value: u64) -> u64 {
         collateral_value.saturating_sub(required_collateral_value)
     }
+
+    pub const CONCENTRATION_THRESHOLD_BPS: u64 = 4_000; // 40%
+    pub const CONCENTRATION_SLOPE_BPS: u64 = 3_600;     // 36 bps per 100 bps excess (0.36)
+    pub const MIN_LTV_FLOOR_BPS: u64 = 3_000;           // 30% floor
+
+    /// Applies concentration haircut to effective LTV if concentration_bps > 40% (4,000 BPS).
+    pub fn apply_concentration_penalty(&mut self, concentration_bps: u64) -> Result<u64> {
+        if concentration_bps <= Self::CONCENTRATION_THRESHOLD_BPS || self.effective_ltv_bps == 0 {
+            return Ok(0);
+        }
+        let penalty = crate::math::calculate_concentration_penalty(
+            concentration_bps,
+            Self::CONCENTRATION_THRESHOLD_BPS,
+            Self::CONCENTRATION_SLOPE_BPS,
+        )?;
+        let reduced = self.effective_ltv_bps.saturating_sub(penalty);
+        self.effective_ltv_bps = reduced.max(Self::MIN_LTV_FLOOR_BPS);
+        Ok(penalty)
+    }
 }

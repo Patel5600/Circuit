@@ -358,7 +358,7 @@ function ActionProposalCard({
               : "rgba(207,139,139,0.3)"
           }`,
         }}>
-          {isAllowed ? "CIRCUIT APPROVED" : isCapped ? "POLICY CAPPED" : "CIRCUIT BLOCKED"}
+          {isAllowed ? "CIRCUIT APPROVED" : isCapped ? "POLICY CAPPED" : "BLOCKED BY RISK LIMITS"}
         </span>
       </div>
 
@@ -389,7 +389,7 @@ function ActionProposalCard({
           </span>
         </div>
         <div>
-          <span style={{ color: "var(--text-3)" }}>Venue: </span>
+          <span style={{ color: "var(--text-3)" }}>Trading Venue: </span>
           <span style={{ color: "var(--text-2)" }}>Circuit Devnet</span>
         </div>
       </div>
@@ -403,8 +403,8 @@ function ActionProposalCard({
           fontSize: 11,
           color: "var(--danger, #cf8b8b)",
           lineHeight: 1.4,
-        }}>
-          ✕ Execution rejected by Circuit Permission Engine. Risk Ratchet in {proposal.riskState} blocks risk-increasing transactions.
+        }} title="Action blocked by risk engine: Capital policy violation / risk containment">
+          ✕ Blocked by your current risk limits. The risk system is currently in {proposal.riskState} state, preventing risk-increasing transactions.
         </div>
       ) : (
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -570,214 +570,6 @@ function Bubble({
   );
 }
 
-function PlanCard({ plan }: { plan: StrategyPlan }) {
-  return (
-    <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "var(--r)", padding: 14, fontSize: 12 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-3)", marginBottom: 8, fontFamily: "var(--mono)" }}>
-        STRATEGY PLAN
-      </div>
-      <div style={{ marginBottom: 10 }}>
-        <div style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 2 }}>OBJECTIVE</div>
-        <div style={{ fontWeight: 600 }}>{plan.objective}</div>
-      </div>
-      {plan.actions.length > 0 && (
-        <div style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 6 }}>ACTIONS</div>
-          {plan.actions.map((a, i) => {
-            const isBorrow = a.action === "borrow";
-            const isDeposit = a.action === "deposit" || a.action === "repay";
-            const isDbc = ["swap", "enter_liquidity", "exit_liquidity", "rebalance"].includes(a.action);
-            const bg = isBorrow
-              ? "rgba(207,173,116,0.15)"
-              : isDeposit
-              ? "rgba(121,194,164,0.15)"
-              : isDbc
-              ? "rgba(167,139,250,0.15)"
-              : "rgba(207,139,139,0.15)";
-            const fg = isBorrow
-              ? "var(--warning,#cfad74)"
-              : isDeposit
-              ? "var(--mint,#79c2a4)"
-              : isDbc
-              ? "#a78bfa"
-              : "var(--danger,#cf8b8b)";
-            return (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", background: "var(--surface-3)", borderRadius: 6, border: "1px solid var(--border)", marginBottom: 4 }}>
-                <span style={{ fontSize: 9, fontWeight: 700, fontFamily: "var(--mono)", padding: "2px 5px", borderRadius: 3, background: bg, color: fg }}>{a.action.toUpperCase()}</span>
-                <span style={{ fontWeight: 600 }}>{a.asset}</span>
-                <span style={{ color: "var(--text-2)" }}>${a.amountUsd.toFixed(2)}</span>
-                <span style={{ color: "var(--text-3)", fontSize: 11, flex: 1 }}>{a.reason}</span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-      {plan.constraints.length > 0 && (
-        <div style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 3 }}>CONSTRAINTS</div>
-          <ul style={{ margin: 0, padding: "0 0 0 14px", color: "var(--text-2)" }}>
-            {plan.constraints.map((c, i) => <li key={i} style={{ marginBottom: 2 }}>{c}</li>)}
-          </ul>
-        </div>
-      )}
-      {plan.riskAssessment && (
-        <div style={{ padding: "7px 10px", background: "rgba(207,173,116,0.07)", border: "1px solid rgba(207,173,116,0.2)", borderRadius: 6, fontSize: 11, color: "var(--warning,#cfad74)" }}>
-          ⚡ {plan.riskAssessment}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Timeline({ events }: { events: ExecEvent[] }) {
-  if (events.length === 0) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--text-3)", fontSize: 11, fontFamily: "var(--mono)" }}>
-        IDLE — No active execution events recorded
-      </div>
-    );
-  }
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-      {events.map(evt => {
-        const color = evt.type === "confirmed" ? "var(--mint,#79c2a4)" : evt.type === "blocked" || evt.type === "error" ? "var(--danger,#cf8b8b)" : evt.type === "permission" ? "var(--warning,#cfad74)" : "var(--text-3)";
-        return (
-          <div key={evt.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 11 }}>
-            <span style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--text-3)", whiteSpace: "nowrap", marginTop: 1, minWidth: 65 }}>{fmtTime(evt.timestamp)}</span>
-            <span style={{ width: 5, height: 5, borderRadius: "50%", background: color, flexShrink: 0, marginTop: 3 }} />
-            <div style={{ flex: 1, color: "var(--text-2)", lineHeight: 1.4 }}>
-              {evt.message}
-              {evt.txSignature && (
-                <a href={`https://explorer.solana.com/tx/${evt.txSignature}?cluster=devnet`} target="_blank" rel="noopener noreferrer" style={{ display: "block", fontSize: 10, fontFamily: "var(--mono)", color: "var(--accent)", marginTop: 2, opacity: 0.8 }}>
-                  {evt.txSignature.slice(0, 12)}...{evt.txSignature.slice(-6)} ↗
-                </a>
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function AuthPanel({
-  auths,
-  agentState = "IDLE",
-  onOpenPermissionsTab,
-}: {
-  auths: Array<{
-    agentAddress: string;
-    assetSymbol: string;
-    isExpired: boolean;
-    isRevoked: boolean;
-    maxBorrowLimit: number;
-    expiryTs: number;
-  }>;
-  agentState?: AgentState;
-  onOpenPermissionsTab?: () => void;
-}) {
-  const active = auths.filter(a => !a.isExpired && !a.isRevoked);
-  const inactive = auths.filter(a => a.isExpired || a.isRevoked);
-
-  const operatingStatus: "AUTHORIZED" | "EXPIRED" | "REVOKED" | "IDLE" | "EXECUTING" =
-    agentState === "EXECUTING" || agentState === "CONFIRMING"
-      ? "EXECUTING"
-      : active.length > 0
-      ? "AUTHORIZED"
-      : inactive.some(a => a.isRevoked)
-      ? "REVOKED"
-      : inactive.some(a => a.isExpired)
-      ? "EXPIRED"
-      : "IDLE";
-
-  const statusTone =
-    operatingStatus === "EXECUTING" || operatingStatus === "AUTHORIZED"
-      ? "var(--mint, #79c2a4)"
-      : operatingStatus === "REVOKED"
-      ? "var(--danger, #cf8b8b)"
-      : operatingStatus === "EXPIRED"
-      ? "var(--warning, #cfad74)"
-      : "var(--text-3)";
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <div style={{
-        padding: "8px 10px", background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 6, fontSize: 10, fontFamily: "var(--mono)", color: "var(--text-3)",
-      }}>
-        <div style={{ color: "var(--text-2)", fontWeight: 700, marginBottom: 3, letterSpacing: "0.04em" }}>
-          AUTHORITY PIPELINE
-        </div>
-        <div style={{ color: "var(--accent)", letterSpacing: "0.02em" }}>
-          USER → AGENT → RISK RATCHET → PERMISSION ENGINE → SOLANA
-        </div>
-      </div>
-
-      <div style={{
-        padding: "7px 10px", background: "var(--surface-3, #151821)", border: "1px solid var(--border)", borderRadius: 6, fontSize: 9.5, lineHeight: 1.45, color: "var(--text-2)", fontFamily: "var(--mono)",
-      }}>
-        <span style={{ color: "var(--text-3)" }}>Effective Authority: </span>
-        <span style={{ color: "var(--mint, #79c2a4)" }}>
-          Owner Auth ∩ Agent Auth ∩ Risk Policy ∩ Pos Constraints
-        </span>
-      </div>
-
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", background: "var(--surface-2)", borderRadius: 6, border: "1px solid var(--border)" }}>
-        <span style={{ fontSize: 10, fontFamily: "var(--mono)", color: "var(--text-3)" }}>
-          OPERATING STATUS
-        </span>
-        <span style={{
-          fontSize: 9.5, fontWeight: 700, fontFamily: "var(--mono)", padding: "2px 7px", borderRadius: 4, background: "rgba(255,255,255,0.05)", border: `1px solid ${statusTone}`, color: statusTone, letterSpacing: "0.04em",
-        }}>
-          {operatingStatus}
-        </span>
-      </div>
-
-      {auths.length === 0 ? (
-        <div style={{ padding: "10px 12px", background: "rgba(207,139,139,0.06)", border: "1px solid rgba(207,139,139,0.2)", borderRadius: 6, fontSize: 11, color: "var(--text-2)" }}>
-          <div style={{ fontWeight: 700, color: "var(--danger,#cf8b8b)", marginBottom: 3 }}>No Active Agent Authority PDA</div>
-          <div style={{ lineHeight: 1.45, fontSize: 10.5, color: "var(--text-3)" }}>
-            Create bounded on-chain delegation in the Permissions tab to authorize automated actions.
-          </div>
-          {onOpenPermissionsTab && (
-            <button
-              type="button"
-              onClick={onOpenPermissionsTab}
-              style={{
-                marginTop: 8, width: "100%", padding: "5px 8px", background: "rgba(207,173,116,0.12)", border: "1px solid rgba(207,173,116,0.35)", borderRadius: 4, color: "var(--warning,#cfad74)", fontSize: 10, fontWeight: 700, fontFamily: "var(--mono)", cursor: "pointer",
-              }}
-            >
-              CONFIGURE IN PERMISSIONS TAB →
-            </button>
-          )}
-        </div>
-      ) : (
-        <>
-          {active.map(a => (
-            <div key={a.agentAddress} style={{ padding: "8px 10px", background: "rgba(121,194,164,0.06)", border: "1px solid rgba(121,194,164,0.25)", borderRadius: 6, fontSize: 11 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontWeight: 700, color: "var(--mint,#79c2a4)" }}>{a.assetSymbol} Authority</span>
-                <span style={{ fontSize: 9, fontFamily: "var(--mono)", background: "rgba(121,194,164,0.15)", color: "var(--mint,#79c2a4)", padding: "1px 5px", borderRadius: 3, fontWeight: 700 }}>AUTHORIZED</span>
-              </div>
-              <div style={{ color: "var(--text-3)", marginTop: 3, fontFamily: "var(--mono)", fontSize: 9.5 }}>
-                Max Borrow: ${a.maxBorrowLimit.toFixed(2)} · Exp: {new Date(a.expiryTs * 1000).toLocaleDateString()}
-              </div>
-            </div>
-          ))}
-          {inactive.map(a => (
-            <div key={a.agentAddress} style={{ padding: "6px 9px", background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 5, fontSize: 10, color: "var(--text-3)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontWeight: 600 }}>{a.assetSymbol}</span>
-                <span style={{ fontSize: 9, fontFamily: "var(--mono)", color: a.isRevoked ? "var(--danger,#cf8b8b)" : "var(--warning,#cfad74)" }}>
-                  {a.isRevoked ? "REVOKED" : "EXPIRED"}
-                </span>
-              </div>
-            </div>
-          ))}
-        </>
-      )}
-    </div>
-  );
-}
 
 function PermissionsTab({
   onCreated,
@@ -848,7 +640,7 @@ function PermissionsTab({
   const handleCreate = async () => {
     if (!publicKey || !parsedAgentKey) return;
     setCreating(true);
-    setStatusMsg({ text: "Building and signing Agent Authority PDA transaction...", tone: "warning" });
+    setStatusMsg({ text: "Building and signing agent access transaction...", tone: "warning" });
 
     try {
       const { instruction } = await buildCreateAgentAuthorityInstruction(connection, {
@@ -872,7 +664,7 @@ function PermissionsTab({
 
       await connection.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, "confirmed");
       await refreshAuthorities();
-      setStatusMsg({ text: `Agent Authority PDA confirmed! Activated for ${selectedMarket.symbol}.`, tone: "mint" });
+      setStatusMsg({ text: `Agent access confirmed! Activated for ${selectedMarket.symbol}.`, tone: "mint" });
       onCreated?.();
     } catch (err: any) {
       console.error("Authority creation failed:", err);
@@ -889,26 +681,26 @@ function PermissionsTab({
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
             <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text)", letterSpacing: "0.02em" }}>
-              ON-CHAIN AGENT AUTHORITY MANAGEMENT
+              ON-CHAIN AGENT ACCESS MANAGEMENT
             </div>
             <div style={{ fontSize: 12, color: "var(--text-2)", marginTop: 4, lineHeight: 1.5 }}>
-              Delegate bounded execution to autonomous agents while retaining sovereign capital authority.
-              Circuit's Risk Ratchet, MarketGuard, and Permission Engine govern every transaction on Devnet.
+              Delegate bounded execution to autonomous agents while retaining full capital control.
+              Circuit's risk limits and market conditions govern every transaction on Devnet.
             </div>
           </div>
           <span style={{
             fontSize: 10, fontWeight: 700, fontFamily: "var(--mono)", padding: "3px 8px", borderRadius: 4, background: "rgba(121,194,164,0.15)", color: "var(--mint,#79c2a4)", border: "1px solid rgba(121,194,164,0.3)",
           }}>
-            DEVNET PDA
+            DEVNET ACCESS
           </span>
         </div>
 
         <div style={{
           marginTop: 12, padding: "8px 12px", background: "var(--surface-2)", borderRadius: 6, fontSize: 11, fontFamily: "var(--mono)", color: "var(--text-3)", display: "flex", justifyContent: "space-between",
         }}>
-          <span>AUTHORITY PIPELINE:</span>
+          <span>ACCESS PIPELINE:</span>
           <span style={{ color: "var(--accent)" }}>
-            USER (Owner) → AGENT (Key) → RISK RATCHET → PERMISSION ENGINE → SOLANA DEVNET
+            USER (Owner) → AGENT (Key) → RISK LIMITS → PERMISSION ENGINE → SOLANA DEVNET
           </span>
         </div>
       </div>
@@ -929,10 +721,10 @@ function PermissionsTab({
 
       {/* Existing Authorities List */}
       <div style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r)", padding: 18 }}>
-        <SectionLabel>CURRENT AGENT DELEGATIONS (ON-CHAIN)</SectionLabel>
+        <SectionLabel>CURRENT AGENT ACCESS (ON-CHAIN)</SectionLabel>
         {onChainAuthorities.length === 0 ? (
           <div style={{ padding: "16px 14px", background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 6, fontSize: 12, color: "var(--text-3)" }}>
-            No Agent Authority PDAs found for connected wallet. Configure a bounded delegation below to grant an agent execution authority.
+            No active agent access found for your connected wallet. Set up bounded permissions below to grant an agent access.
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -945,7 +737,7 @@ function PermissionsTab({
                 }}>
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontWeight: 800, fontSize: 13, color: "var(--text)" }}>{sym} Authority</span>
+                      <span style={{ fontWeight: 800, fontSize: 13, color: "var(--text)" }}>{sym} Agent Access</span>
                       <span style={{
                         fontSize: 9.5, fontWeight: 700, fontFamily: "var(--mono)", padding: "1px 6px", borderRadius: 3,
                         background: a.isActive ? "rgba(121,194,164,0.15)" : a.isRevoked ? "rgba(207,139,139,0.15)" : "rgba(207,173,116,0.15)",
@@ -979,7 +771,7 @@ function PermissionsTab({
                         cursor: isRevoking ? "wait" : "pointer",
                       }}
                     >
-                      {isRevoking ? "REVOKING..." : "REVOKE ON DEVNET"}
+                      {isRevoking ? "REVOKING..." : "REVOKE ACCESS"}
                     </button>
                   )}
                 </div>
@@ -991,7 +783,7 @@ function PermissionsTab({
 
       {/* New Authority Creation Form */}
       <div style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r)", padding: 18 }}>
-        <SectionLabel>CREATE NEW AGENT AUTHORITY PDA</SectionLabel>
+        <SectionLabel>CREATE NEW AGENT ACCESS</SectionLabel>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {/* Agent Pubkey */}
@@ -1085,7 +877,7 @@ function PermissionsTab({
 
           {/* Expiry */}
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span style={{ fontSize: 11, fontFamily: "var(--mono)", color: "var(--text-3)" }}>AUTHORITY EXPIRY</span>
+            <span style={{ fontSize: 11, fontFamily: "var(--mono)", color: "var(--text-3)" }}>ACCESS EXPIRY</span>
             <div style={{ display: "flex", gap: 8 }}>
               {([
                 { id: "24h", label: "24 Hours" },
@@ -1113,8 +905,8 @@ function PermissionsTab({
           {/* PDA Address Preview */}
           {pdaAddress && (
             <div style={{ padding: "8px 12px", background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 6, display: "flex", justifyContent: "space-between", fontSize: 11, fontFamily: "var(--mono)" }}>
-              <span style={{ color: "var(--text-3)" }}>Derived Authority PDA:</span>
-              <span style={{ color: "var(--mint,#79c2a4)" }}>{shortenAddress(pdaAddress)}</span>
+              <span style={{ color: "var(--text-3)" }}>Agent Access Account (PDA):</span>
+              <span style={{ color: "var(--mint,#79c2a4)" }} title={pdaAddress}>{shortenAddress(pdaAddress)}</span>
             </div>
           )}
 
@@ -1136,7 +928,7 @@ function PermissionsTab({
               cursor: !publicKey || !parsedAgentKey || creating ? "not-allowed" : "pointer",
             }}
           >
-            {creating ? "SIGNING & CONFIRMING ON DEVNET..." : "SIGN & AUTHORIZE ON DEVNET →"}
+            {creating ? "SIGNING & CONFIRMING ON DEVNET..." : "GRANT AGENT ACCESS ON DEVNET →"}
           </button>
         </div>
       </div>
@@ -1168,13 +960,13 @@ function parseStrategyFromText(text: string): StrategyPlan | null {
   return {
     objective: text.split("\n").find(l => l.trim().length > 10)?.slice(0, 120) ?? "Strategy Plan",
     constraints: [
-      "Circuit permission engine governs all credit and DBC liquidity actions",
-      "Bounded by on-chain Agent Authority PDA limits",
-      "DBC slippage bounded strictly <= 200 bps",
-      "Dynamic Risk Ratchet enforcement (Blocked in Defensive/Emergency)",
+      "Circuit permission engine enforces all credit and trading venue actions",
+      "Bounded by on-chain agent access limits",
+      "Trading venue slippage bounded strictly <= 200 bps",
+      "Dynamic risk limits enforcement (Blocked in Defensive/Emergency)",
     ],
     actions,
-    riskAssessment: "Evaluate collateral ratio, oracle confidence spread, and Section 15 DBC Risk Matrix before atomic execution.",
+    riskAssessment: "Evaluate collateral ratio, oracle uncertainty spread, and risk limits before atomic execution.",
   };
 }
 
@@ -1215,9 +1007,9 @@ export default function Autonomous() {
       `• Outstanding Debt: $${portfolio.totalDebtUsd.toFixed(2)}\n` +
       `• Health Factor: ${hfStr}\n` +
       `• Risk Ratchet: ${risk.ratchetState} (NYSE ${risk.isMarketOpen ? "Regular Hours Open" : "Outside RTH"})\n` +
-      `• Active Delegations: ${authCount} on-chain Authority PDA(s)\n` +
+      `• Active Delegations: ${authCount} active on-chain agent access(es)\n` +
       `• Positions: ${posSummary}\n\n` +
-      `I am ready to evaluate borrowing capacity, test on-chain permission gates, monitor market risk, or build autonomous policies.`
+      `I am ready to evaluate borrowing capacity, test risk limits, monitor market risk, or build autonomous policies.`
     );
   }, [wallet.address, portfolio.totalCollateralUsd, portfolio.totalDebtUsd, portfolio.healthFactor, risk.ratchetState, risk.isMarketOpen, onChainAuthorities, portfolio.positions]);
 
@@ -1256,8 +1048,7 @@ export default function Autonomous() {
   useEffect(() => {
     updateCounts();
     const unsub = subscribeTasks(updateCounts);
-    const id = setInterval(updateCounts, 5_000);
-    return () => { unsub(); clearInterval(id); };
+    return () => { unsub(); };
   }, [updateCounts]);
 
   useEffect(() => {
@@ -1294,15 +1085,71 @@ export default function Autonomous() {
   }, []);
 
   const handleApproveProposal = useCallback((proposal: CircuitActionProposal) => {
-    addEvent("permission", `Proposal approved: ${proposal.action.toUpperCase()} $${proposal.amountUsd} against ${proposal.symbol}`);
-    const market = DEPLOYED_MARKETS.find(m => m.symbol.toUpperCase() === proposal.symbol.toUpperCase()) || DEPLOYED_MARKETS[0];
+    // LLM is untrusted: client strictly validates proposal against real on-chain context
+    if (!proposal || typeof proposal.amountUsd !== "number" || isNaN(proposal.amountUsd) || proposal.amountUsd <= 0) {
+      addEvent("error", `Proposal rejected by client: Invalid amount ($${proposal?.amountUsd})`);
+      setAgentState("BLOCKED");
+      return;
+    }
+
+    const market = DEPLOYED_MARKETS.find(m => m.symbol.toUpperCase() === proposal.symbol.toUpperCase());
+    if (!market) {
+      addEvent("error", `Proposal rejected by client: Market ${proposal.symbol} not recognized in Circuit deployment`);
+      setAgentState("BLOCKED");
+      return;
+    }
+
+    const currentRisk = risk.ratchetState;
+    // Section 15 & 34: In EMERGENCY, only capital recovery actions (repay, deposit, exit_liquidity) are allowed
+    if (currentRisk === "EMERGENCY" && ["borrow", "withdraw", "swap", "enter_liquidity", "rebalance"].includes(proposal.action)) {
+      addEvent("blocked", `Proposal rejected: Risk Ratchet is EMERGENCY. Borrow, withdraw, and liquidity entries are strictly suspended.`);
+      setAgentState("BLOCKED");
+      return;
+    }
+
+    // In DEFENSIVE, borrow is suspended and withdraw is blocked if debt exists
+    if (currentRisk === "DEFENSIVE") {
+      if (proposal.action === "borrow") {
+        addEvent("blocked", `Proposal rejected: Borrowing is disabled by Capital Policy in DEFENSIVE state.`);
+        setAgentState("BLOCKED");
+        return;
+      }
+      if (proposal.action === "withdraw" && portfolio.totalDebtUsd > 0) {
+        addEvent("blocked", `Proposal rejected: Collateral withdrawal is blocked while debt is outstanding in DEFENSIVE state.`);
+        setAgentState("BLOCKED");
+        return;
+      }
+      if (["swap", "enter_liquidity", "rebalance"].includes(proposal.action)) {
+        addEvent("blocked", `Proposal rejected: DBC actions are blocked in DEFENSIVE state.`);
+        setAgentState("BLOCKED");
+        return;
+      }
+    }
+
+    // In RESTRICTED, borrow is suspended
+    if (currentRisk === "RESTRICTED" && proposal.action === "borrow") {
+      addEvent("blocked", `Proposal rejected: Borrowing is suspended in RESTRICTED risk state.`);
+      setAgentState("BLOCKED");
+      return;
+    }
+
+    // Capacity checks
+    if (proposal.action === "borrow" && proposal.amountUsd > credit.availableCreditUsd) {
+      addEvent("blocked", `Proposal rejected: Requested borrow ($${proposal.amountUsd}) exceeds available credit capacity ($${credit.availableCreditUsd.toFixed(2)}).`);
+      setAgentState("BLOCKED");
+      return;
+    }
+
+    // All real on-chain validation checks passed
+    setAgentState("CONFIRMING");
+    addEvent("permission", `On-chain validation passed: ${proposal.action.toUpperCase()} $${proposal.amountUsd} against ${proposal.symbol}`);
     openAction({
       type: proposal.action as any,
       market,
       amount: String(proposal.amountUsd),
     });
     addEvent("info", `Opened action drawer for ${proposal.symbol} ${proposal.action.toUpperCase()} ($${proposal.amountUsd}). Confirm signature with wallet.`);
-  }, [addEvent, openAction]);
+  }, [addEvent, openAction, risk.ratchetState, portfolio.totalDebtUsd, credit.availableCreditUsd]);
 
   const sendWithText = useCallback(async (customText?: string) => {
     const text = (customText ?? input).trim();
@@ -1321,7 +1168,7 @@ export default function Autonomous() {
 
     try {
       setAgentState("CHECKING_PERMISSION");
-      addEvent("permission", "Evaluating Circuit permission gates...");
+      addEvent("permission", "Evaluating Circuit risk limits and permission gates...");
       const apiMsgs = msgs
         .filter(m => m.role !== "system")
         .concat(userMsg)
@@ -1388,9 +1235,15 @@ export default function Autonomous() {
       const p = parseStrategyFromText(full);
       if (p) { setPlan(p); addEvent("info", `Strategy: ${p.actions.length} action(s) identified`); }
       if (parsedTools.length > 0) { addEvent("info", `${parsedTools.length} tool evaluation(s) executed`); }
-      if (parsedProp) { addEvent("permission", `Action proposal: ${parsedProp.action.toUpperCase()} ${parsedProp.symbol} (${parsedProp.permission})`); }
+      if (parsedProp) {
+        addEvent("permission", `Action proposal: ${parsedProp.action.toUpperCase()} ${parsedProp.symbol} (${parsedProp.permission})`);
+        setAgentState(parsedProp.permission === "BLOCKED" ? "BLOCKED" : "AWAITING_APPROVAL");
+      } else if (parsedTask) {
+        setAgentState("COMPLETED");
+      } else {
+        setAgentState("IDLE");
+      }
       if (parsedTask) { addEvent("info", `Policy proposal: ${parsedTask.name} (${parsedTask.type})`); }
-      setAgentState("IDLE");
       addEvent("info", "Evaluation complete.");
     } catch (err: any) {
       if (err.name === "AbortError") {
@@ -1428,49 +1281,64 @@ export default function Autonomous() {
     setInput(promptText);
   };
 
-  const permissionRows = useMemo(() => {
-    const rState = risk.ratchetState;
-    const isSafe = rState === "SAFE";
-    const isRestricted = rState === "RESTRICTED";
-
-    return [
-      { action: "Deposit Collateral", status: "ALLOWED (100%)", tone: "mint" },
-      { action: "Repay Debt", status: "ALLOWED (100%)", tone: "mint" },
-      {
-        action: "Borrow Capital",
-        status: isSafe ? "ALLOWED (100%)" : isRestricted ? "CAPPED (50%)" : "BLOCKED (Solvency Defense)",
-        tone: isSafe ? "mint" : isRestricted ? "warning" : "danger",
-      },
-      {
-        action: "Withdraw Collateral",
-        status: isSafe ? "ALLOWED" : isRestricted ? "CAPPED (HF > 1.8)" : "BLOCKED",
-        tone: isSafe ? "mint" : isRestricted ? "warning" : "danger",
-      },
-      {
-        action: "Meteora DBC Swap",
-        status: isSafe ? "ALLOWED (100 bps)" : isRestricted ? "CAPPED (50% cap)" : "BLOCKED",
-        tone: isSafe ? "mint" : isRestricted ? "warning" : "danger",
-      },
-      { action: "DBC Exit Liquidity", status: "ALLOWED (Unconditional)", tone: "mint" },
-    ];
-  }, [risk.ratchetState]);
-
   const activeAuthCount = onChainAuthorities.filter(a => !a.isExpired && !a.isRevoked).length;
 
   return (
     <div style={{ height: "calc(100vh - 57px)", display: "flex", flexDirection: "column", background: "var(--surface-0, #0c0c0d)", overflow: "hidden" }}>
       {/* ── Top Workspace Header ── */}
-      <div style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 18px", borderBottom: "1px solid var(--border)", background: "var(--surface-1)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", color: "var(--text)", fontFamily: "var(--mono)" }}>
+      <div style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 16px", borderBottom: "1px solid var(--border)", background: "var(--surface-1)", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+          <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", color: "var(--text)", fontFamily: "var(--mono)", flexShrink: 0 }}>
             AUTONOMOUS
           </span>
-          <span style={{ width: 1, height: 14, background: "var(--border)", display: "inline-block" }} />
-          <StateBadge state={agentState} />
+          <span style={{ width: 1, height: 14, background: "var(--border)", display: "inline-block", flexShrink: 0 }} />
+          <div style={{ flexShrink: 0 }}>
+            <StateBadge state={agentState} />
+          </div>
 
-          {/* ── Tab Switcher: CHAT, STRATEGY, WATCH, AUTO MANAGE, SCHEDULE, PERMISSIONS ── */}
-          <div style={{ display: "inline-flex", background: "var(--surface-2)", borderRadius: "var(--r-sm, 6px)", padding: 2, border: "1px solid var(--border)", marginLeft: 6 }}>
-            {(["CHAT", "STRATEGY", "WATCH", "AUTO MANAGE", "SCHEDULE", "PERMISSIONS"] as TabId[]).map(tab => {
+          {/* ── Tab Switcher: CHAT (Primary) | Secondary: STRATEGY, WATCH, AUTO MANAGE, SCHEDULE, PERMISSIONS ── */}
+          <div style={{
+            display: "inline-flex",
+            alignItems: "center",
+            background: "var(--surface-2)",
+            borderRadius: "var(--r-sm, 6px)",
+            padding: 2,
+            border: "1px solid var(--border)",
+            marginLeft: 4,
+            overflowX: "auto",
+            maxWidth: "calc(100vw - 280px)",
+            scrollbarWidth: "none",
+            whiteSpace: "nowrap",
+          }}>
+            {/* Primary Chat Tab */}
+            <button
+              type="button"
+              onClick={() => setActiveTab("CHAT")}
+              style={{
+                padding: "4px 11px",
+                fontSize: 10.5,
+                fontWeight: activeTab === "CHAT" ? 800 : 500,
+                fontFamily: "var(--mono)",
+                color: activeTab === "CHAT" ? "#0c0c0d" : "var(--text-2)",
+                background: activeTab === "CHAT" ? "var(--accent, #eceae6)" : "transparent",
+                border: "none",
+                borderRadius: "var(--r-sm, 4px)",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                transition: "all var(--t-fast)",
+                flexShrink: 0,
+              }}
+              title="Primary full-screen conversational agent"
+            >
+              <span>● CHAT</span>
+            </button>
+
+            <span style={{ width: 1, height: 14, background: "var(--border)", margin: "0 3px", display: "inline-block", flexShrink: 0 }} />
+
+            {/* 5 Secondary Tabs */}
+            {(["STRATEGY", "WATCH", "AUTO MANAGE", "SCHEDULE", "PERMISSIONS"] as TabId[]).map(tab => {
               const isActive = activeTab === tab;
               const count = tab === "WATCH" ? taskCounts.watches : tab === "AUTO MANAGE" ? taskCounts.strategies : tab === "SCHEDULE" ? taskCounts.total : tab === "PERMISSIONS" ? activeAuthCount : null;
               return (
@@ -1479,7 +1347,7 @@ export default function Autonomous() {
                   type="button"
                   onClick={() => setActiveTab(tab)}
                   style={{
-                    padding: "4px 10px",
+                    padding: "4px 9px",
                     fontSize: 10,
                     fontWeight: isActive ? 700 : 500,
                     fontFamily: "var(--mono)",
@@ -1492,6 +1360,7 @@ export default function Autonomous() {
                     alignItems: "center",
                     gap: 5,
                     transition: "all var(--t-fast)",
+                    flexShrink: 0,
                   }}
                 >
                   <span>{tab}</span>
@@ -1513,15 +1382,16 @@ export default function Autonomous() {
         </div>
 
         {/* ── Header Controls ── */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
           <button
             type="button"
             onClick={() => setActiveTab("PERMISSIONS")}
             style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 7px", borderRadius: 4, background: "transparent", border: "none", cursor: "pointer" }}
+            title="Manage bounded agent access and permissions"
           >
             <span style={{ width: 6, height: 6, borderRadius: "50%", background: hasActiveAuthority ? "var(--mint,#79c2a4)" : "var(--text-3)", display: "inline-block" }} />
             <span style={{ fontSize: 10, fontFamily: "var(--mono)", color: hasActiveAuthority ? "var(--mint,#79c2a4)" : "var(--text-3)" }}>
-              {hasActiveAuthority ? "AUTHORITY ACTIVE" : "NO AUTHORITY"}
+              {hasActiveAuthority ? "AGENT ACCESS ACTIVE" : "NO AGENT ACCESS"}
             </span>
           </button>
           <button type="button" onClick={clear} style={{ padding: "4px 9px", fontSize: 10, fontFamily: "var(--mono)", background: "transparent", border: "1px solid var(--border)", borderRadius: 5, color: "var(--text-3)", cursor: "pointer" }}>CLEAR</button>

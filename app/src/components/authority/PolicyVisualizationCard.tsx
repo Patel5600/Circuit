@@ -44,13 +44,13 @@ export function PolicyVisualizationCard({ assetSymbol }: { assetSymbol?: string 
             <div className="row g-8" style={{ alignItems: "center" }}>
               <Icon name="shield" size={16} />
               <span style={{ fontSize: 13, fontWeight: 700, fontFamily: "var(--mono)", letterSpacing: "0.04em" }}>
-                DELEGATED CAPITAL POLICY — {sym}
+                DELEGATED AGENT ACCESS &amp; POLICY — {sym}
               </span>
             </div>
             <Pill tone="neutral">NOT CONFIGURED</Pill>
           </div>
           <div style={{ fontSize: 12, color: "var(--text-3)", lineHeight: 1.5 }}>
-            No bounded agent authority is configured for {sym}. All execution operates under direct sovereign wallet authority.
+            No agent access is configured for {sym}. All actions operate under direct manual wallet control.
           </div>
         </div>
       </Card>
@@ -92,7 +92,7 @@ export function PolicyVisualizationCard({ assetSymbol }: { assetSymbol?: string 
                   textTransform: "uppercase",
                 }}
               >
-                Delegated Policy & Circuit Permissions
+                Agent Access &amp; Risk Limits
               </h3>
             </div>
             <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 2 }}>
@@ -127,9 +127,9 @@ export function PolicyVisualizationCard({ assetSymbol }: { assetSymbol?: string 
                 }}
               >
                 <th style={{ padding: "6px 8px" }}>ACTION</th>
-                <th style={{ padding: "6px 8px" }}>DELEGATED LIMIT</th>
-                <th style={{ padding: "6px 8px" }}>AGENT POLICY</th>
-                <th style={{ padding: "6px 8px" }}>CIRCUIT GATE</th>
+                <th style={{ padding: "6px 8px" }}>AGENT LIMIT</th>
+                <th style={{ padding: "6px 8px" }}>PERMISSION</th>
+                <th style={{ padding: "6px 8px" }}>RISK STATUS</th>
                 <th style={{ padding: "6px 8px", textAlign: "right" }}>RESULT</th>
               </tr>
             </thead>
@@ -167,7 +167,7 @@ export function PolicyVisualizationCard({ assetSymbol }: { assetSymbol?: string 
                     ? "Safe Market"
                     : risk.ratchetState === "RESTRICTED"
                     ? "Constrained (Throttled)"
-                    : "Blocked by Containment"}
+                    : "Blocked by your current risk limits"}
                 </td>
                 <td style={{ padding: "8px", textAlign: "right" }}>
                   {borrowPerm.allowed && authority.allowedActions.borrow ? (
@@ -177,9 +177,9 @@ export function PolicyVisualizationCard({ assetSymbol }: { assetSymbol?: string 
                   ) : (
                     <span
                       style={{ color: "var(--danger)", fontWeight: 700, fontFamily: "var(--mono)" }}
-                      title={borrowPerm.message}
+                      title={`Code: ${borrowPerm.reasonCode} · ${borrowPerm.message}`}
                     >
-                      ✕ BLOCKED ({borrowPerm.reasonCode})
+                      ✕ BLOCKED (Risk Limits)
                     </span>
                   )}
                 </td>
@@ -214,7 +214,7 @@ export function PolicyVisualizationCard({ assetSymbol }: { assetSymbol?: string 
                   </Pill>
                 </td>
                 <td style={{ padding: "8px", color: "var(--text-2)" }}>
-                  {risk.ratchetState === "EMERGENCY" ? "Blocked in Emergency" : "LTV Safe"}
+                  {risk.ratchetState === "EMERGENCY" ? "Blocked by your current risk limits" : "LTV Safe"}
                 </td>
                 <td style={{ padding: "8px", textAlign: "right" }}>
                   {withdrawPerm.allowed && authority.allowedActions.withdraw ? (
@@ -224,9 +224,9 @@ export function PolicyVisualizationCard({ assetSymbol }: { assetSymbol?: string 
                   ) : (
                     <span
                       style={{ color: "var(--danger)", fontWeight: 700, fontFamily: "var(--mono)" }}
-                      title={withdrawPerm.message}
+                      title={`Code: ${withdrawPerm.reasonCode} · ${withdrawPerm.message}`}
                     >
-                      ✕ BLOCKED ({withdrawPerm.reasonCode})
+                      ✕ BLOCKED (Risk Limits)
                     </span>
                   )}
                 </td>

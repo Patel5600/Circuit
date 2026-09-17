@@ -27,7 +27,7 @@ const MOVES = [
     n: "03",
     verb: "Policy",
     body:
-      "The on-chain Capital Policy Engine derives effective LTV and permissions from the 4-State Risk Ratchet. Credit is one execution surface governed by the same unified permission system as liquidity and recovery.",
+      "The on-chain Capital Policy Engine derives effective LTV and permissions from the 4-State Risk Ratchet. Credit is one trading venue governed by the same unified permission system as liquidity and recovery.",
   },
   {
     n: "04",
@@ -71,7 +71,7 @@ export function Credit() {
 
         <Reveal>
           <p className="credit__foot">
-            Credit, liquidity provision, and recovery are execution surfaces governed by one
+            Credit, liquidity provision, and recovery are trading venues governed by one
             canonical Permission Engine. Humans and autonomous strategies operate under identical
             risk invariants, ensuring unsafe transactions are rejected directly on Solana.
           </p>

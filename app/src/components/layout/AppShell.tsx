@@ -91,13 +91,13 @@ function Header({ onOpenHealth }: { onOpenHealth: () => void }) {
 
   return (
     <header className="appbar">
-      <div className="row g-8" style={{ alignItems: "center" }}>
+      <div className="row g-8" style={{ alignItems: "center", flexShrink: 0 }}>
         <NavLink to="/" aria-label="circuit home" style={{ display: "flex", alignItems: "center" }}>
           <CircuitWordmark size={22} />
         </NavLink>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12 }}>
+      <div className="appbar__center" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
         {/* Authoritative Execution Actor Switcher */}
         <div
           style={{
@@ -118,7 +118,7 @@ function Header({ onOpenHealth }: { onOpenHealth: () => void }) {
               }
             }}
             style={{
-              padding: "5px 12px",
+              padding: "5px 10px",
               fontSize: 11,
               fontWeight: !isAutonomous ? 700 : 500,
               color: !isAutonomous ? "var(--text-1)" : "var(--text-3)",
@@ -128,7 +128,7 @@ function Header({ onOpenHealth }: { onOpenHealth: () => void }) {
               cursor: "pointer",
               transition: "all var(--t-fast)",
             }}
-            title="Manual Mode: Sovereign direct wallet execution"
+            title="Manual Mode: Direct wallet actions"
           >
             MANUAL
           </button>
@@ -141,7 +141,7 @@ function Header({ onOpenHealth }: { onOpenHealth: () => void }) {
               }
             }}
             style={{
-              padding: "5px 10px",
+              padding: "5px 9px",
               fontSize: 11,
               fontWeight: isAutonomous ? 700 : 500,
               color: isAutonomous ? "var(--accent)" : "var(--text-3)",
@@ -151,13 +151,14 @@ function Header({ onOpenHealth }: { onOpenHealth: () => void }) {
               cursor: "pointer",
               display: "inline-flex",
               alignItems: "center",
-              gap: 6,
+              gap: 5,
               transition: "all var(--t-fast)",
             }}
-            title="Autonomous Mode: Delegated execution under bounded Circuit authority"
+            title="Autonomous Mode: Agent execution within your risk limits"
           >
             <span>AUTONOMOUS</span>
             <span
+              className="appbar__mode-badge"
               style={{
                 fontSize: 9,
                 fontWeight: 700,
@@ -192,11 +193,15 @@ function Header({ onOpenHealth }: { onOpenHealth: () => void }) {
           </button>
         </div>
 
-        <SystemHealthPill onClick={onOpenHealth} />
+        <div className="appbar__hide-mobile">
+          <SystemHealthPill onClick={onOpenHealth} />
+        </div>
       </div>
 
-      <div className="row g-8" style={{ alignItems: "center" }}>
-        <NetworkSelector />
+      <div className="row g-8" style={{ alignItems: "center", flexShrink: 0 }}>
+        <div className="appbar__hide-mobile">
+          <NetworkSelector />
+        </div>
         <WalletButton compact />
         <NavLink
           to="/app/profile"
@@ -218,7 +223,7 @@ function Header({ onOpenHealth }: { onOpenHealth: () => void }) {
           title="Risk Profile & Account Settings"
         >
           <Icon name="user" size={14} />
-          <span style={{ fontSize: 11, fontWeight: 600, fontFamily: "var(--sans)" }}>Profile</span>
+          <span className="appbar__hide-mobile" style={{ fontSize: 11, fontWeight: 600, fontFamily: "var(--sans)" }}>Profile</span>
         </NavLink>
       </div>
     </header>

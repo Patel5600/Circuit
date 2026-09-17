@@ -92,10 +92,10 @@ const DIMENSIONS: DimensionChapter[] = [
     roman: "V",
     title: "Capital Authority",
     subtitle: "Human Root Sovereignty & Bounded Agent Delegation",
-    badge: "Bounded Authority PDA",
+    badge: "Bounded Agent Access",
     tagline: "Humans decide delegation. Autonomous agents execute within hard mathematical limits.",
     thesis:
-      "Autonomous agents need execution autonomy without custodial control. Circuit implements non-custodial AgentAuthority PDAs bounded by asset scope, expiry, max borrow caps, and dynamic risk budgets.",
+      "Autonomous agents need execution autonomy without custodial control. Circuit implements non-custodial agent access accounts bounded by asset scope, expiry, max borrow caps, and dynamic risk budgets.",
     mechanism:
       "Authority is strictly scoped: seeds = [b'authority', owner, agent, asset_mint]. The agent can never borrow beyond authorized caps, can never execute outside asset scope, and has no separate risk engine.",
     formula: "EffectiveAuthority = OwnerAuthority ∩ AgentAuthority ∩ RiskPolicy ∩ PositionConstraints",

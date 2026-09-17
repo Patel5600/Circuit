@@ -178,7 +178,7 @@ export function Technology() {
                 </span>
               </div>
               <div style={{ fontSize: "11px", color: "var(--text-1)", lineHeight: 1.45 }}>
-                Dynamic Risk Engine · Canonical Permission Engine · Agent Authority PDA · Meteora DBC Atomic CPI
+                Dynamic Risk Engine · Canonical Permission Engine · Agent Access (PDA) · Meteora DBC Atomic CPI
               </div>
             </div>
           </div>

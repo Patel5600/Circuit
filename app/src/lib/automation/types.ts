@@ -47,7 +47,7 @@ export interface WatchCondition {
   /** Numeric threshold or string for risk_state (e.g. "DEFENSIVE") */
   threshold: number | string;
   /** Human-readable description */
-  description: string;
+  description?: string;
 }
 
 export type FrequencyMinutes = 1 | 5 | 15 | 30 | 60 | 360 | 1440;
@@ -66,6 +66,10 @@ export interface StrategyPolicy {
   expireDays: number;
   /** If true, stop borrowing when risk >= DEFENSIVE */
   riskAdaptive: boolean;
+  targetLtvBps?: number;
+  maxLtvBps?: number;
+  minHealthFactor?: number;
+  rebalanceDirection?: string;
 }
 
 export interface AutomationTask {
@@ -80,16 +84,25 @@ export interface AutomationTask {
   frequencyMinutes: FrequencyMinutes;
   /** Unix ms */
   createdAt: number;
-  activatedAt: number | null;
+  activatedAt?: number | null;
   expiresAt: number | null;
-  lastCheckedAt: number | null;
-  nextRunAt: number | null;
-  lastResult: TaskResult | null;
+  lastCheckedAt?: number | null;
+  nextRunAt?: number | null;
+  lastResult?: TaskResult | null;
   /** Execution hard limits */
   maxExecutionsPerDay: number;
   executionsToday: number;
   consecutiveFailures: number;
   maxConsecutiveFailures: number;
+  /** Optional metadata and scheduling properties */
+  mode?: "SCHEDULE" | "MANUAL" | "AUTONOMOUS";
+  executionsCount?: number;
+  lastRunTs?: number;
+  schedule?: {
+    frequency: string;
+    hourUtc?: number;
+    minuteUtc?: number;
+  };
 }
 
 export type ExecutionOutcome =
@@ -103,6 +116,18 @@ export type ExecutionOutcome =
   | "BLOCKED_NO_AUTHORITY"
   | "BLOCKED_NO_SIGNER"
   | "SKIPPED_LIMIT";
+
+/** Real-time execution states */
+export type AgentExecutionState =
+  | "IDLE"
+  | "PLANNING"
+  | "AWAITING_APPROVAL"
+  | "CHECKING_PERMISSION"
+  | "EXECUTING"
+  | "CONFIRMING"
+  | "COMPLETED"
+  | "BLOCKED"
+  | "FAILED";
 
 export interface TaskResult {
   taskId: string;

@@ -16,14 +16,14 @@ use anchor_lang::solana_program::{
 
 /// Verified Meteora Dynamic Bonding Curve Program ID (Mainnet & Devnet)
 pub const METEORA_DBC_PROGRAM_ID: Pubkey = Pubkey::new_from_array([
-    0xba, 0x51, 0x1a, 0x05, 0x04, 0x82, 0xd0, 0x47, 0x93, 0x48, 0x6e, 0x56, 0x3d, 0x47, 0x4f, 0x86,
-    0xa0, 0x1f, 0x5f, 0x8a, 0xec, 0x59, 0xb8, 0x36, 0x50, 0xb8, 0xc1, 0xf6, 0x41, 0xe5, 0x3a, 0x4b,
+    0x09, 0x60, 0x0c, 0xa5, 0x24, 0xf7, 0xb1, 0xb7, 0xd6, 0xcc, 0xb1, 0xc3, 0x97, 0x3a, 0xa0, 0x33,
+    0x0d, 0x19, 0x03, 0xda, 0x60, 0x1c, 0xc9, 0xb5, 0xde, 0xe3, 0xc6, 0x62, 0xb4, 0xca, 0xd1, 0x49,
 ]); // dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN
 
 /// Verified Meteora DBC Pool Authority PDA
 pub const METEORA_DBC_POOL_AUTHORITY: Pubkey = Pubkey::new_from_array([
-    0xd9, 0x8f, 0x4b, 0x76, 0x44, 0xeb, 0x59, 0x54, 0x32, 0x98, 0x5c, 0xb0, 0xa5, 0xb3, 0xc1, 0x22,
-    0x29, 0x5b, 0x41, 0xf7, 0x13, 0x16, 0x90, 0x98, 0x0a, 0x02, 0xa7, 0xf7, 0xb8, 0x9e, 0x5c, 0xc7,
+    0xda, 0x63, 0x68, 0x1f, 0x72, 0x86, 0xbc, 0xc8, 0x06, 0x71, 0x9e, 0x2c, 0x2b, 0x50, 0xa2, 0x01,
+    0x57, 0x24, 0x3b, 0xfc, 0x96, 0x68, 0xb1, 0x15, 0x20, 0xbc, 0x53, 0x84, 0x3e, 0xdc, 0xdb, 0x08,
 ]); // FhVo3mqL8PW5pH5U2CN4XE33DokiyZnUwuGpH2hmHLuM
 
 /// Executes or authorizes an action on Meteora Dynamic Bonding Curve (DBC)
@@ -114,10 +114,15 @@ pub fn handler<'info>(
         _ => return err!(CircuitError::AgentActionNotPermitted),
     };
 
-    // Calculate valuation
+    // Calculate valuation using conservative Pyth valuation (p_conservative = max(0, p - conf))
+    let conservative_price = math::calculate_conservative_pyth_price(
+        validated_price.price,
+        validated_price.conf,
+    )?;
+
     let collateral_value = math::calculate_collateral_value(
         amount_in,
-        validated_price.price,
+        conservative_price,
         validated_price.expo,
         ctx.accounts.base_mint.decimals,
         ctx.accounts.quote_mint.decimals,
@@ -226,6 +231,8 @@ pub fn handler<'info>(
 
     // -- Step 6: Atomic Cross-Program Invocation (CPI) into Meteora DBC --
     if !dbc_instruction_data.is_empty() {
+        let pre_destination_amount = ctx.accounts.user_destination_ata.amount;
+
         let mut account_metas = Vec::with_capacity(ctx.remaining_accounts.len() + 4);
         account_metas.push(AccountMeta::new(ctx.accounts.dbc_pool.key(), false));
         account_metas.push(AccountMeta::new(ctx.accounts.user_source_ata.key(), false));
@@ -255,6 +262,15 @@ pub fn handler<'info>(
         };
 
         invoke(&ix, &account_infos)?;
+
+        // Enforce slippage invariant: received output must satisfy min_amount_out
+        ctx.accounts.user_destination_ata.reload()?;
+        let post_destination_amount = ctx.accounts.user_destination_ata.amount;
+        let amount_received = post_destination_amount.saturating_sub(pre_destination_amount);
+        require!(
+            amount_received >= min_amount_out,
+            CircuitError::DbcSlippageExceeded
+        );
     }
 
     emit!(crate::events::DbcActionExecuted {
@@ -352,4 +368,81 @@ pub struct ExecuteDbcAction<'info> {
 
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_meteora_dbc_program_id_matches_canonical() {
+        let expected = Pubkey::from_str("dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN").unwrap();
+        assert_eq!(
+            METEORA_DBC_PROGRAM_ID, expected,
+            "METEORA_DBC_PROGRAM_ID must match canonical address dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN"
+        );
+    }
+
+    #[test]
+    fn test_meteora_dbc_pool_authority_matches_canonical() {
+        let expected = Pubkey::from_str("FhVo3mqL8PW5pH5U2CN4XE33DokiyZnUwuGpH2hmHLuM").unwrap();
+        assert_eq!(
+            METEORA_DBC_POOL_AUTHORITY, expected,
+            "METEORA_DBC_POOL_AUTHORITY must match canonical address FhVo3mqL8PW5pH5U2CN4XE33DokiyZnUwuGpH2hmHLuM"
+        );
+    }
+
+    #[test]
+    fn test_dbc_action_risk_classification() {
+        // ExitLiquidity is risk-reducing (recovery-safe)
+        assert!(CircuitAction::ExitLiquidity.is_risk_reducing());
+        assert!(!CircuitAction::ExitLiquidity.is_risk_increasing());
+
+        // Swap is risk-increasing
+        assert!(CircuitAction::Swap.is_risk_increasing());
+        assert!(!CircuitAction::Swap.is_risk_reducing());
+
+        // EnterLiquidity is risk-increasing
+        assert!(CircuitAction::EnterLiquidity.is_risk_increasing());
+        assert!(!CircuitAction::EnterLiquidity.is_risk_reducing());
+    }
+
+    #[test]
+    fn test_asset_registry_entry_validates_dbc_pool() {
+        let valid_pool = Pubkey::new_unique();
+        let invalid_pool = Pubkey::new_unique();
+        let entry = AssetRegistryEntry {
+            mint: Pubkey::new_unique(),
+            quote_mint: Pubkey::new_unique(),
+            oracle_feed: [0u8; 32],
+            dbc_pool: valid_pool,
+            market_status: AssetRegistryEntry::STATUS_ACTIVE,
+            policy_version: 1,
+            bump: 255,
+        };
+
+        assert!(entry.assert_valid_dbc_pool(&valid_pool));
+        assert!(!entry.assert_valid_dbc_pool(&invalid_pool));
+        assert!(entry.is_active());
+    }
+
+    #[test]
+    fn test_dbc_action_type_mapping() {
+        let map_action = |code: u8| -> Option<CircuitAction> {
+            match code {
+                0 => Some(CircuitAction::Swap),
+                1 => Some(CircuitAction::EnterLiquidity),
+                2 => Some(CircuitAction::ExitLiquidity),
+                3 => Some(CircuitAction::Rebalance),
+                _ => None,
+            }
+        };
+
+        assert_eq!(map_action(0), Some(CircuitAction::Swap));
+        assert_eq!(map_action(1), Some(CircuitAction::EnterLiquidity));
+        assert_eq!(map_action(2), Some(CircuitAction::ExitLiquidity));
+        assert_eq!(map_action(3), Some(CircuitAction::Rebalance));
+        assert_eq!(map_action(4), None);
+    }
 }

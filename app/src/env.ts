@@ -8,7 +8,15 @@
  */
 
 function read(key: string, fallback = ""): string {
-  const v = (import.meta as any).env?.[key];
+  let v: any;
+  try {
+    v = (0, eval)("typeof import.meta !== 'undefined' ? import.meta.env : undefined")?.[key];
+  } catch {
+    v = undefined;
+  }
+  if (v === undefined && typeof process !== "undefined") {
+    v = (process.env as any)?.[key];
+  }
   return v === undefined || v === "" ? fallback : String(v);
 }
 

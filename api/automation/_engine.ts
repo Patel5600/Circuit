@@ -20,6 +20,7 @@ import {
   buildExecuteDbcActionInstruction,
   computeDbcSwapQuote,
 } from "../../app/src/lib/meteora/dbc";
+import { acquireTaskLock, releaseTaskLock } from "./_store";
 
 const RPC_URL = process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
 const PROGRAM_ID = new PublicKey(process.env.CIRCUIT_PROGRAM_ID ?? "Cq4Lvd6Kgr3a2aP6ENPVGQ8tUpbkGmoWr9ZDBdXGiTs2");
@@ -287,7 +288,7 @@ export function checkAutomationPermission(
 
 // ── Transaction Executor ───────────────────────────────────────────────────
 
-async function executeAgentTransaction(
+export async function executeAgentTransaction(
   task: AutomationTask,
   state: PortfolioState,
   executionId: string
@@ -306,9 +307,51 @@ async function executeAgentTransaction(
     const signerKeypair = Keypair.fromSecretKey(bs58.decode(signerSecret));
     const conn = new Connection(RPC_URL, "confirmed");
     const ownerPubkey = new PublicKey(task.owner);
-    const market = MARKETS_INFO[0];
+    const market = (task.policy?.assetScope?.[0]
+      ? MARKETS_INFO.find(m => m.symbol === task.policy?.assetScope?.[0])
+      : null) ?? MARKETS_INFO[0];
     const assetMint = new PublicKey(market.mint);
     const feedBytes = Buffer.from(market.feed.replace(/^0x/, ""), "hex");
+
+    // Canonical PDA & Account derivations
+    const [protocolConfig] = PublicKey.findProgramAddressSync([Buffer.from("protocol")], PROGRAM_ID);
+    const [assetConfig] = PublicKey.findProgramAddressSync([Buffer.from("asset"), assetMint.toBuffer()], PROGRAM_ID);
+    const [riskRatchet] = PublicKey.findProgramAddressSync([Buffer.from("ratchet"), feedBytes], PROGRAM_ID);
+    const [marketGuard] = PublicKey.findProgramAddressSync([Buffer.from("guard"), feedBytes], PROGRAM_ID);
+    void marketGuard; // Derived canonical MarketGuard PDA for observability/guard checks
+    const [position] = PublicKey.findProgramAddressSync(
+      [Buffer.from("position"), ownerPubkey.toBuffer(), assetMint.toBuffer()],
+      PROGRAM_ID
+    );
+    const [agentAuthority] = PublicKey.findProgramAddressSync(
+      [Buffer.from("authority"), ownerPubkey.toBuffer(), signerKeypair.publicKey.toBuffer(), assetMint.toBuffer()],
+      PROGRAM_ID
+    );
+    const collateralVault = getAssociatedTokenAddressSync(assetMint, protocolConfig, true);
+    const liquidityVault = getAssociatedTokenAddressSync(QUOTE_MINT, protocolConfig, true);
+    const userCollateralAta = getAssociatedTokenAddressSync(assetMint, ownerPubkey, true);
+    const userQuoteAta = getAssociatedTokenAddressSync(QUOTE_MINT, ownerPubkey, true);
+
+    const PUSH_ORACLE_ID = new PublicKey(process.env.VITE_PYTH_PUSH_ORACLE ?? "pythWSnswVUd12oZpeFP8e9CVaEqJg25g1Vtc2biRsT");
+    const shardBytes = Buffer.alloc(2);
+    const priceUpdate = process.env.VITE_PYTH_PRICE_ACCOUNT
+      ? new PublicKey(process.env.VITE_PYTH_PRICE_ACCOUNT)
+      : PublicKey.findProgramAddressSync([shardBytes, feedBytes], PUSH_ORACLE_ID)[0];
+
+    // Compute native amount with 6-decimal scaling
+    const amountUsd = task.policy?.maxAmountPerActionUsd ?? 0;
+    const amountNative = BigInt(Math.max(1, Math.round(amountUsd * 1e6)));
+
+    // Resolve intent nonce from on-chain AgentAuthority account (offset 153 is u64 nonce)
+    let intentNonce = 0n;
+    try {
+      const authInfo = await conn.getAccountInfo(agentAuthority, "confirmed");
+      if (authInfo && authInfo.data && authInfo.data.length >= 161) {
+        intentNonce = authInfo.data.readBigUInt64LE(153);
+      }
+    } catch {
+      intentNonce = BigInt(task.executionsToday ?? 0);
+    }
 
     // Compute execute_agent_action discriminator
     const disc = createHash("sha256").update("global:execute_agent_action").digest().subarray(0, 8);
@@ -378,16 +421,15 @@ async function executeAgentTransaction(
           { pubkey: protocolConfig, isSigner: false, isWritable: false },
           { pubkey: assetConfig, isSigner: false, isWritable: false },
           { pubkey: riskRatchet, isSigner: false, isWritable: true },
-          { pubkey: marketGuard, isSigner: false, isWritable: true },
           { pubkey: position, isSigner: false, isWritable: true },
           { pubkey: agentAuthority, isSigner: false, isWritable: true },
-          { pubkey: priceUpdate, isSigner: false, isWritable: false },
           { pubkey: collateralVault, isSigner: false, isWritable: true },
           { pubkey: liquidityVault, isSigner: false, isWritable: true },
           { pubkey: userCollateralAta, isSigner: false, isWritable: true },
           { pubkey: userQuoteAta, isSigner: false, isWritable: true },
           { pubkey: assetMint, isSigner: false, isWritable: false },
           { pubkey: QUOTE_MINT, isSigner: false, isWritable: false },
+          { pubkey: priceUpdate, isSigner: false, isWritable: false },
           { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
           { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
         ],
@@ -416,115 +458,185 @@ export async function runTaskPipeline(task: AutomationTask): Promise<TaskResult>
   const startMs = Date.now();
   const executionId = `exec_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
-  // Check expiry
-  if (task.expiresAt && Date.now() > task.expiresAt) {
+  // Enforce idempotency: acquire task lock to prevent concurrent runs & double-spending
+  if (!acquireTaskLock(task.id)) {
     return {
       taskId: task.id,
       executionId,
       outcome: "FAILED" as ExecutionOutcome,
-      reasonCode: "TASK_EXPIRED",
+      reasonCode: "EXECUTION_ALREADY_IN_PROGRESS",
       conditionMet: false,
       timestamp: Date.now(),
       durationMs: Date.now() - startMs,
     };
   }
 
-  // 1. OBSERVE — read real Devnet state
-  let state: PortfolioState;
   try {
-    state = await fetchPortfolioState(task.owner);
-  } catch (err: any) {
-    return {
-      taskId: task.id,
-      executionId,
-      outcome: "FAILED" as ExecutionOutcome,
-      reasonCode: `RPC_ERROR: ${err?.message ?? "Read failed"}`,
-      conditionMet: false,
-      timestamp: Date.now(),
-      durationMs: Date.now() - startMs,
-    };
-  }
+    // Check expiry
+    if (task.expiresAt && Date.now() > task.expiresAt) {
+      return {
+        taskId: task.id,
+        executionId,
+        outcome: "FAILED" as ExecutionOutcome,
+        reasonCode: "TASK_EXPIRED",
+        conditionMet: false,
+        timestamp: Date.now(),
+        durationMs: Date.now() - startMs,
+      };
+    }
 
-  // 2. OBSERVE-only tasks: record and return
-  if (task.type === "OBSERVE" || task.type === "ANALYZE" || task.type === "REPORT") {
+    // 1. OBSERVE — read real Devnet state
+    let state: PortfolioState;
+    try {
+      state = await fetchPortfolioState(task.owner);
+    } catch (err: any) {
+      return {
+        taskId: task.id,
+        executionId,
+        outcome: "FAILED" as ExecutionOutcome,
+        reasonCode: `RPC_ERROR: ${err?.message ?? "Read failed"}`,
+        conditionMet: false,
+        timestamp: Date.now(),
+        durationMs: Date.now() - startMs,
+      };
+    }
+
+    // 2. OBSERVE-only tasks: record and return
+    if (task.type === "OBSERVE" || task.type === "ANALYZE" || task.type === "REPORT") {
+      return {
+        taskId: task.id,
+        executionId,
+        outcome: "OBSERVED" as ExecutionOutcome,
+        reasonCode: "ALLOWED",
+        conditionMet: false,
+        stateAfter: {
+          healthFactor: state.healthFactor ?? "N/A",
+          riskState: state.riskState,
+          collateralUsd: state.collateralUsd,
+          debtUsd: state.debtUsd,
+        },
+        timestamp: Date.now(),
+        durationMs: Date.now() - startMs,
+      };
+    }
+
+    // 3. EVALUATE condition
+    let conditionMet = true;
+    let actualValue: number | string = 0;
+    if (task.condition) {
+      const evalResult = evaluateCondition(task.condition, state);
+      conditionMet = evalResult.met;
+      actualValue = evalResult.actualValue;
+    }
+
+    if (!conditionMet) {
+      return {
+        taskId: task.id,
+        executionId,
+        outcome: "CONDITION_NOT_MET" as ExecutionOutcome,
+        reasonCode: "CONDITION_NOT_MET",
+        conditionValue: actualValue,
+        conditionMet: false,
+        stateAfter: {
+          riskState: state.riskState,
+          healthFactor: state.healthFactor ?? "N/A",
+          collateralUsd: state.collateralUsd,
+          debtUsd: state.debtUsd,
+        },
+        timestamp: Date.now(),
+        durationMs: Date.now() - startMs,
+      };
+    }
+
+    // 4. CIRCUIT PERMISSION CHECK
+    const { allowed, reasonCode } = checkAutomationPermission(task, state);
+    if (!allowed) {
+      return {
+        taskId: task.id,
+        executionId,
+        outcome: "PERMISSION_DENIED" as ExecutionOutcome,
+        reasonCode,
+        conditionValue: actualValue,
+        conditionMet: true,
+        actionProposed: task.type,
+        stateAfter: {
+          riskState: state.riskState,
+          healthFactor: state.healthFactor ?? "N/A",
+        },
+        timestamp: Date.now(),
+        durationMs: Date.now() - startMs,
+      };
+    }
+
+    // 5. EXECUTE TRANSACTION
+    const amount = task.policy?.maxAmountPerActionUsd ?? 0;
+    const { txSignature, error } = await executeAgentTransaction(task, state, executionId);
+
+    if (error === "AGENT_SIGNER_NOT_CONFIGURED") {
+      return {
+        taskId: task.id,
+        executionId,
+        outcome: "BLOCKED_NO_SIGNER" as ExecutionOutcome,
+        reasonCode: "AGENT_SIGNER_NOT_CONFIGURED",
+        conditionValue: actualValue,
+        conditionMet: true,
+        actionProposed: `${task.type} $${amount.toFixed(2)}`,
+        stateAfter: {
+          riskState: state.riskState,
+          healthFactor: state.healthFactor ?? "N/A",
+        },
+        timestamp: Date.now(),
+        durationMs: Date.now() - startMs,
+      };
+    }
+
+    if (error) {
+      return {
+        taskId: task.id,
+        executionId,
+        outcome: "FAILED" as ExecutionOutcome,
+        reasonCode: error,
+        conditionValue: actualValue,
+        conditionMet: true,
+        actionProposed: `${task.type} $${amount.toFixed(2)}`,
+        stateAfter: {
+          riskState: state.riskState,
+          healthFactor: state.healthFactor ?? "N/A",
+        },
+        timestamp: Date.now(),
+        durationMs: Date.now() - startMs,
+      };
+    }
+
+    // Strict Invariant: Never report CONFIRMED / SUCCESS without confirmed transaction signature
+    if (!txSignature) {
+      return {
+        taskId: task.id,
+        executionId,
+        outcome: "FAILED" as ExecutionOutcome,
+        reasonCode: "TRANSACTION_NOT_CONFIRMED",
+        conditionValue: actualValue,
+        conditionMet: true,
+        actionProposed: `${task.type} $${amount.toFixed(2)}`,
+        stateAfter: {
+          riskState: state.riskState,
+          healthFactor: state.healthFactor ?? "N/A",
+        },
+        timestamp: Date.now(),
+        durationMs: Date.now() - startMs,
+      };
+    }
+
     return {
       taskId: task.id,
       executionId,
-      outcome: "OBSERVED" as ExecutionOutcome,
+      outcome: "CONFIRMED" as ExecutionOutcome,
       reasonCode: "ALLOWED",
-      conditionMet: false,
-      stateAfter: {
-        healthFactor: state.healthFactor ?? "N/A",
-        riskState: state.riskState,
-        collateralUsd: state.collateralUsd,
-        debtUsd: state.debtUsd,
-      },
-      timestamp: Date.now(),
-      durationMs: Date.now() - startMs,
-    };
-  }
-
-  // 3. EVALUATE condition
-  let conditionMet = true;
-  let actualValue: number | string = 0;
-  if (task.condition) {
-    const evalResult = evaluateCondition(task.condition, state);
-    conditionMet = evalResult.met;
-    actualValue = evalResult.actualValue;
-  }
-
-  if (!conditionMet) {
-    return {
-      taskId: task.id,
-      executionId,
-      outcome: "CONDITION_NOT_MET" as ExecutionOutcome,
-      reasonCode: "CONDITION_NOT_MET",
-      conditionValue: actualValue,
-      conditionMet: false,
-      stateAfter: {
-        riskState: state.riskState,
-        healthFactor: state.healthFactor ?? "N/A",
-        collateralUsd: state.collateralUsd,
-        debtUsd: state.debtUsd,
-      },
-      timestamp: Date.now(),
-      durationMs: Date.now() - startMs,
-    };
-  }
-
-  // 4. CIRCUIT PERMISSION CHECK
-  const { allowed, reasonCode } = checkAutomationPermission(task, state);
-  if (!allowed) {
-    return {
-      taskId: task.id,
-      executionId,
-      outcome: "PERMISSION_DENIED" as ExecutionOutcome,
-      reasonCode,
-      conditionValue: actualValue,
-      conditionMet: true,
-      actionProposed: task.type,
-      stateAfter: {
-        riskState: state.riskState,
-        healthFactor: state.healthFactor ?? "N/A",
-      },
-      timestamp: Date.now(),
-      durationMs: Date.now() - startMs,
-    };
-  }
-
-  // 5. EXECUTE TRANSACTION
-  const amount = task.policy?.maxAmountPerActionUsd ?? 0;
-  const { txSignature, error } = await executeAgentTransaction(task, state, executionId);
-
-  if (error === "AGENT_SIGNER_NOT_CONFIGURED") {
-    return {
-      taskId: task.id,
-      executionId,
-      outcome: "BLOCKED_NO_SIGNER" as ExecutionOutcome,
-      reasonCode: "AGENT_SIGNER_NOT_CONFIGURED",
       conditionValue: actualValue,
       conditionMet: true,
       actionProposed: `${task.type} $${amount.toFixed(2)}`,
+      txSignature,
+      txStatus: "CONFIRMED",
       stateAfter: {
         riskState: state.riskState,
         healthFactor: state.healthFactor ?? "N/A",
@@ -532,41 +644,7 @@ export async function runTaskPipeline(task: AutomationTask): Promise<TaskResult>
       timestamp: Date.now(),
       durationMs: Date.now() - startMs,
     };
+  } finally {
+    releaseTaskLock(task.id);
   }
-
-  if (error) {
-    return {
-      taskId: task.id,
-      executionId,
-      outcome: "FAILED" as ExecutionOutcome,
-      reasonCode: error,
-      conditionValue: actualValue,
-      conditionMet: true,
-      actionProposed: `${task.type} $${amount.toFixed(2)}`,
-      stateAfter: {
-        riskState: state.riskState,
-        healthFactor: state.healthFactor ?? "N/A",
-      },
-      timestamp: Date.now(),
-      durationMs: Date.now() - startMs,
-    };
-  }
-
-  return {
-    taskId: task.id,
-    executionId,
-    outcome: txSignature ? "CONFIRMED" : "SUBMITTED",
-    reasonCode: "ALLOWED",
-    conditionValue: actualValue,
-    conditionMet: true,
-    actionProposed: `${task.type} $${amount.toFixed(2)}`,
-    txSignature: txSignature ?? undefined,
-    txStatus: txSignature ? "CONFIRMED" : "SUBMITTED",
-    stateAfter: {
-      riskState: state.riskState,
-      healthFactor: state.healthFactor ?? "N/A",
-    },
-    timestamp: Date.now(),
-    durationMs: Date.now() - startMs,
-  };
 }

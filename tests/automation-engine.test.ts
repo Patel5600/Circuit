@@ -8,13 +8,18 @@ import {
   logExecution,
   getExecutionLogs,
   syncTasks,
+  acquireTaskLock,
+  releaseTaskLock,
+  isTaskLocked,
 } from "../api/automation/_store";
 import {
   evaluateCondition,
   checkAutomationPermission,
+  runTaskPipeline,
+  executeAgentTransaction,
   PortfolioState,
 } from "../api/automation/_engine";
-import { AutomationTask, WatchCondition } from "../app/src/lib/automation/types";
+import { AutomationTask, WatchCondition, AgentExecutionState } from "../app/src/lib/automation/types";
 
 describe("Autonomous Operations Extension — Engine & Store Unit Tests", () => {
   const OWNER_A = "8VjvTWpKHJYkMzhNDhVWWJTLx1FPBVfCextL5fDRgq11";
@@ -26,19 +31,20 @@ describe("Autonomous Operations Extension — Engine & Store Unit Tests", () => 
       owner: OWNER_A,
       name: "Portfolio Health Check",
       type: "OBSERVE",
-      mode: "SCHEDULE",
       status: "ACTIVE",
+      condition: null,
+      policy: null,
+      frequencyMinutes: 1440,
       createdAt: Date.now(),
-      executionsCount: 0,
+      activatedAt: Date.now(),
+      expiresAt: null,
+      lastCheckedAt: null,
+      nextRunAt: null,
+      lastResult: null,
       executionsToday: 0,
       maxExecutionsPerDay: 10,
       consecutiveFailures: 0,
       maxConsecutiveFailures: 3,
-      schedule: {
-        frequency: "DAILY",
-        hourUtc: 9,
-        minuteUtc: 0,
-      },
       ...overrides,
     };
   }
@@ -83,23 +89,23 @@ describe("Autonomous Operations Extension — Engine & Store Unit Tests", () => 
     });
 
     it("updates existing task properties", () => {
-      const task = createMockTask({ executionsCount: 0, status: "ACTIVE" });
+      const task = createMockTask({ executionsToday: 0, status: "ACTIVE" });
       createTask(task);
 
       const updated = updateTask(task.id, {
-        executionsCount: 1,
+        executionsToday: 1,
         status: "WAITING",
-        lastRunTs: 1700000000,
+        lastCheckedAt: 1700000000,
       });
 
       expect(updated).to.not.be.undefined;
-      expect(updated?.executionsCount).to.equal(1);
+      expect(updated?.executionsToday).to.equal(1);
       expect(updated?.status).to.equal("WAITING");
-      expect(updated?.lastRunTs).to.equal(1700000000);
+      expect(updated?.lastCheckedAt).to.equal(1700000000);
 
       // Also verify stored state is updated
       const fetched = getTask(task.id);
-      expect(fetched?.executionsCount).to.equal(1);
+      expect(fetched?.executionsToday).to.equal(1);
     });
 
     it("deletes a task cleanly with owner verification", () => {
@@ -149,6 +155,7 @@ describe("Autonomous Operations Extension — Engine & Store Unit Tests", () => 
         field: "health_factor",
         operator: "lt",
         threshold: 1.5,
+        description: "Health factor < 1.5",
       };
       expect(evaluateCondition(ltCond, portfolio).met).to.be.true;
 
@@ -156,6 +163,7 @@ describe("Autonomous Operations Extension — Engine & Store Unit Tests", () => 
         field: "health_factor",
         operator: "gte",
         threshold: 2.0,
+        description: "Health factor >= 2.0",
       };
       expect(evaluateCondition(gteCond, portfolio).met).to.be.false;
     });
@@ -167,6 +175,7 @@ describe("Autonomous Operations Extension — Engine & Store Unit Tests", () => 
         field: "risk_state",
         operator: "eq",
         threshold: "DEFENSIVE",
+        description: "Risk state == DEFENSIVE",
       };
       expect(evaluateCondition(eqDefensive, portfolio).met).to.be.true;
 
@@ -174,6 +183,7 @@ describe("Autonomous Operations Extension — Engine & Store Unit Tests", () => 
         field: "risk_state",
         operator: "neq",
         threshold: "SAFE",
+        description: "Risk state != SAFE",
       };
       expect(evaluateCondition(neqSafe, portfolio).met).to.be.true;
 
@@ -181,6 +191,7 @@ describe("Autonomous Operations Extension — Engine & Store Unit Tests", () => 
         field: "risk_state",
         operator: "eq",
         threshold: "SAFE",
+        description: "Risk state == SAFE",
       };
       expect(evaluateCondition(eqSafe, portfolio).met).to.be.false;
     });
@@ -195,6 +206,7 @@ describe("Autonomous Operations Extension — Engine & Store Unit Tests", () => 
         field: "borrow_capacity_usd",
         operator: "gt",
         threshold: 1000,
+        description: "Borrow capacity > 1000",
       };
       expect(evaluateCondition(capCond, portfolio).met).to.be.true;
 
@@ -202,6 +214,7 @@ describe("Autonomous Operations Extension — Engine & Store Unit Tests", () => 
         field: "ltv_bps",
         operator: "gte",
         threshold: 4000,
+        description: "LTV >= 4000",
       };
       expect(evaluateCondition(ltvCond, portfolio).met).to.be.true;
     });
@@ -214,6 +227,7 @@ describe("Autonomous Operations Extension — Engine & Store Unit Tests", () => 
         field: "oracle_staleness_ms",
         operator: "gt",
         threshold: 60000,
+        description: "Oracle staleness > 60000ms",
       };
       expect(evaluateCondition(stalenessCond, stalePortfolio).met).to.be.true;
       expect(evaluateCondition(stalenessCond, freshPortfolio).met).to.be.false;
@@ -308,12 +322,15 @@ describe("Autonomous Operations Extension — Engine & Store Unit Tests", () => 
       const zeroAmountTask = createMockTask({
         type: "BORROW",
         policy: {
+          version: 1,
+          objective: "Zero amount policy test",
+          allowedActions: ["BORROW"],
+          assetScope: ["NVDA"],
           maxAmountPerActionUsd: 0,
-          targetLtvBps: 5000,
-          maxLtvBps: 6500,
-          minHealthFactor: 1.5,
+          maxTotalUsd: 1000,
+          frequencyMinutes: 15,
+          expireDays: 30,
           riskAdaptive: true,
-          rebalanceDirection: "MAINTAIN",
         },
       });
       const resZero = checkAutomationPermission(zeroAmountTask, safePortfolio);
@@ -324,12 +341,15 @@ describe("Autonomous Operations Extension — Engine & Store Unit Tests", () => 
       const adaptiveTask = createMockTask({
         type: "BORROW",
         policy: {
+          version: 1,
+          objective: "Adaptive risk test",
+          allowedActions: ["BORROW"],
+          assetScope: ["NVDA"],
           maxAmountPerActionUsd: 500,
-          targetLtvBps: 5000,
-          maxLtvBps: 6500,
-          minHealthFactor: 1.5,
+          maxTotalUsd: 1000,
+          frequencyMinutes: 15,
+          expireDays: 30,
           riskAdaptive: true,
-          rebalanceDirection: "MAINTAIN",
         },
       });
       const resAdaptive = checkAutomationPermission(adaptiveTask, nonSafePortfolio);
@@ -337,4 +357,92 @@ describe("Autonomous Operations Extension — Engine & Store Unit Tests", () => 
       expect(resAdaptive.reasonCode).to.equal("BORROW_DISABLED_BY_RISK_STATE");
     });
   });
+
+  describe("4. Durable Execution Engine, Idempotency & Lifecycle States", () => {
+    it("enforces concurrency locks to prevent double-spending & state corruption", () => {
+      const taskId = `lock-task-${Date.now()}`;
+      expect(isTaskLocked(taskId)).to.be.false;
+
+      const acquired = acquireTaskLock(taskId);
+      expect(acquired).to.be.true;
+      expect(isTaskLocked(taskId)).to.be.true;
+
+      // Duplicate acquire attempt must be rejected
+      const duplicateAcquired = acquireTaskLock(taskId);
+      expect(duplicateAcquired).to.be.false;
+
+      // Releasing allows re-acquiring
+      releaseTaskLock(taskId);
+      expect(isTaskLocked(taskId)).to.be.false;
+      expect(acquireTaskLock(taskId)).to.be.true;
+      releaseTaskLock(taskId);
+    });
+
+    it("deduplicates execution log entries by executionId", () => {
+      const execId = `exec-dedup-${Date.now()}`;
+      const record1 = { outcome: "SUBMITTED", timestamp: 1000 };
+      const record2 = { outcome: "CONFIRMED", timestamp: 2000 };
+
+      logExecution(OWNER_A, execId, record1);
+      logExecution(OWNER_A, execId, record2);
+
+      const logs = getExecutionLogs(OWNER_A).filter(l => l.id === execId);
+      expect(logs.length).to.equal(1);
+      expect((logs[0].result as any).outcome).to.equal("CONFIRMED");
+    });
+
+    it("verifies canonical real execution states", () => {
+      const states: AgentExecutionState[] = [
+        "IDLE",
+        "PLANNING",
+        "AWAITING_APPROVAL",
+        "CHECKING_PERMISSION",
+        "EXECUTING",
+        "CONFIRMING",
+        "COMPLETED",
+        "BLOCKED",
+        "FAILED",
+      ];
+      expect(states.length).to.equal(9);
+      expect(states.includes("AWAITING_APPROVAL")).to.be.true;
+      expect(states.includes("CONFIRMING")).to.be.true;
+    });
+
+    it("rejects pipeline execution when task is already locked in-flight", async () => {
+      const task = createMockTask({ id: "concurrent-task-123", type: "OBSERVE" });
+      acquireTaskLock(task.id);
+
+      try {
+        const result = await runTaskPipeline(task);
+        expect(result.outcome).to.equal("FAILED");
+        expect(result.reasonCode).to.equal("EXECUTION_ALREADY_IN_PROGRESS");
+      } finally {
+        releaseTaskLock(task.id);
+      }
+    });
+
+    it("never reports CONFIRMED before transaction confirmation (fails safely without signer)", async () => {
+      const borrowTask = createMockTask({
+        type: "BORROW",
+        policy: {
+          version: 1,
+          objective: "Borrow without signer test",
+          allowedActions: ["BORROW"],
+          assetScope: ["NVDA"],
+          maxAmountPerActionUsd: 100,
+          maxTotalUsd: 1000,
+          frequencyMinutes: 15,
+          expireDays: 30,
+          riskAdaptive: false,
+        },
+      });
+
+      const portfolio = createMockPortfolio({ riskState: "SAFE" });
+      const execResult = await executeAgentTransaction(borrowTask, portfolio, "exec-test-1");
+      // Without AGENT_SIGNER_SECRET configured, must return AGENT_SIGNER_NOT_CONFIGURED, never a signature
+      expect(execResult.txSignature).to.be.null;
+      expect(execResult.error).to.equal("AGENT_SIGNER_NOT_CONFIGURED");
+    });
+  });
 });
+

@@ -279,7 +279,7 @@ export function MarketDetailDrawer({
         >
           <div className="row between g-8" style={{ alignItems: "center" }}>
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-3)", textTransform: "uppercase" }}>
-              Meteora DBC Liquidity & Execution Surface
+              Meteora DBC Liquidity & Trading Venue
             </div>
             <Pill tone="neutral">
               CIRCUIT GOVERNED

@@ -165,7 +165,7 @@ export const LANDING_CONTENT = {
       },
       {
         key: "confidence",
-        label: "Confidence too wide",
+        label: "Oracle uncertainty is too high",
         detail: "Oracle uncertainty interval exceeds the asset threshold (e.g. > 50 bps).",
         code: "ConfidenceTooWide",
       },
@@ -177,7 +177,7 @@ export const LANDING_CONTENT = {
       },
       {
         key: "policy",
-        label: "Capital policy violation",
+        label: "Blocked by your current risk limits",
         detail: "Operation rejected: active risk ratchet state blocks new leverage.",
         code: "CapitalPolicyBlocked",
       },

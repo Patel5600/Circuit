@@ -96,10 +96,15 @@ pub fn handler(
         clock.unix_timestamp,
     );
 
-    // Collateral valuation
+    // Collateral valuation (Conservative Pyth Valuation: p_conservative = max(0, p - conf))
+    let conservative_price = math::calculate_conservative_pyth_price(
+        validated_price.price,
+        validated_price.conf,
+    )?;
+
     let collateral_value = math::calculate_collateral_value(
         position.collateral_amount,
-        validated_price.price,
+        conservative_price,
         validated_price.expo,
         ctx.accounts.collateral_mint.decimals,
         ctx.accounts.quote_mint.decimals,
@@ -208,6 +213,8 @@ pub fn handler(
             )?;
 
             position.debt_amount = new_debt as u64;
+            position.last_valid_price = conservative_price;
+            position.last_valid_expo = validated_price.expo;
 
             emit!(crate::events::ActionAllowed {
                 position: position.key(),
@@ -241,7 +248,7 @@ pub fn handler(
             // Calculate withdrawn value in quote terms for risk cost
             let withdrawn_val = math::calculate_collateral_value(
                 amount,
-                validated_price.price,
+                conservative_price,
                 validated_price.expo,
                 ctx.accounts.collateral_mint.decimals,
                 ctx.accounts.quote_mint.decimals,
@@ -260,7 +267,7 @@ pub fn handler(
             if position.has_debt() {
                 let remaining_val = math::calculate_collateral_value(
                     remaining_collateral,
-                    validated_price.price,
+                    conservative_price,
                     validated_price.expo,
                     ctx.accounts.collateral_mint.decimals,
                     ctx.accounts.quote_mint.decimals,
@@ -292,6 +299,8 @@ pub fn handler(
             )?;
 
             position.collateral_amount = remaining_collateral;
+            position.last_valid_price = conservative_price;
+            position.last_valid_expo = validated_price.expo;
 
             emit!(crate::events::ActionAllowed {
                 position: position.key(),
@@ -357,7 +366,7 @@ pub fn handler(
             // Replenish risk budget proportional to added borrowing capacity
             let deposit_val = math::calculate_collateral_value(
                 amount,
-                validated_price.price,
+                conservative_price,
                 validated_price.expo,
                 ctx.accounts.collateral_mint.decimals,
                 ctx.accounts.quote_mint.decimals,

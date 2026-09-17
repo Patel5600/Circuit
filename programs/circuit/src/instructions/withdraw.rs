@@ -36,10 +36,10 @@ pub fn handler(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
         .checked_sub(amount)
         .ok_or(CircuitError::MathOverflow)?;
 
+    let clock = Clock::get()?;
+
     // If position has debt, we must validate oracle + market + health factor
     if position.has_debt() {
-        let clock = Clock::get()?;
-
         // Re-validate oracle
         let validated_price = oracle::validate_pyth_price(
             &ctx.accounts.price_update,
@@ -74,9 +74,15 @@ pub fn handler(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
             clock.unix_timestamp,
         );
 
+        // Conservative Pyth Valuation (p_conservative = max(0, p - conf))
+        let conservative_price = math::calculate_conservative_pyth_price(
+            validated_price.price,
+            validated_price.conf,
+        )?;
+
         let current_collateral_value = math::calculate_collateral_value(
             position.collateral_amount,
-            validated_price.price,
+            conservative_price,
             validated_price.expo,
             ctx.accounts.collateral_mint.decimals,
             ctx.accounts.quote_mint.decimals,
@@ -105,10 +111,10 @@ pub fn handler(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
             }
         }
 
-        // Calculate remaining collateral value
+        // Calculate remaining collateral value using conservative price
         let remaining_value = math::calculate_collateral_value(
             remaining_collateral,
-            validated_price.price,
+            conservative_price,
             validated_price.expo,
             ctx.accounts.collateral_mint.decimals,
             ctx.accounts.quote_mint.decimals,
@@ -122,9 +128,36 @@ pub fn handler(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
         )?;
         require!(hf >= protocol.min_health_factor_bps, CircuitError::HealthFactorTooLow);
 
-        // Update last valid price
-        position.last_valid_price = validated_price.price;
+        // Update last valid price to conservative price
+        position.last_valid_price = conservative_price;
         position.last_valid_expo = validated_price.expo;
+    } else {
+        // Zero debt path: must still pass through ONE canonical Permission Engine
+        let policy = crate::risk::CapitalPolicyEngine::derive_policy(
+            crate::state::MarketState::Safe,
+            asset.base_ltv_bps,
+            false,
+            0,
+            clock.unix_timestamp,
+        );
+
+        let perm = crate::permissions::evaluate_permission(
+            &ctx.accounts.owner.key(),
+            crate::permissions::CircuitAction::Withdraw,
+            &asset.mint,
+            amount,
+            &position.owner,
+            false,
+            position.collateral_amount as u128,
+            0,
+            &policy,
+            None,
+            clock.unix_timestamp,
+        )?;
+
+        if !perm.allowed {
+            return err!(CircuitError::CapitalPolicyBlocked);
+        }
     }
 
     // Transfer collateral from vault to user
