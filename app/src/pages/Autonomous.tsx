@@ -17,7 +17,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { PublicKey, Transaction } from "@solana/web3.js";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useCircuitDomain } from "../lib/domain/context";
-import { DEPLOYED_MARKETS } from "../data/markets-registry";
+import { DEPLOYED_MARKETS, DeployedMarket } from "../data/markets-registry";
 import { TasksPanel } from "../components/autonomous/TasksPanel";
 import { WatchesPanel } from "../components/autonomous/WatchesPanel";
 import { StrategiesPanel } from "../components/autonomous/StrategiesPanel";
@@ -33,6 +33,20 @@ import {
   buildCreateAgentAuthorityInstruction,
   deriveAgentAuthorityPda,
 } from "../lib/agentAuthority";
+import { AgentHarnessCoordinator, ProtocolSnapshot } from "../lib/agent/harness";
+import {
+  StructuredMessageBlock,
+  ProposalCardBlockData,
+  MarketCardBlockData,
+} from "../lib/agent/types";
+import {
+  MarketCardBlock,
+  ChartCardBlock,
+  ProposalCardBlock,
+  ClarificationBlock,
+  TransactionBlock,
+} from "../components/autonomous/AgentBlocks";
+import { ProtocolAction } from "../lib/permission-engine";
 
 export type AgentState =
   | "IDLE" | "PLANNING" | "AWAITING_APPROVAL" | "CHECKING_PERMISSION"
@@ -49,7 +63,7 @@ export interface CircuitToolEvent {
 
 export interface CircuitActionProposal {
   id: string;
-  action: "borrow" | "repay" | "deposit" | "withdraw" | "swap" | "enter_liquidity" | "exit_liquidity" | "rebalance";
+  action: ProtocolAction;
   symbol: string;
   amountUsd: number;
   riskState: string;
@@ -67,6 +81,7 @@ export interface ChatMessage {
   tools?: CircuitToolEvent[];
   actionProposal?: CircuitActionProposal | null;
   taskProposal?: ParsedTaskProposal | null;
+  blocks?: StructuredMessageBlock[];
 }
 
 export interface StrategyAction {
@@ -463,11 +478,19 @@ function Bubble({
   owner,
   onTaskCreated,
   onApproveProposal,
+  onActionClick,
+  onChartClick,
+  onSubTabClick,
+  onSelectClarification,
 }: {
   msg: ChatMessage;
   owner: string;
   onTaskCreated: (name: string) => void;
   onApproveProposal: (proposal: CircuitActionProposal) => void;
+  onActionClick?: (action: ProtocolAction, symbol: string) => void;
+  onChartClick?: (symbol: string) => void;
+  onSubTabClick?: (tab: "Market" | "Risk" | "Position" | "Activity", symbol: string) => void;
+  onSelectClarification?: (actionText: string) => void;
 }) {
   const isUser = msg.role === "user";
   const isSys = msg.role === "system";
@@ -531,6 +554,64 @@ function Bubble({
         CIRCUIT AGENT · {fmtTime(msg.timestamp)}
       </div>
 
+      {/* Structured Blocks (Market Cards, Charts, Proposals, Clarifications) */}
+      {msg.blocks && msg.blocks.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          {msg.blocks.map((block, idx) => {
+            if (block.type === "MARKET_CARD") {
+              return (
+                <MarketCardBlock
+                  key={`mkt_${idx}`}
+                  block={block}
+                  onActionClick={(action, symbol) => onActionClick?.(action, symbol)}
+                  onChartClick={(symbol) => onChartClick?.(symbol)}
+                  onSubTabClick={(tab, symbol) => onSubTabClick?.(tab, symbol)}
+                />
+              );
+            }
+            if (block.type === "CHART_CARD") {
+              return <ChartCardBlock key={`chart_${idx}`} block={block} />;
+            }
+            if (block.type === "PROPOSAL_CARD") {
+              return (
+                <ProposalCardBlock
+                  key={`prop_${idx}`}
+                  block={block}
+                  onApprove={(b) => {
+                    onApproveProposal({
+                      id: b.id,
+                      action: b.action,
+                      symbol: b.symbol,
+                      amountUsd: b.amountUsd,
+                      riskState: b.riskState,
+                      permission: b.permission,
+                      reason: b.reason,
+                      estimatedHfAfter: b.estimatedHfAfter,
+                    });
+                  }}
+                  onCancel={() => {
+                    onActionClick?.("borrow", block.symbol); // cancel or re-prompt
+                  }}
+                />
+              );
+            }
+            if (block.type === "CLARIFICATION_CARD") {
+              return (
+                <ClarificationBlock
+                  key={`clar_${idx}`}
+                  block={block}
+                  onSelectOption={(text) => onSelectClarification?.(text)}
+                />
+              );
+            }
+            if (block.type === "TRANSACTION_CARD") {
+              return <TransactionBlock key={`tx_${idx}`} block={block} />;
+            }
+            return null;
+          })}
+        </div>
+      )}
+
       {tools.length > 0 && (
         <div style={{ marginBottom: 8 }}>
           {tools.map((tool, idx) => (
@@ -551,7 +632,7 @@ function Bubble({
         </div>
       )}
 
-      {actionProposal && !dismissedProposal && (
+      {actionProposal && !dismissedProposal && (!msg.blocks || !msg.blocks.some(b => b.type === "PROPOSAL_CARD")) && (
         <div style={{ marginTop: 12 }}>
           <ActionProposalCard
             proposal={actionProposal}
@@ -1021,6 +1102,13 @@ export default function Autonomous() {
     }
   };
 
+  // Canonical Conversational Active Asset context (defaults to first deployed market e.g. NVDAx)
+  const [activeContextAsset, setActiveContextAsset] = useState<DeployedMarket>(DEPLOYED_MARKETS[0]);
+  const harnessRef = useRef<AgentHarnessCoordinator | null>(null);
+  if (!harnessRef.current) {
+    harnessRef.current = new AgentHarnessCoordinator(DEPLOYED_MARKETS[0]);
+  }
+
   const initialGreeting = useMemo(() => {
     if (!wallet.address) {
       return (
@@ -1114,6 +1202,35 @@ export default function Autonomous() {
     }),
   }), [wallet, controlMode, hasActiveAuthority, risk, portfolio, credit, markets, onChainAuthorities]);
 
+  const protocolSnapshot: ProtocolSnapshot = useMemo(() => {
+    const mktObj: Record<string, { price: number; change24h: number; oracleFreshness: string }> = {};
+    Object.values(markets.markets).forEach((m: any) => {
+      mktObj[m.symbol.toUpperCase()] = {
+        price: m.priceData?.price ?? 100,
+        change24h: m.priceData?.change24hPct ?? 0,
+        oracleFreshness: m.priceData?.status || "VALID",
+      };
+    });
+
+    return {
+      walletAddress: wallet.address || null,
+      ratchetState: risk.ratchetState,
+      isMarketOpen: risk.isMarketOpen,
+      totalCollateralUsd: portfolio.totalCollateralUsd,
+      totalDebtUsd: portfolio.totalDebtUsd,
+      healthFactor: portfolio.healthFactor,
+      availableCreditUsd: credit.availableCreditUsd,
+      positions: portfolio.positions.map((p: any) => ({
+        symbol: p.symbol,
+        collateralValueUsd: p.collateralValueUsd ?? 0,
+        debtUi: p.debtUi ?? 0,
+        healthFactor: portfolio.healthFactor,
+      })),
+      markets: mktObj,
+      agentBorrowLimitUsd: 500,
+    };
+  }, [wallet.address, risk.ratchetState, risk.isMarketOpen, portfolio, credit.availableCreditUsd, markets]);
+
   const addEvent = useCallback((type: ExecEvent["type"], message: string, tx?: string) => {
     setEvents(prev => [...prev, { id: uid(), timestamp: Date.now(), type, message, txSignature: tx }]);
   }, []);
@@ -1193,6 +1310,68 @@ export default function Autonomous() {
     setMsgs(prev => [...prev, userMsg]);
     setAgentState("PLANNING");
     addEvent("info", `User query: "${text.slice(0, 60)}${text.length > 60 ? "..." : ""}"`);
+
+    // 1. Process through deterministic local Agent Harness
+    if (harnessRef.current) {
+      const harnessResult = harnessRef.current.processInput(text, protocolSnapshot);
+      if (harnessResult.intent.asset && harnessResult.intent.asset.symbol !== activeContextAsset.symbol) {
+        setActiveContextAsset(harnessResult.intent.asset);
+      }
+
+      if (harnessResult.intent.type !== "GENERAL_CHAT" && harnessResult.replyText) {
+        const agentId = uid();
+        const propBlock = harnessResult.blocks.find(b => b.type === "PROPOSAL_CARD") as ProposalCardBlockData | undefined;
+
+        setMsgs(prev => [
+          ...prev,
+          {
+            id: agentId,
+            role: "agent",
+            content: harnessResult.replyText,
+            timestamp: Date.now(),
+            blocks: harnessResult.blocks,
+            actionProposal: propBlock ? {
+              id: propBlock.id,
+              action: propBlock.action,
+              symbol: propBlock.symbol,
+              amountUsd: propBlock.amountUsd,
+              riskState: propBlock.riskState,
+              permission: propBlock.permission,
+              reason: propBlock.reason,
+              estimatedHfAfter: propBlock.estimatedHfAfter,
+            } : null,
+          }
+        ]);
+
+        if (propBlock) {
+          setAgentState(propBlock.permission === "BLOCKED" ? "BLOCKED" : "AWAITING_APPROVAL");
+          addEvent("permission", `Action proposal prepared: ${propBlock.action.toUpperCase()} $${propBlock.amountUsd} on ${propBlock.symbol} (${propBlock.permission})`);
+        } else if (harnessResult.intent.type === "ACTION_CONFIRM") {
+          const pending = harnessRef.current.getContext().pendingProposal;
+          if (pending) {
+            handleApproveProposal({
+              id: pending.id,
+              action: pending.action,
+              symbol: pending.symbol,
+              amountUsd: pending.amountUsd,
+              riskState: pending.riskState,
+              permission: pending.permission,
+              reason: pending.reason,
+              estimatedHfAfter: pending.estimatedHfAfter,
+            });
+          }
+        } else if (harnessResult.intent.type === "ACTION_CANCEL") {
+          setAgentState("IDLE");
+          addEvent("info", "Action proposal cancelled.");
+        } else {
+          setAgentState("IDLE");
+        }
+
+        return;
+      }
+    }
+
+    // 2. General conversational query — route through Serverless Gemini AI gateway
     const agentId = uid();
     setMsgs(prev => [...prev, { id: agentId, role: "agent", content: "", timestamp: Date.now(), streaming: true }]);
     setStreaming(true);
@@ -1296,7 +1475,7 @@ export default function Autonomous() {
       addEvent("error", em);
       setAgentState("FAILED");
     } finally { setStreaming(false); }
-  }, [input, streaming, msgs, snap, addEvent, selectedModel]);
+  }, [input, streaming, msgs, snap, protocolSnapshot, addEvent, selectedModel, activeContextAsset, handleApproveProposal]);
 
   const onKey = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendWithText(); }
@@ -1439,7 +1618,26 @@ export default function Autonomous() {
         </div>
 
         {/* ── Header Controls ── */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
+          {/* Active Context Indicator */}
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+              background: "var(--surface-2)",
+              border: "1px solid var(--border)",
+              borderRadius: 5,
+              padding: "2px 7px",
+            }}
+            title={`Active Conversational Asset: ${activeContextAsset.tokenSymbol} (${activeContextAsset.name})`}
+          >
+            <span style={{ fontSize: 9.5, fontFamily: "var(--mono)", color: "var(--text-3)", letterSpacing: "0.04em" }}>CONTEXT:</span>
+            <span style={{ fontSize: 10.5, fontFamily: "var(--mono)", fontWeight: 700, color: "var(--accent)" }}>
+              {activeContextAsset.tokenSymbol}
+            </span>
+          </div>
+
           {/* Active Model Selector */}
           <div style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 5, padding: "2px 7px" }}>
             <span style={{ fontSize: 9.5, fontFamily: "var(--mono)", color: "var(--text-3)", letterSpacing: "0.04em" }}>MODEL:</span>
@@ -1498,6 +1696,15 @@ export default function Autonomous() {
                   owner={wallet.address || ""}
                   onTaskCreated={handleTaskCreated}
                   onApproveProposal={handleApproveProposal}
+                  onActionClick={(action, symbol) => sendWithText(`${action} against ${symbol}`)}
+                  onChartClick={(symbol) => sendWithText(`chart ${symbol}`)}
+                  onSubTabClick={(tab, symbol) => {
+                    if (tab === "Risk") sendWithText(`risk for ${symbol}`);
+                    else if (tab === "Position") sendWithText(`my position in ${symbol}`);
+                    else if (tab === "Activity") sendWithText(`activity for ${symbol}`);
+                    else sendWithText(`show ${symbol}`);
+                  }}
+                  onSelectClarification={(text) => sendWithText(text)}
                 />
               ))}
               <div ref={endRef} />
@@ -1548,12 +1755,15 @@ export default function Autonomous() {
               {/* Suggested prompts */}
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
                 {[
-                  "Can I borrow $300 against NVDA?",
-                  "Show me what my current risk looks like",
-                  "Check Meteora DBC liquidity & yields",
-                  "Watch health factor < 1.8",
-                  "Schedule portfolio check every 1h",
-                  "Keep HF > 1.8 with auto repay",
+                  "nvda",
+                  "borrow 200",
+                  "can I borrow 300?",
+                  "price?",
+                  "chart",
+                  "what can I do here?",
+                  "make it 150",
+                  "actually make it GOOGL",
+                  "watch health factor < 1.8",
                 ].map(prompt => (
                   <button
                     key={prompt}

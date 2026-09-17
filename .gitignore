@@ -47,3 +47,6 @@ scratch/
 
 # Devnet deployment records (regenerated)
 devnet/
+
+.vercel
+.env*
