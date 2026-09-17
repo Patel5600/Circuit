@@ -34,8 +34,9 @@ const Learn     = lazy(() => import("./pages/Learn"));
 const Verify    = lazy(() => import("./pages/Verify"));
 const Demo      = lazy(() => import("./pages/Demo"));
 const Faucet    = lazy(() => import("./pages/Faucet"));
-const Profile   = lazy(() => import("./pages/Profile"));
-const NotFound  = lazy(() => import("./pages/NotFound"));
+const Profile    = lazy(() => import("./pages/Profile"));
+const Autonomous = lazy(() => import("./pages/Autonomous"));
+const NotFound   = lazy(() => import("./pages/NotFound"));
 
 /** Page title map — Economics entry removed; route redirects to Verify. */
 const TITLES: Record<string, string> = {
@@ -51,6 +52,7 @@ const TITLES: Record<string, string> = {
   "/learn":             "How it works",
   "/app/verify":        "Verification",
   "/app/demo":          "Interactive Demo",
+  "/app/autonomous":    "Autonomous Agent",
 };
 
 function TitleSync() {
@@ -194,6 +196,7 @@ export default function App() {
           <Route path="/app/learn"          element={<Learn />} />
           <Route path="/app/verify"         element={<Verify />} />
           <Route path="/app/demo"           element={<Demo />} />
+          <Route path="/app/autonomous"     element={<Autonomous />} />
 
           {/* /app/economics → redirect to Verify (contains treasury section inline) */}
           <Route path="/app/economics" element={<Navigate to="/app/verify" replace />} />

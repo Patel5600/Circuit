@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 
 import { CircuitWordmark } from "../brand/CircuitLogo";
 import { WalletButton } from "../wallet/WalletButton";
@@ -65,6 +65,7 @@ function SystemHealthPill({ onClick }: { onClick: () => void }) {
 }
 
 function Header({ onOpenHealth }: { onOpenHealth: () => void }) {
+  const navigate = useNavigate();
   const {
     controlMode,
     setControlMode,
@@ -131,6 +132,7 @@ function Header({ onOpenHealth }: { onOpenHealth: () => void }) {
                 openAuthoritySetup();
               } else {
                 setControlMode("AUTONOMOUS");
+                navigate("/app/autonomous");
               }
             }}
             style={{
