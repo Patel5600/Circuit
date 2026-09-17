@@ -135,7 +135,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.end();
   }
 
-  const apiKey = process.env.AI_GATEWAY_API_KEY;
+  const apiKey =
+    (req.headers["x-gemini-key"] as string) ||
+    (req.headers["x-api-key"] as string) ||
+    (typeof body.apiKey === "string" ? body.apiKey.trim() : "") ||
+    process.env.GEMINI_API_KEY ||
+    process.env.GOOGLE_API_KEY ||
+    process.env.AI_GATEWAY_API_KEY;
+
   if (!apiKey) {
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     res.status(200);
@@ -333,26 +340,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.end();
   }
 
-  const baseUrl = process.env.AI_GATEWAY_BASE_URL ?? "https://api.openai.com/v1";
-  const model = process.env.AI_MODEL ?? "gpt-4o-mini";
+  const rawBaseUrl = process.env.AI_GATEWAY_BASE_URL;
+  // Default to Google Gemini OpenAI-compatible gateway
+  const baseUrl = rawBaseUrl ?? "https://generativelanguage.googleapis.com/v1beta/openai";
+  const isGemini = baseUrl.includes("generativelanguage.googleapis.com");
+  const model =
+    (typeof body.model === "string" ? body.model.trim() : "") ||
+    process.env.GEMINI_MODEL ||
+    process.env.AI_MODEL ||
+    (isGemini ? "gemini-1.5-pro" : "gpt-4o-mini");
 
   try {
-    const upstream = await fetch(`${baseUrl}/chat/completions`, {
+    const url = isGemini && !baseUrl.includes("key=")
+      ? `${baseUrl}/chat/completions?key=${encodeURIComponent(apiKey)}`
+      : `${baseUrl}/chat/completions`;
+
+    const upstream = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
       body: JSON.stringify({
         model,
         messages: [{ role: "system", content: buildSystemPrompt(snapshot) }, ...messages.slice(-20)],
         stream: true,
-        max_tokens: 1024,
-        temperature: 0.3,
+        max_tokens: 2048,
+        temperature: 0.2,
       }),
     });
 
     if (!upstream.ok) {
+      const errText = await upstream.text().catch(() => "");
+      console.error("Gemini Pro upstream error:", upstream.status, errText);
       res.setHeader("Content-Type", "text/plain; charset=utf-8");
       res.status(200);
-      res.write(`AI model unavailable (HTTP ${upstream.status}). On-chain functions fully operational.`);
+      res.write(`Gemini Pro model error (HTTP ${upstream.status}${errText ? `: ${errText.slice(0, 150)}` : ""}). On-chain functions fully operational.`);
       return res.end();
     }
 

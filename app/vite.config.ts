@@ -60,6 +60,41 @@ export default defineConfig({
               return;
             }
           }
+
+          if (req.url?.startsWith("/api/agent/chat")) {
+            try {
+              let bodyStr = "";
+              for await (const chunk of req) {
+                bodyStr += chunk;
+              }
+              const parsedBody = bodyStr ? JSON.parse(bodyStr) : {};
+              const mockReq = {
+                method: req.method,
+                headers: req.headers,
+                body: parsedBody,
+                query: {},
+              };
+              const mockRes = res as any;
+              mockRes.status = function (c: number) {
+                this.statusCode = c;
+                return this;
+              };
+              mockRes.json = function (payload: any) {
+                this.setHeader("Content-Type", "application/json");
+                this.end(JSON.stringify(payload));
+              };
+              const apiFile = path.resolve(__dirname, "../api/agent/chat.ts");
+              const mod = await server.ssrLoadModule(apiFile);
+              const handler = mod.default;
+              await handler(mockReq, mockRes);
+              return;
+            } catch (err: any) {
+              res.statusCode = 500;
+              res.setHeader("Content-Type", "application/json");
+              res.end(JSON.stringify({ error: err?.message || "Internal server error" }));
+              return;
+            }
+          }
           next();
         });
       },
