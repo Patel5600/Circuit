@@ -425,13 +425,6 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
     return onChainAuthorities.some((a) => a.isActive);
   }, [onChainAuthorities]);
 
-  // If currently in AUTONOMOUS mode and authority becomes revoked/expired, fall back to MANUAL
-  useEffect(() => {
-    if (controlMode === "AUTONOMOUS" && !hasActiveAuthority && !authoritiesLoading) {
-      setControlModeState("MANUAL");
-    }
-  }, [controlMode, hasActiveAuthority, authoritiesLoading]);
-
   // Governed mode switch
   const setControlMode = useCallback((mode: ControlMode) => {
     setControlModeState(mode);

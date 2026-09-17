@@ -100,15 +100,9 @@ function ShellFallback() {
 }
 
 /**
- * Single persistent layout route for all /app/* pages.
- *
- * Providers mount once here. Navigating between Dashboard, Markets, Position,
- * Borrow, Activity, Learn, Verify, Faucet, Profile does NOT remount this tree.
- * The Solana connection, market data service, and domain context remain alive.
- *
- * <Outlet /> is where page-level content swaps in/out.
+ * Single persistent layout for all manual /app/* pages.
+ * Providers mount once. AppShell provides sidebar + header.
  */
-
 function AppLayout() {
   return (
     <Suspense fallback={<ShellFallback />}>
@@ -138,7 +132,7 @@ export default function App() {
       <IconKeyframes />
       <TitleSync />
       <Routes>
-        {/* Public landing page — providers never downloaded unless navigating to /app */}
+        {/* Public landing page */}
         <Route
           path="/"
           element={
@@ -148,7 +142,7 @@ export default function App() {
           }
         />
 
-        {/* Standalone /learn accessible without full app context */}
+        {/* Standalone /learn */}
         <Route
           path="/learn"
           element={
@@ -171,8 +165,9 @@ export default function App() {
         />
 
         {/*
-         * Single persistent layout: providers mount once, pages swap via Outlet.
-         * This is the core fix for slow navigation and stock-switching latency.
+         * App routes — all wrapped in AppLayout.
+         * AppShell automatically hides sidebar on /app/autonomous for full-screen agent workspace,
+         * while keeping the top Header for seamless switching between MANUAL and AUTONOMOUS modes.
          */}
         <Route element={<AppLayout />}>
           <Route path="/app"               element={<Dashboard />} />
@@ -187,9 +182,7 @@ export default function App() {
           <Route path="/app/verify"         element={<Verify />} />
           <Route path="/app/demo"           element={<Demo />} />
           <Route path="/app/autonomous"     element={<Autonomous />} />
-
-          {/* /app/economics → redirect to Verify (contains treasury section inline) */}
-          <Route path="/app/economics" element={<Navigate to="/app/verify" replace />} />
+          <Route path="/app/economics"      element={<Navigate to="/app/verify" replace />} />
         </Route>
 
         <Route

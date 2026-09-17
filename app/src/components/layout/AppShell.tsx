@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useNavigate, useLocation } from "react-router-dom";
 
 import { CircuitWordmark } from "../brand/CircuitLogo";
 import { WalletButton } from "../wallet/WalletButton";
@@ -10,13 +10,12 @@ import { ToastProvider } from "../ui/Toaster";
 import { useCircuitDomain } from "../../lib/domain/context";
 import { NetworkSelector } from "./NetworkSelector";
 
-/** Primary destinations, shared by the sidebar and the mobile bottom bar. */
+/** Primary destinations, shared by the sidebar and the mobile bottom bar. Autonomous is excluded (top-level workspace mode). */
 const PRIMARY: { to: string; label: string; icon: IconName }[] = [
   { to: "/app", label: "Dashboard", icon: "dashboard" },
   { to: "/app/markets", label: "Markets", icon: "markets" },
   { to: "/app/position", label: "Position", icon: "position" },
   { to: "/app/borrow", label: "Borrow", icon: "borrow" },
-  { to: "/app/autonomous", label: "Autonomous", icon: "gauge" },
   { to: "/app/activity", label: "Activity", icon: "activity" },
 ];
 
@@ -67,6 +66,9 @@ function SystemHealthPill({ onClick }: { onClick: () => void }) {
 
 function Header({ onOpenHealth }: { onOpenHealth: () => void }) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isAutonomous = location.pathname.startsWith("/app/autonomous");
+
   const {
     controlMode,
     setControlMode,
@@ -109,14 +111,19 @@ function Header({ onOpenHealth }: { onOpenHealth: () => void }) {
         >
           <button
             type="button"
-            onClick={() => setControlMode("MANUAL")}
+            onClick={() => {
+              setControlMode("MANUAL");
+              if (isAutonomous) {
+                navigate("/app");
+              }
+            }}
             style={{
               padding: "5px 12px",
               fontSize: 11,
-              fontWeight: controlMode === "MANUAL" ? 700 : 500,
-              color: controlMode === "MANUAL" ? "var(--text-1)" : "var(--text-3)",
-              background: controlMode === "MANUAL" ? "var(--surface-3)" : "transparent",
-              border: controlMode === "MANUAL" ? "1px solid var(--border)" : "1px solid transparent",
+              fontWeight: !isAutonomous ? 700 : 500,
+              color: !isAutonomous ? "var(--text-1)" : "var(--text-3)",
+              background: !isAutonomous ? "var(--surface-3)" : "transparent",
+              border: !isAutonomous ? "1px solid var(--border)" : "1px solid transparent",
               borderRadius: "var(--r-sm, 4px)",
               cursor: "pointer",
               transition: "all var(--t-fast)",
@@ -129,15 +136,17 @@ function Header({ onOpenHealth }: { onOpenHealth: () => void }) {
             type="button"
             onClick={() => {
               setControlMode("AUTONOMOUS");
-              navigate("/app/autonomous");
+              if (!isAutonomous) {
+                navigate("/app/autonomous");
+              }
             }}
             style={{
               padding: "5px 10px",
               fontSize: 11,
-              fontWeight: controlMode === "AUTONOMOUS" ? 700 : 500,
-              color: controlMode === "AUTONOMOUS" ? "var(--accent)" : "var(--text-3)",
-              background: controlMode === "AUTONOMOUS" ? "rgba(236, 234, 230, 0.08)" : "transparent",
-              border: controlMode === "AUTONOMOUS" ? "1px solid var(--border-strong)" : "1px solid transparent",
+              fontWeight: isAutonomous ? 700 : 500,
+              color: isAutonomous ? "var(--accent)" : "var(--text-3)",
+              background: isAutonomous ? "var(--surface-3)" : "transparent",
+              border: isAutonomous ? "1px solid var(--border-strong)" : "1px solid transparent",
               borderRadius: "var(--r-sm, 4px)",
               cursor: "pointer",
               display: "inline-flex",
@@ -409,6 +418,9 @@ export function PageContainer({
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
+  const isAutonomous = location.pathname.startsWith("/app/autonomous");
+
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("circuit_sidebar_collapsed") === "true";
@@ -436,12 +448,29 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </a>
         <Header onOpenHealth={() => setHealthOpen(true)} />
         <div className="shell__body">
-          <Sidebar collapsed={collapsed} onToggleCollapse={toggleCollapse} />
-          <main className="main" id="main">
+          {!isAutonomous && <Sidebar collapsed={collapsed} onToggleCollapse={toggleCollapse} />}
+          <main
+            className="main"
+            id="main"
+            style={
+              isAutonomous
+                ? {
+                    padding: 0,
+                    margin: 0,
+                    maxWidth: "100%",
+                    width: "100%",
+                    height: "calc(100vh - var(--header-h, 57px))",
+                    overflow: "hidden",
+                    display: "flex",
+                    flexDirection: "column",
+                  }
+                : undefined
+            }
+          >
             {children}
           </main>
         </div>
-        <MobileNav />
+        {!isAutonomous && <MobileNav />}
 
         <SystemHealthModal open={healthOpen} onClose={() => setHealthOpen(false)} />
       </div>

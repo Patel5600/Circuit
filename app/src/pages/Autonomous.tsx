@@ -1267,7 +1267,7 @@ export default function Autonomous() {
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs]);
 
   useEffect(() => {
-    if (controlMode !== "AUTONOMOUS" && hasActiveAuthority) setControlMode("AUTONOMOUS");
+    if (controlMode !== "AUTONOMOUS") setControlMode("AUTONOMOUS");
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
