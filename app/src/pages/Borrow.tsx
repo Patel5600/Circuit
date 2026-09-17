@@ -23,6 +23,8 @@ import { useMarket } from "../context/MarketContext";
 import { useAction } from "../context/ActionContext";
 import { getDeployedMarket } from "../data/markets";
 import { useCircuitDomain } from "../lib/domain/context";
+import { PolicyVisualizationCard } from "../components/authority/PolicyVisualizationCard";
+import { PermissionPreviewCard } from "../components/authority/PermissionPreviewCard";
 import { activeAssetDisplay } from "../lib/asset";
 import { formatMoney, formatPercent, formatTokens } from "../lib/format";
 import {
@@ -268,6 +270,10 @@ export default function Borrow() {
             {permResult.reasonCode}
           </span>
         </div>
+
+        {controlMode === "AUTONOMOUS" && (
+          <PolicyVisualizationCard assetSymbol={activeMarket.symbol} />
+        )}
 
         {/* Real Risk Ratchet State & Credit Policy Banner */}
         <div
@@ -719,6 +725,18 @@ export default function Borrow() {
 
         {hasCollateral && valid && objections.length > 0 && gatesPass && (
           <BlockedAction title="Cannot borrow this amount" reasons={objections} />
+        )}
+
+        {hasCollateral && (
+          <PermissionPreviewCard
+            action="borrow"
+            assetSymbol={display.symbol}
+            amountUsd={valid ? parsed : 0}
+            actor={controlMode === "MANUAL" ? "HUMAN" : "AGENT"}
+            authorityStatus={controlMode === "MANUAL" ? "SOVEREIGN OWNER" : agentAuth.status}
+            riskState={risk.ratchetState}
+            result={permResult}
+          />
         )}
 
         {hasCollateral && (

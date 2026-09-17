@@ -14,6 +14,7 @@ import {
 } from "../components/position/PositionParts";
 import { useProtocolState } from "../hooks/useProtocolState";
 import { useCircuitDomain } from "../lib/domain/context";
+import { PolicyVisualizationCard } from "../components/authority/PolicyVisualizationCard";
 import { useMarket } from "../context/MarketContext";
 import { useAction } from "../context/ActionContext";
 import { activeAssetDisplay } from "../lib/asset";
@@ -171,6 +172,10 @@ export default function Dashboard() {
               </Link>
             </div>
           </div>
+
+          {domain.controlMode === "AUTONOMOUS" && (
+            <PolicyVisualizationCard assetSymbol={selectedMarket.symbol} />
+          )}
 
           <PositionSummary
             loading={s.loading}

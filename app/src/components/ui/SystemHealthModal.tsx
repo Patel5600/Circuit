@@ -14,7 +14,7 @@ export function SystemHealthModal({
   open: boolean;
   onClose: () => void;
 }) {
-  const { systemHealth, refreshAll } = useCircuitDomain();
+  const { systemHealth, refreshAll, risk, hasActiveAuthority, onChainAuthorities } = useCircuitDomain();
 
   const isHealthy = systemHealth.status === "SYSTEM_HEALTHY";
   const tone = isHealthy ? "success" : "warning";
@@ -45,6 +45,66 @@ export function SystemHealthModal({
           <Pill tone={tone} withDot>
             {isHealthy ? "SYSTEM HEALTHY" : "DEGRADED"}
           </Pill>
+        </div>
+
+        {/* Semantic Subsystem Status Indicators */}
+        <div
+          className="stack g-10"
+          style={{
+            padding: 14,
+            background: "var(--surface-2, #0d0f15)",
+            borderRadius: "var(--r, 10px)",
+            border: "1px solid var(--border, #1a1d26)",
+          }}
+        >
+          <div style={{ fontSize: 11, color: "var(--text-3)", fontWeight: 700, letterSpacing: "0.06em", marginBottom: 2 }}>
+            SEMANTIC SUBSYSTEM STATUS
+          </div>
+
+          <div className="row between g-8" style={{ alignItems: "center" }}>
+            <span style={{ fontSize: 12.5, fontWeight: 600 }}>PROTOCOL</span>
+            <Pill tone={systemHealth.isOnline && !systemHealth.status.includes("DEGRADED") ? "success" : "warning"} withDot>
+              {systemHealth.isOnline ? "CONNECTED" : "OFFLINE"}
+            </Pill>
+          </div>
+
+          <div className="row between g-8" style={{ alignItems: "center" }}>
+            <span style={{ fontSize: 12.5, fontWeight: 600 }}>MARKET DATA</span>
+            <Pill tone={risk.isStaleOracle ? "warning" : "success"} withDot>
+              {risk.isStaleOracle ? "STALE" : risk.isMarketOpen ? "LIVE (NYSE OPEN)" : "RECENT (NYSE CLOSED)"}
+            </Pill>
+          </div>
+
+          <div className="row between g-8" style={{ alignItems: "center" }}>
+            <span style={{ fontSize: 12.5, fontWeight: 600 }}>RISK RATCHET</span>
+            <Pill tone={risk.ratchetState === "SAFE" ? "success" : risk.ratchetState === "RESTRICTED" ? "warning" : "danger"} withDot>
+              {risk.ratchetState}
+            </Pill>
+          </div>
+
+          <div className="row between g-8" style={{ alignItems: "center" }}>
+            <span style={{ fontSize: 12.5, fontWeight: 600 }}>AUTONOMOUS</span>
+            <Pill
+              tone={
+                hasActiveAuthority
+                  ? "success"
+                  : onChainAuthorities.some((a) => a.isExpired)
+                  ? "warning"
+                  : onChainAuthorities.some((a) => a.isRevoked)
+                  ? "danger"
+                  : "neutral"
+              }
+              withDot={hasActiveAuthority}
+            >
+              {hasActiveAuthority
+                ? "ACTIVE"
+                : onChainAuthorities.some((a) => a.isExpired)
+                ? "EXPIRED"
+                : onChainAuthorities.some((a) => a.isRevoked)
+                ? "REVOKED"
+                : "NOT CONFIGURED"}
+            </Pill>
+          </div>
         </div>
 
         {/* Telemetry Metrics */}
