@@ -30,6 +30,12 @@ const STACK = [
     line: "Price feeds read on-chain as PriceUpdateV2 accounts, carrying publisher confidence alongside the value so the program can evaluate oracle uncertainty, not just price.",
   },
   {
+    key: "METEORA",
+    name: "Meteora",
+    role: "Liquidity",
+    line: "Dynamic Bonding Curves provide continuous secondary liquidity for tokenized equity assets, governed atomically through Circuit's on-chain permission boundary and risk ratchet.",
+  },
+  {
     key: "RUST",
     name: "Rust",
     role: "Program",
