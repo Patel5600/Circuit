@@ -473,14 +473,61 @@ function Bubble({
   const tools = useMemo(() => msg.tools ?? parseToolsFromText(msg.content), [msg.tools, msg.content]);
   const actionProposal = useMemo(() => msg.actionProposal ?? parseProposalFromText(msg.content), [msg.actionProposal, msg.content]);
 
+  if (isUser) {
+    return (
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 20 }}>
+        <div style={{ maxWidth: "72%", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}>
+          <div style={{ fontSize: 10, fontFamily: "var(--mono)", color: "var(--text-3)" }}>
+            YOU · {fmtTime(msg.timestamp)}
+          </div>
+          <div style={{
+            padding: "11px 16px",
+            background: "rgba(236,234,230,0.1)",
+            border: "1px solid rgba(236,234,230,0.15)",
+            borderRadius: "18px 18px 4px 18px",
+            fontSize: 14, lineHeight: 1.55, color: "var(--text)",
+            whiteSpace: "pre-wrap", wordBreak: "break-word",
+          }}>
+            {displayContent}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isSys) {
+    return (
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontSize: 10, fontFamily: "var(--mono)", color: "var(--text-3)", marginBottom: 6 }}>
+          CIRCUIT AGENT · {fmtTime(msg.timestamp)}
+        </div>
+        <div style={{
+          padding: "14px 18px",
+          background: "rgba(207,173,116,0.06)",
+          border: "1px solid rgba(207,173,116,0.2)",
+          borderRadius: 12,
+          fontSize: 13.5, lineHeight: 1.6, color: "var(--text-2)",
+          whiteSpace: "pre-wrap", wordBreak: "break-word",
+          fontFamily: "var(--mono)",
+        }}>
+          {displayContent}
+          {msg.streaming && (
+            <span style={{ display: "inline-block", width: 2, height: 14, background: "var(--accent)", marginLeft: 3, verticalAlign: "middle", animation: "agBlink 1s step-end infinite" }} />
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Agent message — full width, left-aligned
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: isUser ? "flex-end" : "flex-start", gap: 3, marginBottom: 14 }}>
-      <div style={{ fontSize: 10, fontFamily: "var(--mono)", color: "var(--text-3)" }}>
-        {isUser ? "YOU" : isSys ? "SYSTEM" : "CIRCUIT AGENT"} {"\u00b7"} {fmtTime(msg.timestamp)}
+    <div style={{ marginBottom: 24 }}>
+      <div style={{ fontSize: 10, fontFamily: "var(--mono)", color: "var(--text-3)", marginBottom: 6 }}>
+        CIRCUIT AGENT · {fmtTime(msg.timestamp)}
       </div>
 
-      {tools.length > 0 && !isUser && (
-        <div style={{ width: "100%", maxWidth: "88%" }}>
+      {tools.length > 0 && (
+        <div style={{ marginBottom: 8 }}>
           {tools.map((tool, idx) => (
             <ToolExecutionCard key={`${tool.tool}_${idx}`} tool={tool} />
           ))}
@@ -489,25 +536,18 @@ function Bubble({
 
       {displayContent.length > 0 && (
         <div style={{
-          maxWidth: "88%", padding: "10px 13px",
-          borderRadius: isUser ? "12px 12px 3px 12px" : "3px 12px 12px 12px",
-          background: isUser ? "rgba(236,234,230,0.1)" : isSys ? "rgba(207,173,116,0.08)" : "var(--surface-2)",
-          border: isSys ? "1px solid rgba(207,173,116,0.25)" : "1px solid var(--border)",
-          fontSize: 13, lineHeight: 1.55,
-          color: isSys ? "var(--warning, #cfad74)" : "var(--text)",
+          fontSize: 14, lineHeight: 1.65, color: "var(--text)",
           whiteSpace: "pre-wrap", wordBreak: "break-word",
         }}>
           {displayContent}
           {msg.streaming && (
-            <span style={{
-              display: "inline-block", width: 2, height: 13, background: "var(--accent)", marginLeft: 3, verticalAlign: "middle", animation: "agBlink 1s step-end infinite"
-            }} />
+            <span style={{ display: "inline-block", width: 2, height: 14, background: "var(--accent)", marginLeft: 3, verticalAlign: "middle", animation: "agBlink 1s step-end infinite" }} />
           )}
         </div>
       )}
 
       {actionProposal && !dismissedProposal && (
-        <div style={{ width: "100%", maxWidth: "88%" }}>
+        <div style={{ marginTop: 12 }}>
           <ActionProposalCard
             proposal={actionProposal}
             onApprove={(p) => onApproveProposal(p)}
@@ -517,7 +557,7 @@ function Bubble({
       )}
 
       {msg.taskProposal && !dismissedTask && (
-        <div style={{ width: "100%", maxWidth: "88%", marginTop: 4 }}>
+        <div style={{ marginTop: 12 }}>
           <PolicyPreview
             proposal={msg.taskProposal}
             owner={owner}
@@ -1472,66 +1512,32 @@ export default function Autonomous() {
           </div>
         </div>
 
-        {/* ── Header Controls & Quick Shortcuts ── */}
+        {/* ── Header Controls ── */}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <button
-              type="button"
-              onClick={() => startAction("Watch my portfolio health factor and alert if below 1.8")}
-              style={{
-                padding: "3px 8px", fontSize: 10, fontWeight: 700, fontFamily: "var(--mono)", background: "rgba(121,194,164,0.08)", border: "1px solid rgba(121,194,164,0.25)", borderRadius: 4, color: "var(--mint,#79c2a4)", cursor: "pointer",
-              }}
-            >
-              + WATCH
-            </button>
-            <button
-              type="button"
-              onClick={() => startAction("Every 1 hour, check my portfolio risk state and borrow capacity")}
-              style={{
-                padding: "3px 8px", fontSize: 10, fontWeight: 700, fontFamily: "var(--mono)", background: "rgba(207,173,116,0.08)", border: "1px solid rgba(207,173,116,0.25)", borderRadius: 4, color: "var(--warning,#cfad74)", cursor: "pointer",
-              }}
-            >
-              + SCHEDULE
-            </button>
-            <button
-              type="button"
-              onClick={() => startAction("Auto manage: keep my health factor above 1.8, auto-repaying up to $200")}
-              style={{
-                padding: "3px 8px", fontSize: 10, fontWeight: 700, fontFamily: "var(--mono)", background: "rgba(236,234,230,0.08)", border: "1px solid var(--border)", borderRadius: 4, color: "var(--text)", cursor: "pointer",
-              }}
-            >
-              + AUTO MANAGE
-            </button>
-          </div>
-
-          <span style={{ width: 1, height: 14, background: "var(--border)", display: "inline-block" }} />
-
           <button
             type="button"
             onClick={() => setActiveTab("PERMISSIONS")}
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 7px", borderRadius: 4, background: "transparent", border: "none", cursor: "pointer",
-            }}
+            style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 7px", borderRadius: 4, background: "transparent", border: "none", cursor: "pointer" }}
           >
             <span style={{ width: 6, height: 6, borderRadius: "50%", background: hasActiveAuthority ? "var(--mint,#79c2a4)" : "var(--text-3)", display: "inline-block" }} />
             <span style={{ fontSize: 10, fontFamily: "var(--mono)", color: hasActiveAuthority ? "var(--mint,#79c2a4)" : "var(--text-3)" }}>
               {hasActiveAuthority ? "AUTHORITY ACTIVE" : "NO AUTHORITY"}
             </span>
           </button>
-
           <button type="button" onClick={clear} style={{ padding: "4px 9px", fontSize: 10, fontFamily: "var(--mono)", background: "transparent", border: "1px solid var(--border)", borderRadius: 5, color: "var(--text-3)", cursor: "pointer" }}>CLEAR</button>
-          <button type="button" onClick={() => navigate("/app")} style={{ padding: "4px 9px", fontSize: 10, fontFamily: "var(--mono)", background: "transparent", border: "1px solid var(--border)", borderRadius: 5, color: "var(--text-3)", cursor: "pointer" }}>← DASHBOARD</button>
+          <button type="button" onClick={() => navigate("/app")} style={{ padding: "4px 9px", fontSize: 10, fontFamily: "var(--mono)", background: "transparent", border: "1px solid var(--border)", borderRadius: 5, color: "var(--text-3)", cursor: "pointer" }}>← MANUAL</button>
         </div>
       </div>
 
-      {/* ── Body: Tab Switcher ── */}
+      {/* ── Body: Tab Content ── */}
 
-      {/* TAB 1: CHAT (Default 2-Column Agent Workspace) */}
+      {/* TAB 1: CHAT — Full-screen centered, ChatGPT/Claude style */}
       {activeTab === "CHAT" && (
-        <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-          {/* Left Column: Chat Conversation */}
-          <div style={{ flex: "0 0 58%", display: "flex", flexDirection: "column", borderRight: "1px solid var(--border)", overflow: "hidden" }}>
-            <div style={{ flex: 1, overflowY: "auto", padding: "18px 18px 12px", scrollbarWidth: "thin" }}>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", background: "var(--surface-0)" }}>
+
+          {/* ── Scrollable message feed — full width, centered content ── */}
+          <div style={{ flex: 1, overflowY: "auto", scrollbarWidth: "thin" }}>
+            <div style={{ maxWidth: 760, margin: "0 auto", padding: "28px 20px 16px" }}>
               {msgs.map(m => (
                 <Bubble
                   key={m.id}
@@ -1543,130 +1549,104 @@ export default function Autonomous() {
               ))}
               <div ref={endRef} />
             </div>
-
-            {/* Quick Intent Pills */}
-            <div style={{ padding: "6px 14px", borderTop: "1px solid var(--border)", display: "flex", gap: 6, overflowX: "auto", background: "var(--surface-1)" }}>
-              {[
-                "Can I borrow $300 against NVDA?",
-                "Show me what my current risk looks like",
-                "Check Meteora DBC liquidity & yields",
-                "Watch health factor < 1.8",
-                "Schedule portfolio check every 1h",
-                "Keep HF > 1.8 with auto repay",
-              ].map(prompt => (
-                <button
-                  key={prompt}
-                  type="button"
-                  onClick={() => setInput(prompt)}
-                  style={{
-                    padding: "3px 8px", fontSize: 10, fontFamily: "var(--mono)", background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 4, color: "var(--text-3)", cursor: "pointer", whiteSpace: "nowrap",
-                  }}
-                >
-                  {prompt}
-                </button>
-              ))}
-            </div>
-
-            {/* Input Bar */}
-            <div style={{ flexShrink: 0, padding: "12px 14px", borderTop: "1px solid var(--border)", display: "flex", gap: 8, alignItems: "flex-end" }}>
-              <textarea
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={onKey}
-                placeholder={!connected ? "Connect wallet to start..." : "Describe your strategy intent, borrow question, or watch rule... (Enter to send)"}
-                disabled={!connected || streaming}
-                rows={2}
-                style={{
-                  flex: 1, background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 8, padding: "9px 12px", fontSize: 13, color: "var(--text)", fontFamily: "var(--sans)", resize: "none", outline: "none", lineHeight: 1.5,
-                }}
-              />
-              {streaming
-                ? <button type="button" onClick={stop} style={{ padding: "10px 14px", background: "rgba(207,139,139,0.15)", border: "1px solid rgba(207,139,139,0.4)", borderRadius: 8, color: "var(--danger,#cf8b8b)", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "var(--mono)", whiteSpace: "nowrap" }}>STOP</button>
-                : <button type="button" onClick={() => sendWithText()} disabled={!input.trim() || !connected} style={{ padding: "10px 16px", background: !input.trim() || !connected ? "var(--surface-2)" : "rgba(236,234,230,0.1)", border: "1px solid var(--border)", borderRadius: 8, color: !input.trim() || !connected ? "var(--text-3)" : "var(--text)", fontSize: 12, fontWeight: 700, cursor: !input.trim() || !connected ? "not-allowed" : "pointer", fontFamily: "var(--mono)", whiteSpace: "nowrap" }}>SEND ↑</button>
-              }
-            </div>
           </div>
 
-          {/* Right Column: Live Protocol Context */}
-          <div style={{ flex: "0 0 42%", display: "flex", flexDirection: "column", overflow: "hidden", background: "var(--surface-1)" }}>
-            <div style={{ flex: 1, overflowY: "auto", padding: 16, borderBottom: "1px solid var(--border)", scrollbarWidth: "thin" }}>
-              <SectionLabel>LIVE PROTOCOL CONTEXT</SectionLabel>
+          {/* ── Input area — pinned to bottom, centered ── */}
+          <div style={{ flexShrink: 0, borderTop: "1px solid var(--border)", background: "var(--surface-1)", padding: "12px 20px 16px" }}>
+            <div style={{ maxWidth: 760, margin: "0 auto" }}>
 
-              {/* 1. Live State Metrics (2x3 grid) */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 14 }}>
+              {/* Suggested prompts */}
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
                 {[
-                  { label: "Risk State", value: risk.ratchetState, mono: true, tone: risk.ratchetState === "SAFE" ? "mint" : risk.ratchetState === "RESTRICTED" ? "warning" : "danger" },
-                  { label: "Market Session", value: risk.isMarketOpen ? "NYSE REGULAR OPEN" : "OUTSIDE RTH", mono: true },
-                  { label: "Total Collateral", value: `$${portfolio.totalCollateralUsd.toFixed(2)}` },
-                  { label: "Outstanding Debt", value: `$${portfolio.totalDebtUsd.toFixed(2)}` },
-                  { label: "Available Credit", value: `$${credit.availableCreditUsd.toFixed(2)}` },
-                  {
-                    label: "Health Factor",
-                    value: portfolio.healthFactor !== null ? portfolio.healthFactor.toFixed(3) : "Infinite",
-                    tone: portfolio.healthFactor === null || portfolio.healthFactor >= 2.0 ? "mint" : portfolio.healthFactor >= 1.25 ? "warning" : "danger",
-                  },
-                ].map(item => {
-                  const valColor = item.tone === "mint" ? "var(--mint,#79c2a4)" : item.tone === "warning" ? "var(--warning,#cfad74)" : item.tone === "danger" ? "var(--danger,#cf8b8b)" : "var(--text)";
-                  return (
-                    <div key={item.label} style={{ padding: "8px 10px", background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 6 }}>
-                      <div style={{ fontSize: 9.5, color: "var(--text-3)", marginBottom: 2 }}>{item.label}</div>
-                      <div style={{ fontSize: 12.5, fontWeight: 700, color: valColor, fontFamily: item.mono ? "var(--mono)" : undefined }}>
-                        {item.value}
-                      </div>
-                    </div>
-                  );
-                })}
+                  "Can I borrow $300 against NVDA?",
+                  "Show me what my current risk looks like",
+                  "Check Meteora DBC liquidity & yields",
+                  "Watch health factor < 1.8",
+                  "Schedule portfolio check every 1h",
+                  "Keep HF > 1.8 with auto repay",
+                ].map(prompt => (
+                  <button
+                    key={prompt}
+                    type="button"
+                    onClick={() => setInput(prompt)}
+                    style={{
+                      padding: "4px 10px",
+                      fontSize: 11,
+                      fontFamily: "var(--mono)",
+                      background: "var(--surface-2)",
+                      border: "1px solid var(--border)",
+                      borderRadius: 20,
+                      color: "var(--text-3)",
+                      cursor: "pointer",
+                      whiteSpace: "nowrap",
+                      transition: "all var(--t-fast)",
+                    }}
+                  >
+                    {prompt}
+                  </button>
+                ))}
               </div>
 
-              {/* 2. Circuit Permission Gates Matrix */}
-              <div style={{ marginBottom: 14 }}>
-                <SectionLabel>CIRCUIT PERMISSION GATES MATRIX</SectionLabel>
-                <div style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 6, overflow: "hidden", fontSize: 10.5, fontFamily: "var(--mono)" }}>
-                  {permissionRows.map(row => (
-                    <div key={row.action} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                      <span style={{ color: "var(--text-2)" }}>{row.action}</span>
-                      <span style={{
-                        fontSize: 9.5, fontWeight: 700, padding: "2px 6px", borderRadius: 3,
-                        background: row.tone === "mint" ? "rgba(121,194,164,0.12)" : row.tone === "warning" ? "rgba(207,173,116,0.12)" : "rgba(207,139,139,0.12)",
-                        color: row.tone === "mint" ? "var(--mint,#79c2a4)" : row.tone === "warning" ? "var(--warning,#cfad74)" : "var(--danger,#cf8b8b)",
-                      }}>
-                        {row.status}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <div style={{ fontSize: 9, color: "var(--text-3)", marginTop: 4, fontFamily: "var(--mono)" }}>
-                  Enforced deterministically on-chain before transaction instruction processing.
-                </div>
-              </div>
-
-              {/* 3. Strategy Plan (if generated) */}
-              {plan && (
-                <div style={{ marginBottom: 14 }}>
-                  <SectionLabel>ACTIVE STRATEGY INTENT</SectionLabel>
-                  <PlanCard plan={plan} />
-                </div>
-              )}
-
-              {/* 4. Delegated Agent Authority (PDA) */}
-              <div style={{ marginBottom: 10 }}>
-                <SectionLabel>DELEGATED AGENT AUTHORITY (PDA)</SectionLabel>
-                <AuthPanel
-                  auths={onChainAuthorities.map(a => {
-                    const sym = DEPLOYED_MARKETS.find(m => m.mint === a.assetMint.toBase58())?.symbol ?? a.assetMint.toBase58().slice(0, 6);
-                    return { agentAddress: a.agent.toBase58(), assetSymbol: sym, isExpired: a.isExpired, isRevoked: a.isRevoked, maxBorrowLimit: a.maxBorrowLimitUi, expiryTs: a.expiryTs };
-                  })}
-                  agentState={agentState}
-                  onOpenPermissionsTab={() => setActiveTab("PERMISSIONS")}
+              {/* Input row */}
+              <div style={{ display: "flex", gap: 10, alignItems: "flex-end", background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 12, padding: "10px 14px" }}>
+                <textarea
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
+                  onKeyDown={onKey}
+                  placeholder={!connected ? "Connect your Solana Devnet wallet to start..." : "Ask about your risk, borrow capacity, Meteora liquidity, or set up a watch rule… (Enter to send, Shift+Enter for newline)"}
+                  disabled={!connected || streaming}
+                  rows={1}
+                  style={{
+                    flex: 1,
+                    background: "transparent",
+                    border: "none",
+                    color: "var(--text)",
+                    fontFamily: "var(--sans)",
+                    fontSize: 14,
+                    resize: "none",
+                    outline: "none",
+                    lineHeight: 1.55,
+                    maxHeight: 140,
+                    overflowY: "auto",
+                  }}
                 />
+                {streaming ? (
+                  <button
+                    type="button"
+                    onClick={stop}
+                    style={{
+                      flexShrink: 0, padding: "7px 14px", background: "rgba(207,139,139,0.15)",
+                      border: "1px solid rgba(207,139,139,0.4)", borderRadius: 8,
+                      color: "var(--danger,#cf8b8b)", fontSize: 11, fontWeight: 700,
+                      cursor: "pointer", fontFamily: "var(--mono)", whiteSpace: "nowrap",
+                    }}
+                  >
+                    ■ STOP
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => sendWithText()}
+                    disabled={!input.trim() || !connected}
+                    style={{
+                      flexShrink: 0, padding: "7px 14px",
+                      background: !input.trim() || !connected ? "transparent" : "var(--accent, #eceae6)",
+                      border: !input.trim() || !connected ? "1px solid var(--border)" : "none",
+                      borderRadius: 8,
+                      color: !input.trim() || !connected ? "var(--text-3)" : "#0c0c0d",
+                      fontSize: 13, fontWeight: 700,
+                      cursor: !input.trim() || !connected ? "not-allowed" : "pointer",
+                      fontFamily: "var(--mono)", whiteSpace: "nowrap", transition: "all var(--t-fast)",
+                    }}
+                  >
+                    ↑
+                  </button>
+                )}
               </div>
-            </div>
 
-            {/* 5. Live Execution Timeline */}
-            <div style={{ flexShrink: 0, height: 182, padding: "12px 16px", background: "var(--surface-0)", borderTop: "1px solid var(--border)" }}>
-              <SectionLabel>EXECUTION TIMELINE</SectionLabel>
-              <div style={{ height: 132, overflowY: "auto", scrollbarWidth: "thin" }}>
-                <Timeline events={events} />
+              {/* Footer note */}
+              <div style={{ marginTop: 6, fontSize: 10, color: "var(--text-3)", fontFamily: "var(--mono)", textAlign: "center" }}>
+                Circuit Agent · Risk Ratchet enforced on-chain · Solana Devnet · {risk.ratchetState} {risk.isMarketOpen ? "· NYSE OPEN" : "· MARKET CLOSED"}
               </div>
             </div>
           </div>
