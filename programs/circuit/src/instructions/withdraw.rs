@@ -53,34 +53,57 @@ pub fn handler(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
         let market_open = market::is_market_open(clock.unix_timestamp)?;
         require!(market_open, CircuitError::MarketClosed);
 
-        // Check custody and liquidity states explicitly
-        require!(
-            asset.custody_state != CustodyState::Impaired &&
-            asset.custody_state != CustodyState::Delayed,
-            CircuitError::InvalidCustodyState
-        );
-        require!(
-            asset.liquidity_state != LiquidityState::Critical &&
-            asset.liquidity_state != LiquidityState::Thin,
-            CircuitError::InvalidLiquidityState
-        );
+        let conf_ratio_bps = math::calculate_confidence_ratio_bps(validated_price.price, validated_price.conf)?;
+        let oracle_age = clock.unix_timestamp.saturating_sub(validated_price.publish_time) as u64;
 
-        let derived_risk_state = if asset.custody_state == CustodyState::Impaired || asset.liquidity_state == LiquidityState::Critical {
-            MarketState::Emergency
-        } else if asset.custody_state == CustodyState::Delayed || asset.liquidity_state == LiquidityState::Thin || !market_open {
-            MarketState::Restricted
-        } else {
-            MarketState::Safe
-        };
+        let breakdown = crate::risk::RiskScoreBreakdown::compute(
+            market_open,
+            conf_ratio_bps,
+            oracle_age,
+            asset.max_oracle_age,
+            asset.custody_state,
+            asset.liquidity_state,
+        );
+        let derived_risk_state = crate::risk::RatchetHysteresisConfig::candidate_state_from_score(breakdown.composite_score);
 
-        let policy = CapitalPolicy::from_risk_state(
+        let policy = crate::risk::CapitalPolicyEngine::derive_policy(
             derived_risk_state,
             asset.base_ltv_bps,
             position.has_debt(),
             0,
             clock.unix_timestamp,
         );
-        require!(policy.withdraw_allowed, CircuitError::CapitalPolicyBlocked);
+
+        let current_collateral_value = math::calculate_collateral_value(
+            position.collateral_amount,
+            validated_price.price,
+            validated_price.expo,
+            ctx.accounts.collateral_mint.decimals,
+            ctx.accounts.quote_mint.decimals,
+        )?;
+
+        let perm = crate::permissions::evaluate_permission(
+            &ctx.accounts.owner.key(),
+            crate::permissions::CircuitAction::Withdraw,
+            &asset.mint,
+            amount,
+            &position.owner,
+            position.has_debt(),
+            current_collateral_value,
+            position.debt_amount,
+            &policy,
+            None,
+            clock.unix_timestamp,
+        )?;
+
+        if !perm.allowed {
+            match perm.denial_reason {
+                crate::state::enums::PermissionDenialReason::RiskEmergency => return err!(CircuitError::RiskEmergency),
+                crate::state::enums::PermissionDenialReason::RiskDefensive => return err!(CircuitError::RiskDefensive),
+                crate::state::enums::PermissionDenialReason::WithdrawNotPermitted => return err!(CircuitError::WithdrawRestrictedInStress),
+                _ => return err!(CircuitError::CapitalPolicyBlocked),
+            }
+        }
 
         // Calculate remaining collateral value
         let remaining_value = math::calculate_collateral_value(

@@ -69,17 +69,18 @@ pub fn handler(
     let market_open = market::is_market_open(clock.unix_timestamp)?;
     let conf_ratio_bps = math::calculate_confidence_ratio_bps(validated_price.price, validated_price.conf)?;
 
+    let oracle_age = clock.unix_timestamp.saturating_sub(validated_price.publish_time) as u64;
+
     // -- Step 5: Derive Real-Time Risk State & Authoritative Capital Policy --
-    // Use the higher severity between ratchet cached state and instantaneous conditions
-    let instant_risk_state = if asset.custody_state == CustodyState::Impaired || asset.liquidity_state == LiquidityState::Critical || conf_ratio_bps > 300 {
-        MarketState::Emergency
-    } else if asset.custody_state == CustodyState::Delayed || asset.liquidity_state == LiquidityState::Thin || conf_ratio_bps > 150 {
-        MarketState::Defensive
-    } else if !market_open || conf_ratio_bps > 50 {
-        MarketState::Restricted
-    } else {
-        MarketState::Safe
-    };
+    let breakdown = crate::risk::RiskScoreBreakdown::compute(
+        market_open,
+        conf_ratio_bps,
+        oracle_age,
+        asset.max_oracle_age,
+        asset.custody_state,
+        asset.liquidity_state,
+    );
+    let instant_risk_state = crate::risk::RatchetHysteresisConfig::candidate_state_from_score(breakdown.composite_score);
 
     let effective_risk_state = if RiskRatchet::severity(instant_risk_state) > RiskRatchet::severity(ratchet.state) {
         instant_risk_state
@@ -87,7 +88,7 @@ pub fn handler(
         ratchet.state
     };
 
-    let policy = CapitalPolicy::from_risk_state(
+    let policy = crate::risk::CapitalPolicyEngine::derive_policy(
         effective_risk_state,
         asset.base_ltv_bps,
         position.has_debt(),
@@ -95,37 +96,63 @@ pub fn handler(
         clock.unix_timestamp,
     );
 
-    // -- Step 6: Action Risk Cost & Budget Evaluation --
+    // Collateral valuation
+    let collateral_value = math::calculate_collateral_value(
+        position.collateral_amount,
+        validated_price.price,
+        validated_price.expo,
+        ctx.accounts.collateral_mint.decimals,
+        ctx.accounts.quote_mint.decimals,
+    )?;
+
+    // -- Step 6: Evaluate Canonical Permission Engine (Agent Delegated Path) --
+    let perm = crate::permissions::evaluate_permission(
+        &ctx.accounts.agent.key(),
+        action.into(),
+        &asset.mint,
+        amount,
+        &position.owner,
+        position.has_debt(),
+        collateral_value,
+        position.debt_amount,
+        &policy,
+        Some(auth),
+        clock.unix_timestamp,
+    )?;
+
+    if !perm.allowed {
+        emit!(crate::events::ActionDenied {
+            position: position.key(),
+            action,
+            amount,
+            risk_state: effective_risk_state,
+            denial_reason: perm.denial_reason,
+            epoch: ratchet.risk_epoch,
+            timestamp: clock.unix_timestamp,
+        });
+
+        match perm.denial_reason {
+            PermissionDenialReason::RiskEmergency => return err!(CircuitError::RiskEmergency),
+            PermissionDenialReason::RiskDefensive => return err!(CircuitError::RiskDefensive),
+            PermissionDenialReason::RiskRestricted => return err!(CircuitError::RiskRestricted),
+            PermissionDenialReason::AgentAuthorityExpired => return err!(CircuitError::AgentAuthorityExpired),
+            PermissionDenialReason::AgentActionNotPermitted => return err!(CircuitError::AgentActionNotPermitted),
+            PermissionDenialReason::AgentBorrowLimitExceeded => return err!(CircuitError::AgentBorrowLimitExceeded),
+            PermissionDenialReason::AgentWithdrawLimitExceeded => return err!(CircuitError::AgentWithdrawLimitExceeded),
+            PermissionDenialReason::EffectiveLtvExceeded => return err!(CircuitError::BorrowExceedsCapacity),
+            PermissionDenialReason::InsufficientRiskBudget => return err!(CircuitError::InsufficientRiskBudget),
+            PermissionDenialReason::AssetDisabled => return err!(CircuitError::AssetScopeViolation),
+            _ => return err!(CircuitError::CapitalPolicyBlocked),
+        }
+    }
+
+    // -- Step 7: Action Risk Cost & Budget Evaluation --
     let old_budget = auth.risk_budget;
     let seeds = &[ProtocolConfig::SEEDS, &[protocol.bump]];
     let signer_seeds = &[&seeds[..]];
 
     match action {
         AgentAction::Borrow => {
-            // Check capital policy
-            if !policy.borrow_allowed {
-                emit!(crate::events::ActionDenied {
-                    position: position.key(),
-                    action,
-                    amount,
-                    risk_state: effective_risk_state,
-                    denial_reason: match effective_risk_state {
-                        MarketState::Emergency => PermissionDenialReason::RiskEmergency,
-                        MarketState::Defensive => PermissionDenialReason::RiskDefensive,
-                        _ => PermissionDenialReason::BorrowNotPermitted,
-                    },
-                    epoch: ratchet.risk_epoch,
-                    timestamp: clock.unix_timestamp,
-                });
-                return err!(CircuitError::BorrowDisabledByRiskPolicy);
-            }
-
-            // Check agent authority borrow limits
-            let projected_borrowed = auth.current_borrowed
-                .checked_add(amount)
-                .ok_or(CircuitError::MathOverflow)?;
-            require!(projected_borrowed <= auth.max_borrow_limit, CircuitError::AgentBorrowLimitExceeded);
-
             // Compute risk cost C(a)
             let risk_cost = math::calculate_action_risk_cost(
                 action,
@@ -134,15 +161,7 @@ pub fn handler(
                 effective_risk_state,
             )?;
             auth.consume_risk_budget(risk_cost)?;
-
-            // Collateral valuation
-            let collateral_value = math::calculate_collateral_value(
-                position.collateral_amount,
-                validated_price.price,
-                validated_price.expo,
-                ctx.accounts.collateral_mint.decimals,
-                ctx.accounts.quote_mint.decimals,
-            )?;
+            auth.current_borrowed = auth.current_borrowed.checked_add(amount).ok_or(CircuitError::MathOverflow)?;
 
             // Apply effective LTV cap
             let max_borrow = CapitalPolicy::calculate_borrow_capacity(collateral_value as u64, policy.effective_ltv_bps) as u128;
@@ -189,7 +208,6 @@ pub fn handler(
             )?;
 
             position.debt_amount = new_debt as u64;
-            auth.current_borrowed = projected_borrowed;
 
             emit!(crate::events::ActionAllowed {
                 position: position.key(),

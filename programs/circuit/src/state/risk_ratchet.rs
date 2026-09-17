@@ -37,6 +37,30 @@ pub struct RiskRatchet {
     /// Unix timestamp at which the most recent state transition occurred
     pub last_transition_ts: i64,
 
+    /// Composite dynamic risk score in basis points [0, 10_000]
+    pub risk_score: u32,
+
+    /// Previous observation risk score in basis points [0, 10_000]
+    pub previous_score: u32,
+
+    /// Rate of risk change per second (signed i32 in bps/sec)
+    pub risk_velocity: i32,
+
+    /// Breakdown: market condition risk score [0, 10_000]
+    pub market_score: u32,
+
+    /// Breakdown: capital/liquidity risk score [0, 10_000]
+    pub capital_score: u32,
+
+    /// Breakdown: oracle uncertainty and age score [0, 10_000]
+    pub oracle_score: u32,
+
+    /// Required cooldown duration in seconds before recovery transitions
+    pub cooldown_seconds: u32,
+
+    /// Active capital policy version
+    pub policy_version: u16,
+
     /// PDA bump seed
     pub bump: u8,
 }

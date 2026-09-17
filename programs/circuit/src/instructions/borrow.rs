@@ -45,46 +45,25 @@ pub fn handler(ctx: Context<Borrow>, amount: u64) -> Result<()> {
 
     // -- Step 10: Derive dynamic market state and authoritative Capital Policy --
     let conf_ratio_bps = math::calculate_confidence_ratio_bps(validated_price.price, validated_price.conf)?;
+    let oracle_age = clock.unix_timestamp.saturating_sub(validated_price.publish_time) as u64;
 
-    let derived_risk_state = if asset.custody_state == CustodyState::Impaired || asset.liquidity_state == LiquidityState::Critical || conf_ratio_bps > 300 {
-        MarketState::Emergency
-    } else if asset.custody_state == CustodyState::Delayed || asset.liquidity_state == LiquidityState::Thin || conf_ratio_bps > 150 {
-        MarketState::Defensive
-    } else if !market_open || conf_ratio_bps > 50 {
-        MarketState::Restricted
-    } else {
-        MarketState::Safe
-    };
+    let breakdown = crate::risk::RiskScoreBreakdown::compute(
+        market_open,
+        conf_ratio_bps,
+        oracle_age,
+        asset.max_oracle_age,
+        asset.custody_state,
+        asset.liquidity_state,
+    );
+    let derived_risk_state = crate::risk::RatchetHysteresisConfig::candidate_state_from_score(breakdown.composite_score);
 
-    let policy = CapitalPolicy::from_risk_state(
+    let policy = crate::risk::CapitalPolicyEngine::derive_policy(
         derived_risk_state,
         asset.base_ltv_bps,
         position.has_debt(),
         0,
         clock.unix_timestamp,
     );
-
-    if !policy.borrow_allowed {
-        emit!(crate::events::BorrowBlocked {
-            position: position.key(),
-            requested_amount: amount,
-            current_ltv: 0,
-            effective_ltv: policy.effective_ltv_bps,
-            risk_state: derived_risk_state,
-            reason: format!("Risk state {:?} blocks borrowing", derived_risk_state),
-        });
-
-        if asset.custody_state == CustodyState::Delayed || asset.custody_state == CustodyState::Impaired {
-            return err!(CircuitError::InvalidCustodyState);
-        }
-        if asset.liquidity_state == LiquidityState::Thin || asset.liquidity_state == LiquidityState::Critical {
-            return err!(CircuitError::InvalidLiquidityState);
-        }
-        if !market_open {
-            return err!(CircuitError::MarketClosed);
-        }
-        return err!(CircuitError::BorrowDisabledByRiskPolicy);
-    }
 
     // -- Step 11: Calculate collateral value --
     let collateral_value = math::calculate_collateral_value(
@@ -95,25 +74,51 @@ pub fn handler(ctx: Context<Borrow>, amount: u64) -> Result<()> {
         ctx.accounts.quote_mint.decimals,
     )?;
 
-    // -- Step 12: Apply authoritative effective LTV derived from Capital Policy --
-    let max_borrow = CapitalPolicy::calculate_borrow_capacity(collateral_value as u64, policy.effective_ltv_bps) as u128;
+    // -- Step 12: Evaluate Canonical Permission Engine (Human Owner Path) --
+    let perm = crate::permissions::evaluate_permission(
+        &ctx.accounts.owner.key(),
+        crate::permissions::CircuitAction::Borrow,
+        &asset.mint,
+        amount,
+        &position.owner,
+        position.has_debt(),
+        collateral_value,
+        position.debt_amount,
+        &policy,
+        None,
+        clock.unix_timestamp,
+    )?;
 
-    // -- Step 13: Check capacity --
-    let new_debt = (position.debt_amount as u128)
-        .checked_add(amount as u128)
-        .ok_or(CircuitError::MathOverflow)?;
-
-    if new_debt > max_borrow {
+    if !perm.allowed {
         emit!(crate::events::BorrowBlocked {
             position: position.key(),
             requested_amount: amount,
             current_ltv: ((position.debt_amount as u128) * 10_000 / collateral_value.max(1)) as u64,
             effective_ltv: policy.effective_ltv_bps,
             risk_state: derived_risk_state,
-            reason: "Borrow capacity exceeded".to_string(),
+            reason: format!("Permission denied: {:?}", perm.denial_reason),
         });
-        return err!(CircuitError::BorrowExceedsCapacity);
+
+        match perm.denial_reason {
+            crate::state::enums::PermissionDenialReason::RiskEmergency => return err!(CircuitError::RiskEmergency),
+            crate::state::enums::PermissionDenialReason::RiskDefensive => return err!(CircuitError::RiskDefensive),
+            crate::state::enums::PermissionDenialReason::RiskRestricted => return err!(CircuitError::RiskRestricted),
+            crate::state::enums::PermissionDenialReason::EffectiveLtvExceeded => return err!(CircuitError::BorrowExceedsCapacity),
+            _ => {
+                if asset.custody_state == CustodyState::Delayed || asset.custody_state == CustodyState::Impaired {
+                    return err!(CircuitError::InvalidCustodyState);
+                }
+                if asset.liquidity_state == LiquidityState::Thin || asset.liquidity_state == LiquidityState::Critical {
+                    return err!(CircuitError::InvalidLiquidityState);
+                }
+                return err!(CircuitError::BorrowDisabledByRiskPolicy);
+            }
+        }
     }
+
+    let new_debt = (position.debt_amount as u128)
+        .checked_add(amount as u128)
+        .ok_or(CircuitError::MathOverflow)?;
 
     // -- Step 14: Calculate and check health factor --
     let hf = math::calculate_health_factor(

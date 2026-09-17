@@ -35,6 +35,15 @@ pub struct CapitalPolicy {
     /// Whether liquidation / recovery execution is active for unhealthy positions
     pub liquidation_allowed: bool,
 
+    /// Whether entering new liquidity positions (e.g. Meteora DBC) is allowed
+    pub enter_liquidity_allowed: bool,
+
+    /// Whether exiting liquidity positions (e.g. Meteora DBC) is allowed
+    pub exit_liquidity_allowed: bool,
+
+    /// Authoritative capital policy version
+    pub policy_version: u16,
+
     /// Monotonically increasing epoch tracking risk breaches / parameter adjustments
     pub risk_epoch: u64,
 
@@ -63,6 +72,9 @@ impl CapitalPolicy {
                 repay_allowed: true,
                 deposit_allowed: true,
                 liquidation_allowed: false,
+                enter_liquidity_allowed: true,
+                exit_liquidity_allowed: true,
+                policy_version: 1,
                 risk_epoch,
                 updated_at: unix_timestamp,
             },
@@ -77,6 +89,9 @@ impl CapitalPolicy {
                     repay_allowed: true,
                     deposit_allowed: true,
                     liquidation_allowed: false,
+                    enter_liquidity_allowed: true, // Capped liquidity entry
+                    exit_liquidity_allowed: true,
+                    policy_version: 1,
                     risk_epoch,
                     updated_at: unix_timestamp,
                 }
@@ -92,6 +107,9 @@ impl CapitalPolicy {
                     repay_allowed: true,
                     deposit_allowed: true,
                     liquidation_allowed: false,
+                    enter_liquidity_allowed: false, // Blocked in defensive
+                    exit_liquidity_allowed: true,
+                    policy_version: 1,
                     risk_epoch,
                     updated_at: unix_timestamp,
                 }
@@ -105,6 +123,9 @@ impl CapitalPolicy {
                 repay_allowed: true,
                 deposit_allowed: true,
                 liquidation_allowed: true, // Liquidation recovery active
+                enter_liquidity_allowed: false,
+                exit_liquidity_allowed: true, // Recovery exits allowed
+                policy_version: 1,
                 risk_epoch,
                 updated_at: unix_timestamp,
             },

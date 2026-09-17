@@ -235,6 +235,46 @@ pub enum CircuitError {
     /// Action intent nonce mismatch or replay detected
     #[msg("Action intent nonce mismatch or replay detected")]
     ActionNonceInvalid,
+
+    /// Risk observation data is stale or older than allowable window
+    #[msg("Risk observation data is stale")]
+    RiskDataStale,
+
+    /// Risk calculation received invalid or unnormalizable price/confidence data
+    #[msg("Risk calculation data is invalid")]
+    RiskDataInvalid,
+
+    /// Pyth oracle confidence interval exceeds allowable risk band
+    #[msg("Oracle confidence interval is too wide for credit operations")]
+    OracleConfidenceTooWide,
+
+    /// Risk state transition was rejected by the state machine
+    #[msg("Risk state transition was denied by state machine rules")]
+    RiskStateTransitionDenied,
+
+    /// Transition rejected because cooldown duration has not yet elapsed
+    #[msg("Transition rejected: cooldown duration is currently active")]
+    CooldownActive,
+
+    /// Insufficient clean observations or metrics to qualify for staged recovery
+    #[msg("Staged recovery conditions have not been satisfied")]
+    RecoveryConditionsNotMet,
+
+    /// Financial action blocked by authoritative on-chain risk policy
+    #[msg("Action blocked by on-chain risk policy")]
+    ActionBlockedByRisk,
+
+    /// Requested action amount exceeds permitted limit under current risk state
+    #[msg("Action amount exceeds allowable limit")]
+    ActionLimitExceeded,
+
+    /// Asset mint does not match authorized scope
+    #[msg("Asset mint is outside authorized scope")]
+    AssetScopeViolation,
+
+    /// Evaluated policy version does not match active protocol configuration
+    #[msg("Policy version mismatch")]
+    PolicyVersionMismatch,
 }
 
 

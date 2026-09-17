@@ -8,6 +8,8 @@ pub mod instructions;
 pub mod market;
 pub mod math;
 pub mod oracle;
+pub mod permissions;
+pub mod risk;
 pub mod state;
 
 pub use events::*;
