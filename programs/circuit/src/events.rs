@@ -237,3 +237,33 @@ pub struct RiskBudgetChanged {
     pub timestamp: i64,
 }
 
+/// Emitted upon verified on-chain execution of a Meteora DBC operation through Circuit.
+#[event]
+pub struct DbcActionExecuted {
+    pub actor: Pubkey,
+    pub owner: Pubkey,
+    pub asset_mint: Pubkey,
+    pub dbc_pool: Pubkey,
+    pub action_type: u8, // 0=Swap, 1=EnterLiquidity, 2=ExitLiquidity, 3=Rebalance
+    pub amount_in: u64,
+    pub min_amount_out: u64,
+    pub risk_state: MarketState,
+    pub risk_cost: u64,
+    pub timestamp: i64,
+}
+
+/// Emitted when a Meteora DBC operation is denied by Circuit Permission Engine.
+#[event]
+pub struct DbcActionDenied {
+    pub actor: Pubkey,
+    pub owner: Pubkey,
+    pub asset_mint: Pubkey,
+    pub dbc_pool: Pubkey,
+    pub action_type: u8,
+    pub amount_in: u64,
+    pub risk_state: MarketState,
+    pub denial_reason: PermissionDenialReason,
+    pub timestamp: i64,
+}
+
+

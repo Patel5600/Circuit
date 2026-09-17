@@ -238,6 +238,26 @@ pub mod circuit {
     ) -> Result<()> {
         instructions::execute_agent_action::handler(ctx, action, amount, intent_nonce)
     }
+
+    /// Execute or authorize a liquidity/swap action on Meteora Dynamic Bonding Curve (DBC).
+    /// Bound to verified AssetRegistryEntry, Pyth oracle confidence, and Section 15 Risk Matrix.
+    pub fn execute_dbc_action<'info>(
+        ctx: Context<'info, ExecuteDbcAction<'info>>,
+        action_type: u8,
+        amount_in: u64,
+        min_amount_out: u64,
+        intent_nonce: u64,
+        dbc_instruction_data: Vec<u8>,
+    ) -> Result<()> {
+        instructions::execute_dbc_action::handler(
+            ctx,
+            action_type,
+            amount_in,
+            min_amount_out,
+            intent_nonce,
+            dbc_instruction_data,
+        )
+    }
 }
 
 

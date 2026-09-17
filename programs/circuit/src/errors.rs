@@ -275,6 +275,18 @@ pub enum CircuitError {
     /// Evaluated policy version does not match active protocol configuration
     #[msg("Policy version mismatch")]
     PolicyVersionMismatch,
+
+    /// Target DBC pool does not match the registered pool for this asset
+    #[msg("DBC pool address does not match asset registry")]
+    InvalidDbcPool,
+
+    /// DBC swap slippage exceeded minimum amount out
+    #[msg("DBC swap slippage exceeded: minimum amount out not met")]
+    DbcSlippageExceeded,
+
+    /// DBC action not allowed under current risk policy
+    #[msg("DBC action blocked by risk policy")]
+    DbcActionBlocked,
 }
 
 

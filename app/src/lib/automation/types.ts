@@ -12,7 +12,11 @@ export type TaskType =
   | "DEPOSIT"
   | "WITHDRAW"
   | "RECOVER"
-  | "REPORT";
+  | "REPORT"
+  | "SWAP"
+  | "ENTER_LIQUIDITY"
+  | "EXIT_LIQUIDITY"
+  | "REBALANCE";
 
 export type TaskStatus =
   | "ACTIVE"

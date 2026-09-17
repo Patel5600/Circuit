@@ -6,27 +6,32 @@ import React, { useState, useEffect, useCallback } from "react";
 import { loadTasks, pauseTask, resumeTask, deleteTask, subscribeTasks } from "../../lib/automation/store";
 import type { AutomationTask } from "../../lib/automation/types";
 
-const STRATEGY_TYPES = ["REPAY", "BORROW", "DEPOSIT", "WITHDRAW", "RECOVER"] as const;
+const STRATEGY_TYPES = [
+  "REPAY", "BORROW", "DEPOSIT", "WITHDRAW", "RECOVER",
+  "SWAP", "ENTER_LIQUIDITY", "EXIT_LIQUIDITY", "REBALANCE"
+] as const;
 
 function PolicyCard({ task }: { task: AutomationTask }) {
   const p = task.policy;
   if (!p) return null;
+  const isDbc = p.allowedActions.some(a => ["SWAP", "ENTER_LIQUIDITY", "EXIT_LIQUIDITY", "REBALANCE"].includes(a));
   return (
     <div style={{ padding: "10px 12px", background: "var(--surface-3)", border: "1px solid var(--border)", borderRadius: 7, fontSize: 11, marginTop: 8 }}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 16px" }}>
         {[
           { label: "Objective", value: p.objective },
           { label: "Action", value: p.allowedActions.join(", ") },
+          { label: "Venue", value: isDbc ? "Meteora DBC (Virtual Pool)" : "Circuit Protocol Vault" },
           { label: "Max/Action", value: `$${p.maxAmountPerActionUsd.toFixed(2)}` },
           { label: "Max Total", value: `$${p.maxTotalUsd.toFixed(2)}` },
           { label: "Assets", value: p.assetScope.length > 0 ? p.assetScope.join(", ") : "Portfolio" },
-          { label: "Risk Adaptive", value: p.riskAdaptive ? "Yes" : "No" },
+          { label: "Risk Adaptive", value: p.riskAdaptive ? "Yes (DBC Capped/Exit Only)" : "No" },
           { label: "Expires", value: `${p.expireDays}d` },
           { label: "Version", value: `v${p.version}` },
         ].map(row => (
           <div key={row.label}>
             <div style={{ fontSize: 10, color: "var(--text-3)", marginBottom: 1 }}>{row.label}</div>
-            <div style={{ fontWeight: 600, color: "var(--text)", fontFamily: row.label === "Objective" ? undefined : "var(--mono)" }}>{row.value}</div>
+            <div style={{ fontWeight: 600, color: "var(--text)", fontFamily: row.label === "Objective" || row.label === "Venue" ? undefined : "var(--mono)" }}>{row.value}</div>
           </div>
         ))}
       </div>

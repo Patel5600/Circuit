@@ -52,19 +52,17 @@ pub fn evaluate_permission(
                 return Ok(PermissionResult::deny(reason, policy_version));
             }
         },
-        CircuitAction::EnterLiquidity => {
-            // Liquidity entry is blocked in Defensive and Emergency
-            if policy.risk_state == MarketState::Emergency || policy.risk_state == MarketState::Defensive {
+        // ── Meteora DBC / Liquidity Execution Surface (Section 15 Risk Matrix) ──
+        CircuitAction::EnterLiquidity | CircuitAction::Swap | CircuitAction::Rebalance => {
+            if policy.risk_state == MarketState::Emergency {
+                return Ok(PermissionResult::deny(PermissionDenialReason::RiskEmergency, policy_version));
+            }
+            if policy.risk_state == MarketState::Defensive {
                 return Ok(PermissionResult::deny(PermissionDenialReason::RiskDefensive, policy_version));
             }
         },
         CircuitAction::Deposit | CircuitAction::Repay | CircuitAction::Liquidate | CircuitAction::ExitLiquidity => {
-            // Risk-reducing capital actions are ALWAYS permitted by protocol risk policy
-        },
-        CircuitAction::Swap | CircuitAction::Rebalance => {
-            if policy.risk_state == MarketState::Emergency {
-                return Ok(PermissionResult::deny(PermissionDenialReason::RiskEmergency, policy_version));
-            }
+            // Risk-reducing capital & recovery actions are ALWAYS permitted by protocol risk policy
         },
     }
 
@@ -95,8 +93,33 @@ pub fn evaluate_permission(
                 };
                 (collateral_value as u64).saturating_sub(req_collateral)
             },
+            CircuitAction::Swap | CircuitAction::EnterLiquidity | CircuitAction::Rebalance => {
+                // In Restricted state, liquidity/swap volume is capped to 50%
+                let base_cap = collateral_value as u64;
+                if policy.risk_state == MarketState::Restricted {
+                    base_cap / 2
+                } else {
+                    base_cap
+                }
+            },
             _ => u64::MAX,
         };
+
+        if amount > limit {
+            let reason = match action {
+                CircuitAction::Borrow => PermissionDenialReason::EffectiveLtvExceeded,
+                CircuitAction::Withdraw => PermissionDenialReason::WithdrawNotPermitted,
+                CircuitAction::Swap | CircuitAction::EnterLiquidity | CircuitAction::Rebalance => {
+                    if policy.risk_state == MarketState::Restricted {
+                        PermissionDenialReason::RiskRestricted
+                    } else {
+                        PermissionDenialReason::EffectiveLtvExceeded
+                    }
+                },
+                _ => PermissionDenialReason::BorrowNotPermitted,
+            };
+            return Ok(PermissionResult::deny(reason, policy_version));
+        }
 
         Ok(PermissionResult::allow(policy_version, limit))
     } else {
@@ -116,8 +139,8 @@ pub fn evaluate_permission(
             return Ok(PermissionResult::deny(PermissionDenialReason::AssetDisabled, policy_version));
         }
 
-        // Validate expiry
-        if auth.is_expired(current_timestamp) {
+        // Validate active status & expiry
+        if !auth.is_active(current_timestamp) {
             return Ok(PermissionResult::deny(PermissionDenialReason::AgentAuthorityExpired, policy_version));
         }
 
@@ -127,14 +150,18 @@ pub fn evaluate_permission(
             CircuitAction::Borrow => crate::state::agent_authority::ACTION_BORROW,
             CircuitAction::Repay => crate::state::agent_authority::ACTION_REPAY,
             CircuitAction::Withdraw => crate::state::agent_authority::ACTION_WITHDRAW,
-            _ => return Ok(PermissionResult::deny(PermissionDenialReason::AgentActionNotPermitted, policy_version)),
+            CircuitAction::Swap => crate::state::agent_authority::ACTION_SWAP,
+            CircuitAction::EnterLiquidity => crate::state::agent_authority::ACTION_ENTER_LIQUIDITY,
+            CircuitAction::ExitLiquidity => crate::state::agent_authority::ACTION_EXIT_LIQUIDITY,
+            CircuitAction::Rebalance => crate::state::agent_authority::ACTION_REBALANCE,
+            CircuitAction::Liquidate => return Ok(PermissionResult::deny(PermissionDenialReason::AgentActionNotPermitted, policy_version)),
         };
 
         if !auth.is_action_allowed(action_bitmask) {
             return Ok(PermissionResult::deny(PermissionDenialReason::AgentActionNotPermitted, policy_version));
         }
 
-        // Validate agent per-action limits
+        // Validate agent per-action limits & Section 15 capping
         let effective_limit = match action {
             CircuitAction::Borrow => {
                 let remaining_agent_borrow = auth.max_borrow_limit.saturating_sub(auth.current_borrowed);
@@ -154,6 +181,14 @@ pub fn evaluate_permission(
                 let protocol_withdraw = (collateral_value as u64).saturating_sub(req_collateral);
                 auth.max_withdraw_limit.min(protocol_withdraw)
             },
+            CircuitAction::Swap | CircuitAction::EnterLiquidity | CircuitAction::Rebalance => {
+                let base_limit = auth.max_borrow_limit; // Uses authorized transaction volume cap
+                if policy.risk_state == MarketState::Restricted {
+                    base_limit / 2 // Section 15: Capped in Restricted state
+                } else {
+                    base_limit
+                }
+            },
             _ => u64::MAX,
         };
 
@@ -161,12 +196,19 @@ pub fn evaluate_permission(
             let reason = match action {
                 CircuitAction::Borrow => PermissionDenialReason::AgentBorrowLimitExceeded,
                 CircuitAction::Withdraw => PermissionDenialReason::AgentWithdrawLimitExceeded,
+                CircuitAction::Swap | CircuitAction::EnterLiquidity | CircuitAction::Rebalance => {
+                    if policy.risk_state == MarketState::Restricted {
+                        PermissionDenialReason::RiskRestricted
+                    } else {
+                        PermissionDenialReason::AgentBorrowLimitExceeded
+                    }
+                },
                 _ => PermissionDenialReason::AgentActionNotPermitted,
             };
             return Ok(PermissionResult::deny(reason, policy_version));
         }
 
-        // Validate remaining risk budget
+        // Validate remaining risk budget for risk-increasing operations
         if auth.risk_budget == 0 && action.is_risk_increasing() {
             return Ok(PermissionResult::deny(PermissionDenialReason::InsufficientRiskBudget, policy_version));
         }
@@ -338,5 +380,200 @@ mod tests {
         ).unwrap();
         assert!(!res.allowed);
         assert_eq!(res.denial_reason, PermissionDenialReason::AssetDisabled);
+    }
+
+    #[test]
+    fn test_dbc_swap_matrix_safe_restricted_defensive_emergency() {
+        let owner = test_pubkey(1);
+        let agent = test_pubkey(2);
+        let mint = test_pubkey(3);
+        let mut auth = test_authority(owner, agent, mint);
+        auth.allowed_actions = 0xFF; // All actions including SWAP (1 << 4)
+        auth.max_borrow_limit = 1_000;
+
+        // 1. Safe State: Swap allowed up to full limit (1,000)
+        let safe_policy = test_policy(MarketState::Safe, false);
+        let res_safe = evaluate_permission(
+            &agent,
+            CircuitAction::Swap,
+            &mint,
+            800,
+            &owner,
+            false,
+            10_000,
+            0,
+            &safe_policy,
+            Some(&auth),
+            0,
+        ).unwrap();
+        assert!(res_safe.allowed, "Swap must be allowed in Safe state");
+
+        // 2. Restricted State: Capped to 500 (50% of 1,000). 400 is allowed, 600 is capped!
+        let restricted_policy = test_policy(MarketState::Restricted, false);
+        let res_restr_ok = evaluate_permission(
+            &agent,
+            CircuitAction::Swap,
+            &mint,
+            400,
+            &owner,
+            false,
+            10_000,
+            0,
+            &restricted_policy,
+            Some(&auth),
+            0,
+        ).unwrap();
+        assert!(res_restr_ok.allowed, "Swap within 50% cap must be allowed in Restricted state");
+
+        let res_restr_blocked = evaluate_permission(
+            &agent,
+            CircuitAction::Swap,
+            &mint,
+            600,
+            &owner,
+            false,
+            10_000,
+            0,
+            &restricted_policy,
+            Some(&auth),
+            0,
+        ).unwrap();
+        assert!(!res_restr_blocked.allowed, "Swap exceeding 50% cap must be blocked in Restricted state");
+        assert_eq!(res_restr_blocked.denial_reason, PermissionDenialReason::RiskRestricted);
+
+        // 3. Defensive State: Strictly blocked
+        let defensive_policy = test_policy(MarketState::Defensive, false);
+        let res_def = evaluate_permission(
+            &agent,
+            CircuitAction::Swap,
+            &mint,
+            100,
+            &owner,
+            false,
+            10_000,
+            0,
+            &defensive_policy,
+            Some(&auth),
+            0,
+        ).unwrap();
+        assert!(!res_def.allowed, "Swap must be blocked in Defensive state");
+        assert_eq!(res_def.denial_reason, PermissionDenialReason::RiskDefensive);
+
+        // 4. Emergency State: Strictly blocked
+        let emergency_policy = test_policy(MarketState::Emergency, false);
+        let res_emg = evaluate_permission(
+            &agent,
+            CircuitAction::Swap,
+            &mint,
+            100,
+            &owner,
+            false,
+            10_000,
+            0,
+            &emergency_policy,
+            Some(&auth),
+            0,
+        ).unwrap();
+        assert!(!res_emg.allowed, "Swap must be blocked in Emergency state");
+        assert_eq!(res_emg.denial_reason, PermissionDenialReason::RiskEmergency);
+    }
+
+    #[test]
+    fn test_dbc_exit_liquidity_allowed_in_emergency() {
+        let owner = test_pubkey(1);
+        let agent = test_pubkey(2);
+        let mint = test_pubkey(3);
+        let mut auth = test_authority(owner, agent, mint);
+        auth.allowed_actions = 0xFF; // All actions including EXIT_LIQUIDITY
+
+        let emergency_policy = test_policy(MarketState::Emergency, false);
+        let res = evaluate_permission(
+            &agent,
+            CircuitAction::ExitLiquidity,
+            &mint,
+            500,
+            &owner,
+            false,
+            10_000,
+            0,
+            &emergency_policy,
+            Some(&auth),
+            0,
+        ).unwrap();
+        assert!(res.allowed, "ExitLiquidity must be allowed in Emergency state as recovery-safe action");
+    }
+
+    #[test]
+    fn test_dbc_agent_requires_swap_bitmask() {
+        let owner = test_pubkey(1);
+        let agent = test_pubkey(2);
+        let mint = test_pubkey(3);
+        let mut auth = test_authority(owner, agent, mint);
+        // Allowed actions ONLY has Deposit & Repay (0x05), NO Swap (0x10)
+        auth.allowed_actions = crate::state::agent_authority::ACTION_DEPOSIT | crate::state::agent_authority::ACTION_REPAY;
+
+        let safe_policy = test_policy(MarketState::Safe, false);
+        let res = evaluate_permission(
+            &agent,
+            CircuitAction::Swap,
+            &mint,
+            100,
+            &owner,
+            false,
+            10_000,
+            0,
+            &safe_policy,
+            Some(&auth),
+            0,
+        ).unwrap();
+        assert!(!res.allowed, "Swap must be rejected if agent lacks ACTION_SWAP bitmask");
+        assert_eq!(res.denial_reason, PermissionDenialReason::AgentActionNotPermitted);
+    }
+
+    #[test]
+    fn test_dbc_agent_revocation_and_expiry() {
+        let owner = test_pubkey(1);
+        let agent = test_pubkey(2);
+        let mint = test_pubkey(3);
+        let mut auth = test_authority(owner, agent, mint);
+        auth.allowed_actions = 0xFF;
+        auth.expiry_ts = 1000;
+
+        let safe_policy = test_policy(MarketState::Safe, false);
+
+        // Attempt at timestamp 1001 > 1000 -> Expired!
+        let res_expired = evaluate_permission(
+            &agent,
+            CircuitAction::Swap,
+            &mint,
+            100,
+            &owner,
+            false,
+            10_000,
+            0,
+            &safe_policy,
+            Some(&auth),
+            1001,
+        ).unwrap();
+        assert!(!res_expired.allowed);
+        assert_eq!(res_expired.denial_reason, PermissionDenialReason::AgentAuthorityExpired);
+
+        // Revoke authority (allowed_actions = 0)
+        auth.allowed_actions = 0;
+        let res_revoked = evaluate_permission(
+            &agent,
+            CircuitAction::Swap,
+            &mint,
+            100,
+            &owner,
+            false,
+            10_000,
+            0,
+            &safe_policy,
+            Some(&auth),
+            500,
+        ).unwrap();
+        assert!(!res_revoked.allowed);
+        assert_eq!(res_revoked.denial_reason, PermissionDenialReason::AgentAuthorityExpired);
     }
 }

@@ -2,10 +2,14 @@ use anchor_lang::prelude::*;
 use crate::errors::CircuitError;
 
 /// Bitmask flags for delegated actions.
-pub const ACTION_DEPOSIT: u8 = 1 << 0;  // 1
-pub const ACTION_BORROW: u8 = 1 << 1;   // 2
-pub const ACTION_REPAY: u8 = 1 << 2;    // 4
-pub const ACTION_WITHDRAW: u8 = 1 << 3; // 8
+pub const ACTION_DEPOSIT: u8 = 1 << 0;         // 1
+pub const ACTION_BORROW: u8 = 1 << 1;          // 2
+pub const ACTION_REPAY: u8 = 1 << 2;           // 4
+pub const ACTION_WITHDRAW: u8 = 1 << 3;        // 8
+pub const ACTION_SWAP: u8 = 1 << 4;            // 16
+pub const ACTION_ENTER_LIQUIDITY: u8 = 1 << 5; // 32
+pub const ACTION_EXIT_LIQUIDITY: u8 = 1 << 6;  // 64
+pub const ACTION_REBALANCE: u8 = 1 << 7;       // 128
 
 /// On-chain state account representing bounded authority delegated to an autonomous strategy.
 ///
@@ -26,7 +30,7 @@ pub struct AgentAuthority {
     /// Canonical tokenized stock mint this authority applies to (AAPL, NVDA, etc.)
     pub asset_mint: Pubkey,
 
-    /// Allowed actions bitmask (DEPOSIT=1, BORROW=2, REPAY=4, WITHDRAW=8)
+    /// Allowed actions bitmask (DEPOSIT=1, BORROW=2, REPAY=4, WITHDRAW=8, SWAP=16, ENTER_LIQUIDITY=32, EXIT_LIQUIDITY=64, REBALANCE=128)
     pub allowed_actions: u8,
 
     /// Maximum cumulative borrow limit permitted to this agent
@@ -69,6 +73,11 @@ impl AgentAuthority {
         } else {
             current_ts > self.expiry_ts
         }
+    }
+
+    /// Verifies whether authority is active (not revoked and not expired).
+    pub fn is_active(&self, current_ts: i64) -> bool {
+        self.allowed_actions != 0 && !self.is_expired(current_ts)
     }
 
     /// Consumes risk budget for a risk-increasing action.

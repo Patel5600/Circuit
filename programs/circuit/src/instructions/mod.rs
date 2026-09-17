@@ -24,6 +24,7 @@ pub mod update_fee_config;
 pub mod create_agent_authority;
 pub mod update_agent_authority;
 pub mod execute_agent_action;
+pub mod execute_dbc_action;
 
 pub use initialize_protocol::*;
 pub use register_asset::*;
@@ -43,5 +44,6 @@ pub use update_fee_config::*;
 pub use create_agent_authority::*;
 pub use update_agent_authority::*;
 pub use execute_agent_action::*;
+pub use execute_dbc_action::*;
 
 

@@ -39,7 +39,7 @@ interface ChatMessage {
 }
 
 interface StrategyAction {
-  action: "deposit" | "borrow" | "repay" | "withdraw";
+  action: "deposit" | "borrow" | "repay" | "withdraw" | "swap" | "enter_liquidity" | "exit_liquidity" | "rebalance";
   asset: string;
   amountUsd: number;
   reason: string;
@@ -143,8 +143,21 @@ function PlanCard({ plan }: { plan: StrategyPlan }) {
           {plan.actions.map((a, i) => {
             const isBorrow = a.action === "borrow";
             const isDeposit = a.action === "deposit" || a.action === "repay";
-            const bg = isBorrow ? "rgba(207,173,116,0.15)" : isDeposit ? "rgba(121,194,164,0.15)" : "rgba(207,139,139,0.15)";
-            const fg = isBorrow ? "var(--warning,#cfad74)" : isDeposit ? "var(--mint,#79c2a4)" : "var(--danger,#cf8b8b)";
+            const isDbc = ["swap", "enter_liquidity", "exit_liquidity", "rebalance"].includes(a.action);
+            const bg = isBorrow
+              ? "rgba(207,173,116,0.15)"
+              : isDeposit
+              ? "rgba(121,194,164,0.15)"
+              : isDbc
+              ? "rgba(167,139,250,0.15)"
+              : "rgba(207,139,139,0.15)";
+            const fg = isBorrow
+              ? "var(--warning,#cfad74)"
+              : isDeposit
+              ? "var(--mint,#79c2a4)"
+              : isDbc
+              ? "#a78bfa"
+              : "var(--danger,#cf8b8b)";
             return (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 9px", background: "var(--surface-3)", borderRadius: 6, border: "1px solid var(--border)", marginBottom: 4 }}>
                 <span style={{ fontSize: 9, fontWeight: 700, fontFamily: "var(--mono)", padding: "2px 6px", borderRadius: 4, background: bg, color: fg }}>{a.action.toUpperCase()}</span>

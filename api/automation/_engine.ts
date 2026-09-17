@@ -13,6 +13,13 @@ import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from "@solana/spl-tok
 import { createHash } from "crypto";
 import bs58 from "bs58";
 import type { AutomationTask, TaskResult, WatchCondition, ExecutionOutcome } from "../../app/src/lib/automation/types";
+import {
+  DbcActionType,
+  deriveDbcPoolAddress,
+  deriveAssetRegistryPda,
+  buildExecuteDbcActionInstruction,
+  computeDbcSwapQuote,
+} from "../../app/src/lib/meteora/dbc";
 
 const RPC_URL = process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
 const PROGRAM_ID = new PublicKey(process.env.CIRCUIT_PROGRAM_ID ?? "Cq4Lvd6Kgr3a2aP6ENPVGQ8tUpbkGmoWr9ZDBdXGiTs2");
@@ -226,7 +233,7 @@ export function checkAutomationPermission(
 
   // Global Risk Ratchet Gates
   if (state.riskState === "EMERGENCY") {
-    if (["BORROW", "WITHDRAW"].includes(task.type)) {
+    if (["BORROW", "WITHDRAW", "REBALANCE", "SWAP", "ENTER_LIQUIDITY"].includes(task.type)) {
       return { allowed: false, reasonCode: "RISK_STATE_RESTRICTED" };
     }
   }
@@ -237,10 +244,22 @@ export function checkAutomationPermission(
     if (task.type === "WITHDRAW" && state.debtUsd > 0) {
       return { allowed: false, reasonCode: "WITHDRAW_BLOCKED_WITH_DEBT" };
     }
+    // Section 15: New liquidity & Swaps strictly blocked in Defensive
+    if (["REBALANCE", "SWAP", "ENTER_LIQUIDITY"].includes(task.type)) {
+      return { allowed: false, reasonCode: "DBC_BLOCKED_IN_DEFENSIVE" };
+    }
   }
   if (state.riskState === "RESTRICTED") {
     if (task.type === "BORROW") {
       return { allowed: false, reasonCode: "BORROW_DISABLED_BY_RISK_STATE" };
+    }
+    // Section 15: Capped in Restricted (50% of baseline volume limit)
+    if (["REBALANCE", "SWAP", "ENTER_LIQUIDITY"].includes(task.type)) {
+      const baseLimit = Math.min(500, task.policy?.maxTotalUsd ? task.policy.maxTotalUsd / 2 : 500);
+      const maxAllowed = baseLimit / 2;
+      if (task.policy && task.policy.maxAmountPerActionUsd > maxAllowed) {
+        return { allowed: false, reasonCode: "DBC_CAPPED_IN_RESTRICTED" };
+      }
     }
   }
 
@@ -294,71 +313,87 @@ async function executeAgentTransaction(
     // Compute execute_agent_action discriminator
     const disc = createHash("sha256").update("global:execute_agent_action").digest().subarray(0, 8);
 
-    // Action enum byte: 0=Deposit, 1=Borrow, 2=Repay, 3=Withdraw
-    let actionByte = 2; // default Repay
-    if (task.type === "BORROW") actionByte = 1;
-    else if (task.type === "DEPOSIT") actionByte = 0;
-    else if (task.type === "WITHDRAW") actionByte = 3;
+    const isDbcAction = ["SWAP", "ENTER_LIQUIDITY", "EXIT_LIQUIDITY", "REBALANCE"].includes(task.type);
 
-    const amountUsd = task.policy?.maxAmountPerActionUsd ?? 10;
-    const amountNative = BigInt(Math.round(amountUsd * 1e6));
+    let ix: TransactionInstruction;
 
-    // PDA derivations
-    const [protocolConfig] = PublicKey.findProgramAddressSync([Buffer.from("protocol")], PROGRAM_ID);
-    const [assetConfig] = PublicKey.findProgramAddressSync([Buffer.from("asset"), assetMint.toBuffer()], PROGRAM_ID);
-    const [riskRatchet] = PublicKey.findProgramAddressSync([Buffer.from("ratchet"), feedBytes], PROGRAM_ID);
-    const [marketGuard] = PublicKey.findProgramAddressSync([Buffer.from("guard"), feedBytes], PROGRAM_ID);
-    const [position] = PublicKey.findProgramAddressSync([Buffer.from("position"), ownerPubkey.toBuffer(), assetMint.toBuffer()], PROGRAM_ID);
-    const [agentAuthority] = PublicKey.findProgramAddressSync([Buffer.from("authority"), ownerPubkey.toBuffer(), signerKeypair.publicKey.toBuffer(), assetMint.toBuffer()], PROGRAM_ID);
+    if (isDbcAction) {
+      let dbcActionType = DbcActionType.SWAP;
+      if (task.type === "ENTER_LIQUIDITY") dbcActionType = DbcActionType.ENTER_LIQUIDITY;
+      else if (task.type === "EXIT_LIQUIDITY") dbcActionType = DbcActionType.EXIT_LIQUIDITY;
+      else if (task.type === "REBALANCE") dbcActionType = DbcActionType.REBALANCE;
 
-    // Associated Token Accounts
-    const collateralVault = getAssociatedTokenAddressSync(assetMint, protocolConfig, true);
-    const liquidityVault = getAssociatedTokenAddressSync(QUOTE_MINT, protocolConfig, true);
-    const userCollateralAta = getAssociatedTokenAddressSync(assetMint, ownerPubkey, true);
-    const userQuoteAta = getAssociatedTokenAddressSync(QUOTE_MINT, ownerPubkey, true);
+      const [assetRegistryPda] = deriveAssetRegistryPda(assetMint, PROGRAM_ID);
+      const [dbcPool] = deriveDbcPoolAddress(assetMint, QUOTE_MINT);
 
-    // Read current nonce from agent authority if available
-    let intentNonce = 0n;
-    try {
-      const authAcc = await conn.getAccountInfo(agentAuthority, "confirmed");
-      if (authAcc && authAcc.data && authAcc.data.length >= 88) {
-        intentNonce = authAcc.data.readBigUInt64LE(80);
-      }
-    } catch { /* use default 0n */ }
+      const isBaseToQuote = task.type === "EXIT_LIQUIDITY";
+      const quote = computeDbcSwapQuote({
+        amountIn: amountNative,
+        oraclePriceUsd: 130,
+        swapBaseForQuote: isBaseToQuote,
+        baseDecimals: 6,
+        quoteDecimals: 6,
+        slippageBps: 50,
+      });
 
-    // Pack instruction data: 8 bytes discriminator + 1 byte action + 8 bytes amount + 8 bytes nonce
-    const ixData = Buffer.alloc(8 + 1 + 8 + 8);
-    disc.copy(ixData, 0);
-    ixData.writeUInt8(actionByte, 8);
-    ixData.writeBigUInt64LE(amountNative, 9);
-    ixData.writeBigUInt64LE(intentNonce, 17);
+      ix = buildExecuteDbcActionInstruction({
+        actor: signerKeypair.publicKey,
+        owner: ownerPubkey,
+        protocolConfigPda: protocolConfig,
+        assetConfigPda: assetConfig,
+        riskRatchetPda: riskRatchet,
+        assetRegistryPda,
+        agentAuthorityPda: agentAuthority,
+        dbcPool,
+        priceUpdate,
+        baseMint: assetMint,
+        quoteMint: QUOTE_MINT,
+        userSourceAta: isBaseToQuote ? userCollateralAta : userQuoteAta,
+        userDestinationAta: isBaseToQuote ? userQuoteAta : userCollateralAta,
+        actionType: dbcActionType,
+        amountIn: amountNative,
+        minAmountOut: quote.minAmountOut,
+        intentNonce,
+        programId: PROGRAM_ID,
+      });
+    } else {
+      // Action enum byte: 0=Deposit, 1=Borrow, 2=Repay, 3=Withdraw
+      let actionByte = 2; // default Repay
+      if (task.type === "BORROW") actionByte = 1;
+      else if (task.type === "DEPOSIT") actionByte = 0;
+      else if (task.type === "WITHDRAW") actionByte = 3;
 
-    // Dummy/configured price update account
-    const priceUpdate = new PublicKey(process.env.PYTH_PRICE_ACCOUNT ?? "7UVimffxr9ow1uXYxsr4LHAcV58mLzhmwaeKvJ1pjLiE");
+      // Pack instruction data: 8 bytes discriminator + 1 byte action + 8 bytes amount + 8 bytes nonce
+      const ixData = Buffer.alloc(8 + 1 + 8 + 8);
+      disc.copy(ixData, 0);
+      ixData.writeUInt8(actionByte, 8);
+      ixData.writeBigUInt64LE(amountNative, 9);
+      ixData.writeBigUInt64LE(intentNonce, 17);
 
-    const ix = new TransactionInstruction({
-      programId: PROGRAM_ID,
-      keys: [
-        { pubkey: signerKeypair.publicKey, isSigner: true, isWritable: true },
-        { pubkey: ownerPubkey, isSigner: false, isWritable: false },
-        { pubkey: protocolConfig, isSigner: false, isWritable: false },
-        { pubkey: assetConfig, isSigner: false, isWritable: false },
-        { pubkey: riskRatchet, isSigner: false, isWritable: true },
-        { pubkey: marketGuard, isSigner: false, isWritable: true },
-        { pubkey: position, isSigner: false, isWritable: true },
-        { pubkey: agentAuthority, isSigner: false, isWritable: true },
-        { pubkey: priceUpdate, isSigner: false, isWritable: false },
-        { pubkey: collateralVault, isSigner: false, isWritable: true },
-        { pubkey: liquidityVault, isSigner: false, isWritable: true },
-        { pubkey: userCollateralAta, isSigner: false, isWritable: true },
-        { pubkey: userQuoteAta, isSigner: false, isWritable: true },
-        { pubkey: assetMint, isSigner: false, isWritable: false },
-        { pubkey: QUOTE_MINT, isSigner: false, isWritable: false },
-        { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-      ],
-      data: ixData,
-    });
+      ix = new TransactionInstruction({
+        programId: PROGRAM_ID,
+        keys: [
+          { pubkey: signerKeypair.publicKey, isSigner: true, isWritable: true },
+          { pubkey: ownerPubkey, isSigner: false, isWritable: false },
+          { pubkey: protocolConfig, isSigner: false, isWritable: false },
+          { pubkey: assetConfig, isSigner: false, isWritable: false },
+          { pubkey: riskRatchet, isSigner: false, isWritable: true },
+          { pubkey: marketGuard, isSigner: false, isWritable: true },
+          { pubkey: position, isSigner: false, isWritable: true },
+          { pubkey: agentAuthority, isSigner: false, isWritable: true },
+          { pubkey: priceUpdate, isSigner: false, isWritable: false },
+          { pubkey: collateralVault, isSigner: false, isWritable: true },
+          { pubkey: liquidityVault, isSigner: false, isWritable: true },
+          { pubkey: userCollateralAta, isSigner: false, isWritable: true },
+          { pubkey: userQuoteAta, isSigner: false, isWritable: true },
+          { pubkey: assetMint, isSigner: false, isWritable: false },
+          { pubkey: QUOTE_MINT, isSigner: false, isWritable: false },
+          { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+        ],
+        data: ixData,
+      });
+    }
 
     const tx = new Transaction().add(ix);
     tx.feePayer = signerKeypair.publicKey;
