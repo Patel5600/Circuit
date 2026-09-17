@@ -8,6 +8,14 @@ import { StepRecoveryMeter } from '../components/demo/StepRecoveryMeter';
 import { ConcentrationSandbox } from '../components/demo/ConcentrationSandbox';
 import { SimulationModal } from '../components/demo/SimulationModal';
 
+export type EvidenceClassification =
+  | "VERIFIED ONCHAIN"
+  | "VERIFIED BY CODE"
+  | "VERIFIED BY TEST"
+  | "DEVNET TEST"
+  | "SIMULATED"
+  | "ILLUSTRATIVE";
+
 export interface LifecycleStep {
   step: number;
   concept: string;
@@ -15,11 +23,11 @@ export interface LifecycleStep {
   actor: string;
   collateral: string;
   debt: string;
-  ratchet: "SAFE" | "RESTRICTED" | "DEFENSIVE" | "EMERGENCY";
+  ratchet: string;
   authority: string;
   statusText: string;
   tone: "success" | "warning" | "danger";
-  environment: "REAL DEVNET" | "SIMULATED SCENARIO";
+  evidence: EvidenceClassification;
 }
 
 const LIFECYCLE_STEPS: LifecycleStep[] = [
@@ -32,9 +40,9 @@ const LIFECYCLE_STEPS: LifecycleStep[] = [
     debt: "$0.00 USDC",
     ratchet: "SAFE",
     authority: "SOVEREIGN",
-    statusText: "Position established on-chain by direct wallet signer. Collateral locked in protocol vault ATA. Human retains root sovereignty; zero agents exist or required.",
+    statusText: "Position established on-chain by direct wallet signer. Collateral locked in protocol vault ATA. Human retains root sovereignty; zero agents required.",
     tone: "success",
-    environment: "REAL DEVNET",
+    evidence: "VERIFIED BY CODE",
   },
   {
     step: 2,
@@ -45,9 +53,9 @@ const LIFECYCLE_STEPS: LifecycleStep[] = [
     debt: "$0.00 USDC",
     ratchet: "SAFE",
     authority: "SOVEREIGN",
-    statusText: "Pyth price account continuously reports price $100.00 and confidence interval ±$0.18 (18 bps). Conservative valuation uses lower bound: p_conservative = p - conf.",
+    statusText: "Pyth price account continuously reports price and confidence interval. Conservative valuation uses lower bound: p_conservative = max(0, p - conf).",
     tone: "success",
-    environment: "REAL DEVNET",
+    evidence: "VERIFIED ONCHAIN",
   },
   {
     step: 3,
@@ -58,9 +66,9 @@ const LIFECYCLE_STEPS: LifecycleStep[] = [
     debt: "$0.00 USDC",
     ratchet: "SAFE",
     authority: "OBSERVING",
-    statusText: "MarketGuard PDA validates reference NYSE session (Regular Hours), Pyth feed ID binding, confidence interval threshold (<150 bps), and clock freshness (<60s).",
+    statusText: "MarketGuard checks reference NYSE session (Regular Hours), Pyth feed ID binding, confidence ratio threshold, and clock freshness (<600s).",
     tone: "success",
-    environment: "REAL DEVNET",
+    evidence: "VERIFIED BY TEST",
   },
   {
     step: 4,
@@ -73,7 +81,7 @@ const LIFECYCLE_STEPS: LifecycleStep[] = [
     authority: "NOMINAL",
     statusText: "Dynamic Risk Ratchet combines confidence ratio, velocity, and session state. Nominal conditions derive SAFE state. Monotonic 4-state machine protects capital.",
     tone: "success",
-    environment: "REAL DEVNET",
+    evidence: "VERIFIED BY TEST",
   },
   {
     step: 5,
@@ -84,9 +92,9 @@ const LIFECYCLE_STEPS: LifecycleStep[] = [
     debt: "$0.00 USDC",
     ratchet: "SAFE",
     authority: "ACTIVE",
-    statusText: "Under SAFE state, Capital Policy derives: 100% borrow capacity unlocked (70% base LTV, 80% liquidation threshold, full $7,000 credit ceiling).",
+    statusText: "Under SAFE state, Capital Policy derives 100% borrow capacity (70% base LTV, 80% liquidation threshold, full credit ceiling).",
     tone: "success",
-    environment: "REAL DEVNET",
+    evidence: "VERIFIED BY TEST",
   },
   {
     step: 6,
@@ -97,9 +105,9 @@ const LIFECYCLE_STEPS: LifecycleStep[] = [
     debt: "$0.00 USDC",
     ratchet: "SAFE",
     authority: "ACTIVE",
-    statusText: "evaluate_permission confirms: borrow = ALLOWED, withdraw = ALLOWED, deposit = ALLOWED, repay = ALLOWED. Both human and agent share this identical evaluator.",
+    statusText: "Single evaluate_permission function confirms: borrow = ALLOWED, withdraw = ALLOWED, deposit = ALLOWED, repay = ALLOWED. Both human and agent share this identical evaluator.",
     tone: "success",
-    environment: "REAL DEVNET",
+    evidence: "VERIFIED BY CODE",
   },
   {
     step: 7,
@@ -110,9 +118,9 @@ const LIFECYCLE_STEPS: LifecycleStep[] = [
     debt: "$1,000.00 USDC",
     ratchet: "SAFE",
     authority: "SOVEREIGN",
-    statusText: "✓ ALLOWED: Manual borrow of $1,000 USDC passes on-chain evaluation. Protocol verifies LTV (10% < 70% max) and Health Factor (7.00 > 1.00 minimum).",
+    statusText: "✓ ALLOWED: Modeled manual borrow of $1,000 USDC evaluated against protocol policy. Verifies LTV (10% < 70% max) and Health Factor (7.00 > 1.00 minimum). Live execution on /app/borrow.",
     tone: "success",
-    environment: "REAL DEVNET",
+    evidence: "SIMULATED",
   },
   {
     step: 8,
@@ -123,9 +131,9 @@ const LIFECYCLE_STEPS: LifecycleStep[] = [
     debt: "$1,500.00 USDC",
     ratchet: "SAFE",
     authority: "BOUNDED",
-    statusText: "✓ ALLOWED: Strategy calls execute_agent_action for $500 borrow. Evaluator checks owner authority delegation, risk budget, and LTV. Total debt = $1,500.",
+    statusText: "✓ ALLOWED: Modeled strategy borrow of $500 evaluated through execute_agent_action. Checks owner authority delegation, risk budget, and LTV. Live execution on /app/autonomous.",
     tone: "success",
-    environment: "REAL DEVNET",
+    evidence: "SIMULATED",
   },
   {
     step: 9,
@@ -138,7 +146,7 @@ const LIFECYCLE_STEPS: LifecycleStep[] = [
     authority: "CONSTRAINED",
     statusText: "Simulated stress event: Pyth confidence interval widens past 150 bps. MarketGuard triggers instant tightening: Risk Ratchet steps up to DEFENSIVE (Epoch = 1).",
     tone: "warning",
-    environment: "SIMULATED SCENARIO",
+    evidence: "SIMULATED",
   },
   {
     step: 10,
@@ -149,9 +157,9 @@ const LIFECYCLE_STEPS: LifecycleStep[] = [
     debt: "$1,500.00 USDC",
     ratchet: "DEFENSIVE",
     authority: "BLOCKED",
-    statusText: "✕ SIMULATED POLICY REJECTION: Both Agent and Human borrow attempts are rejected by the Risk Ratchet state. On-chain preflight returns BORROW_DISABLED_BY_RISK_STATE (0x1787). Circuit bounds all actors equally.",
+    statusText: "✕ SIMULATED POLICY REJECTION: Both Agent and Human borrow attempts are rejected by the Risk Ratchet state. Simulation predicts on-chain revert BORROW_DISABLED_BY_RISK_STATE (0x1787).",
     tone: "danger",
-    environment: "SIMULATED SCENARIO",
+    evidence: "SIMULATED",
   },
   {
     step: 11,
@@ -162,9 +170,9 @@ const LIFECYCLE_STEPS: LifecycleStep[] = [
     debt: "$1,000.00 USDC",
     ratchet: "DEFENSIVE",
     authority: "SOVEREIGN",
-    statusText: "✓ ALWAYS ALLOWED: Repayment of $500 reduces risk. Deleveraging and liquidity exits are unconditionally open across all risk states. Solvency defended.",
+    statusText: "✓ ALWAYS ALLOWED: Repayment reduces risk. Deleveraging and liquidity exits are unconditionally open across all risk states. Anti-flapping recovery requires 5 clean ticks.",
     tone: "success",
-    environment: "REAL DEVNET",
+    evidence: "SIMULATED",
   },
 ];
 
@@ -178,8 +186,8 @@ function AutonomousStrategyLifecycle() {
         <div className="row between g-12 wrap" style={{ alignItems: "center" }}>
           <span>Deterministic Protocol Integrity: 11-Step Proof</span>
           <div className="row g-6">
-            <Pill tone={cur.environment === "REAL DEVNET" ? "success" : "warning"} withDot>
-              {cur.environment}
+            <Pill tone={cur.evidence === "VERIFIED ONCHAIN" ? "success" : cur.evidence === "SIMULATED" ? "warning" : "neutral"} withDot>
+              {cur.evidence}
             </Pill>
             <Pill tone={cur.tone}>
               STEP {cur.step}/11: {cur.ratchet}
@@ -231,8 +239,8 @@ function AutonomousStrategyLifecycle() {
                 <span className="t-label" style={{ color: "var(--text-3)" }}>
                   Step {cur.step} of 11 · {cur.actor}
                 </span>
-                <Pill tone={cur.environment === "REAL DEVNET" ? "success" : "warning"}>
-                  {cur.environment}
+                <Pill tone={cur.evidence === "VERIFIED ONCHAIN" ? "success" : cur.evidence === "SIMULATED" ? "warning" : "neutral"}>
+                  {cur.evidence}
                 </Pill>
               </div>
               <h3 style={{ margin: "4px 0 0 0", fontSize: 16, fontWeight: 700 }}>

@@ -35,19 +35,19 @@ Follow these 4 quick steps to evaluate the entire protocol in under 2 minutes:
 ### Step 2: Experience the 11-Step Protocol Proof & Risk Ratchet (`/app/demo`)
 Navigate to the isolated **Protocol Proof & Stress Sandbox** (`/app/demo`). This interactive harness proves the core thesis without requiring an actual market crash during your evaluation:
 
-| Step # | Proof Stage | Evidence Level | Description |
+| Step # | Proof Stage | Evidence Classification | Description |
 |---|---|---|---|
-| **Step 1** | Human Collateral Ownership | `REAL DEVNET` | Human deposits tokenized equity; owns underlying collateral. |
-| **Step 2** | Live Market Observation | `REAL DEVNET` | Pyth pull oracle feeds live price and confidence interval. |
-| **Step 3** | MarketGuard Validation | `REAL DEVNET` | Validates session hours, freshness (<600s), and sanity bounds. |
-| **Step 4** | Risk State Derivation | `REAL DEVNET` | Evaluates confidence ratio (\( \frac{\text{conf}}{\text{price}} \)) & price velocity. |
-| **Step 5** | Capital Policy Adjustment | `REAL DEVNET` | Dynamically clamps maximum allowable LTV. |
-| **Step 6** | Permission State Shift | `REAL DEVNET` | Evaluator transitions `BORROW` / `WITHDRAW` to `BLOCKED`. |
-| **Step 7** | Manual Action Evaluation | `REAL DEVNET` | Evaluates borrower transaction against active ratchet state. |
-| **Step 8** | Agent Action Alignment | `REAL DEVNET` | Evaluates autonomous agent action through the exact same engine. |
-| **Step 9** | Stress Event Triggered | `SIMULATED SCENARIO` | Injects Pyth confidence shock (e.g. 4.2% uncertainty) or NYSE halt. |
-| **Step 10** | Borrow Instantly Blocked | `SIMULATED SCENARIO` | Ratchet snaps to `DEFENSIVE`; simulated policy rejection models on-chain `RiskDefensive` preflight failure. |
-| **Step 11** | Staged Monotonic Recovery | `REAL DEVNET` | Requires 5 consecutive healthy observations. Single-hop `EMERGENCY -> SAFE` is blocked. |
+| **Step 1** | Human Collateral Ownership | `VERIFIED BY CODE` | Enforced on-chain by Anchor Position PDA and Vault ATA ownership constraints. |
+| **Step 2** | Live Market Observation | `VERIFIED ONCHAIN` | Pyth pull oracle feeds live price and confidence interval on Solana Devnet. |
+| **Step 3** | MarketGuard Validation | `VERIFIED BY TEST` | Validates session hours, freshness (<600s), and sanity bounds (13 unit tests). |
+| **Step 4** | Risk State Derivation | `VERIFIED BY TEST` | Evaluates confidence ratio (\( \frac{\text{conf}}{\text{price}} \)) & price velocity (112 Rust tests). |
+| **Step 5** | Capital Policy Adjustment | `VERIFIED BY TEST` | Dynamically clamps maximum allowable LTV. |
+| **Step 6** | Permission State Shift | `VERIFIED BY CODE` | Single evaluate_permission evaluator transitions `BORROW` / `WITHDRAW` to `BLOCKED`. |
+| **Step 7** | Manual Action Evaluation | `SIMULATED` | Modeled scenario in demo harness; live execution verified on `/app/borrow`. |
+| **Step 8** | Agent Action Alignment | `SIMULATED` | Modeled scenario in demo harness; live execution verified on `/app/autonomous`. |
+| **Step 9** | Stress Event Triggered | `SIMULATED` | Injects controlled Pyth confidence shock (e.g. 4.2% uncertainty) or NYSE halt. |
+| **Step 10** | Borrow Instantly Blocked | `SIMULATED` | Ratchet snaps to `DEFENSIVE`; simulated policy rejection models on-chain `RiskDefensive` preflight failure. |
+| **Step 11** | Staged Monotonic Recovery | `SIMULATED` | Modeled recovery crank in demo harness; underlying 5-epoch recovery rule is `VERIFIED BY TEST`. |
 
 > **Key Takeaway**: Notice that when the ratchet shifts to `DEFENSIVE` or `EMERGENCY`, risk-increasing actions (borrowing, excess collateral withdrawal) are strictly prohibited, but **risk-reducing actions (repaying debt, exiting liquidity) always remain permitted**.
 

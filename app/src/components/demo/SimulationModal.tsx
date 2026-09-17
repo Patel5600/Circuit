@@ -51,10 +51,10 @@ export function SimulationModal() {
             </span>
             <div>
               <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>
-                On-Chain Preflight Revert Simulation
+                Simulation Predicts Rejection (Preflight)
               </h3>
               <p className="t-meta" style={{ margin: 0 }}>
-                Anchor Program Execution Rejected by Circuit Risk Invariant
+                Simulated Preflight: Anchor Program Execution Reverted by Risk State
               </p>
             </div>
           </div>
@@ -144,7 +144,7 @@ export function SimulationModal() {
 
           <p className="t-sm muted" style={{ margin: 0, lineHeight: 1.45 }}>
             <strong>Why this matters to judges:</strong> Circuit does not rely on client-side JS disabled buttons.
-            The Anchor smart contract itself independently validates the Pyth confidence interval and market state, guaranteeing that even a direct raw transaction bypassing this UI will revert on-chain.
+            The Anchor smart contract itself independently validates the Pyth confidence interval and market state, guaranteeing that even a direct raw transaction bypassing this UI will revert on-chain. This modal models the exact simulated preflight response.
           </p>
         </div>
 
