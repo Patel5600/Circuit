@@ -46,7 +46,7 @@ Navigate to the isolated **Protocol Proof & Stress Sandbox** (`/app/demo`). This
 | **Step 7** | Manual Action Evaluation | `REAL DEVNET` | Evaluates borrower transaction against active ratchet state. |
 | **Step 8** | Agent Action Alignment | `REAL DEVNET` | Evaluates autonomous agent action through the exact same engine. |
 | **Step 9** | Stress Event Triggered | `SIMULATED SCENARIO` | Injects Pyth confidence shock (e.g. 4.2% uncertainty) or NYSE halt. |
-| **Step 10** | Borrow Instantly Blocked | `SIMULATED SCENARIO` | Ratchet snaps to `DEFENSIVE`; borrow attempt fails with `RiskDefensive`. |
+| **Step 10** | Borrow Instantly Blocked | `SIMULATED SCENARIO` | Ratchet snaps to `DEFENSIVE`; simulated policy rejection models on-chain `RiskDefensive` preflight failure. |
 | **Step 11** | Staged Monotonic Recovery | `REAL DEVNET` | Requires 5 consecutive healthy observations. Single-hop `EMERGENCY -> SAFE` is blocked. |
 
 > **Key Takeaway**: Notice that when the ratchet shifts to `DEFENSIVE` or `EMERGENCY`, risk-increasing actions (borrowing, excess collateral withdrawal) are strictly prohibited, but **risk-reducing actions (repaying debt, exiting liquidity) always remain permitted**.

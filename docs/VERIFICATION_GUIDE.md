@@ -80,9 +80,9 @@ const [marketGuard] = PublicKey.findProgramAddressSync(
   PROGRAM_ID
 );
 
-// 4. Risk Ratchet (per asset mint)
+// 4. Risk Ratchet (per Pyth feed)
 const [riskRatchet] = PublicKey.findProgramAddressSync(
-  [Buffer.from("ratchet"), assetMint.toBuffer()],
+  [Buffer.from("ratchet"), feedIdBuffer],
   PROGRAM_ID
 );
 
@@ -92,9 +92,15 @@ const [position] = PublicKey.findProgramAddressSync(
   PROGRAM_ID
 );
 
-// 6. Agent Authority (per owner, per asset)
+// 6. Agent Authority (per owner, agent, and asset)
 const [agentAuthority] = PublicKey.findProgramAddressSync(
-  [Buffer.from("agent_authority"), owner.toBuffer(), assetMint.toBuffer()],
+  [Buffer.from("authority"), owner.toBuffer(), agent.toBuffer(), assetMint.toBuffer()],
+  PROGRAM_ID
+);
+
+// 7. Asset Registry Entry (per asset mint)
+const [assetRegistry] = PublicKey.findProgramAddressSync(
+  [Buffer.from("registry"), assetMint.toBuffer()],
   PROGRAM_ID
 );
 

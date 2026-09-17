@@ -149,7 +149,7 @@ const LIFECYCLE_STEPS: LifecycleStep[] = [
     debt: "$1,500.00 USDC",
     ratchet: "DEFENSIVE",
     authority: "BLOCKED",
-    statusText: "✕ BLOCKED ON-CHAIN: Both Agent and Human borrow attempts are rejected before CPI. Error: BORROW_DISABLED_BY_RISK_STATE (0x1787). Circuit bounds all actors equally.",
+    statusText: "✕ SIMULATED POLICY REJECTION: Both Agent and Human borrow attempts are rejected by the Risk Ratchet state. On-chain preflight returns BORROW_DISABLED_BY_RISK_STATE (0x1787). Circuit bounds all actors equally.",
     tone: "danger",
     environment: "SIMULATED SCENARIO",
   },
