@@ -975,6 +975,20 @@ function parseStrategyFromText(text: string): StrategyPlan | null {
   };
 }
 
+export interface AgentModelOption {
+  id: string;
+  name: string;
+  badge: string;
+  desc: string;
+}
+
+const AVAILABLE_MODELS: AgentModelOption[] = [
+  { id: "gemini-1.5-pro", name: "Gemini 1.5 Pro", badge: "PRO", desc: "Recommended: Deep financial reasoning & risk synthesis" },
+  { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash", badge: "2.0 FLASH", desc: "Ultra-fast next-gen response" },
+  { id: "gemini-1.5-flash", name: "Gemini 1.5 Flash", badge: "FLASH", desc: "Lightweight streaming" },
+  { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", badge: "PREVIEW", desc: "Frontier multimodal reasoning" },
+];
+
 export default function Autonomous() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -992,15 +1006,20 @@ export default function Autonomous() {
   const [activeTab, setActiveTab] = useState<TabId>(initialTab);
   const [taskCounts, setTaskCounts] = useState({ total: 0, watches: 0, strategies: 0, executions: 0 });
 
-  // Google Gemini Pro configuration (saved locally in browser storage)
-  const [geminiKey, setGeminiKey] = useState<string>(() => {
+  // Gemini model selection (defaults to gemini-1.5-pro, switches by availability)
+  const [selectedModel, setSelectedModel] = useState<string>(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("circuit_gemini_api_key") || "";
+      return localStorage.getItem("circuit_selected_model") || "gemini-1.5-pro";
     }
-    return "";
+    return "gemini-1.5-pro";
   });
-  const [keyModalOpen, setKeyModalOpen] = useState<boolean>(false);
-  const [tempKey, setTempKey] = useState<string>("");
+
+  const handleSelectModel = (modelId: string) => {
+    setSelectedModel(modelId);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("circuit_selected_model", modelId);
+    }
+  };
 
   const initialGreeting = useMemo(() => {
     if (!wallet.address) {
@@ -1189,18 +1208,16 @@ export default function Autonomous() {
         .concat(userMsg)
         .map(m => ({ role: m.role === "agent" ? "assistant" as const : "user" as const, content: m.content }));
       
-      const storedKey = geminiKey || (typeof window !== "undefined" ? localStorage.getItem("circuit_gemini_api_key") : null);
       const res = await fetch("/api/agent/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(storedKey ? { "x-gemini-key": storedKey } : {}),
         },
         signal: abort.signal,
         body: JSON.stringify({
           messages: apiMsgs,
           snapshot: snap,
-          apiKey: storedKey || undefined,
+          model: selectedModel,
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -1279,7 +1296,7 @@ export default function Autonomous() {
       addEvent("error", em);
       setAgentState("FAILED");
     } finally { setStreaming(false); }
-  }, [input, streaming, msgs, snap, addEvent]);
+  }, [input, streaming, msgs, snap, addEvent, selectedModel]);
 
   const onKey = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendWithText(); }
@@ -1423,31 +1440,32 @@ export default function Autonomous() {
 
         {/* ── Header Controls ── */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-          <button
-            type="button"
-            onClick={() => {
-              setTempKey(geminiKey);
-              setKeyModalOpen(true);
-            }}
-            style={{
-              padding: "4px 9px",
-              fontSize: 10,
-              fontFamily: "var(--mono)",
-              background: geminiKey ? "rgba(121, 194, 164, 0.12)" : "rgba(255, 255, 255, 0.05)",
-              border: `1px solid ${geminiKey ? "rgba(121, 194, 164, 0.35)" : "var(--border)"}`,
-              borderRadius: 5,
-              color: geminiKey ? "var(--mint, #79c2a4)" : "var(--text-2)",
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 5,
-              transition: "all var(--t-fast)",
-            }}
-            title="Configure Google Gemini Pro API Key"
-          >
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: geminiKey ? "var(--mint, #79c2a4)" : "var(--text-3)", display: "inline-block" }} />
-            <span>{geminiKey ? "GEMINI PRO: ACTIVE" : "SET GEMINI PRO KEY"}</span>
-          </button>
+          {/* Active Model Selector */}
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 5, padding: "2px 7px" }}>
+            <span style={{ fontSize: 9.5, fontFamily: "var(--mono)", color: "var(--text-3)", letterSpacing: "0.04em" }}>MODEL:</span>
+            <select
+              value={selectedModel}
+              onChange={(e) => handleSelectModel(e.target.value)}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "var(--mint, #79c2a4)",
+                fontSize: 10.5,
+                fontFamily: "var(--mono)",
+                fontWeight: 700,
+                cursor: "pointer",
+                outline: "none",
+                padding: "2px 0",
+              }}
+              title="Select Gemini model by availability and capability"
+            >
+              {AVAILABLE_MODELS.map(m => (
+                <option key={m.id} value={m.id} style={{ background: "var(--surface-1)", color: "var(--text)" }}>
+                  {m.name} ({m.badge})
+                </option>
+              ))}
+            </select>
+          </div>
           <button
             type="button"
             onClick={() => setActiveTab("PERMISSIONS")}
@@ -1489,6 +1507,43 @@ export default function Autonomous() {
           {/* ── Input area — pinned to bottom, centered ── */}
           <div style={{ flexShrink: 0, borderTop: "1px solid var(--border)", background: "var(--surface-1)", padding: "12px 20px 16px" }}>
             <div style={{ maxWidth: 760, margin: "0 auto" }}>
+
+              {/* In-chat Model Selector by Availability */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, gap: 8, flexWrap: "wrap" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 9.5, fontFamily: "var(--mono)", color: "var(--text-3)", letterSpacing: "0.04em" }}>MODEL:</span>
+                  <div style={{ display: "inline-flex", gap: 3, background: "var(--surface-2)", padding: "2px 4px", borderRadius: 6, border: "1px solid var(--border)", flexWrap: "wrap" }}>
+                    {AVAILABLE_MODELS.map(m => {
+                      const isSel = selectedModel === m.id;
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => handleSelectModel(m.id)}
+                          style={{
+                            padding: "3px 8px",
+                            fontSize: 10,
+                            fontFamily: "var(--mono)",
+                            fontWeight: isSel ? 700 : 500,
+                            background: isSel ? "var(--accent, #eceae6)" : "transparent",
+                            color: isSel ? "#0c0c0d" : "var(--text-3)",
+                            border: "none",
+                            borderRadius: 4,
+                            cursor: "pointer",
+                            transition: "all var(--t-fast)",
+                          }}
+                          title={m.desc}
+                        >
+                          {m.name} <span style={{ opacity: 0.75, fontSize: 8.5 }}>({m.badge})</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <span style={{ fontSize: 9, fontFamily: "var(--mono)", color: "var(--text-3)" }}>
+                  Server AI Gateway
+                </span>
+              </div>
 
               {/* Suggested prompts */}
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
@@ -1631,165 +1686,6 @@ export default function Autonomous() {
             updateCounts();
             setActiveTab("CHAT");
           }} />
-        </div>
-      )}
-
-      {/* Gemini Pro Key Configuration Modal */}
-      {keyModalOpen && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0, 0, 0, 0.78)",
-            backdropFilter: "blur(6px)",
-            zIndex: 1000,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 16,
-          }}
-          onClick={() => setKeyModalOpen(false)}
-        >
-          <div
-            style={{
-              background: "var(--surface-1, #121214)",
-              border: "1px solid var(--border-strong, #2e2e34)",
-              borderRadius: "var(--r, 12px)",
-              padding: 24,
-              maxWidth: 480,
-              width: "100%",
-              boxShadow: "0 20px 40px rgba(0, 0, 0, 0.6)",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--mint, #79c2a4)" }} />
-                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "var(--text)" }}>
-                  Google Gemini Pro Setup
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setKeyModalOpen(false)}
-                style={{ background: "transparent", border: "none", color: "var(--text-3)", fontSize: 18, cursor: "pointer" }}
-              >
-                ✕
-              </button>
-            </div>
-
-            <p style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.5, marginBottom: 16 }}>
-              Circuit connects directly to <strong>Google Gemini Pro</strong> (<code>gemini-1.5-pro</code>) via Google's API gateway for financial reasoning, telemetry analysis, and autonomous action synthesis.
-            </p>
-
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: "block", fontSize: 11, fontFamily: "var(--mono)", color: "var(--text-3)", marginBottom: 6, letterSpacing: "0.04em" }}>
-                GEMINI API KEY (Google AI Studio)
-              </label>
-              <input
-                type="password"
-                value={tempKey}
-                onChange={(e) => setTempKey(e.target.value)}
-                placeholder="AIzaSy..."
-                style={{
-                  width: "100%",
-                  padding: "9px 12px",
-                  background: "var(--surface-2)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "var(--r-sm, 6px)",
-                  color: "var(--text)",
-                  fontSize: 13,
-                  fontFamily: "var(--mono)",
-                  outline: "none",
-                  boxSizing: "border-box",
-                }}
-              />
-              <span style={{ display: "block", fontSize: 11, color: "var(--text-3)", marginTop: 6 }}>
-                Your key is saved locally in browser storage and transmitted directly to the serverless AI gateway.
-              </span>
-            </div>
-
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
-              {geminiKey ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    localStorage.removeItem("circuit_gemini_api_key");
-                    setGeminiKey("");
-                    setTempKey("");
-                    setKeyModalOpen(false);
-                  }}
-                  style={{
-                    padding: "6px 12px",
-                    background: "rgba(207, 139, 139, 0.15)",
-                    border: "1px solid rgba(207, 139, 139, 0.3)",
-                    borderRadius: 6,
-                    color: "var(--danger, #cf8b8b)",
-                    fontSize: 11,
-                    fontFamily: "var(--mono)",
-                    cursor: "pointer",
-                  }}
-                >
-                  Remove Key
-                </button>
-              ) : (
-                <a
-                  href="https://aistudio.google.com/app/apikey"
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ fontSize: 11, color: "var(--accent)", textDecoration: "none", fontFamily: "var(--mono)" }}
-                >
-                  Get API Key &rarr;
-                </a>
-              )}
-
-              <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  type="button"
-                  onClick={() => setKeyModalOpen(false)}
-                  style={{
-                    padding: "6px 14px",
-                    background: "transparent",
-                    border: "1px solid var(--border)",
-                    borderRadius: 6,
-                    color: "var(--text-2)",
-                    fontSize: 12,
-                    cursor: "pointer",
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const trimmed = tempKey.trim();
-                    if (trimmed) {
-                      localStorage.setItem("circuit_gemini_api_key", trimmed);
-                      setGeminiKey(trimmed);
-                    } else {
-                      localStorage.removeItem("circuit_gemini_api_key");
-                      setGeminiKey("");
-                    }
-                    setKeyModalOpen(false);
-                  }}
-                  style={{
-                    padding: "6px 16px",
-                    background: "var(--accent, #eceae6)",
-                    border: "none",
-                    borderRadius: 6,
-                    color: "#0c0c0d",
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: "pointer",
-                  }}
-                >
-                  Save Key
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
       )}
 

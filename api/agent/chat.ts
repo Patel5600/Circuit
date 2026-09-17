@@ -136,9 +136,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const apiKey =
-    (req.headers["x-gemini-key"] as string) ||
-    (req.headers["x-api-key"] as string) ||
-    (typeof body.apiKey === "string" ? body.apiKey.trim() : "") ||
+    process.env.GEMINI_AI_KEY ||
     process.env.GEMINI_API_KEY ||
     process.env.GOOGLE_API_KEY ||
     process.env.AI_GATEWAY_API_KEY;
@@ -372,10 +370,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (!upstream.ok) {
       const errText = await upstream.text().catch(() => "");
-      console.error("Gemini Pro upstream error:", upstream.status, errText);
+      console.error("Gemini upstream error:", upstream.status, errText);
       res.setHeader("Content-Type", "text/plain; charset=utf-8");
       res.status(200);
-      res.write(`Gemini Pro model error (HTTP ${upstream.status}${errText ? `: ${errText.slice(0, 150)}` : ""}). On-chain functions fully operational.`);
+      res.write(`Gemini model "${model}" error (HTTP ${upstream.status}${errText ? `: ${errText.slice(0, 150)}` : ""}). Try selecting another model in the chat selector, or verify GEMINI_AI_KEY in Vercel.`);
       return res.end();
     }
 
