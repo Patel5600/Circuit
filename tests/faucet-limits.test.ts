@@ -1,4 +1,5 @@
-﻿import { expect } from "chai";
+import { expect } from "chai";
+import { Keypair } from "@solana/web3.js";
 import {
   FAUCET_ASSETS,
   FAUCET_COOLDOWN_MS,
@@ -7,6 +8,7 @@ import {
   getCooldownRemaining,
   recordClaim,
 } from "../app/src/lib/faucet";
+import { getFaucetAuthority } from "../api/faucet";
 
 describe("Devnet Faucet Limits & Multi-Wallet Isolation Tests", () => {
   // Mock localStorage for Node.js test environment
@@ -127,6 +129,156 @@ describe("Devnet Faucet Limits & Multi-Wallet Isolation Tests", () => {
     it("preserves standard actionable error messages", () => {
       const err = new Error("Invalid Solana address: bad_pubkey");
       expect(sanitizeFaucetError(err)).to.equal("Invalid Solana address: bad_pubkey");
+    });
+  });
+
+  describe("5. Serverless Faucet Authority & Secret Separation", () => {
+    // Generate a temporary 64-byte keypair for testing
+    const testKeypair = Keypair.generate();
+    const validJsonArray = JSON.stringify(Array.from(testKeypair.secretKey));
+    const validCommaSeparated = Array.from(testKeypair.secretKey).join(",");
+
+    it("works with valid FAUCET_AUTHORITY_KEY (JSON array)", () => {
+      const auth = getFaucetAuthority(validJsonArray);
+      expect(auth).to.not.be.null;
+      expect(auth!.publicKey.toBase58()).to.equal(testKeypair.publicKey.toBase58());
+    });
+
+    it("works with valid FAUCET_AUTHORITY_KEY (comma-separated)", () => {
+      const auth = getFaucetAuthority(validCommaSeparated);
+      expect(auth).to.not.be.null;
+      expect(auth!.publicKey.toBase58()).to.equal(testKeypair.publicKey.toBase58());
+    });
+
+    it("fails safely (returns null) when FAUCET_AUTHORITY_KEY is absent", () => {
+      const prev = process.env.FAUCET_AUTHORITY_KEY;
+      delete process.env.FAUCET_AUTHORITY_KEY;
+      try {
+        const auth = getFaucetAuthority();
+        expect(auth).to.be.null;
+      } finally {
+        if (prev) process.env.FAUCET_AUTHORITY_KEY = prev;
+      }
+    });
+
+    it("strictly does NOT use DEPLOYER_KEYPAIR when FAUCET_AUTHORITY_KEY is absent", () => {
+      const prevFaucet = process.env.FAUCET_AUTHORITY_KEY;
+      const prevDeployer = process.env.DEPLOYER_KEYPAIR;
+      delete process.env.FAUCET_AUTHORITY_KEY;
+      process.env.DEPLOYER_KEYPAIR = validJsonArray;
+
+      try {
+        const auth = getFaucetAuthority();
+        // MUST return null, strictly refusing to fall back to DEPLOYER_KEYPAIR
+        expect(auth).to.be.null;
+      } finally {
+        if (prevFaucet) process.env.FAUCET_AUTHORITY_KEY = prevFaucet;
+        else delete process.env.FAUCET_AUTHORITY_KEY;
+
+        if (prevDeployer) process.env.DEPLOYER_KEYPAIR = prevDeployer;
+        else delete process.env.DEPLOYER_KEYPAIR;
+      }
+    });
+
+    it("rejects malformed or invalid-length keys safely without throwing", () => {
+      expect(getFaucetAuthority("not_a_key")).to.be.null;
+      expect(getFaucetAuthority("[1, 2, 3]")).to.be.null; // only 3 bytes, requires 64
+      expect(getFaucetAuthority("")).to.be.null;
+      expect(getFaucetAuthority("   ")).to.be.null;
+    });
+
+    it("verifies that no runtime code in api/ or app/ reads DEPLOYER_KEYPAIR", () => {
+      const fs = require("fs");
+      const path = require("path");
+
+      function scanDir(dir: string): string[] {
+        let results: string[] = [];
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+          const fullPath = path.join(dir, entry.name);
+          if (entry.isDirectory()) {
+            if (entry.name !== "node_modules" && entry.name !== ".git" && entry.name !== "dist") {
+              results = results.concat(scanDir(fullPath));
+            }
+          } else if (/\.(ts|tsx|js|jsx)$/.test(entry.name)) {
+            const content = fs.readFileSync(fullPath, "utf-8");
+            if (content.includes("DEPLOYER_KEYPAIR")) {
+              results.push(fullPath);
+            }
+          }
+        }
+        return results;
+      }
+
+      const apiHits = scanDir(path.resolve(__dirname, "../api"));
+      const appHits = scanDir(path.resolve(__dirname, "../app/src"));
+
+      expect(apiHits).to.deep.equal([]);
+      expect(appHits).to.deep.equal([]);
+    });
+
+    it("verifies deployment tooling still works with DEPLOYER_KEYPAIR", () => {
+      const fs = require("fs");
+      const path = require("path");
+      const os = require("os");
+      const { loadKeypair } = require("../scripts/lib/config");
+
+      const tmpKeyPath = path.join(os.tmpdir(), `circuit_test_deployer_${Date.now()}.json`);
+      fs.writeFileSync(tmpKeyPath, validJsonArray);
+
+      try {
+        const loaded = loadKeypair(tmpKeyPath);
+        expect(loaded).to.not.be.null;
+        expect(loaded.publicKey.toBase58()).to.equal(testKeypair.publicKey.toBase58());
+      } finally {
+        if (fs.existsSync(tmpKeyPath)) fs.unlinkSync(tmpKeyPath);
+      }
+    });
+
+    it("verifies Gemini server route handles requests safely without crashing or leaking keys", async () => {
+      const chatHandler = require("../api/agent/chat").default;
+
+      let responseContent = "";
+      let statusCode = 200;
+      const headers: Record<string, string> = {};
+
+      const mockReq = {
+        method: "POST",
+        body: {
+          messages: [{ role: "user", content: "What can I do with my position right now?" }],
+          snapshot: {
+            walletAddress: "7UVimffxr9ow1uXYxsr4LHAcV58mLzhmwaeKvJ1pjLiE",
+            controlMode: "MANUAL",
+            hasActiveAuthority: false,
+            riskRatchetState: "SAFE",
+            isMarketOpen: true,
+            totalCollateralUsd: 1500,
+            totalDebtUsd: 200,
+            availableCreditUsd: 420,
+            healthFactor: 2.15,
+            positions: [{ symbol: "NVDA", collateralValueUsd: 1500, debtUi: 200, mint: "CARqKy5GTCxz5G1tFiYA96A3Q8jaUE9Vppk7cjGJxRqq" }],
+            markets: [{ symbol: "NVDA", price: 138.25, change24hPct: 3.4 }],
+            onChainAuthorities: [],
+          },
+        },
+      };
+
+      const mockRes = {
+        setHeader: (k: string, v: string) => { headers[k] = v; },
+        status: (code: number) => { statusCode = code; return mockRes; },
+        write: (chunk: string) => { responseContent += chunk; },
+        end: () => {},
+      };
+
+      await chatHandler(mockReq, mockRes);
+
+      expect(statusCode).to.equal(200);
+      expect(responseContent).to.be.a("string");
+      expect(responseContent.length).to.be.greaterThan(0);
+      // Response must NOT contain any secret key material
+      expect(responseContent).to.not.include("GEMINI_AI_KEY=");
+      expect(responseContent).to.not.include("FAUCET_AUTHORITY_KEY=");
+      expect(responseContent).to.not.include("DEPLOYER_KEYPAIR=");
     });
   });
 });

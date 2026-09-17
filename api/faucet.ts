@@ -14,17 +14,33 @@ import {
 
 const RPC_URL = process.env.VITE_RPC_URL || "https://api.devnet.solana.com";
 
-function getAuthority(): Keypair | null {
-  const secretEnv = process.env.FAUCET_AUTHORITY_KEY || process.env.DEPLOYER_KEYPAIR;
-  if (!secretEnv) return null;
+/**
+ * Resolves the faucet signing authority from FAUCET_AUTHORITY_KEY.
+ * Dedicated single-purpose faucet authority.
+ */
+export function getFaucetAuthority(overrideSecret?: string): Keypair | null {
+  const secretEnv = overrideSecret !== undefined ? overrideSecret : process.env.FAUCET_AUTHORITY_KEY;
+  if (!secretEnv || typeof secretEnv !== "string" || !secretEnv.trim()) {
+    return null;
+  }
+
   try {
-    if (secretEnv.startsWith("[")) {
-      return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(secretEnv)));
+    const trimmed = secretEnv.trim();
+    let bytes: number[];
+    if (trimmed.startsWith("[")) {
+      bytes = JSON.parse(trimmed);
+    } else {
+      bytes = trimmed.split(",").map((n) => Number(n.trim()));
     }
-    // Fallback: comma-separated
-    return Keypair.fromSecretKey(Uint8Array.from(secretEnv.split(",").map((n) => Number(n.trim()))));
-  } catch (e) {
-    console.error("Failed to parse FAUCET_AUTHORITY_KEY", e);
+
+    if (!Array.isArray(bytes) || bytes.length !== 64 || bytes.some((b) => isNaN(b) || b < 0 || b > 255)) {
+      console.error("FAUCET_AUTHORITY_KEY must be a valid 64-byte secret key array");
+      return null;
+    }
+
+    return Keypair.fromSecretKey(Uint8Array.from(bytes));
+  } catch {
+    console.error("Failed to parse FAUCET_AUTHORITY_KEY");
     return null;
   }
 }
@@ -42,7 +58,7 @@ export default async function handler(req: any, res: any) {
     return;
   }
 
-  const authority = getAuthority();
+  const authority = getFaucetAuthority();
   if (!authority) {
     res.status(503).json({
       error: "Devnet Faucet authority is offline or not configured in environment.",
