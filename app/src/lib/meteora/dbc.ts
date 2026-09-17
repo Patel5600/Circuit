@@ -43,9 +43,10 @@ export interface DbcPoolInfo {
   poolAddress: PublicKey;
   baseMint: PublicKey;
   quoteMint: PublicKey;
-  sqrtPrice: bigint;
-  liquidity: bigint;
+  sqrtPrice: bigint | null;
+  liquidity: bigint | null;
   isMigrated: boolean;
+  environment: "DEVNET TEST POOL" | "MAINNET PRODUCTION";
 }
 
 export interface DbcSwapQuote {
@@ -88,6 +89,7 @@ export function deriveAssetRegistryPda(
 
 /**
  * Fetches and parses a Meteora DBC pool account from Solana.
+ * Reports actual observed state on Devnet; zero synthetic liquidity numbers.
  */
 export async function getDbcPoolState(
   connection: Connection,
@@ -107,9 +109,10 @@ export async function getDbcPoolState(
       poolAddress,
       baseMint,
       quoteMint,
-      sqrtPrice: BigInt(1),
-      liquidity: BigInt(1_000_000_000),
+      sqrtPrice: null, // Unobserved / null on uninitialized secondary curve
+      liquidity: null, // Zero synthetic data: reported as null/unobserved
       isMigrated: false,
+      environment: "DEVNET TEST POOL",
     };
   } catch (err) {
     console.warn("Could not fetch DBC pool state:", err);

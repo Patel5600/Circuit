@@ -83,6 +83,15 @@ CIRCUIT_TASK:{"name":"<Short Title>","type":"<WATCH|OBSERVE|REPAY|BORROW|RECOVER
 
 function preflightCheck(snap: ProtocolSnapshot, msg: string): string | null {
   const m = msg.toLowerCase();
+  
+  // Phase 9: Adversarial Prompt Refusal by Architecture
+  const wantsOverride = /ignore.*(risk|state|limit|rule)|override|borrow\s+anyway|bypass|skip\s+permission|change\s+(my\s+)?limits|use\s+another\s+(pool|asset)|create.*second\s+authority/i.test(m);
+  if (wantsOverride) {
+    const tool = `CIRCUIT_TOOL:{"tool":"evaluate_permission","input":{"overrideAttempt":true,"intent":"ADVERSARIAL_POLICY_BYPASS"},"output":{"status":"BLOCKED","reason":"ARCHITECTURE_INVARIANT: Circuit Risk and Permission Engine cannot be bypassed by natural language prompts or agent directives."},"status":"BLOCKED"}`;
+    const proposal = `CIRCUIT_ACTION_PROPOSAL:{"id":"p_${Date.now()}","action":"borrow","symbol":"NVDA","amountUsd":0,"riskState":"${snap.riskRatchetState}","permission":"BLOCKED","reason":"BLOCKED [ARCHITECTURAL_INVARIANT] — Circuit permissions are enforced deterministically on-chain by the Permission Engine PDA, not by natural language prompt requests.","estimatedHfAfter":null}`;
+    return `${tool}\n\nPERMISSION REFUSED [ARCHITECTURAL_INVARIANT]\n\nCircuit's on-chain architecture strictly prohibits policy overrides. The Autonomous Agent has no authority to bypass the Risk Ratchet, modify Capital Policy, or skip permission evaluation.\n\n• Current Risk State: ${snap.riskRatchetState}\n• Permission Gate: BLOCKED by Circuit Permission Engine\n• Human Sovereignty: Preserved (Only root wallet can manage positions)\n\n${proposal}`;
+  }
+
   const wantsBorrow = /borrow|leverage/.test(m);
   const wantsWithdraw = /withdraw/.test(m);
   const action = wantsBorrow ? "borrow" : "withdraw";

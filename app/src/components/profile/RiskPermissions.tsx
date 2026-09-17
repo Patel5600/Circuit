@@ -52,6 +52,26 @@ export function RiskPermissions({
     ? "BLOCKED"
     : "RESTRICTED";
 
+  const dbcAllowed = riskState === "SAFE";
+  const dbcStatus = riskState === "SAFE" ? "ALLOWED" : riskState === "RESTRICTED" ? "CAPPED" : "BLOCKED";
+  const dbcTone: Tone = riskState === "SAFE" ? "success" : riskState === "RESTRICTED" ? "warning" : "danger";
+  const dbcReason =
+    riskState === "SAFE"
+      ? "Meteora DBC virtual pool swaps and entries permitted at 100% capacity"
+      : riskState === "RESTRICTED"
+      ? "Meteora DBC volume capped to 50% capacity with 100 bps max slippage"
+      : "Trading venue entries and swaps suspended to defend protocol liquidity";
+
+  const agentActive = riskState === "SAFE" || riskState === "RESTRICTED";
+  const agentStatus = riskState === "SAFE" ? "ACTIVE" : riskState === "RESTRICTED" ? "ADAPTIVE" : "PAUSED BY POLICY";
+  const agentTone: Tone = riskState === "SAFE" ? "success" : riskState === "RESTRICTED" ? "warning" : "danger";
+  const agentReason =
+    riskState === "SAFE"
+      ? "Autonomous agent may execute bounded actions within delegated authority limits"
+      : riskState === "RESTRICTED"
+      ? "Agent execution active with adaptive risk caps (50% borrow and DBC limits)"
+      : `Risk-increasing agent execution paused by ${riskState} Capital Policy`;
+
   const rows: PermissionRow[] = [
     {
       action: "Borrow",
@@ -68,11 +88,11 @@ export function RiskPermissions({
           : "Full capacity unlocked under active risk posture",
     },
     {
-      action: "Withdraw",
-      allowed: withdrawAllowed,
-      statusText: withdrawStatus,
-      tone: withdrawAllowed ? "success" : "danger",
-      reason: withdrawReason || (withdrawAllowed ? "Withdrawals permitted while position remains solvent" : isEmergency ? "Risk-increasing withdrawals halted in Emergency state" : "No deposited collateral to withdraw"),
+      action: "New DBC Exposure",
+      allowed: dbcAllowed,
+      statusText: dbcStatus,
+      tone: dbcTone,
+      reason: dbcReason,
     },
     {
       action: "Repay",
@@ -83,13 +103,26 @@ export function RiskPermissions({
       reason: "Deleveraging paths remain unconditionally open under all protocol states",
     },
     {
-      action: "Liquidate",
-      allowed: !liquidationActive,
-      statusText: liquidationActive ? "ACTIVE" : "INACTIVE",
-      tone: liquidationActive ? "danger" : "neutral",
-      reason: liquidationActive
-        ? `Position eligible for liquidation (Health Factor < 1.00)`
-        : "Collateral comfortably exceeds liquidation threshold",
+      action: "Recovery / Exit Liquidity",
+      allowed: true,
+      alwaysAllowed: true,
+      statusText: "ALLOWED",
+      tone: "success",
+      reason: "Capital exit and emergency deleveraging remain available across all risk states",
+    },
+    {
+      action: "Withdraw",
+      allowed: withdrawAllowed,
+      statusText: withdrawStatus,
+      tone: withdrawAllowed ? "success" : "danger",
+      reason: withdrawReason || (withdrawAllowed ? "Withdrawals permitted while position remains solvent" : isEmergency ? "Risk-increasing withdrawals halted in Emergency state" : "No deposited collateral to withdraw"),
+    },
+    {
+      action: "Agent Execution",
+      allowed: agentActive,
+      statusText: agentStatus,
+      tone: agentTone,
+      reason: agentReason,
     },
     {
       action: "Deposit",

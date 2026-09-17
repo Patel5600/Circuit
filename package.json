@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "test": "ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts",
-    "test:unit": "ts-mocha -p ./tsconfig.json tests/automation-engine.test.ts tests/decimal-safety.test.ts tests/faucet-limits.test.ts tests/pipeline-narrative.test.ts tests/wallet-network.test.ts",
+    "test:unit": "ts-mocha -p ./tsconfig.json tests/automation-engine.test.ts tests/decimal-safety.test.ts tests/faucet-limits.test.ts tests/pipeline-narrative.test.ts tests/wallet-network.test.ts tests/position-context.test.ts tests/adversarial-dbc-permission.test.ts tests/final-architectural-invariants.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "setup:devnet": "ts-node scripts/setup-devnet.ts",
     "fund": "ts-node scripts/fund-wallet.ts",

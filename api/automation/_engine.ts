@@ -225,14 +225,34 @@ export function evaluateCondition(
 
 export function checkAutomationPermission(
   task: AutomationTask,
-  state: PortfolioState
+  state: PortfolioState,
+  requestedAmountUsd?: number,
+  targetSymbol?: string
 ): { allowed: boolean; reasonCode: string } {
+  // 1. Task Lifecycle & Active Status
+  if (task.status !== "ACTIVE") {
+    return { allowed: false, reasonCode: "TASK_NOT_ACTIVE" };
+  }
+  if (task.expiresAt && task.expiresAt < Date.now()) {
+    return { allowed: false, reasonCode: "TASK_EXPIRED" };
+  }
+
   // OBSERVE/ANALYZE/REPORT/WATCH never require authority
   if (["OBSERVE", "ANALYZE", "REPORT", "WATCH"].includes(task.type)) {
     return { allowed: true, reasonCode: "ALLOWED" };
   }
 
-  // Global Risk Ratchet Gates
+  // 2. Oracle Freshness Gate
+  if (state.oracleFreshnessMs > 60_000 && ["BORROW", "SWAP", "ENTER_LIQUIDITY"].includes(task.type)) {
+    return { allowed: false, reasonCode: "ORACLE_STALE" };
+  }
+
+  // 3. Asset Scope Gate
+  if (targetSymbol && task.policy?.assetScope && !task.policy.assetScope.includes(targetSymbol)) {
+    return { allowed: false, reasonCode: "ASSET_OUT_OF_SCOPE" };
+  }
+
+  // 4. Global Risk Ratchet Gates
   if (state.riskState === "EMERGENCY") {
     if (["BORROW", "WITHDRAW", "REBALANCE", "SWAP", "ENTER_LIQUIDITY"].includes(task.type)) {
       return { allowed: false, reasonCode: "RISK_STATE_RESTRICTED" };
@@ -264,7 +284,7 @@ export function checkAutomationPermission(
     }
   }
 
-  // Hard limits
+  // 5. Hard Execution Limits
   if (task.executionsToday >= task.maxExecutionsPerDay) {
     return { allowed: false, reasonCode: "DAILY_LIMIT_EXCEEDED" };
   }
@@ -273,7 +293,16 @@ export function checkAutomationPermission(
     return { allowed: false, reasonCode: "CONSECUTIVE_FAILURES_EXCEEDED" };
   }
 
-  // Policy amount bounds
+  // 6. Policy Amount Bounds & Sanitization
+  if (requestedAmountUsd !== undefined) {
+    if (isNaN(requestedAmountUsd) || requestedAmountUsd <= 0) {
+      return { allowed: false, reasonCode: "INVALID_AMOUNT" };
+    }
+    if (task.policy && requestedAmountUsd > task.policy.maxAmountPerActionUsd) {
+      return { allowed: false, reasonCode: "POLICY_AMOUNT_EXCEEDED" };
+    }
+  }
+
   if (task.policy) {
     if (task.policy.maxAmountPerActionUsd <= 0) {
       return { allowed: false, reasonCode: "POLICY_AMOUNT_ZERO" };

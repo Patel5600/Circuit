@@ -407,46 +407,51 @@ function ActionProposalCard({
           ✕ Blocked by your current risk limits. The risk system is currently in {proposal.riskState} state, preventing risk-increasing transactions.
         </div>
       ) : (
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button
-            type="button"
-            disabled={executed}
-            onClick={() => {
-              setExecuted(true);
-              onApprove(proposal);
-            }}
-            style={{
-              flex: 1,
-              padding: "8px 14px",
-              fontSize: 11,
-              fontWeight: 700,
-              fontFamily: "var(--mono)",
-              background: executed ? "rgba(121,194,164,0.15)" : "var(--accent, #eceae6)",
-              color: executed ? "var(--mint, #79c2a4)" : "#0c0c0d",
-              border: "none",
-              borderRadius: 6,
-              cursor: executed ? "default" : "pointer",
-              transition: "all 0.15s ease",
-            }}
-          >
-            {executed ? "✓ OPENED FOR EXECUTION" : `APPROVE & EXECUTE ON DEVNET →`}
-          </button>
-          <button
-            type="button"
-            onClick={onDismiss}
-            style={{
-              padding: "8px 12px",
-              fontSize: 11,
-              fontFamily: "var(--mono)",
-              background: "transparent",
-              border: "1px solid var(--border)",
-              borderRadius: 6,
-              color: "var(--text-3)",
-              cursor: "pointer",
-            }}
-          >
-            DECLINE
-          </button>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ fontSize: 10, color: "var(--text-3)", fontFamily: "var(--mono)", letterSpacing: "0.02em" }}>
+            Interactive confirmation required · Browser client routes signing to your connected wallet
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button
+              type="button"
+              disabled={executed}
+              onClick={() => {
+                setExecuted(true);
+                onApprove(proposal);
+              }}
+              style={{
+                flex: 1,
+                padding: "8px 14px",
+                fontSize: 11,
+                fontWeight: 700,
+                fontFamily: "var(--mono)",
+                background: executed ? "rgba(121,194,164,0.15)" : "var(--accent, #eceae6)",
+                color: executed ? "var(--mint, #79c2a4)" : "#0c0c0d",
+                border: "none",
+                borderRadius: 6,
+                cursor: executed ? "default" : "pointer",
+                transition: "all 0.15s ease",
+              }}
+            >
+              {executed ? "✓ OPENED FOR EXECUTION" : `APPROVE & EXECUTE ON DEVNET →`}
+            </button>
+            <button
+              type="button"
+              onClick={onDismiss}
+              style={{
+                padding: "8px 12px",
+                fontSize: 11,
+                fontFamily: "var(--mono)",
+                background: "transparent",
+                border: "1px solid var(--border)",
+                borderRadius: 6,
+                color: "var(--text-3)",
+                cursor: "pointer",
+              }}
+            >
+              DECLINE
+            </button>
+          </div>
         </div>
       )}
     </div>
