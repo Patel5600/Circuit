@@ -43,15 +43,15 @@ function AssetActionDrawerContent({ intent }: { intent: ActionIntent }) {
   const s = useProtocolState(market);
   const tx = useTransaction(market);
 
-  const [amount, setAmount] = useState("");
+  const [amount, setAmount] = useState(intent.amount ?? "");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Clear amount when action or market changes
+  // Clear or set amount when action or market changes
   useEffect(() => {
-    setAmount("");
+    setAmount(intent.amount ?? "");
     setErrorMsg(null);
     tx.reset?.();
-  }, [intent.market.symbol, intent.type]);
+  }, [intent.market.symbol, intent.type, intent.amount]);
 
   const quoteSymbol = market.quoteSymbol || "USDC";
   const displaySymbol = market.symbol;

@@ -8,6 +8,7 @@ export interface ActionIntent {
   type: ActionType;
   market: DeployedMarket;
   position?: PositionModel | null;
+  amount?: string;
 }
 
 interface ActionContextValue {
@@ -16,6 +17,7 @@ interface ActionContextValue {
     type: ActionType;
     market: DeployedMarket | string;
     position?: PositionModel | null;
+    amount?: string;
   }) => void;
   closeAction: () => void;
   setActionType: (type: ActionType) => void;
@@ -31,10 +33,12 @@ export function ActionProvider({ children }: { children: React.ReactNode }) {
       type,
       market,
       position,
+      amount,
     }: {
       type: ActionType;
       market: DeployedMarket | string;
       position?: PositionModel | null;
+      amount?: string;
     }) => {
       let resolvedMarket: DeployedMarket | undefined;
       if (typeof market === "string") {
@@ -53,6 +57,7 @@ export function ActionProvider({ children }: { children: React.ReactNode }) {
         type,
         market: resolvedMarket,
         position: position ?? null,
+        amount,
       });
     },
     []

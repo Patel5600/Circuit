@@ -15,8 +15,9 @@ const PRIMARY: { to: string; label: string; icon: IconName }[] = [
   { to: "/app", label: "Dashboard", icon: "dashboard" },
   { to: "/app/markets", label: "Markets", icon: "markets" },
   { to: "/app/position", label: "Position", icon: "position" },
-  { to: "/app/activity", label: "Activity", icon: "activity" },
   { to: "/app/borrow", label: "Borrow", icon: "borrow" },
+  { to: "/app/autonomous", label: "Autonomous", icon: "gauge" },
+  { to: "/app/activity", label: "Activity", icon: "activity" },
 ];
 
 const SECONDARY: { to: string; label: string; icon: IconName }[] = [
@@ -128,12 +129,8 @@ function Header({ onOpenHealth }: { onOpenHealth: () => void }) {
           <button
             type="button"
             onClick={() => {
-              if (!hasActiveAuthority) {
-                openAuthoritySetup();
-              } else {
-                setControlMode("AUTONOMOUS");
-                navigate("/app/autonomous");
-              }
+              setControlMode("AUTONOMOUS");
+              navigate("/app/autonomous");
             }}
             style={{
               padding: "5px 10px",
