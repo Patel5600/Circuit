@@ -1063,11 +1063,11 @@ export interface AgentModelOption {
   desc: string;
 }
 
-const AVAILABLE_MODELS: AgentModelOption[] = [
-  { id: "gemini-1.5-pro", name: "Gemini 1.5 Pro", badge: "PRO", desc: "Recommended: Deep financial reasoning & risk synthesis" },
-  { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash", badge: "2.0 FLASH", desc: "Ultra-fast next-gen response" },
-  { id: "gemini-1.5-flash", name: "Gemini 1.5 Flash", badge: "FLASH", desc: "Lightweight streaming" },
-  { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", badge: "PREVIEW", desc: "Frontier multimodal reasoning" },
+const DEFAULT_MODELS: AgentModelOption[] = [
+  { id: "gemini-3.6-flash", name: "Gemini 3.6 Flash", badge: "ACTIVE", desc: "Recommended: Deep financial reasoning & risk synthesis" },
+  { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", badge: "FAST", desc: "High-speed streaming inference" },
+  { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash", badge: "2.0 FLASH", desc: "Next-gen execution flow" },
+  { id: "gemini-1.5-flash", name: "Gemini 1.5 Flash", badge: "FLASH", desc: "Lightweight fallback" },
 ];
 
 export default function Autonomous() {
@@ -1086,14 +1086,55 @@ export default function Autonomous() {
 
   const [activeTab, setActiveTab] = useState<TabId>(initialTab);
   const [taskCounts, setTaskCounts] = useState({ total: 0, watches: 0, strategies: 0, executions: 0 });
+  const [availableModels, setAvailableModels] = useState<AgentModelOption[]>(DEFAULT_MODELS);
 
-  // Gemini model selection (defaults to gemini-1.5-pro, switches by availability)
+  // Gemini model selection (defaults to gemini-3.6-flash, dynamically switches by availability)
   const [selectedModel, setSelectedModel] = useState<string>(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("circuit_selected_model") || "gemini-1.5-pro";
+      return localStorage.getItem("circuit_selected_model") || "gemini-3.6-flash";
     }
-    return "gemini-1.5-pro";
+    return "gemini-3.6-flash";
   });
+
+  useEffect(() => {
+    let active = true;
+    async function fetchLiveModels() {
+      try {
+        const res = await fetch("/api/agent/chat");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data && Array.isArray(data.models) && data.models.length > 0) {
+          const geminiModels: AgentModelOption[] = data.models
+            .filter((m: any) => m.supportedGenerationMethods?.includes("generateContent"))
+            .map((m: any) => {
+              const id = m.name?.replace(/^models\//, "") || "";
+              const displayName = m.displayName || id;
+              const isFlash = id.includes("flash");
+              const isPro = id.includes("pro");
+              return {
+                id,
+                name: displayName,
+                badge: isPro ? "PRO" : isFlash ? "FLASH" : "ACTIVE",
+                desc: m.description ? m.description.slice(0, 60) + "..." : "Gemini generative model",
+              };
+            })
+            .filter((m: AgentModelOption) => m.id);
+
+          if (active && geminiModels.length > 0) {
+            setAvailableModels(geminiModels);
+            if (!geminiModels.some(m => m.id === selectedModel)) {
+              const preferred = geminiModels.find(m => m.id.includes("3.6-flash"))?.id || geminiModels[0].id;
+              setSelectedModel(preferred);
+            }
+          }
+        }
+      } catch {
+        // Retain DEFAULT_MODELS on network or CORS fallback
+      }
+    }
+    fetchLiveModels();
+    return () => { active = false; };
+  }, []);
 
   const handleSelectModel = (modelId: string) => {
     setSelectedModel(modelId);
@@ -1657,7 +1698,7 @@ export default function Autonomous() {
               }}
               title="Select Gemini model by availability and capability"
             >
-              {AVAILABLE_MODELS.map(m => (
+              {availableModels.map(m => (
                 <option key={m.id} value={m.id} style={{ background: "var(--surface-1)", color: "var(--text)" }}>
                   {m.name} ({m.badge})
                 </option>
@@ -1720,7 +1761,7 @@ export default function Autonomous() {
                 <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                   <span style={{ fontSize: 9.5, fontFamily: "var(--mono)", color: "var(--text-3)", letterSpacing: "0.04em" }}>MODEL:</span>
                   <div style={{ display: "inline-flex", gap: 3, background: "var(--surface-2)", padding: "2px 4px", borderRadius: 6, border: "1px solid var(--border)", flexWrap: "wrap" }}>
-                    {AVAILABLE_MODELS.map(m => {
+                    {availableModels.map(m => {
                       const isSel = selectedModel === m.id;
                       return (
                         <button

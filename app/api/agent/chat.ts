@@ -114,12 +114,35 @@ function preflightCheck(snap: ProtocolSnapshot, msg: string): string | null {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === "OPTIONS") {
     res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
     return res.status(204).end();
   }
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
   res.setHeader("Access-Control-Allow-Origin", "*");
+
+  const apiKey =
+    process.env.GEMINI_AI_KEY ||
+    process.env.GEMINI_API_KEY ||
+    process.env.GOOGLE_API_KEY ||
+    process.env.AI_GATEWAY_API_KEY;
+
+  if (req.method === "GET") {
+    if (!apiKey) {
+      return res.status(200).json({ models: [] });
+    }
+    try {
+      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`);
+      if (!resp.ok) {
+        return res.status(resp.status).json({ error: "Failed to list models from Gemini API" });
+      }
+      const data = await resp.json();
+      return res.status(200).json(data);
+    } catch (e: any) {
+      return res.status(500).json({ error: e?.message || "Failed" });
+    }
+  }
+
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const body = req.body as ChatRequest;
   if (!body?.messages || !Array.isArray(body.messages)) return res.status(400).json({ error: "messages required" });
@@ -134,12 +157,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.write(blocked);
     return res.end();
   }
-
-  const apiKey =
-    process.env.GEMINI_AI_KEY ||
-    process.env.GEMINI_API_KEY ||
-    process.env.GOOGLE_API_KEY ||
-    process.env.AI_GATEWAY_API_KEY;
 
   if (!apiKey) {
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
@@ -346,7 +363,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     (typeof body.model === "string" ? body.model.trim() : "") ||
     process.env.GEMINI_MODEL ||
     process.env.AI_MODEL ||
-    (isGemini ? "gemini-1.5-pro" : "gpt-4o-mini");
+    (isGemini ? "gemini-3.6-flash" : "gpt-4o-mini");
 
   try {
     const url = isGemini && !baseUrl.includes("key=")
