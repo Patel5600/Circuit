@@ -373,7 +373,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.error("Gemini upstream error:", upstream.status, errText);
       res.setHeader("Content-Type", "text/plain; charset=utf-8");
       res.status(200);
-      res.write(`Gemini model "${model}" error (HTTP ${upstream.status}${errText ? `: ${errText.slice(0, 150)}` : ""}). Try selecting another model in the chat selector, or verify GEMINI_AI_KEY in Vercel.`);
+      res.write(`Gemini model "${model}" error (HTTP ${upstream.status}${errText ? `: ${errText.slice(0, 1000)}` : ""}). Try selecting another model in the chat selector, or verify GEMINI_AI_KEY in Vercel.`);
       return res.end();
     }
 
