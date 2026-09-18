@@ -47,6 +47,14 @@ import {
   TransactionBlock,
 } from "../components/autonomous/AgentBlocks";
 import { ProtocolAction } from "../lib/permission-engine";
+import {
+  AgentModelOption,
+  CURATED_MODELS,
+  DEFAULT_MODEL_ID,
+  FALLBACK_MODEL_ID,
+  filterCuratedModels,
+} from "../lib/agent/curatedModels";
+import { getContextualSuggestions } from "../lib/agent/suggestions";
 
 export type AgentState =
   | "IDLE" | "PLANNING" | "AWAITING_APPROVAL" | "CHECKING_PERMISSION"
@@ -1056,20 +1064,172 @@ function parseStrategyFromText(text: string): StrategyPlan | null {
   };
 }
 
-export interface AgentModelOption {
-  id: string;
-  name: string;
-  badge: string;
-  desc: string;
-}
+export type { AgentModelOption };
+export { CURATED_MODELS, getContextualSuggestions };
 
-const DEFAULT_MODELS: AgentModelOption[] = [
-  { id: "gemini-3.6-flash", name: "Gemini 3.6 Flash", badge: "ACTIVE", desc: "Recommended: Deep financial reasoning & risk synthesis" },
-  { id: "gemini-3.7-flash", name: "Gemini 3.7 Flash", badge: "HYBRID", desc: "High precision agent execution" },
-  { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash", badge: "ADVANCED", desc: "Advanced reasoning & telemetry" },
-  { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", badge: "FAST", desc: "Low latency streaming" },
-  { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", badge: "PRO", desc: "Complex multi-step portfolio analysis" },
-];
+export function ModelSelectorPopover({
+  selectedModelId,
+  availableModels,
+  onSelectModel,
+}: {
+  selectedModelId: string;
+  availableModels: AgentModelOption[];
+  onSelectModel: (id: string) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const selectedModel = useMemo(() => {
+    return availableModels.find(m => m.id === selectedModelId) || availableModels[0] || CURATED_MODELS[0];
+  }, [availableModels, selectedModelId]);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isOpen]);
+
+  // Close on Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen]);
+
+  return (
+    <div ref={containerRef} style={{ position: "relative", display: "inline-block" }}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(prev => !prev)}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          background: "var(--surface-2)",
+          border: `1px solid ${isOpen ? "var(--text-3)" : "var(--border)"}`,
+          borderRadius: 5,
+          padding: "2px 7px",
+          color: "var(--text)",
+          cursor: "pointer",
+          fontFamily: "var(--mono)",
+          fontSize: 10.5,
+          transition: "border-color var(--t-fast), background var(--t-fast)",
+        }}
+        title="Select model for agent reasoning and execution"
+      >
+        <span style={{ fontSize: 9.5, color: "var(--text-3)", letterSpacing: "0.04em" }}>MODEL:</span>
+        <span style={{ fontWeight: 600, color: "var(--mint, #79c2a4)" }}>{selectedModel.name}</span>
+        <span style={{
+          fontSize: 8,
+          color: "var(--text-3)",
+          transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
+          transition: "transform 0.15s ease",
+          display: "inline-block",
+        }}>
+          ▼
+        </span>
+      </button>
+
+      {isOpen && (
+        <div
+          role="listbox"
+          style={{
+            position: "absolute",
+            top: "calc(100% + 4px)",
+            right: 0,
+            zIndex: 100,
+            width: 250,
+            background: "var(--surface-1)",
+            border: "1px solid var(--border)",
+            borderRadius: 6,
+            boxShadow: "0 10px 28px rgba(0, 0, 0, 0.7)",
+            padding: 4,
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+            fontFamily: "var(--mono)",
+          }}
+        >
+          <div style={{ padding: "4px 8px 6px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 9, color: "var(--text-3)", letterSpacing: "0.08em", fontWeight: 700 }}>
+              REASONING MODEL
+            </span>
+            <span style={{ fontSize: 8.5, color: "var(--text-3)" }}>
+              {availableModels.length} models
+            </span>
+          </div>
+          {availableModels.map(m => {
+            const isSel = m.id === selectedModel.id;
+            return (
+              <button
+                key={m.id}
+                type="button"
+                role="option"
+                aria-selected={isSel}
+                onClick={() => {
+                  onSelectModel(m.id);
+                  setIsOpen(false);
+                }}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "flex-start",
+                  gap: 2,
+                  padding: "6px 8px",
+                  borderRadius: 4,
+                  background: isSel ? "var(--surface-2)" : "transparent",
+                  border: isSel ? "1px solid var(--border)" : "1px solid transparent",
+                  cursor: "pointer",
+                  textAlign: "left",
+                  transition: "background var(--t-fast)",
+                }}
+                onMouseEnter={e => {
+                  if (!isSel) e.currentTarget.style.background = "var(--surface-2)";
+                }}
+                onMouseLeave={e => {
+                  if (!isSel) e.currentTarget.style.background = "transparent";
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+                  <span style={{ fontSize: 10.5, fontWeight: isSel ? 700 : 500, color: isSel ? "var(--mint, #79c2a4)" : "var(--text)" }}>
+                    {m.name}
+                  </span>
+                  <span style={{
+                    fontSize: 8,
+                    fontWeight: 700,
+                    padding: "1px 4px",
+                    borderRadius: 3,
+                    background: isSel ? "rgba(121,194,164,0.15)" : "rgba(255,255,255,0.04)",
+                    color: isSel ? "var(--mint, #79c2a4)" : "var(--text-3)",
+                    border: "1px solid var(--border)",
+                  }}>
+                    {m.badge}
+                  </span>
+                </div>
+                <span style={{ fontSize: 9, color: "var(--text-3)", lineHeight: 1.3 }}>
+                  {m.desc}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function TelemetryContextPanel({
   activeAsset,
@@ -1271,14 +1431,18 @@ export default function Autonomous() {
 
   const [activeTab, setActiveTab] = useState<TabId>(initialTab);
   const [taskCounts, setTaskCounts] = useState({ total: 0, watches: 0, strategies: 0, executions: 0 });
-  const [availableModels, setAvailableModels] = useState<AgentModelOption[]>(DEFAULT_MODELS);
+  const [availableModels, setAvailableModels] = useState<AgentModelOption[]>(CURATED_MODELS);
 
-  // Gemini model selection (defaults to gemini-3.6-flash, dynamically switches by availability)
+  // Gemini model selection (defaults to gemini-3.8-flash, dynamically switches by availability)
   const [selectedModel, setSelectedModel] = useState<string>(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("circuit_selected_model") || "gemini-3.6-flash";
+      const stored = localStorage.getItem("circuit_selected_model");
+      if (stored && CURATED_MODELS.some(m => m.id === stored)) {
+        return stored;
+      }
+      return "gemini-3.8-flash";
     }
-    return "gemini-3.6-flash";
+    return "gemini-3.8-flash";
   });
 
   const [input, setInput] = useState("");
@@ -1295,41 +1459,22 @@ export default function Autonomous() {
         if (!res.ok) return;
         const data = await res.json();
         if (data && Array.isArray(data.models) && data.models.length > 0) {
-          const geminiModels: AgentModelOption[] = data.models
-            .filter((m: any) => {
-              const id = m.name?.replace(/^models\//, "") || "";
-              if (id.startsWith("gemini-1.") || id === "gemini-2.0-flash") return false;
-              return m.supportedGenerationMethods?.includes("generateContent");
-            })
-            .map((m: any) => {
-              const id = m.name?.replace(/^models\//, "") || "";
-              const displayName = m.displayName || id;
-              const isFlash = id.includes("flash");
-              const isPro = id.includes("pro");
-              return {
-                id,
-                name: displayName,
-                badge: isPro ? "PRO" : isFlash ? "FLASH" : "ACTIVE",
-                desc: m.description ? m.description.slice(0, 60) + "..." : "Gemini generative model",
-              };
-            })
-            .filter((m: AgentModelOption) => m.id);
-
-          if (active && geminiModels.length > 0) {
-            setAvailableModels(geminiModels);
-            if (!geminiModels.some(m => m.id === selectedModel)) {
-              const preferred = geminiModels.find(m => m.id.includes("3.6-flash"))?.id || geminiModels[0].id;
-              setSelectedModel(preferred);
+          // Verify availability against curated list only — NEVER allow raw catalog to populate UI!
+          const verifiedModels = filterCuratedModels(data.models);
+          if (active && verifiedModels.length > 0) {
+            setAvailableModels(verifiedModels);
+            if (!verifiedModels.some(m => m.id === selectedModel)) {
+              setSelectedModel(DEFAULT_MODEL_ID);
             }
           }
         }
       } catch {
-        // Retain DEFAULT_MODELS on network or CORS fallback
+        // Retain CURATED_MODELS on network or CORS fallback
       }
     }
     fetchLiveModels();
     return () => { active = false; };
-  }, []);
+  }, [selectedModel]);
 
   const handleSelectModel = (modelId: string) => {
     setSelectedModel(modelId);
@@ -1390,7 +1535,21 @@ export default function Autonomous() {
   const [plan, setPlan] = useState<StrategyPlan | null>(null);
   const [streaming, setStreaming] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  const contextualSuggestions = useMemo(() => {
+    const hasPos = portfolio.positions.some(
+      (p: any) => p.symbol?.toUpperCase() === activeContextAsset.symbol?.toUpperCase() && ((p.collateralValueUsd ?? 0) > 0 || (p.debtUi ?? 0) > 0)
+    );
+    return getContextualSuggestions({
+      activeAsset: activeContextAsset,
+      riskState: risk.ratchetState,
+      hasPosition: hasPos,
+      totalDebtUsd: portfolio.totalDebtUsd,
+      hasActiveAuthority,
+    });
+  }, [activeContextAsset, risk.ratchetState, portfolio.positions, portfolio.totalDebtUsd, hasActiveAuthority]);
 
   const updateCounts = useCallback(() => {
     const all = loadTasks().filter(t => t.owner === wallet.address || !wallet.address);
@@ -1960,32 +2119,12 @@ export default function Autonomous() {
               </span>
             </div>
 
-            {/* Active Model Selector */}
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 5, padding: "2px 7px" }}>
-              <span style={{ fontSize: 9.5, fontFamily: "var(--mono)", color: "var(--text-3)", letterSpacing: "0.04em" }}>MODEL:</span>
-              <select
-                value={selectedModel}
-                onChange={(e) => handleSelectModel(e.target.value)}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "var(--mint, #79c2a4)",
-                  fontSize: 10.5,
-                  fontFamily: "var(--mono)",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  outline: "none",
-                  padding: "2px 0",
-                }}
-                title="Select Gemini model by availability and capability"
-              >
-                {availableModels.map(m => (
-                  <option key={m.id} value={m.id} style={{ background: "var(--surface-1)", color: "var(--text)" }}>
-                    {m.name} ({m.badge})
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* Active Model Selector Popover */}
+            <ModelSelectorPopover
+              selectedModelId={selectedModel}
+              availableModels={availableModels}
+              onSelectModel={handleSelectModel}
+            />
 
             {/* Agent Access Indicator */}
             <button
@@ -2040,85 +2179,52 @@ export default function Autonomous() {
               <div style={{ flexShrink: 0, borderTop: "1px solid var(--border)", background: "var(--surface-1)", padding: "12px 20px 16px" }}>
                 <div style={{ maxWidth: 760, margin: "0 auto" }}>
 
-                  {/* In-chat Model Selector by Availability */}
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, gap: 8, flexWrap: "wrap" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                      <span style={{ fontSize: 9.5, fontFamily: "var(--mono)", color: "var(--text-3)", letterSpacing: "0.04em" }}>MODEL:</span>
-                      <div style={{ display: "inline-flex", gap: 3, background: "var(--surface-2)", padding: "2px 4px", borderRadius: 6, border: "1px solid var(--border)", flexWrap: "wrap" }}>
-                        {availableModels.map(m => {
-                          const isSel = selectedModel === m.id;
-                          return (
-                            <button
-                              key={m.id}
-                              type="button"
-                              onClick={() => handleSelectModel(m.id)}
-                              style={{
-                                padding: "3px 8px",
-                                fontSize: 10,
-                                fontFamily: "var(--mono)",
-                                fontWeight: isSel ? 700 : 500,
-                                background: isSel ? "var(--accent, #eceae6)" : "transparent",
-                                color: isSel ? "#0c0c0d" : "var(--text-3)",
-                                border: "none",
-                                borderRadius: 4,
-                                cursor: "pointer",
-                                transition: "all var(--t-fast)",
-                              }}
-                              title={m.desc}
-                            >
-                              {m.name} <span style={{ opacity: 0.75, fontSize: 8.5 }}>({m.badge})</span>
-                            </button>
-                          );
-                        })}
-                      </div>
+                  {/* Dynamic Contextual Suggestions */}
+                  {contextualSuggestions.length > 0 && (
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+                      {contextualSuggestions.map(prompt => (
+                        <button
+                          key={prompt}
+                          type="button"
+                          onClick={() => {
+                            setInput(prompt);
+                            inputRef.current?.focus();
+                          }}
+                          style={{
+                            padding: "4px 10px",
+                            fontSize: 10.5,
+                            fontFamily: "var(--mono)",
+                            background: "var(--surface-2)",
+                            border: "1px solid var(--border)",
+                            borderRadius: 16,
+                            color: "var(--text-3)",
+                            cursor: "pointer",
+                            whiteSpace: "nowrap",
+                            transition: "all var(--t-fast)",
+                          }}
+                          onMouseEnter={e => {
+                            e.currentTarget.style.color = "var(--text)";
+                            e.currentTarget.style.borderColor = "var(--border-strong, #333)";
+                          }}
+                          onMouseLeave={e => {
+                            e.currentTarget.style.color = "var(--text-3)";
+                            e.currentTarget.style.borderColor = "var(--border)";
+                          }}
+                        >
+                          {prompt}
+                        </button>
+                      ))}
                     </div>
-                    <span style={{ fontSize: 9, fontFamily: "var(--mono)", color: "var(--text-3)" }}>
-                      Server AI Gateway
-                    </span>
-                  </div>
-
-                  {/* Suggested prompts */}
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
-                    {[
-                      "nvda",
-                      "borrow 200",
-                      "can I borrow 300?",
-                      "price?",
-                      "chart",
-                      "what can I do here?",
-                      "make it 150",
-                      "actually make it GOOGL",
-                      "watch health factor < 1.8",
-                    ].map(prompt => (
-                      <button
-                        key={prompt}
-                        type="button"
-                        onClick={() => setInput(prompt)}
-                        style={{
-                          padding: "4px 10px",
-                          fontSize: 11,
-                          fontFamily: "var(--mono)",
-                          background: "var(--surface-2)",
-                          border: "1px solid var(--border)",
-                          borderRadius: 20,
-                          color: "var(--text-3)",
-                          cursor: "pointer",
-                          whiteSpace: "nowrap",
-                          transition: "all var(--t-fast)",
-                        }}
-                      >
-                        {prompt}
-                      </button>
-                    ))}
-                  </div>
+                  )}
 
                   {/* Input row */}
                   <div style={{ display: "flex", gap: 10, alignItems: "flex-end", background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 12, padding: "10px 14px" }}>
                     <textarea
+                      ref={inputRef}
                       value={input}
                       onChange={e => setInput(e.target.value)}
                       onKeyDown={onKey}
-                      placeholder={!connected ? "Connect your Solana Devnet wallet to start..." : "Ask about your risk, borrow capacity, Meteora liquidity, or set up a watch rule… (Enter to send, Shift+Enter for newline)"}
+                      placeholder={!connected ? "Connect your Solana Devnet wallet to start..." : "Ask about a market, risk, position, or action… (Enter to send, Shift+Enter for newline)"}
                       disabled={!connected || streaming}
                       rows={1}
                       style={{

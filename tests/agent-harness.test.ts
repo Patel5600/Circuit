@@ -4,6 +4,8 @@ import { classifyIntent, parseAmount, parseActionVerb } from "../app/src/lib/age
 import { AgentHarnessCoordinator, ProtocolSnapshot } from "../app/src/lib/agent/harness";
 import { AgentHarnessRateLimiter } from "../app/src/lib/agent/rateLimiter";
 import { DEPLOYED_MARKETS } from "../app/src/data/markets-registry";
+import { CURATED_MODELS, DEFAULT_MODEL_ID, filterCuratedModels } from "../app/src/lib/agent/curatedModels";
+import { getContextualSuggestions } from "../app/src/lib/agent/suggestions";
 
 describe("Agent Harness & Conversational Protocol Execution Tests", () => {
   const mockSnapshot: ProtocolSnapshot = {
@@ -369,6 +371,96 @@ describe("Agent Harness & Conversational Protocol Execution Tests", () => {
 
       const defaultModel = filtered.find(id => id.includes("3.6-flash")) ?? filtered[0];
       expect(defaultModel).to.equal("gemini-3.6-flash");
+    });
+  });
+
+  describe("8. Curated Model Whitelist & Dynamic Suggestions", () => {
+    it("strictly bounds model options to the curated 5-model whitelist", () => {
+      expect(CURATED_MODELS).to.have.lengthOf(5);
+      const ids = CURATED_MODELS.map(m => m.id);
+      expect(ids).to.include("gemini-3.8-flash");
+      expect(ids).to.include("gemini-3.7-flash");
+      expect(ids).to.include("gemini-3.6-flash");
+      expect(ids).to.include("gemini-2.5-flash");
+      expect(ids).to.include("gemini-2.5-pro");
+
+      expect(ids).to.not.include("gemini-1.5-pro");
+      expect(ids).to.not.include("gemini-1.5-flash");
+      expect(ids).to.not.include("gemini-2.0-flash");
+      expect(DEFAULT_MODEL_ID).to.equal("gemini-3.8-flash");
+    });
+
+    it("filterCuratedModels never allows large 50+ raw catalog to pollute UI", () => {
+      const largeCatalog = [
+        { name: "models/gemini-1.0-pro" },
+        { name: "models/gemini-1.5-pro-001" },
+        { name: "models/gemini-1.5-flash-latest" },
+        { name: "models/gemini-2.0-flash" },
+        { name: "models/embedding-001" },
+        { name: "models/text-embedding-004" },
+        { name: "models/aqa" },
+        { name: "models/imagen-3" },
+        { name: "models/gemini-3.8-flash" },
+        { name: "models/gemini-3.7-flash" },
+        { name: "models/gemini-3.6-flash" },
+        { name: "models/gemini-2.5-flash" },
+        { name: "models/gemini-2.5-pro" },
+      ];
+
+      const filtered = filterCuratedModels(largeCatalog);
+      expect(filtered).to.have.lengthOf(5);
+      expect(filtered.map(m => m.id)).to.deep.equal([
+        "gemini-3.8-flash",
+        "gemini-3.7-flash",
+        "gemini-3.6-flash",
+        "gemini-2.5-flash",
+        "gemini-2.5-pro",
+      ]);
+    });
+
+    it("generates 2-4 dynamic suggestions tailored to DEFENSIVE regime", () => {
+      const suggestions = getContextualSuggestions({
+        activeAsset: DEPLOYED_MARKETS[0],
+        riskState: "DEFENSIVE",
+        hasPosition: true,
+        totalDebtUsd: 200,
+        hasActiveAuthority: true,
+      });
+
+      expect(suggestions.length).to.be.at.least(2).and.at.most(4);
+      expect(suggestions).to.include("Why restricted?");
+      expect(suggestions).to.include("What can I still do?");
+      expect(suggestions).to.include("Repay debt");
+      expect(suggestions).to.not.include("borrow 200");
+    });
+
+    it("generates 2-4 dynamic suggestions for active collateral position", () => {
+      const suggestions = getContextualSuggestions({
+        activeAsset: DEPLOYED_MARKETS[0], // NVDA
+        riskState: "SAFE",
+        hasPosition: true,
+        totalDebtUsd: 0,
+        hasActiveAuthority: true,
+      });
+
+      expect(suggestions.length).to.be.at.least(2).and.at.most(4);
+      expect(suggestions).to.include("Check risk");
+      expect(suggestions).to.include("Borrow against NVDA");
+      expect(suggestions).to.include("Deposit NVDA");
+      expect(suggestions).to.include("Chart NVDA");
+    });
+
+    it("prompts to configure agent access when no authority exists", () => {
+      const suggestions = getContextualSuggestions({
+        activeAsset: DEPLOYED_MARKETS[0],
+        riskState: "SAFE",
+        hasPosition: false,
+        totalDebtUsd: 0,
+        hasActiveAuthority: false,
+      });
+
+      expect(suggestions.length).to.be.at.least(2).and.at.most(4);
+      expect(suggestions).to.include("Configure Agent access");
     });
   });
 });

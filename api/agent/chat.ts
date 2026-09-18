@@ -364,7 +364,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     (typeof body.model === "string" ? body.model.trim() : "") ||
     process.env.GEMINI_MODEL ||
     process.env.AI_MODEL ||
-    (isGemini ? fallbackModel : "gpt-4o-mini");
+    (isGemini ? "gemini-3.8-flash" : "gpt-4o-mini");
 
   const callUpstream = async (targetModel: string) => {
     const url = isGemini && !baseUrl.includes("key=")
