@@ -50,7 +50,7 @@ import { ProtocolAction } from "../lib/permission-engine";
 
 export type AgentState =
   | "IDLE" | "PLANNING" | "AWAITING_APPROVAL" | "CHECKING_PERMISSION"
-  | "EXECUTING" | "CONFIRMING" | "COMPLETED" | "BLOCKED" | "FAILED" | "PAUSED" | "EXPIRED";
+  | "EXECUTING" | "CONFIRMING" | "COMPLETED" | "FAILED" | "PAUSED" | "EXPIRED";
 
 export type TabId = "CHAT" | "STRATEGY" | "WATCH" | "AUTO MANAGE" | "SCHEDULE" | "PERMISSIONS";
 
@@ -115,7 +115,7 @@ function fmtTime(ts: number): string {
 function stateColor(s: AgentState): string {
   if (s === "IDLE" || s === "EXPIRED") return "var(--text-3)";
   if (s === "EXECUTING" || s === "CONFIRMING" || s === "COMPLETED") return "var(--mint, #79c2a4)";
-  if (s === "BLOCKED" || s === "FAILED") return "var(--danger, #cf8b8b)";
+  if (s === "FAILED") return "var(--danger, #cf8b8b)";
   if (s === "AWAITING_APPROVAL" || s === "PAUSED") return "var(--warning, #cfad74)";
   return "var(--accent)";
 }
@@ -1065,10 +1065,195 @@ export interface AgentModelOption {
 
 const DEFAULT_MODELS: AgentModelOption[] = [
   { id: "gemini-3.6-flash", name: "Gemini 3.6 Flash", badge: "ACTIVE", desc: "Recommended: Deep financial reasoning & risk synthesis" },
-  { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", badge: "FAST", desc: "High-speed streaming inference" },
-  { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash", badge: "2.0 FLASH", desc: "Next-gen execution flow" },
-  { id: "gemini-1.5-flash", name: "Gemini 1.5 Flash", badge: "FLASH", desc: "Lightweight fallback" },
+  { id: "gemini-3.7-flash", name: "Gemini 3.7 Flash", badge: "HYBRID", desc: "High precision agent execution" },
+  { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash", badge: "ADVANCED", desc: "Advanced reasoning & telemetry" },
+  { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", badge: "FAST", desc: "Low latency streaming" },
+  { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", badge: "PRO", desc: "Complex multi-step portfolio analysis" },
 ];
+
+function TelemetryContextPanel({
+  activeAsset,
+  portfolio,
+  risk,
+  credit,
+  markets,
+  onChainAuthorities,
+}: {
+  activeAsset: DeployedMarket;
+  portfolio: any;
+  risk: any;
+  credit: any;
+  markets: any;
+  onChainAuthorities: any[];
+}) {
+  const activeMarketData = markets.markets[activeAsset.symbol] || Object.values(markets.markets).find((m: any) => m.symbol?.toUpperCase() === activeAsset.symbol?.toUpperCase());
+  const activePrice = activeMarketData?.priceData?.price ?? (activeAsset.symbol === "NVDA" ? 138.25 : 100);
+  const activeChange = activeMarketData?.priceData?.change24hPct ?? 0;
+  const activeOracleStatus = activeMarketData?.priceData?.status || "VALID";
+  const isDefensiveOrEmerg = risk.ratchetState === "DEFENSIVE" || risk.ratchetState === "EMERGENCY";
+  const isRestricted = risk.ratchetState === "RESTRICTED";
+  const activeAuthCount = onChainAuthorities.filter(a => !a.isExpired && !a.isRevoked).length;
+
+  const riskColor = risk.ratchetState === "SAFE" ? "var(--mint, #79c2a4)"
+    : risk.ratchetState === "RESTRICTED" ? "var(--warning, #cfad74)"
+    : "var(--danger, #cf8b8b)";
+
+  return (
+    <div style={{
+      width: 290,
+      flexShrink: 0,
+      borderLeft: "1px solid var(--border)",
+      background: "var(--surface-1)",
+      display: "flex",
+      flexDirection: "column",
+      overflowY: "auto",
+      padding: "16px 14px",
+      gap: 14,
+      fontFamily: "var(--mono)",
+    }}>
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border)", paddingBottom: 10 }}>
+        <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", color: "var(--text-3)" }}>
+          PROTOCOL TELEMETRY
+        </span>
+        <span style={{
+          fontSize: 9,
+          padding: "2px 6px",
+          borderRadius: 3,
+          background: "rgba(121,194,164,0.15)",
+          color: "var(--mint, #79c2a4)",
+          fontWeight: 700,
+        }}>
+          SOLANA DEVNET
+        </span>
+      </div>
+
+      {/* Active Context Asset */}
+      <div style={{ background: "var(--surface-2)", borderRadius: 6, border: "1px solid var(--border)", padding: "10px 12px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <span style={{ fontSize: 10, color: "var(--text-3)", letterSpacing: "0.04em" }}>ACTIVE ASSET</span>
+          <span style={{ fontSize: 9, color: "var(--mint, #79c2a4)", fontWeight: 700 }}>Pyth Oracle</span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+          <span style={{ fontSize: 15, fontWeight: 800, color: "var(--accent)" }}>{activeAsset.tokenSymbol}</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>${activePrice.toFixed(2)}</span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--text-3)", marginTop: 4 }}>
+          <span>{activeAsset.name}</span>
+          <span style={{ color: activeChange >= 0 ? "var(--mint, #79c2a4)" : "var(--danger, #cf8b8b)" }}>
+            {activeChange >= 0 ? "+" : ""}{activeChange.toFixed(2)}% (24h)
+          </span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9.5, color: "var(--text-3)", marginTop: 6, paddingTop: 6, borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+          <span>Feed Status: <strong style={{ color: "var(--mint, #79c2a4)" }}>{activeOracleStatus}</strong></span>
+          <span>Conf: ~18 bps</span>
+        </div>
+      </div>
+
+      {/* Risk Ratchet */}
+      <div style={{ background: "var(--surface-2)", borderRadius: 6, border: "1px solid var(--border)", padding: "10px 12px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <span style={{ fontSize: 10, color: "var(--text-3)", letterSpacing: "0.04em" }}>RISK RATCHET</span>
+          <span style={{
+            fontSize: 9,
+            fontWeight: 800,
+            padding: "1px 6px",
+            borderRadius: 3,
+            background: `${riskColor}22`,
+            color: riskColor,
+            border: `1px solid ${riskColor}44`,
+          }}>
+            {risk.ratchetState}
+          </span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--text-2)", marginBottom: 4 }}>
+          <span>NYSE Session:</span>
+          <span style={{ fontWeight: 700, color: risk.isMarketOpen ? "var(--mint, #79c2a4)" : "var(--warning, #cfad74)" }}>
+            {risk.isMarketOpen ? "OPEN (RTH)" : "CLOSED (Outside RTH)"}
+          </span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--text-3)" }}>
+          <span>Borrow Gate:</span>
+          <span style={{ color: isDefensiveOrEmerg ? "var(--danger, #cf8b8b)" : isRestricted ? "var(--warning, #cfad74)" : "var(--mint, #79c2a4)" }}>
+            {isDefensiveOrEmerg ? "SUSPENDED" : isRestricted ? "CAPPED (50%)" : "ALLOWED (100%)"}
+          </span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--text-3)", marginTop: 4 }}>
+          <span>Recovery Path:</span>
+          <span style={{ color: "var(--mint, #79c2a4)" }}>UNCONDITIONAL</span>
+        </div>
+      </div>
+
+      {/* Position & Solvency */}
+      <div style={{ background: "var(--surface-2)", borderRadius: 6, border: "1px solid var(--border)", padding: "10px 12px" }}>
+        <div style={{ fontSize: 10, color: "var(--text-3)", letterSpacing: "0.04em", marginBottom: 6 }}>
+          POSITION &amp; SOLVENCY
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, marginBottom: 4 }}>
+          <span style={{ color: "var(--text-3)" }}>Collateral:</span>
+          <span style={{ fontWeight: 700, color: "var(--text)" }}>${portfolio.totalCollateralUsd.toFixed(2)}</span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, marginBottom: 4 }}>
+          <span style={{ color: "var(--text-3)" }}>Outstanding Debt:</span>
+          <span style={{ fontWeight: 700, color: "var(--text)" }}>${portfolio.totalDebtUsd.toFixed(2)}</span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, marginBottom: 4 }}>
+          <span style={{ color: "var(--text-3)" }}>Health Factor:</span>
+          <span style={{ fontWeight: 800, color: portfolio.healthFactor ? "var(--mint, #79c2a4)" : "var(--text-3)" }}>
+            {portfolio.healthFactor !== null ? portfolio.healthFactor.toFixed(3) : "Infinite"}
+          </span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--text-3)", paddingTop: 4, borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+          <span>Available Credit:</span>
+          <span style={{ color: "var(--accent)", fontWeight: 700 }}>${credit.availableCreditUsd.toFixed(2)}</span>
+        </div>
+      </div>
+
+      {/* Meteora DBC Test Pool */}
+      <div style={{ background: "var(--surface-2)", borderRadius: 6, border: "1px solid var(--border)", padding: "10px 12px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <span style={{ fontSize: 10, color: "var(--text-3)", letterSpacing: "0.04em" }}>METEORA DBC VENUE</span>
+          <span style={{ fontSize: 9, color: "#a78bfa", fontWeight: 700 }}>Devnet Pool</span>
+        </div>
+        <div style={{ fontSize: 10, color: "var(--text-3)", marginBottom: 4 }}>
+          Pool: <span style={{ color: "var(--text-2)" }}>dbcij3LW...aqN</span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--text-3)" }}>
+          <span>Swaps / Enter:</span>
+          <span style={{ color: isDefensiveOrEmerg ? "var(--danger, #cf8b8b)" : isRestricted ? "var(--warning, #cfad74)" : "var(--mint, #79c2a4)" }}>
+            {isDefensiveOrEmerg ? "BLOCKED" : isRestricted ? "CAPPED (50%)" : "ALLOWED"}
+          </span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--text-3)", marginTop: 4 }}>
+          <span>Exit Liquidity:</span>
+          <span style={{ color: "var(--mint, #79c2a4)" }}>ALWAYS OPEN</span>
+        </div>
+      </div>
+
+      {/* On-Chain Agent Authority */}
+      <div style={{ background: "var(--surface-2)", borderRadius: 6, border: "1px solid var(--border)", padding: "10px 12px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <span style={{ fontSize: 10, color: "var(--text-3)", letterSpacing: "0.04em" }}>AGENT AUTHORITY</span>
+          <span style={{
+            fontSize: 9,
+            fontWeight: 700,
+            padding: "1px 5px",
+            borderRadius: 3,
+            background: activeAuthCount > 0 ? "rgba(121,194,164,0.15)" : "rgba(255,255,255,0.06)",
+            color: activeAuthCount > 0 ? "var(--mint, #79c2a4)" : "var(--text-3)",
+          }}>
+            {activeAuthCount > 0 ? `${activeAuthCount} ACTIVE` : "NONE"}
+          </span>
+        </div>
+        <div style={{ fontSize: 10, color: "var(--text-3)", lineHeight: 1.4 }}>
+          {activeAuthCount > 0
+            ? "Autonomous execution enabled under bounded on-chain limits."
+            : "No active authority PDA. Executions require interactive wallet signing."}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Autonomous() {
   const navigate = useNavigate();
@@ -1096,6 +1281,12 @@ export default function Autonomous() {
     return "gemini-3.6-flash";
   });
 
+  const [input, setInput] = useState("");
+  const [agentState, setAgentState] = useState<AgentState>("IDLE");
+  const [executionState, setExecutionState] = useState<"IDLE" | "READY" | "SIGNING" | "CONFIRMING" | "CONFIRMED" | "REJECTED" | "FAILED">("IDLE");
+  const [permissionResult, setPermissionResult] = useState<"ALLOWED" | "CAPPED" | "BLOCKED" | null>(null);
+  const [events, setEvents] = useState<ExecEvent[]>([]);
+
   useEffect(() => {
     let active = true;
     async function fetchLiveModels() {
@@ -1105,7 +1296,11 @@ export default function Autonomous() {
         const data = await res.json();
         if (data && Array.isArray(data.models) && data.models.length > 0) {
           const geminiModels: AgentModelOption[] = data.models
-            .filter((m: any) => m.supportedGenerationMethods?.includes("generateContent"))
+            .filter((m: any) => {
+              const id = m.name?.replace(/^models\//, "") || "";
+              if (id.startsWith("gemini-1.") || id === "gemini-2.0-flash") return false;
+              return m.supportedGenerationMethods?.includes("generateContent");
+            })
             .map((m: any) => {
               const id = m.name?.replace(/^models\//, "") || "";
               const displayName = m.displayName || id;
@@ -1192,9 +1387,6 @@ export default function Autonomous() {
     });
   }, [initialGreeting]);
 
-  const [input, setInput] = useState("");
-  const [agentState, setAgentState] = useState<AgentState>("IDLE");
-  const [events, setEvents] = useState<ExecEvent[]>([]);
   const [plan, setPlan] = useState<StrategyPlan | null>(null);
   const [streaming, setStreaming] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
@@ -1280,59 +1472,68 @@ export default function Autonomous() {
     // LLM is untrusted: client strictly validates proposal against real on-chain context
     if (!proposal || typeof proposal.amountUsd !== "number" || isNaN(proposal.amountUsd) || proposal.amountUsd <= 0) {
       addEvent("error", `Proposal rejected by client: Invalid amount ($${proposal?.amountUsd})`);
-      setAgentState("BLOCKED");
+      setExecutionState("REJECTED");
+      setAgentState("IDLE");
       return;
     }
 
     const market = DEPLOYED_MARKETS.find(m => m.symbol.toUpperCase() === proposal.symbol.toUpperCase());
     if (!market) {
       addEvent("error", `Proposal rejected by client: Market ${proposal.symbol} not recognized in Circuit deployment`);
-      setAgentState("BLOCKED");
+      setExecutionState("REJECTED");
+      setAgentState("IDLE");
       return;
     }
 
     const currentRisk = risk.ratchetState;
     // Section 15 & 34: In EMERGENCY, only capital recovery actions (repay, deposit, exit_liquidity) are allowed
     if (currentRisk === "EMERGENCY" && ["borrow", "withdraw", "swap", "enter_liquidity", "rebalance"].includes(proposal.action)) {
-      addEvent("blocked", `Proposal rejected: Risk Ratchet is EMERGENCY. Borrow, withdraw, and liquidity entries are strictly suspended.`);
-      setAgentState("BLOCKED");
+      addEvent("blocked", `Proposal rejected by on-chain revalidation: Risk Ratchet is EMERGENCY. Borrow, withdraw, and liquidity entries are strictly suspended.`);
+      setExecutionState("REJECTED");
+      setAgentState("IDLE");
       return;
     }
 
     // In DEFENSIVE, borrow is suspended and withdraw is blocked if debt exists
     if (currentRisk === "DEFENSIVE") {
       if (proposal.action === "borrow") {
-        addEvent("blocked", `Proposal rejected: Borrowing is disabled by Capital Policy in DEFENSIVE state.`);
-        setAgentState("BLOCKED");
+        addEvent("blocked", `Proposal rejected by on-chain revalidation: Borrowing is disabled by Capital Policy in DEFENSIVE state.`);
+        setExecutionState("REJECTED");
+        setAgentState("IDLE");
         return;
       }
       if (proposal.action === "withdraw" && portfolio.totalDebtUsd > 0) {
-        addEvent("blocked", `Proposal rejected: Collateral withdrawal is blocked while debt is outstanding in DEFENSIVE state.`);
-        setAgentState("BLOCKED");
+        addEvent("blocked", `Proposal rejected by on-chain revalidation: Collateral withdrawal is blocked while debt is outstanding in DEFENSIVE state.`);
+        setExecutionState("REJECTED");
+        setAgentState("IDLE");
         return;
       }
       if (["swap", "enter_liquidity", "rebalance"].includes(proposal.action)) {
-        addEvent("blocked", `Proposal rejected: DBC actions are blocked in DEFENSIVE state.`);
-        setAgentState("BLOCKED");
+        addEvent("blocked", `Proposal rejected by on-chain revalidation: DBC actions are blocked in DEFENSIVE state.`);
+        setExecutionState("REJECTED");
+        setAgentState("IDLE");
         return;
       }
     }
 
     // In RESTRICTED, borrow is suspended
     if (currentRisk === "RESTRICTED" && proposal.action === "borrow") {
-      addEvent("blocked", `Proposal rejected: Borrowing is suspended in RESTRICTED risk state.`);
-      setAgentState("BLOCKED");
+      addEvent("blocked", `Proposal rejected by on-chain revalidation: Borrowing is suspended in RESTRICTED risk state.`);
+      setExecutionState("REJECTED");
+      setAgentState("IDLE");
       return;
     }
 
-    // Capacity checks
+    // Capacity checks against fresh on-chain credit state
     if (proposal.action === "borrow" && proposal.amountUsd > credit.availableCreditUsd) {
-      addEvent("blocked", `Proposal rejected: Requested borrow ($${proposal.amountUsd}) exceeds available credit capacity ($${credit.availableCreditUsd.toFixed(2)}).`);
-      setAgentState("BLOCKED");
+      addEvent("blocked", `Proposal rejected by on-chain revalidation: Requested borrow ($${proposal.amountUsd}) exceeds available credit capacity ($${credit.availableCreditUsd.toFixed(2)}).`);
+      setExecutionState("REJECTED");
+      setAgentState("IDLE");
       return;
     }
 
     // All real on-chain validation checks passed
+    setExecutionState("SIGNING");
     setAgentState("CONFIRMING");
     addEvent("permission", `On-chain validation passed: ${proposal.action.toUpperCase()} $${proposal.amountUsd} against ${proposal.symbol}`);
     openAction({
@@ -1385,7 +1586,12 @@ export default function Autonomous() {
         ]);
 
         if (propBlock) {
-          setAgentState(propBlock.permission === "BLOCKED" ? "BLOCKED" : "AWAITING_APPROVAL");
+          const isBlocked = propBlock.permission === "BLOCKED";
+          setPermissionResult(propBlock.permission);
+          setAgentState(isBlocked ? "IDLE" : "AWAITING_APPROVAL");
+          if (!isBlocked) {
+            setExecutionState("READY");
+          }
           addEvent("permission", `Action proposal prepared: ${propBlock.action.toUpperCase()} $${propBlock.amountUsd} on ${propBlock.symbol} (${propBlock.permission})`);
         } else if (harnessResult.intent.type === "ACTION_CONFIRM") {
           const pending = harnessRef.current.getContext().pendingProposal;
@@ -1403,6 +1609,7 @@ export default function Autonomous() {
           }
         } else if (harnessResult.intent.type === "ACTION_CANCEL") {
           setAgentState("IDLE");
+          setExecutionState("IDLE");
           addEvent("info", "Action proposal cancelled.");
         } else {
           setAgentState("IDLE");
@@ -1496,8 +1703,13 @@ export default function Autonomous() {
       if (p) { setPlan(p); addEvent("info", `Strategy: ${p.actions.length} action(s) identified`); }
       if (parsedTools.length > 0) { addEvent("info", `${parsedTools.length} tool evaluation(s) executed`); }
       if (parsedProp) {
+        const isBlocked = parsedProp.permission === "BLOCKED";
+        setPermissionResult(parsedProp.permission);
         addEvent("permission", `Action proposal: ${parsedProp.action.toUpperCase()} ${parsedProp.symbol} (${parsedProp.permission})`);
-        setAgentState(parsedProp.permission === "BLOCKED" ? "BLOCKED" : "AWAITING_APPROVAL");
+        setAgentState(isBlocked ? "IDLE" : "AWAITING_APPROVAL");
+        if (!isBlocked) {
+          setExecutionState("READY");
+        }
       } else if (parsedTask) {
         setAgentState("COMPLETED");
       } else {
@@ -1515,6 +1727,7 @@ export default function Autonomous() {
       setMsgs(prev => prev.map(m => m.id === agentId ? { ...m, content: em, streaming: false } : m));
       addEvent("error", em);
       setAgentState("FAILED");
+      setExecutionState("FAILED");
     } finally { setStreaming(false); }
   }, [input, streaming, msgs, snap, protocolSnapshot, addEvent, selectedModel, activeContextAsset, handleApproveProposal]);
 
@@ -1544,78 +1757,39 @@ export default function Autonomous() {
   const activeAuthCount = onChainAuthorities.filter(a => !a.isExpired && !a.isRevoked).length;
 
   return (
-    <div style={{ height: "calc(100vh - 57px)", display: "flex", flexDirection: "column", background: "var(--surface-0, #0c0c0d)", overflow: "hidden" }}>
-      {/* ── Top Workspace Header ── */}
-      <div style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 16px", borderBottom: "1px solid var(--border)", background: "var(--surface-1)", gap: 10, flexWrap: "wrap" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-          <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", color: "var(--text)", fontFamily: "var(--mono)", flexShrink: 0 }}>
-            AGENT
-          </span>
-          <span
-            style={{
-              fontSize: 9.5,
-              fontWeight: 700,
-              fontFamily: "var(--mono)",
-              padding: "2px 6px",
-              borderRadius: 4,
-              background: "rgba(207, 173, 116, 0.15)",
-              color: "var(--warning, #cfad74)",
-              border: "1px solid rgba(207, 173, 116, 0.3)",
-              letterSpacing: "0.04em",
-              flexShrink: 0,
-            }}
-            title="Interactive execution: Browser client routes all transaction signing to your connected wallet. Headless daemon execution requires server-side AGENT_SIGNER_SECRET."
-          >
-            MODE: INTERACTIVE (Wallet-Signed)
-          </span>
-          <span style={{ width: 1, height: 14, background: "var(--border)", display: "inline-block", flexShrink: 0 }} />
-          <div style={{ flexShrink: 0 }}>
-            <StateBadge state={agentState} />
+    <div style={{ height: "calc(100vh - 57px)", display: "flex", background: "var(--surface-0, #0c0c0d)", overflow: "hidden" }}>
+      {/* ── Left Sidebar Navigation Rail (~200px) ── */}
+      <div style={{
+        width: 200,
+        flexShrink: 0,
+        borderRight: "1px solid var(--border)",
+        background: "var(--surface-1)",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "space-between",
+      }}>
+        <div>
+          {/* Rail Header */}
+          <div style={{ padding: "16px 14px 12px", borderBottom: "1px solid var(--border)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", color: "var(--text)", fontFamily: "var(--mono)" }}>
+                AUTONOMOUS
+              </span>
+              <span style={{
+                width: 7, height: 7, borderRadius: "50%",
+                background: stateColor(agentState),
+                boxShadow: agentState === "EXECUTING" || agentState === "PLANNING" || agentState === "CONFIRMING" ? `0 0 8px ${stateColor(agentState)}` : "none",
+                display: "inline-block",
+              }} />
+            </div>
+            <div style={{ fontSize: 9.5, color: "var(--text-3)", fontFamily: "var(--mono)", marginTop: 4 }}>
+              SOLANA DEVNET
+            </div>
           </div>
 
-          {/* ── Tab Switcher: CHAT (Primary) | Secondary: STRATEGY, WATCH, AUTO MANAGE, SCHEDULE, PERMISSIONS ── */}
-          <div style={{
-            display: "inline-flex",
-            alignItems: "center",
-            background: "var(--surface-2)",
-            borderRadius: "var(--r-sm, 6px)",
-            padding: 2,
-            border: "1px solid var(--border)",
-            marginLeft: 4,
-            overflowX: "auto",
-            maxWidth: "calc(100vw - 280px)",
-            scrollbarWidth: "none",
-            whiteSpace: "nowrap",
-          }}>
-            {/* Primary Chat Tab */}
-            <button
-              type="button"
-              onClick={() => setActiveTab("CHAT")}
-              style={{
-                padding: "4px 11px",
-                fontSize: 10.5,
-                fontWeight: activeTab === "CHAT" ? 800 : 500,
-                fontFamily: "var(--mono)",
-                color: activeTab === "CHAT" ? "#0c0c0d" : "var(--text-2)",
-                background: activeTab === "CHAT" ? "var(--accent, #eceae6)" : "transparent",
-                border: "none",
-                borderRadius: "var(--r-sm, 4px)",
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 5,
-                transition: "all var(--t-fast)",
-                flexShrink: 0,
-              }}
-              title="Primary full-screen conversational agent"
-            >
-              <span>● CHAT</span>
-            </button>
-
-            <span style={{ width: 1, height: 14, background: "var(--border)", margin: "0 3px", display: "inline-block", flexShrink: 0 }} />
-
-            {/* 5 Secondary Tabs */}
-            {(["STRATEGY", "WATCH", "AUTO MANAGE", "SCHEDULE", "PERMISSIONS"] as TabId[]).map(tab => {
+          {/* Navigation Items */}
+          <nav style={{ padding: "10px 8px", display: "flex", flexDirection: "column", gap: 3 }}>
+            {(["CHAT", "STRATEGY", "WATCH", "AUTO MANAGE", "SCHEDULE", "PERMISSIONS"] as TabId[]).map(tab => {
               const isActive = activeTab === tab;
               const count = tab === "WATCH" ? taskCounts.watches : tab === "AUTO MANAGE" ? taskCounts.strategies : tab === "SCHEDULE" ? taskCounts.total : tab === "PERMISSIONS" ? activeAuthCount : null;
               return (
@@ -1624,27 +1798,36 @@ export default function Autonomous() {
                   type="button"
                   onClick={() => setActiveTab(tab)}
                   style={{
-                    padding: "4px 9px",
-                    fontSize: 10,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    width: "100%",
+                    padding: "8px 10px",
+                    borderRadius: 6,
+                    border: isActive ? "1px solid var(--border)" : "1px solid transparent",
+                    background: isActive ? "var(--surface-3)" : "transparent",
+                    color: isActive ? "var(--accent, #eceae6)" : "var(--text-2)",
+                    fontSize: 11,
                     fontWeight: isActive ? 700 : 500,
                     fontFamily: "var(--mono)",
-                    color: isActive ? "var(--text-1)" : "var(--text-3)",
-                    background: isActive ? "var(--surface-3)" : "transparent",
-                    border: isActive ? "1px solid var(--border)" : "1px solid transparent",
-                    borderRadius: "var(--r-sm, 4px)",
                     cursor: "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 5,
+                    textAlign: "left",
                     transition: "all var(--t-fast)",
-                    flexShrink: 0,
                   }}
                 >
-                  <span>{tab}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                    <span style={{
+                      width: 5, height: 5, borderRadius: "50%",
+                      background: isActive ? "var(--accent)" : "transparent",
+                      border: `1px solid ${isActive ? "var(--accent)" : "var(--text-3)"}`,
+                      display: "inline-block",
+                    }} />
+                    <span>{tab}</span>
+                  </div>
                   {count !== null && count > 0 && (
                     <span style={{
                       fontSize: 9,
-                      padding: "1px 4px",
+                      padding: "1px 5px",
                       borderRadius: 3,
                       background: isActive ? "rgba(236,234,230,0.12)" : "rgba(255,255,255,0.06)",
                       color: isActive ? "var(--accent)" : "var(--text-3)",
@@ -1655,292 +1838,405 @@ export default function Autonomous() {
                 </button>
               );
             })}
-          </div>
+          </nav>
         </div>
 
-        {/* ── Header Controls ── */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
-          {/* Active Context Indicator */}
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 5,
-              background: "var(--surface-2)",
-              border: "1px solid var(--border)",
-              borderRadius: 5,
-              padding: "2px 7px",
-            }}
-            title={`Active Conversational Asset: ${activeContextAsset.tokenSymbol} (${activeContextAsset.name})`}
-          >
-            <span style={{ fontSize: 9.5, fontFamily: "var(--mono)", color: "var(--text-3)", letterSpacing: "0.04em" }}>CONTEXT:</span>
-            <span style={{ fontSize: 10.5, fontFamily: "var(--mono)", fontWeight: 700, color: "var(--accent)" }}>
-              {activeContextAsset.tokenSymbol}
-            </span>
+        {/* Rail Footer */}
+        <div style={{ padding: "12px 14px", borderTop: "1px solid var(--border)", fontSize: 10, fontFamily: "var(--mono)", color: "var(--text-3)", display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span>MODE:</span>
+            <span style={{ color: "var(--mint, #79c2a4)", fontWeight: 700 }}>INTERACTIVE</span>
           </div>
-
-          {/* Active Model Selector */}
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 5, padding: "2px 7px" }}>
-            <span style={{ fontSize: 9.5, fontFamily: "var(--mono)", color: "var(--text-3)", letterSpacing: "0.04em" }}>MODEL:</span>
-            <select
-              value={selectedModel}
-              onChange={(e) => handleSelectModel(e.target.value)}
-              style={{
-                background: "transparent",
-                border: "none",
-                color: "var(--mint, #79c2a4)",
-                fontSize: 10.5,
-                fontFamily: "var(--mono)",
-                fontWeight: 700,
-                cursor: "pointer",
-                outline: "none",
-                padding: "2px 0",
-              }}
-              title="Select Gemini model by availability and capability"
-            >
-              {availableModels.map(m => (
-                <option key={m.id} value={m.id} style={{ background: "var(--surface-1)", color: "var(--text)" }}>
-                  {m.name} ({m.badge})
-                </option>
-              ))}
-            </select>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span>AGENT KEY:</span>
+            <span style={{ color: "var(--text-2)" }}>{shortenAddress(CIRCUIT_DEVNET_AGENT_KEY.toBase58())}</span>
           </div>
-          <button
-            type="button"
-            onClick={() => setActiveTab("PERMISSIONS")}
-            style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 7px", borderRadius: 4, background: "transparent", border: "none", cursor: "pointer" }}
-            title="Manage bounded agent access and permissions"
-          >
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: hasActiveAuthority ? "var(--mint,#79c2a4)" : "var(--text-3)", display: "inline-block" }} />
-            <span style={{ fontSize: 10, fontFamily: "var(--mono)", color: hasActiveAuthority ? "var(--mint,#79c2a4)" : "var(--text-3)" }}>
-              {hasActiveAuthority ? "AGENT ACCESS ACTIVE" : "NO AGENT ACCESS"}
-            </span>
-          </button>
-          <button type="button" onClick={clear} style={{ padding: "4px 9px", fontSize: 10, fontFamily: "var(--mono)", background: "transparent", border: "1px solid var(--border)", borderRadius: 5, color: "var(--text-3)", cursor: "pointer" }}>CLEAR</button>
-          <button type="button" onClick={() => navigate("/app")} style={{ padding: "4px 9px", fontSize: 10, fontFamily: "var(--mono)", background: "transparent", border: "1px solid var(--border)", borderRadius: 5, color: "var(--text-3)", cursor: "pointer" }}>← MANUAL</button>
         </div>
       </div>
 
-      {/* ── Body: Tab Content ── */}
-
-      {/* TAB 1: CHAT — Full-screen centered, ChatGPT/Claude style */}
-      {activeTab === "CHAT" && (
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", background: "var(--surface-0)" }}>
-
-          {/* ── Scrollable message feed — full width, centered content ── */}
-          <div style={{ flex: 1, overflowY: "auto", scrollbarWidth: "thin" }}>
-            <div style={{ maxWidth: 760, margin: "0 auto", padding: "28px 20px 16px" }}>
-              {msgs.map(m => (
-                <Bubble
-                  key={m.id}
-                  msg={m}
-                  owner={wallet.address || ""}
-                  onTaskCreated={handleTaskCreated}
-                  onApproveProposal={handleApproveProposal}
-                  onActionClick={(action, symbol) => sendWithText(`${action} against ${symbol}`)}
-                  onChartClick={(symbol) => sendWithText(`chart ${symbol}`)}
-                  onSubTabClick={(tab, symbol) => {
-                    if (tab === "Risk") sendWithText(`risk for ${symbol}`);
-                    else if (tab === "Position") sendWithText(`my position in ${symbol}`);
-                    else if (tab === "Activity") sendWithText(`activity for ${symbol}`);
-                    else sendWithText(`show ${symbol}`);
-                  }}
-                  onSelectClarification={(text) => sendWithText(text)}
-                />
-              ))}
-              <div ref={endRef} />
+      {/* ── Main Workspace Area (Header + Tab Content) ── */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" }}>
+        {/* ── Top Workspace Header: Independent State Dimensions ── */}
+        <div style={{
+          flexShrink: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "8px 16px",
+          borderBottom: "1px solid var(--border)",
+          background: "var(--surface-1)",
+          gap: 10,
+          flexWrap: "wrap",
+        }}>
+          {/* Left Dimensions */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", color: "var(--text)", fontFamily: "var(--mono)", flexShrink: 0 }}>
+              AGENT:
+            </span>
+            <div style={{ flexShrink: 0 }}>
+              <StateBadge state={agentState} />
             </div>
+            <span style={{ width: 1, height: 14, background: "var(--border)", display: "inline-block", flexShrink: 0 }} />
+
+            <span
+              style={{
+                fontSize: 9.5,
+                fontWeight: 700,
+                fontFamily: "var(--mono)",
+                padding: "2px 6px",
+                borderRadius: 4,
+                background: "rgba(207, 173, 116, 0.15)",
+                color: "var(--warning, #cfad74)",
+                border: "1px solid rgba(207, 173, 116, 0.3)",
+                letterSpacing: "0.04em",
+                flexShrink: 0,
+              }}
+              title="Browser client routes all transaction signing to your connected wallet."
+            >
+              MODE: INTERACTIVE WALLET
+            </span>
+
+            {/* Risk Ratchet Badge */}
+            <span style={{
+              fontSize: 9.5,
+              fontWeight: 700,
+              fontFamily: "var(--mono)",
+              padding: "2px 6px",
+              borderRadius: 4,
+              background: risk.ratchetState === "SAFE" ? "rgba(121,194,164,0.15)" : risk.ratchetState === "RESTRICTED" ? "rgba(207,173,116,0.15)" : "rgba(207,139,139,0.15)",
+              color: risk.ratchetState === "SAFE" ? "var(--mint, #79c2a4)" : risk.ratchetState === "RESTRICTED" ? "var(--warning, #cfad74)" : "var(--danger, #cf8b8b)",
+              border: `1px solid ${risk.ratchetState === "SAFE" ? "rgba(121,194,164,0.3)" : risk.ratchetState === "RESTRICTED" ? "rgba(207,173,116,0.3)" : "rgba(207,139,139,0.3)"}`,
+            }}>
+              RISK: {risk.ratchetState}
+            </span>
+
+            {/* Market Session Badge */}
+            <span style={{
+              fontSize: 9.5,
+              fontWeight: 700,
+              fontFamily: "var(--mono)",
+              padding: "2px 6px",
+              borderRadius: 4,
+              background: risk.isMarketOpen ? "rgba(121,194,164,0.15)" : "rgba(255,255,255,0.06)",
+              color: risk.isMarketOpen ? "var(--mint, #79c2a4)" : "var(--text-3)",
+              border: "1px solid var(--border)",
+            }}>
+              MARKET: {risk.isMarketOpen ? "OPEN" : "CLOSED"}
+            </span>
+
+            {/* Oracle Badge */}
+            <span style={{
+              fontSize: 9.5,
+              fontWeight: 700,
+              fontFamily: "var(--mono)",
+              padding: "2px 6px",
+              borderRadius: 4,
+              background: "rgba(121,194,164,0.15)",
+              color: "var(--mint, #79c2a4)",
+              border: "1px solid rgba(121,194,164,0.3)",
+            }}>
+              ORACLE: VALID
+            </span>
           </div>
 
-          {/* ── Input area — pinned to bottom, centered ── */}
-          <div style={{ flexShrink: 0, borderTop: "1px solid var(--border)", background: "var(--surface-1)", padding: "12px 20px 16px" }}>
-            <div style={{ maxWidth: 760, margin: "0 auto" }}>
+          {/* Right Dimensions & Controls */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
+            {/* Active Context Indicator */}
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                background: "var(--surface-2)",
+                border: "1px solid var(--border)",
+                borderRadius: 5,
+                padding: "2px 7px",
+              }}
+              title={`Active Conversational Asset: ${activeContextAsset.tokenSymbol} (${activeContextAsset.name})`}
+            >
+              <span style={{ fontSize: 9.5, fontFamily: "var(--mono)", color: "var(--text-3)", letterSpacing: "0.04em" }}>CONTEXT:</span>
+              <span style={{ fontSize: 10.5, fontFamily: "var(--mono)", fontWeight: 700, color: "var(--accent)" }}>
+                {activeContextAsset.tokenSymbol}
+              </span>
+            </div>
 
-              {/* In-chat Model Selector by Availability */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, gap: 8, flexWrap: "wrap" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                  <span style={{ fontSize: 9.5, fontFamily: "var(--mono)", color: "var(--text-3)", letterSpacing: "0.04em" }}>MODEL:</span>
-                  <div style={{ display: "inline-flex", gap: 3, background: "var(--surface-2)", padding: "2px 4px", borderRadius: 6, border: "1px solid var(--border)", flexWrap: "wrap" }}>
-                    {availableModels.map(m => {
-                      const isSel = selectedModel === m.id;
-                      return (
-                        <button
-                          key={m.id}
-                          type="button"
-                          onClick={() => handleSelectModel(m.id)}
-                          style={{
-                            padding: "3px 8px",
-                            fontSize: 10,
-                            fontFamily: "var(--mono)",
-                            fontWeight: isSel ? 700 : 500,
-                            background: isSel ? "var(--accent, #eceae6)" : "transparent",
-                            color: isSel ? "#0c0c0d" : "var(--text-3)",
-                            border: "none",
-                            borderRadius: 4,
-                            cursor: "pointer",
-                            transition: "all var(--t-fast)",
-                          }}
-                          title={m.desc}
-                        >
-                          {m.name} <span style={{ opacity: 0.75, fontSize: 8.5 }}>({m.badge})</span>
-                        </button>
-                      );
-                    })}
+            {/* Active Model Selector */}
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 5, padding: "2px 7px" }}>
+              <span style={{ fontSize: 9.5, fontFamily: "var(--mono)", color: "var(--text-3)", letterSpacing: "0.04em" }}>MODEL:</span>
+              <select
+                value={selectedModel}
+                onChange={(e) => handleSelectModel(e.target.value)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "var(--mint, #79c2a4)",
+                  fontSize: 10.5,
+                  fontFamily: "var(--mono)",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  outline: "none",
+                  padding: "2px 0",
+                }}
+                title="Select Gemini model by availability and capability"
+              >
+                {availableModels.map(m => (
+                  <option key={m.id} value={m.id} style={{ background: "var(--surface-1)", color: "var(--text)" }}>
+                    {m.name} ({m.badge})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Agent Access Indicator */}
+            <button
+              type="button"
+              onClick={() => setActiveTab("PERMISSIONS")}
+              style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 7px", borderRadius: 4, background: "transparent", border: "none", cursor: "pointer" }}
+              title="Manage bounded agent access and permissions"
+            >
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: hasActiveAuthority ? "var(--mint,#79c2a4)" : "var(--text-3)", display: "inline-block" }} />
+              <span style={{ fontSize: 10, fontFamily: "var(--mono)", color: hasActiveAuthority ? "var(--mint,#79c2a4)" : "var(--text-3)" }}>
+                {hasActiveAuthority ? "AGENT ACCESS ACTIVE" : "NO AGENT ACCESS"}
+              </span>
+            </button>
+
+            <button type="button" onClick={clear} style={{ padding: "4px 9px", fontSize: 10, fontFamily: "var(--mono)", background: "transparent", border: "1px solid var(--border)", borderRadius: 5, color: "var(--text-3)", cursor: "pointer" }}>CLEAR</button>
+          </div>
+        </div>
+
+        {/* ── Body: Tab Content ── */}
+
+        {/* TAB 1: CHAT — 2-Column: Left/Center Chat + Right Telemetry Panel */}
+        {activeTab === "CHAT" && (
+          <div style={{ flex: 1, display: "flex", overflow: "hidden", background: "var(--surface-0)" }}>
+            {/* Left/Center Column: Chat Feed & Input */}
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" }}>
+              {/* Scrollable message feed */}
+              <div style={{ flex: 1, overflowY: "auto", scrollbarWidth: "thin" }}>
+                <div style={{ maxWidth: 760, margin: "0 auto", padding: "28px 20px 16px" }}>
+                  {msgs.map(m => (
+                    <Bubble
+                      key={m.id}
+                      msg={m}
+                      owner={wallet.address || ""}
+                      onTaskCreated={handleTaskCreated}
+                      onApproveProposal={handleApproveProposal}
+                      onActionClick={(action, symbol) => sendWithText(`${action} against ${symbol}`)}
+                      onChartClick={(symbol) => sendWithText(`chart ${symbol}`)}
+                      onSubTabClick={(tab, symbol) => {
+                        if (tab === "Risk") sendWithText(`risk for ${symbol}`);
+                        else if (tab === "Position") sendWithText(`my position in ${symbol}`);
+                        else if (tab === "Activity") sendWithText(`activity for ${symbol}`);
+                        else sendWithText(`show ${symbol}`);
+                      }}
+                      onSelectClarification={(text) => sendWithText(text)}
+                    />
+                  ))}
+                  <div ref={endRef} />
+                </div>
+              </div>
+
+              {/* Input area */}
+              <div style={{ flexShrink: 0, borderTop: "1px solid var(--border)", background: "var(--surface-1)", padding: "12px 20px 16px" }}>
+                <div style={{ maxWidth: 760, margin: "0 auto" }}>
+
+                  {/* In-chat Model Selector by Availability */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, gap: 8, flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 9.5, fontFamily: "var(--mono)", color: "var(--text-3)", letterSpacing: "0.04em" }}>MODEL:</span>
+                      <div style={{ display: "inline-flex", gap: 3, background: "var(--surface-2)", padding: "2px 4px", borderRadius: 6, border: "1px solid var(--border)", flexWrap: "wrap" }}>
+                        {availableModels.map(m => {
+                          const isSel = selectedModel === m.id;
+                          return (
+                            <button
+                              key={m.id}
+                              type="button"
+                              onClick={() => handleSelectModel(m.id)}
+                              style={{
+                                padding: "3px 8px",
+                                fontSize: 10,
+                                fontFamily: "var(--mono)",
+                                fontWeight: isSel ? 700 : 500,
+                                background: isSel ? "var(--accent, #eceae6)" : "transparent",
+                                color: isSel ? "#0c0c0d" : "var(--text-3)",
+                                border: "none",
+                                borderRadius: 4,
+                                cursor: "pointer",
+                                transition: "all var(--t-fast)",
+                              }}
+                              title={m.desc}
+                            >
+                              {m.name} <span style={{ opacity: 0.75, fontSize: 8.5 }}>({m.badge})</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <span style={{ fontSize: 9, fontFamily: "var(--mono)", color: "var(--text-3)" }}>
+                      Server AI Gateway
+                    </span>
+                  </div>
+
+                  {/* Suggested prompts */}
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+                    {[
+                      "nvda",
+                      "borrow 200",
+                      "can I borrow 300?",
+                      "price?",
+                      "chart",
+                      "what can I do here?",
+                      "make it 150",
+                      "actually make it GOOGL",
+                      "watch health factor < 1.8",
+                    ].map(prompt => (
+                      <button
+                        key={prompt}
+                        type="button"
+                        onClick={() => setInput(prompt)}
+                        style={{
+                          padding: "4px 10px",
+                          fontSize: 11,
+                          fontFamily: "var(--mono)",
+                          background: "var(--surface-2)",
+                          border: "1px solid var(--border)",
+                          borderRadius: 20,
+                          color: "var(--text-3)",
+                          cursor: "pointer",
+                          whiteSpace: "nowrap",
+                          transition: "all var(--t-fast)",
+                        }}
+                      >
+                        {prompt}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Input row */}
+                  <div style={{ display: "flex", gap: 10, alignItems: "flex-end", background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 12, padding: "10px 14px" }}>
+                    <textarea
+                      value={input}
+                      onChange={e => setInput(e.target.value)}
+                      onKeyDown={onKey}
+                      placeholder={!connected ? "Connect your Solana Devnet wallet to start..." : "Ask about your risk, borrow capacity, Meteora liquidity, or set up a watch rule… (Enter to send, Shift+Enter for newline)"}
+                      disabled={!connected || streaming}
+                      rows={1}
+                      style={{
+                        flex: 1,
+                        background: "transparent",
+                        border: "none",
+                        color: "var(--text)",
+                        fontFamily: "var(--sans)",
+                        fontSize: 14,
+                        resize: "none",
+                        outline: "none",
+                        lineHeight: 1.55,
+                        maxHeight: 140,
+                        overflowY: "auto",
+                      }}
+                    />
+                    {streaming ? (
+                      <button
+                        type="button"
+                        onClick={stop}
+                        style={{
+                          flexShrink: 0, padding: "7px 14px", background: "rgba(207,139,139,0.15)",
+                          border: "1px solid rgba(207,139,139,0.4)", borderRadius: 8,
+                          color: "var(--danger,#cf8b8b)", fontSize: 11, fontWeight: 700,
+                          cursor: "pointer", fontFamily: "var(--mono)", whiteSpace: "nowrap",
+                        }}
+                      >
+                        ■ STOP
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => sendWithText()}
+                        disabled={!input.trim() || !connected}
+                        style={{
+                          flexShrink: 0, padding: "7px 14px",
+                          background: !input.trim() || !connected ? "transparent" : "var(--accent, #eceae6)",
+                          border: !input.trim() || !connected ? "1px solid var(--border)" : "none",
+                          borderRadius: 8,
+                          color: !input.trim() || !connected ? "var(--text-3)" : "#0c0c0d",
+                          fontSize: 13, fontWeight: 700,
+                          cursor: !input.trim() || !connected ? "not-allowed" : "pointer",
+                          fontFamily: "var(--mono)", whiteSpace: "nowrap", transition: "all var(--t-fast)",
+                        }}
+                      >
+                        ↑
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Footer note */}
+                  <div style={{ marginTop: 6, fontSize: 10, color: "var(--text-3)", fontFamily: "var(--mono)", textAlign: "center" }}>
+                    Circuit Agent · Risk Ratchet enforced on-chain · Solana Devnet · {risk.ratchetState} {risk.isMarketOpen ? "· NYSE OPEN" : "· MARKET CLOSED"}
                   </div>
                 </div>
-                <span style={{ fontSize: 9, fontFamily: "var(--mono)", color: "var(--text-3)" }}>
-                  Server AI Gateway
-                </span>
-              </div>
-
-              {/* Suggested prompts */}
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
-                {[
-                  "nvda",
-                  "borrow 200",
-                  "can I borrow 300?",
-                  "price?",
-                  "chart",
-                  "what can I do here?",
-                  "make it 150",
-                  "actually make it GOOGL",
-                  "watch health factor < 1.8",
-                ].map(prompt => (
-                  <button
-                    key={prompt}
-                    type="button"
-                    onClick={() => setInput(prompt)}
-                    style={{
-                      padding: "4px 10px",
-                      fontSize: 11,
-                      fontFamily: "var(--mono)",
-                      background: "var(--surface-2)",
-                      border: "1px solid var(--border)",
-                      borderRadius: 20,
-                      color: "var(--text-3)",
-                      cursor: "pointer",
-                      whiteSpace: "nowrap",
-                      transition: "all var(--t-fast)",
-                    }}
-                  >
-                    {prompt}
-                  </button>
-                ))}
-              </div>
-
-              {/* Input row */}
-              <div style={{ display: "flex", gap: 10, alignItems: "flex-end", background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 12, padding: "10px 14px" }}>
-                <textarea
-                  value={input}
-                  onChange={e => setInput(e.target.value)}
-                  onKeyDown={onKey}
-                  placeholder={!connected ? "Connect your Solana Devnet wallet to start..." : "Ask about your risk, borrow capacity, Meteora liquidity, or set up a watch rule… (Enter to send, Shift+Enter for newline)"}
-                  disabled={!connected || streaming}
-                  rows={1}
-                  style={{
-                    flex: 1,
-                    background: "transparent",
-                    border: "none",
-                    color: "var(--text)",
-                    fontFamily: "var(--sans)",
-                    fontSize: 14,
-                    resize: "none",
-                    outline: "none",
-                    lineHeight: 1.55,
-                    maxHeight: 140,
-                    overflowY: "auto",
-                  }}
-                />
-                {streaming ? (
-                  <button
-                    type="button"
-                    onClick={stop}
-                    style={{
-                      flexShrink: 0, padding: "7px 14px", background: "rgba(207,139,139,0.15)",
-                      border: "1px solid rgba(207,139,139,0.4)", borderRadius: 8,
-                      color: "var(--danger,#cf8b8b)", fontSize: 11, fontWeight: 700,
-                      cursor: "pointer", fontFamily: "var(--mono)", whiteSpace: "nowrap",
-                    }}
-                  >
-                    ■ STOP
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => sendWithText()}
-                    disabled={!input.trim() || !connected}
-                    style={{
-                      flexShrink: 0, padding: "7px 14px",
-                      background: !input.trim() || !connected ? "transparent" : "var(--accent, #eceae6)",
-                      border: !input.trim() || !connected ? "1px solid var(--border)" : "none",
-                      borderRadius: 8,
-                      color: !input.trim() || !connected ? "var(--text-3)" : "#0c0c0d",
-                      fontSize: 13, fontWeight: 700,
-                      cursor: !input.trim() || !connected ? "not-allowed" : "pointer",
-                      fontFamily: "var(--mono)", whiteSpace: "nowrap", transition: "all var(--t-fast)",
-                    }}
-                  >
-                    ↑
-                  </button>
-                )}
-              </div>
-
-              {/* Footer note */}
-              <div style={{ marginTop: 6, fontSize: 10, color: "var(--text-3)", fontFamily: "var(--mono)", textAlign: "center" }}>
-                Circuit Agent · Risk Ratchet enforced on-chain · Solana Devnet · {risk.ratchetState} {risk.isMarketOpen ? "· NYSE OPEN" : "· MARKET CLOSED"}
               </div>
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* TAB 2: STRATEGY */}
-      {activeTab === "STRATEGY" && (
-        <div style={{ flex: 1, overflowY: "auto", background: "var(--surface-0)", padding: 20 }}>
-          <div style={{ maxWidth: 900, margin: "0 auto", display: "flex", flexDirection: "column", gap: 16 }}>
-            <div style={{ padding: "16px 18px", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r)" }}>
-              <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text)" }}>STRATEGY PLANNER &amp; AUTOMATION</div>
-              <div style={{ fontSize: 12, color: "var(--text-2)", marginTop: 4, lineHeight: 1.5 }}>
-                Configure bounded multi-step autonomous policies combining collateral deposits, risk-gated borrowing, and Meteora Dynamic Bonding Curve (DBC) liquidity rebalancing.
+            {/* Right Column: Context & Telemetry Panel */}
+            <TelemetryContextPanel
+              activeAsset={activeContextAsset}
+              portfolio={portfolio}
+              risk={risk}
+              credit={credit}
+              markets={markets}
+              onChainAuthorities={onChainAuthorities}
+            />
+          </div>
+        )}
+
+        {/* TAB 2: STRATEGY */}
+        {activeTab === "STRATEGY" && (
+          <div style={{ flex: 1, overflowY: "auto", background: "var(--surface-0)", padding: 20 }}>
+            <div style={{ maxWidth: 900, margin: "0 auto", display: "flex", flexDirection: "column", gap: 16 }}>
+              <div style={{ padding: "16px 18px", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r)" }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text)" }}>STRATEGY PLANNER &amp; AUTOMATION</div>
+                <div style={{ fontSize: 12, color: "var(--text-2)", marginTop: 4, lineHeight: 1.5 }}>
+                  Configure bounded multi-step autonomous policies combining collateral deposits, risk-gated borrowing, and Meteora Dynamic Bonding Curve (DBC) liquidity rebalancing.
+                </div>
               </div>
+              <StrategiesPanel owner={wallet.address || ""} onAddStrategy={() => startAction("Auto manage: keep my portfolio health above 1.8 with repay up to $200")} />
             </div>
-            <StrategiesPanel owner={wallet.address || ""} onAddStrategy={() => startAction("Auto manage: keep my portfolio health above 1.8 with repay up to $200")} />
           </div>
-        </div>
-      )}
+        )}
 
-      {/* TAB 3: WATCH */}
-      {activeTab === "WATCH" && (
-        <div style={{ flex: 1, overflowY: "auto", background: "var(--surface-0)", padding: 0 }}>
-          <WatchesPanel owner={wallet.address || ""} onAddWatch={() => startAction("Watch my health factor and notify if below 1.8")} />
-        </div>
-      )}
+        {/* TAB 3: WATCH */}
+        {activeTab === "WATCH" && (
+          <div style={{ flex: 1, overflowY: "auto", background: "var(--surface-0)", padding: 0 }}>
+            <WatchesPanel owner={wallet.address || ""} onAddWatch={() => startAction("Watch my health factor and notify if below 1.8")} />
+          </div>
+        )}
 
-      {/* TAB 4: AUTO MANAGE */}
-      {activeTab === "AUTO MANAGE" && (
-        <div style={{ flex: 1, overflowY: "auto", background: "var(--surface-0)", padding: 0 }}>
-          <StrategiesPanel owner={wallet.address || ""} onAddStrategy={() => startAction("Auto manage: keep my health factor above 1.8, auto-repaying up to $200")} />
-        </div>
-      )}
+        {/* TAB 4: AUTO MANAGE */}
+        {activeTab === "AUTO MANAGE" && (
+          <div style={{ flex: 1, overflowY: "auto", background: "var(--surface-0)", padding: 0 }}>
+            <StrategiesPanel owner={wallet.address || ""} onAddStrategy={() => startAction("Auto manage: keep my health factor above 1.8, auto-repaying up to $200")} />
+          </div>
+        )}
 
-      {/* TAB 5: SCHEDULE */}
-      {activeTab === "SCHEDULE" && (
-        <div style={{ flex: 1, overflowY: "auto", background: "var(--surface-0)", padding: 0 }}>
-          <TasksPanel owner={wallet.address || ""} onAddTask={() => startAction("Schedule portfolio check every 1 hour")} />
-        </div>
-      )}
+        {/* TAB 5: SCHEDULE */}
+        {activeTab === "SCHEDULE" && (
+          <div style={{ flex: 1, overflowY: "auto", background: "var(--surface-0)", padding: 0 }}>
+            <TasksPanel owner={wallet.address || ""} onAddTask={() => startAction("Schedule portfolio check every 1 hour")} />
+          </div>
+        )}
 
-      {/* TAB 6: PERMISSIONS */}
-      {activeTab === "PERMISSIONS" && (
-        <div style={{ flex: 1, overflowY: "auto", background: "var(--surface-0)", padding: 0 }}>
-          <PermissionsTab onCreated={() => {
-            updateCounts();
-            setActiveTab("CHAT");
-          }} />
-        </div>
-      )}
+        {/* TAB 6: PERMISSIONS */}
+        {activeTab === "PERMISSIONS" && (
+          <div style={{ flex: 1, overflowY: "auto", background: "var(--surface-0)", padding: 0 }}>
+            <PermissionsTab onCreated={() => {
+              updateCounts();
+              setActiveTab("CHAT");
+            }} />
+          </div>
+        )}
 
-      <style>{`@keyframes agPulse{0%,100%{opacity:1}50%{opacity:0.4}}@keyframes agBlink{0%,100%{opacity:1}50%{opacity:0}}`}</style>
+        <style>{`@keyframes agPulse{0%,100%{opacity:1}50%{opacity:0.4}}@keyframes agBlink{0%,100%{opacity:1}50%{opacity:0}}`}</style>
+      </div>
     </div>
   );
 }

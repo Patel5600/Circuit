@@ -359,39 +359,54 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Default to Google Gemini OpenAI-compatible gateway
   const baseUrl = rawBaseUrl ?? "https://generativelanguage.googleapis.com/v1beta/openai";
   const isGemini = baseUrl.includes("generativelanguage.googleapis.com");
-  const model =
+  const fallbackModel = "gemini-3.6-flash";
+  const requestedModel =
     (typeof body.model === "string" ? body.model.trim() : "") ||
     process.env.GEMINI_MODEL ||
     process.env.AI_MODEL ||
-    (isGemini ? "gemini-3.6-flash" : "gpt-4o-mini");
+    (isGemini ? fallbackModel : "gpt-4o-mini");
 
-  try {
+  const callUpstream = async (targetModel: string) => {
     const url = isGemini && !baseUrl.includes("key=")
       ? `${baseUrl}/chat/completions?key=${encodeURIComponent(apiKey)}`
       : `${baseUrl}/chat/completions`;
 
-    const upstream = await fetch(url, {
+    return fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model,
+        model: targetModel,
         messages: [{ role: "system", content: buildSystemPrompt(snapshot) }, ...messages.slice(-20)],
         stream: true,
         max_tokens: 2048,
         temperature: 0.2,
       }),
     });
+  };
+
+  try {
+    let activeModel = requestedModel;
+    let switchedFallback = false;
+    let upstream = await callUpstream(activeModel);
+
+    // Bounded fallback: If upstream returns 404, 400 (e.g. deprecated model), or 5xx,
+    // and requestedModel is not already fallbackModel, retry once with gemini-3.6-flash.
+    if (!upstream.ok && activeModel !== fallbackModel) {
+      console.warn(`Model ${activeModel} failed (HTTP ${upstream.status}). Retrying with ${fallbackModel}...`);
+      const fallbackResp = await callUpstream(fallbackModel);
+      if (fallbackResp.ok) {
+        upstream = fallbackResp;
+        switchedFallback = true;
+      }
+    }
 
     if (!upstream.ok) {
-      const errText = await upstream.text().catch(() => "");
-      console.error("Gemini upstream error:", upstream.status, errText);
+      console.error(`Gemini upstream error (HTTP ${upstream.status})`);
       res.setHeader("Content-Type", "text/plain; charset=utf-8");
-      res.status(200);
-      res.write(`Gemini model "${model}" error (HTTP ${upstream.status}${errText ? `: ${errText.slice(0, 1000)}` : ""}). Try selecting another model in the chat selector, or verify GEMINI_AI_KEY in Vercel.`);
-      return res.end();
+      return res.status(200).send("Agent service is temporarily unavailable. Please select another model in the selector.");
     }
 
     res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
@@ -400,8 +415,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader("X-Accel-Buffering", "no");
     res.status(200);
 
+    if (switchedFallback) {
+      const fallbackNotice = `[Note: Switched to Gemini 3.6 Flash because "${activeModel}" was unavailable.]\n\n`;
+      res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: fallbackNotice } }] })}\n\n`);
+    }
+
     const reader = upstream.body?.getReader();
-    if (!reader) { res.write("data: [DONE]\n\n"); return res.end(); }
+    if (!reader) {
+      res.write("data: [DONE]\n\n");
+      return res.end();
+    }
     const dec = new TextDecoder();
     while (true) {
       const { done, value } = await reader.read();
@@ -410,10 +433,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     res.end();
   } catch (err) {
-    console.error("Agent chat:", err);
+    console.error("Agent chat error:", err);
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     res.status(200);
-    res.write("Connection error. On-chain system unaffected.");
+    res.write("Agent service is temporarily unavailable. On-chain system unaffected.");
     res.end();
   }
 }

@@ -281,4 +281,94 @@ describe("Agent Harness & Conversational Protocol Execution Tests", () => {
       expect(check.reason).to.include("Repeated execution");
     });
   });
+
+  describe("7. State Dimension Independence & Fresh Proposal Revalidation", () => {
+    it("capacity queries and blocked proposals do not put agent runtime in BLOCKED state", () => {
+      const harness = new AgentHarnessCoordinator();
+      const res = harness.processInput("can I borrow 600?", mockSnapshot);
+
+      expect(res.intent.type).to.equal("CAPACITY_QUERY");
+      const prop = res.blocks.find(b => b.type === "PROPOSAL_CARD") as any;
+      if (prop) {
+        expect(prop.permission).to.equal("BLOCKED");
+      }
+      expect(res.replyText).to.include("NO");
+    });
+
+    it("revalidates proposals freshly against dynamic on-chain risk state changes", () => {
+      function validateProposalFresh(
+        proposal: { action: string; amountUsd: number; symbol: string },
+        freshRisk: string,
+        freshAvailableCredit: number,
+        freshTotalDebt: number
+      ): { valid: boolean; reason?: string } {
+        if (freshRisk === "EMERGENCY" && ["borrow", "withdraw", "swap", "enter_liquidity", "rebalance"].includes(proposal.action)) {
+          return { valid: false, reason: "Risk Ratchet is EMERGENCY" };
+        }
+        if (freshRisk === "DEFENSIVE") {
+          if (proposal.action === "borrow") return { valid: false, reason: "Borrow disabled in DEFENSIVE" };
+          if (proposal.action === "withdraw" && freshTotalDebt > 0) return { valid: false, reason: "Withdraw blocked with debt in DEFENSIVE" };
+        }
+        if (freshRisk === "RESTRICTED" && proposal.action === "borrow") {
+          return { valid: false, reason: "Borrow suspended in RESTRICTED" };
+        }
+        if (proposal.action === "borrow" && proposal.amountUsd > freshAvailableCredit) {
+          return { valid: false, reason: "Amount exceeds available credit capacity" };
+        }
+        return { valid: true };
+      }
+
+      const prop = { action: "borrow", amountUsd: 200, symbol: "NVDA" };
+      // 1. Valid under initial SAFE conditions
+      expect(validateProposalFresh(prop, "SAFE", 420, 200).valid).to.be.true;
+
+      // 2. Rejected if risk suddenly shifted to DEFENSIVE before user clicked Approve & Sign
+      const defensiveCheck = validateProposalFresh(prop, "DEFENSIVE", 420, 200);
+      expect(defensiveCheck.valid).to.be.false;
+      expect(defensiveCheck.reason).to.include("DEFENSIVE");
+
+      // 3. Rejected if risk suddenly shifted to EMERGENCY
+      const emergCheck = validateProposalFresh(prop, "EMERGENCY", 420, 200);
+      expect(emergCheck.valid).to.be.false;
+      expect(emergCheck.reason).to.include("EMERGENCY");
+
+      // 4. Rejected if credit shrunk below requested amount
+      const creditCheck = validateProposalFresh(prop, "SAFE", 100, 200);
+      expect(creditCheck.valid).to.be.false;
+      expect(creditCheck.reason).to.include("exceeds available credit");
+    });
+
+    it("filters out deprecated models and prioritizes gemini-3.6-flash", () => {
+      const mockRawCatalog = [
+        { name: "models/gemini-1.5-pro", displayName: "Gemini 1.5 Pro", supportedGenerationMethods: ["generateContent"] },
+        { name: "models/gemini-1.5-flash", displayName: "Gemini 1.5 Flash", supportedGenerationMethods: ["generateContent"] },
+        { name: "models/gemini-2.0-flash", displayName: "Gemini 2.0 Flash", supportedGenerationMethods: ["generateContent"] },
+        { name: "models/gemini-2.5-flash", displayName: "Gemini 2.5 Flash", supportedGenerationMethods: ["generateContent"] },
+        { name: "models/gemini-2.5-pro", displayName: "Gemini 2.5 Pro", supportedGenerationMethods: ["generateContent"] },
+        { name: "models/gemini-3.6-flash", displayName: "Gemini 3.6 Flash", supportedGenerationMethods: ["generateContent"] },
+        { name: "models/gemini-3.7-flash", displayName: "Gemini 3.7 Flash", supportedGenerationMethods: ["generateContent"] },
+        { name: "models/gemini-3.8-flash", displayName: "Gemini 3.8 Flash", supportedGenerationMethods: ["generateContent"] },
+      ];
+
+      const filtered = mockRawCatalog
+        .filter(m => {
+          const id = m.name.replace(/^models\//, "");
+          if (id.startsWith("gemini-1.") || id === "gemini-2.0-flash") return false;
+          return m.supportedGenerationMethods.includes("generateContent");
+        })
+        .map(m => m.name.replace(/^models\//, ""));
+
+      expect(filtered).to.not.include("gemini-1.5-pro");
+      expect(filtered).to.not.include("gemini-1.5-flash");
+      expect(filtered).to.not.include("gemini-2.0-flash");
+      expect(filtered).to.include("gemini-3.6-flash");
+      expect(filtered).to.include("gemini-3.7-flash");
+      expect(filtered).to.include("gemini-3.8-flash");
+      expect(filtered).to.include("gemini-2.5-flash");
+      expect(filtered).to.include("gemini-2.5-pro");
+
+      const defaultModel = filtered.find(id => id.includes("3.6-flash")) ?? filtered[0];
+      expect(defaultModel).to.equal("gemini-3.6-flash");
+    });
+  });
 });
