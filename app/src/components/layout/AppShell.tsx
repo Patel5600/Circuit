@@ -57,7 +57,7 @@ function Header({ onOpenHealth }: { onOpenHealth?: () => void }) {
     if (onChainAuthorities.some((a) => a.isRevoked)) {
       return { label: "REVOKED", tone: "danger" as const };
     }
-    return { label: "SETUP REQUIRED", tone: "setup" as const };
+    return null;
   }, [hasActiveAuthority, onChainAuthorities]);
 
   return (
@@ -112,7 +112,7 @@ function Header({ onOpenHealth }: { onOpenHealth?: () => void }) {
               }
             }}
             style={{
-              padding: "5px 10px",
+              padding: authorityStatusBadge ? "5px 10px" : "5px 12px",
               fontSize: 11,
               fontWeight: isAutonomous ? 700 : 500,
               color: isAutonomous ? "var(--accent)" : "var(--text-3)",
@@ -128,39 +128,37 @@ function Header({ onOpenHealth }: { onOpenHealth?: () => void }) {
             title="Agent Mode: Bounded execution within your risk limits"
           >
             <span>AGENT</span>
-            <span
-              className="appbar__mode-badge"
-              style={{
-                fontSize: 9,
-                fontWeight: 700,
-                fontFamily: "var(--mono)",
-                letterSpacing: "0.04em",
-                padding: "1px 5px",
-                borderRadius: 3,
-                background:
-                  authorityStatusBadge.tone === "active"
-                    ? "rgba(121, 194, 164, 0.18)"
-                    : authorityStatusBadge.tone === "danger"
-                    ? "rgba(207, 139, 139, 0.18)"
-                    : authorityStatusBadge.tone === "warning"
-                    ? "rgba(207, 173, 116, 0.18)"
-                    : "rgba(255, 255, 255, 0.06)",
-                color:
-                  authorityStatusBadge.tone === "active"
-                    ? "var(--mint, #79c2a4)"
-                    : authorityStatusBadge.tone === "danger"
-                    ? "var(--danger, #cf8b8b)"
-                    : authorityStatusBadge.tone === "warning"
-                    ? "var(--warning, #cfad74)"
-                    : "var(--text-3)",
-                border:
-                  authorityStatusBadge.tone === "active"
-                    ? "1px solid rgba(121, 194, 164, 0.3)"
-                    : "1px solid transparent",
-              }}
-            >
-              {authorityStatusBadge.label}
-            </span>
+            {authorityStatusBadge && (
+              <span
+                className="appbar__mode-badge"
+                style={{
+                  fontSize: 9,
+                  fontWeight: 700,
+                  fontFamily: "var(--mono)",
+                  letterSpacing: "0.04em",
+                  padding: "1px 5px",
+                  borderRadius: 3,
+                  background:
+                    authorityStatusBadge.tone === "active"
+                      ? "rgba(121, 194, 164, 0.18)"
+                      : authorityStatusBadge.tone === "danger"
+                      ? "rgba(207, 139, 139, 0.18)"
+                      : "rgba(207, 173, 116, 0.18)",
+                  color:
+                    authorityStatusBadge.tone === "active"
+                      ? "var(--mint, #79c2a4)"
+                      : authorityStatusBadge.tone === "danger"
+                      ? "var(--danger, #cf8b8b)"
+                      : "var(--warning, #cfad74)",
+                  border:
+                    authorityStatusBadge.tone === "active"
+                      ? "1px solid rgba(121, 194, 164, 0.3)"
+                      : "1px solid transparent",
+                }}
+              >
+                {authorityStatusBadge.label}
+              </span>
+            )}
           </button>
         </div>
       </div>
