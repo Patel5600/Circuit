@@ -28,6 +28,13 @@ import type { ParsedTaskProposal } from "../lib/automation/types";
 import { DbcExecutionPanel } from "../components/dbc/DbcExecutionPanel";
 import { DbcCurveVisualizer } from "../components/dbc/DbcCurveVisualizer";
 import { DbcPoolStatusPill } from "../components/dbc/DbcPoolStatusPill";
+import { AgentMessageRenderer } from "../components/autonomous/AgentMessageRenderer";
+import { LiveAgentStatePanel } from "../components/autonomous/LiveAgentStatePanel";
+import { CommandPalette, CommandItem } from "../components/autonomous/CommandPalette";
+import { AgentCapabilityInspector } from "../components/autonomous/AgentCapabilityInspector";
+import { ApprovalQueueModal } from "../components/autonomous/ApprovalQueueModal";
+import { ActionStream, StreamEvent } from "../components/autonomous/ActionStream";
+import { StrategyNodeId } from "../components/autonomous/LiveStrategyGraph";
 import { useAction } from "../context/ActionContext";
 import { useMarketData } from "../context/MarketDataContext";
 import type { MarketSnapshot } from "../lib/market-data/types";
@@ -62,8 +69,25 @@ import {
 import { getContextualSuggestions } from "../lib/agent/suggestions";
 
 export type AgentState =
-  | "IDLE" | "PLANNING" | "AWAITING_APPROVAL" | "CHECKING_PERMISSION"
-  | "EXECUTING" | "CONFIRMING" | "COMPLETED" | "FAILED" | "PAUSED" | "EXPIRED";
+  | "OFFLINE"
+  | "READY"
+  | "OBSERVING"
+  | "ANALYZING"
+  | "PLANNING"
+  | "AWAITING_APPROVAL"
+  | "CHECKING_PERMISSION"
+  | "EXECUTING"
+  | "CONFIRMING"
+  | "WATCHING"
+  | "SCHEDULED"
+  | "PAUSED"
+  | "BLOCKED"
+  | "FAILED"
+  | "COMPLETED"
+  | "EXPIRED"
+  | "IDLE";
+
+export type AgentOperatingMode = "COPILOT" | "DELEGATED" | "WATCH" | "AUTO MANAGE" | "SCHEDULE";
 
 export type TabId = "CHAT" | "STRATEGY" | "WATCH" | "AUTO MANAGE" | "SCHEDULE" | "PERMISSIONS" | "DBC";
 
@@ -126,16 +150,16 @@ function fmtTime(ts: number): string {
 }
 
 function stateColor(s: AgentState): string {
-  if (s === "IDLE" || s === "EXPIRED") return "var(--text-3)";
-  if (s === "EXECUTING" || s === "CONFIRMING" || s === "COMPLETED") return "var(--mint, #79c2a4)";
-  if (s === "FAILED") return "var(--danger, #cf8b8b)";
-  if (s === "AWAITING_APPROVAL" || s === "PAUSED") return "var(--warning, #cfad74)";
+  if (s === "OFFLINE" || s === "EXPIRED") return "var(--text-3)";
+  if (s === "READY" || s === "IDLE" || s === "EXECUTING" || s === "CONFIRMING" || s === "COMPLETED") return "var(--mint, #79c2a4)";
+  if (s === "FAILED" || s === "BLOCKED") return "var(--danger, #cf8b8b)";
+  if (s === "AWAITING_APPROVAL" || s === "PAUSED" || s === "WATCHING" || s === "SCHEDULED") return "var(--warning, #cfad74)";
   return "var(--accent)";
 }
 
 function StateBadge({ state }: { state: AgentState }) {
   const color = stateColor(state);
-  const pulse = state === "EXECUTING" || state === "PLANNING" || state === "CONFIRMING";
+  const pulse = state === "EXECUTING" || state === "PLANNING" || state === "CONFIRMING" || state === "OBSERVING" || state === "ANALYZING" || state === "CHECKING_PERMISSION";
   return (
     <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
       <span style={{
@@ -634,15 +658,17 @@ function Bubble({
       )}
 
       {displayContent.length > 0 && (
-        <div style={{
-          fontSize: 14, lineHeight: 1.65, color: "var(--text)",
-          whiteSpace: "pre-wrap", wordBreak: "break-word",
-        }}>
-          {displayContent}
-          {msg.streaming && (
-            <span style={{ display: "inline-block", width: 2, height: 14, background: "var(--accent)", marginLeft: 3, verticalAlign: "middle", animation: "agBlink 1s step-end infinite" }} />
-          )}
-        </div>
+        <AgentMessageRenderer
+          content={displayContent}
+          blocks={msg.blocks}
+          tools={tools}
+          streaming={msg.streaming}
+          onApproveProposal={(p) => {
+            onApproveProposal(p);
+          }}
+          onRejectProposal={() => setDismissedProposal(true)}
+          onActionClick={onActionClick}
+        />
       )}
 
       {actionProposal && !dismissedProposal && (!msg.blocks || !msg.blocks.some(b => b.type === "PROPOSAL_CARD")) && (
@@ -1467,10 +1493,32 @@ export default function Autonomous() {
   });
 
   const [input, setInput] = useState("");
-  const [agentState, setAgentState] = useState<AgentState>("IDLE");
+  const [agentState, setAgentState] = useState<AgentState>("READY");
+  const [operatingMode, setOperatingMode] = useState<AgentOperatingMode>("COPILOT");
+  const [currentObjective, setCurrentObjective] = useState<string>("Observe portfolio risk and execute permitted capital boundaries.");
+  const [isAgentPaused, setIsAgentPaused] = useState(false);
+  const [currentStrategyNode, setCurrentStrategyNode] = useState<StrategyNodeId>("OBSERVE");
+  const [blockedReason, setBlockedReason] = useState<string | null>(null);
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [showCapabilityInspector, setShowCapabilityInspector] = useState(false);
+  const [showApprovalsModal, setShowApprovalsModal] = useState(false);
+  const [pendingProposals, setPendingProposals] = useState<CircuitActionProposal[]>([]);
   const [executionState, setExecutionState] = useState<"IDLE" | "READY" | "SIGNING" | "CONFIRMING" | "CONFIRMED" | "REJECTED" | "FAILED">("IDLE");
   const [permissionResult, setPermissionResult] = useState<"ALLOWED" | "CAPPED" | "BLOCKED" | null>(null);
   const [events, setEvents] = useState<ExecEvent[]>([]);
+  const [showTelemetry, setShowTelemetry] = useState(false);
+
+  // Cmd/Ctrl + K shortcut for Command Palette
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setShowCommandPalette((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -1662,7 +1710,9 @@ export default function Autonomous() {
     if (!proposal || typeof proposal.amountUsd !== "number" || isNaN(proposal.amountUsd) || proposal.amountUsd <= 0) {
       addEvent("error", `Proposal rejected by client: Invalid amount ($${proposal?.amountUsd})`);
       setExecutionState("REJECTED");
-      setAgentState("IDLE");
+      setAgentState("BLOCKED");
+      setBlockedReason("Invalid proposal amount");
+      setCurrentStrategyNode("PERMISSION");
       return;
     }
 
@@ -1670,60 +1720,83 @@ export default function Autonomous() {
     if (!market) {
       addEvent("error", `Proposal rejected by client: Market ${proposal.symbol} not recognized in Circuit deployment`);
       setExecutionState("REJECTED");
-      setAgentState("IDLE");
+      setAgentState("BLOCKED");
+      setBlockedReason(`Market ${proposal.symbol} not recognized`);
+      setCurrentStrategyNode("PERMISSION");
       return;
     }
 
     const currentRisk = risk.ratchetState;
     // Section 15 & 34: In EMERGENCY, only capital recovery actions (repay, deposit, exit_liquidity) are allowed
     if (currentRisk === "EMERGENCY" && ["borrow", "withdraw", "swap", "enter_liquidity", "rebalance"].includes(proposal.action)) {
-      addEvent("blocked", `Proposal rejected by on-chain revalidation: Risk Ratchet is EMERGENCY. Borrow, withdraw, and liquidity entries are strictly suspended.`);
+      const reason = "Risk Ratchet is EMERGENCY. Borrow, withdraw, and liquidity entries are strictly suspended.";
+      addEvent("blocked", `Proposal rejected by on-chain revalidation: ${reason}`);
       setExecutionState("REJECTED");
-      setAgentState("IDLE");
+      setAgentState("BLOCKED");
+      setBlockedReason(reason);
+      setCurrentStrategyNode("PERMISSION");
       return;
     }
 
     // In DEFENSIVE, borrow is suspended and withdraw is blocked if debt exists
     if (currentRisk === "DEFENSIVE") {
       if (proposal.action === "borrow") {
-        addEvent("blocked", `Proposal rejected by on-chain revalidation: Borrowing is disabled by Capital Policy in DEFENSIVE state.`);
+        const reason = "Borrowing is disabled by Capital Policy in DEFENSIVE state.";
+        addEvent("blocked", `Proposal rejected by on-chain revalidation: ${reason}`);
         setExecutionState("REJECTED");
-        setAgentState("IDLE");
+        setAgentState("BLOCKED");
+        setBlockedReason(reason);
+        setCurrentStrategyNode("POLICY");
         return;
       }
       if (proposal.action === "withdraw" && portfolio.totalDebtUsd > 0) {
-        addEvent("blocked", `Proposal rejected by on-chain revalidation: Collateral withdrawal is blocked while debt is outstanding in DEFENSIVE state.`);
+        const reason = "Collateral withdrawal is blocked while debt is outstanding in DEFENSIVE state.";
+        addEvent("blocked", `Proposal rejected by on-chain revalidation: ${reason}`);
         setExecutionState("REJECTED");
-        setAgentState("IDLE");
+        setAgentState("BLOCKED");
+        setBlockedReason(reason);
+        setCurrentStrategyNode("POLICY");
         return;
       }
       if (["swap", "enter_liquidity", "rebalance"].includes(proposal.action)) {
-        addEvent("blocked", `Proposal rejected by on-chain revalidation: DBC actions are blocked in DEFENSIVE state.`);
+        const reason = "DBC actions are blocked in DEFENSIVE state.";
+        addEvent("blocked", `Proposal rejected by on-chain revalidation: ${reason}`);
         setExecutionState("REJECTED");
-        setAgentState("IDLE");
+        setAgentState("BLOCKED");
+        setBlockedReason(reason);
+        setCurrentStrategyNode("POLICY");
         return;
       }
     }
 
     // In RESTRICTED, borrow is suspended
     if (currentRisk === "RESTRICTED" && proposal.action === "borrow") {
-      addEvent("blocked", `Proposal rejected by on-chain revalidation: Borrowing is suspended in RESTRICTED risk state.`);
+      const reason = "Borrowing is suspended in RESTRICTED risk state.";
+      addEvent("blocked", `Proposal rejected by on-chain revalidation: ${reason}`);
       setExecutionState("REJECTED");
-      setAgentState("IDLE");
+      setAgentState("BLOCKED");
+      setBlockedReason(reason);
+      setCurrentStrategyNode("POLICY");
       return;
     }
 
     // Capacity checks against fresh on-chain credit state
     if (proposal.action === "borrow" && proposal.amountUsd > credit.availableCreditUsd) {
-      addEvent("blocked", `Proposal rejected by on-chain revalidation: Requested borrow ($${proposal.amountUsd}) exceeds available credit capacity ($${credit.availableCreditUsd.toFixed(2)}).`);
+      const reason = `Requested borrow ($${proposal.amountUsd}) exceeds available credit capacity ($${credit.availableCreditUsd.toFixed(2)}).`;
+      addEvent("blocked", `Proposal rejected by on-chain revalidation: ${reason}`);
       setExecutionState("REJECTED");
-      setAgentState("IDLE");
+      setAgentState("BLOCKED");
+      setBlockedReason(reason);
+      setCurrentStrategyNode("PERMISSION");
       return;
     }
 
     // All real on-chain validation checks passed
     setExecutionState("SIGNING");
     setAgentState("CONFIRMING");
+    setCurrentStrategyNode("EXECUTION");
+    setBlockedReason(null);
+    setPendingProposals(prev => prev.filter(p => p.id !== proposal.id));
     addEvent("permission", `On-chain validation passed: ${proposal.action.toUpperCase()} $${proposal.amountUsd} against ${proposal.symbol}`);
     openAction({
       type: proposal.action as any,
@@ -1736,10 +1809,17 @@ export default function Autonomous() {
   const sendWithText = useCallback(async (customText?: string) => {
     const text = (customText ?? input).trim();
     if (!text || streaming) return;
+    if (isAgentPaused) {
+      addEvent("blocked", "Agent execution is paused. Resume agent to submit queries or proposals.");
+      return;
+    }
     setInput("");
     const userMsg: ChatMessage = { id: uid(), role: "user", content: text, timestamp: Date.now() };
     setMsgs(prev => [...prev, userMsg]);
-    setAgentState("PLANNING");
+    setCurrentObjective(text);
+    setCurrentStrategyNode("OBSERVE");
+    setAgentState("OBSERVING");
+    setBlockedReason(null);
     addEvent("info", `User query: "${text.slice(0, 60)}${text.length > 60 ? "..." : ""}"`);
 
     // 1. Process through deterministic local Agent Harness
@@ -1777,9 +1857,24 @@ export default function Autonomous() {
         if (propBlock) {
           const isBlocked = propBlock.permission === "BLOCKED";
           setPermissionResult(propBlock.permission);
-          setAgentState(isBlocked ? "IDLE" : "AWAITING_APPROVAL");
-          if (!isBlocked) {
+          setAgentState(isBlocked ? "BLOCKED" : "AWAITING_APPROVAL");
+          setCurrentStrategyNode(isBlocked ? "PERMISSION" : "ACTION");
+          if (isBlocked) {
+            setBlockedReason(propBlock.reason || "Action blocked by Circuit permission engine");
+          } else {
+            setBlockedReason(null);
             setExecutionState("READY");
+            const newProposal: CircuitActionProposal = {
+              id: propBlock.id,
+              action: propBlock.action,
+              symbol: propBlock.symbol,
+              amountUsd: propBlock.amountUsd,
+              riskState: propBlock.riskState,
+              permission: propBlock.permission,
+              reason: propBlock.reason,
+              estimatedHfAfter: propBlock.estimatedHfAfter,
+            };
+            setPendingProposals(prev => [...prev.filter(p => p.id !== newProposal.id), newProposal]);
           }
           addEvent("permission", `Action proposal prepared: ${propBlock.action.toUpperCase()} $${propBlock.amountUsd} on ${propBlock.symbol} (${propBlock.permission})`);
         } else if (harnessResult.intent.type === "ACTION_CONFIRM") {
@@ -1797,11 +1892,14 @@ export default function Autonomous() {
             });
           }
         } else if (harnessResult.intent.type === "ACTION_CANCEL") {
-          setAgentState("IDLE");
+          setAgentState("READY");
+          setCurrentStrategyNode("OBSERVE");
           setExecutionState("IDLE");
+          setBlockedReason(null);
           addEvent("info", "Action proposal cancelled.");
         } else {
-          setAgentState("IDLE");
+          setAgentState("READY");
+          setCurrentStrategyNode("RESULT");
         }
 
         return;
@@ -1895,21 +1993,29 @@ export default function Autonomous() {
         const isBlocked = parsedProp.permission === "BLOCKED";
         setPermissionResult(parsedProp.permission);
         addEvent("permission", `Action proposal: ${parsedProp.action.toUpperCase()} ${parsedProp.symbol} (${parsedProp.permission})`);
-        setAgentState(isBlocked ? "IDLE" : "AWAITING_APPROVAL");
-        if (!isBlocked) {
+        setAgentState(isBlocked ? "BLOCKED" : "AWAITING_APPROVAL");
+        setCurrentStrategyNode(isBlocked ? "PERMISSION" : "ACTION");
+        if (isBlocked) {
+          setBlockedReason(parsedProp.reason || "Action blocked by Circuit permission engine");
+        } else {
+          setBlockedReason(null);
           setExecutionState("READY");
+          setPendingProposals(prev => [...prev.filter(p => p.id !== parsedProp.id), parsedProp]);
         }
       } else if (parsedTask) {
         setAgentState("COMPLETED");
+        setCurrentStrategyNode("RESULT");
       } else {
-        setAgentState("IDLE");
+        setAgentState("READY");
+        setCurrentStrategyNode("RESULT");
       }
       if (parsedTask) { addEvent("info", `Policy proposal: ${parsedTask.name} (${parsedTask.type})`); }
       addEvent("info", "Evaluation complete.");
     } catch (err: any) {
       if (err.name === "AbortError") {
         setMsgs(prev => prev.map(m => m.id === agentId ? { ...m, content: "[Stopped]", streaming: false } : m));
-        setAgentState("IDLE");
+        setAgentState("READY");
+        setCurrentStrategyNode("OBSERVE");
         return;
       }
       const em = `Error: ${err.message}`;
@@ -1917,6 +2023,8 @@ export default function Autonomous() {
       addEvent("error", em);
       setAgentState("FAILED");
       setExecutionState("FAILED");
+      setBlockedReason(em);
+      setCurrentStrategyNode("OBSERVE");
     } finally { setStreaming(false); }
   }, [input, streaming, msgs, snap, protocolSnapshot, addEvent, selectedModel, activeContextAsset, handleApproveProposal]);
 
@@ -1945,7 +2053,84 @@ export default function Autonomous() {
 
   const activeAuthCount = onChainAuthorities.filter(a => !a.isExpired && !a.isRevoked).length;
 
-  const [showTelemetry, setShowTelemetry] = useState(false);
+  const streamEvents: StreamEvent[] = useMemo(() => {
+    return events.map((ev) => ({
+      id: ev.id,
+      timestamp: ev.timestamp,
+      category:
+        ev.type === "permission"
+          ? "PERMISSION"
+          : ev.type === "blocked"
+          ? "RISK"
+          : ev.type === "confirmed"
+          ? "CONFIRM"
+          : ev.type === "tx"
+          ? "EXECUTE"
+          : "OBSERVE",
+      title: ev.message,
+      tone: ev.type === "blocked" || ev.type === "error" ? "danger" : ev.type === "confirmed" ? "success" : "default",
+    }));
+  }, [events]);
+
+  const commandList: CommandItem[] = useMemo(
+    () => [
+      {
+        id: "check_risk",
+        title: "Check current portfolio risk",
+        category: "RISK & PERMISSION",
+        action: () => sendWithText("check current risk"),
+      },
+      {
+        id: "check_credit",
+        title: "Show available credit capacity",
+        category: "RISK & PERMISSION",
+        action: () => sendWithText("how much can I borrow?"),
+      },
+      {
+        id: "capabilities",
+        title: "Inspect agent permissions & limits",
+        category: "RISK & PERMISSION",
+        action: () => setShowCapabilityInspector(true),
+      },
+      {
+        id: "dbc_pools",
+        title: "View Meteora DBC pools & curves",
+        category: "ACTIONS",
+        action: () => setActiveTab("DBC"),
+      },
+      {
+        id: "prepare_repay",
+        title: "Prepare repayment to restore health factor",
+        category: "ACTIONS",
+        action: () => sendWithText("repay 50"),
+      },
+      {
+        id: "watch_hf",
+        title: "Watch health factor (< 1.30 alert)",
+        category: "MONITORING",
+        action: () => sendWithText("watch health factor < 1.30"),
+      },
+      {
+        id: "show_tasks",
+        title: "View persistent scheduled tasks",
+        category: "MONITORING",
+        action: () => setActiveTab("SCHEDULE"),
+      },
+      {
+        id: "diagnostics",
+        title: "Open system telemetry & diagnostics",
+        category: "SYSTEM",
+        action: () => setShowTelemetry(true),
+      },
+      {
+        id: "toggle_pause",
+        title: isAgentPaused ? "Resume agent execution" : "Emergency Pause agent",
+        category: "SYSTEM",
+        action: () => setIsAgentPaused((prev) => !prev),
+      },
+    ],
+    [sendWithText, isAgentPaused]
+  );
 
   return (
     <div className="ag-workspace">
@@ -2031,7 +2216,7 @@ export default function Autonomous() {
         <div style={{ padding: "12px 14px", borderTop: "1px solid var(--border)", fontSize: 10, fontFamily: "var(--mono)", color: "var(--text-3)", display: "flex", flexDirection: "column", gap: 6 }} className="ag-rail__footer-text">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span>MODE:</span>
-            <span style={{ color: "var(--mint, #79c2a4)", fontWeight: 700 }}>INTERACTIVE</span>
+            <span style={{ color: "var(--mint, #79c2a4)", fontWeight: 700 }}>{operatingMode}</span>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span>AGENT KEY:</span>
@@ -2042,7 +2227,7 @@ export default function Autonomous() {
 
       {/* ── Main Workspace Area (Header + Tab Content) ── */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" }}>
-        {/* ── Top Workspace Header: Independent State Dimensions ── */}
+        {/* ── Top Workspace Header: Operating Console Controls & State Dimensions ── */}
         <div style={{
           flexShrink: 0,
           display: "flex",
@@ -2060,10 +2245,37 @@ export default function Autonomous() {
               AGENT:
             </span>
             <div style={{ flexShrink: 0 }}>
-              <StateBadge state={agentState} />
+              <StateBadge state={isAgentPaused ? "PAUSED" : agentState} />
             </div>
             <span style={{ width: 1, height: 14, background: "var(--border)", display: "inline-block", flexShrink: 0 }} />
 
+            {/* Operating Mode Selector */}
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 5, padding: "2px 4px" }}>
+              <span style={{ fontSize: 9, fontFamily: "var(--mono)", color: "var(--text-3)", paddingLeft: 3 }}>MODE:</span>
+              <select
+                value={operatingMode}
+                onChange={(e) => setOperatingMode(e.target.value as AgentOperatingMode)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "var(--accent)",
+                  fontSize: 9.5,
+                  fontWeight: 700,
+                  fontFamily: "var(--mono)",
+                  cursor: "pointer",
+                  outline: "none",
+                  padding: "1px 4px",
+                }}
+              >
+                <option value="COPILOT" style={{ background: "#141416", color: "#fff" }}>COPILOT</option>
+                <option value="DELEGATED" style={{ background: "#141416", color: "#fff" }}>DELEGATED</option>
+                <option value="WATCH" style={{ background: "#141416", color: "#fff" }}>WATCH</option>
+                <option value="AUTO MANAGE" style={{ background: "#141416", color: "#fff" }}>AUTO MANAGE</option>
+                <option value="SCHEDULE" style={{ background: "#141416", color: "#fff" }}>SCHEDULE</option>
+              </select>
+            </div>
+
+            {/* Execution Reality Badge: INTERACTIVE (WALLET-SIGNED) vs AUTONOMOUS (EXECUTOR ACTIVE) */}
             <span
               style={{
                 fontSize: 9.5,
@@ -2071,15 +2283,15 @@ export default function Autonomous() {
                 fontFamily: "var(--mono)",
                 padding: "2px 6px",
                 borderRadius: 4,
-                background: "rgba(207, 173, 116, 0.15)",
-                color: "var(--warning, #cfad74)",
-                border: "1px solid rgba(207, 173, 116, 0.3)",
+                background: hasActiveAuthority && operatingMode === "DELEGATED" ? "rgba(121, 194, 164, 0.15)" : "rgba(207, 173, 116, 0.15)",
+                color: hasActiveAuthority && operatingMode === "DELEGATED" ? "var(--mint, #79c2a4)" : "var(--warning, #cfad74)",
+                border: `1px solid ${hasActiveAuthority && operatingMode === "DELEGATED" ? "rgba(121, 194, 164, 0.3)" : "rgba(207, 173, 116, 0.3)"}`,
                 letterSpacing: "0.04em",
                 flexShrink: 0,
               }}
-              title="Browser client routes all transaction signing to your connected wallet."
+              title={hasActiveAuthority && operatingMode === "DELEGATED" ? "Autonomous executor key active with bounded on-chain delegated authority." : "Interactive mode: all transaction signing routed to your connected wallet."}
             >
-              MODE: INTERACTIVE WALLET
+              {hasActiveAuthority && operatingMode === "DELEGATED" ? "AUTONOMOUS (EXECUTOR ACTIVE)" : "INTERACTIVE (WALLET-SIGNED)"}
             </span>
 
             {/* Risk Ratchet Badge */}
@@ -2127,6 +2339,82 @@ export default function Autonomous() {
 
           {/* Right Dimensions & Controls */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
+            {/* Command Palette Trigger */}
+            <button
+              type="button"
+              onClick={() => setShowCommandPalette(true)}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                padding: "3px 8px",
+                background: "var(--surface-2)",
+                border: "1px solid var(--border)",
+                borderRadius: 5,
+                color: "var(--text-2)",
+                fontSize: 10,
+                fontFamily: "var(--mono)",
+                cursor: "pointer",
+                transition: "all var(--t-fast)",
+              }}
+              title="Open Command Palette (Cmd/Ctrl + K)"
+            >
+              <span>⌘K</span>
+              <span style={{ color: "var(--text-3)" }}>PALETTE</span>
+            </button>
+
+            {/* Emergency Pause Toggle */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsAgentPaused((p) => !p);
+                addEvent("info", isAgentPaused ? "Agent execution resumed by operator." : "Emergency pause engaged by operator.");
+              }}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                padding: "3px 8px",
+                background: isAgentPaused ? "rgba(207, 139, 139, 0.25)" : "var(--surface-2)",
+                border: `1px solid ${isAgentPaused ? "rgba(207, 139, 139, 0.6)" : "var(--border)"}`,
+                borderRadius: 5,
+                color: isAgentPaused ? "var(--danger, #cf8b8b)" : "var(--text-2)",
+                fontSize: 10,
+                fontWeight: 700,
+                fontFamily: "var(--mono)",
+                cursor: "pointer",
+                transition: "all var(--t-fast)",
+              }}
+              title={isAgentPaused ? "Resume agent execution" : "Emergency pause all agent execution"}
+            >
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: isAgentPaused ? "var(--danger, #cf8b8b)" : "var(--mint, #79c2a4)", display: "inline-block" }} />
+              {isAgentPaused ? "PAUSED" : "PAUSE"}
+            </button>
+
+            {/* Approvals Queue Button if any pending */}
+            {pendingProposals.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowApprovalsModal(true)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  padding: "3px 8px",
+                  background: "rgba(207, 173, 116, 0.2)",
+                  border: "1px solid rgba(207, 173, 116, 0.5)",
+                  borderRadius: 5,
+                  color: "var(--warning, #cfad74)",
+                  fontSize: 10,
+                  fontFamily: "var(--mono)",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                <span>APPROVALS ({pendingProposals.length})</span>
+              </button>
+            )}
+
             {/* Active Context Indicator */}
             <div
               style={{
@@ -2153,16 +2441,16 @@ export default function Autonomous() {
               onSelectModel={handleSelectModel}
             />
 
-            {/* Agent Access Indicator */}
+            {/* Agent Capability Inspector Trigger */}
             <button
               type="button"
-              onClick={() => setActiveTab("PERMISSIONS")}
+              onClick={() => setShowCapabilityInspector(true)}
               style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 7px", borderRadius: 4, background: "transparent", border: "none", cursor: "pointer" }}
-              title="Manage bounded agent access and permissions"
+              title="Inspect bounded agent capabilities and limits"
             >
               <span style={{ width: 6, height: 6, borderRadius: "50%", background: hasActiveAuthority ? "var(--mint,#79c2a4)" : "var(--text-3)", display: "inline-block" }} />
               <span style={{ fontSize: 10, fontFamily: "var(--mono)", color: hasActiveAuthority ? "var(--mint,#79c2a4)" : "var(--text-3)" }}>
-                {hasActiveAuthority ? "AGENT ACCESS ACTIVE" : "NO AGENT ACCESS"}
+                {hasActiveAuthority ? "CAPABILITIES" : "NO ACCESS"}
               </span>
             </button>
 
@@ -2183,9 +2471,9 @@ export default function Autonomous() {
                 cursor: "pointer",
                 transition: "all var(--t-fast)",
               }}
-              title="Toggle Live Protocol Telemetry Drawer"
+              title="Toggle Live System Diagnostics Drawer"
             >
-              TELEMETRY
+              DIAGNOSTICS
             </button>
 
             <button type="button" onClick={clear} style={{ padding: "4px 9px", fontSize: 10, fontFamily: "var(--mono)", background: "transparent", border: "1px solid var(--border)", borderRadius: 5, color: "var(--text-3)", cursor: "pointer" }}>CLEAR</button>
@@ -2228,10 +2516,36 @@ export default function Autonomous() {
               <div style={{ flexShrink: 0, borderTop: "1px solid var(--border)", background: "var(--surface-1)", padding: "12px 20px 16px" }}>
                 <div style={{ maxWidth: 760, margin: "0 auto" }}>
 
-                  {/* Dynamic Contextual Suggestions */}
-                  {contextualSuggestions.length > 0 && (
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
-                      {contextualSuggestions.map(prompt => (
+                  {/* Emergency Pause Warning Banner */}
+                  {isAgentPaused && (
+                    <div style={{ padding: "8px 12px", marginBottom: 10, background: "rgba(207, 139, 139, 0.15)", border: "1px solid rgba(207, 139, 139, 0.4)", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: 11, color: "var(--danger, #cf8b8b)", fontFamily: "var(--mono)", fontWeight: 700 }}>
+                        ⚠ AGENT EXECUTION PAUSED — Automatic order generation and proposal execution are suspended.
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsAgentPaused(false);
+                          addEvent("info", "Agent execution resumed by operator.");
+                        }}
+                        style={{ padding: "2px 8px", background: "transparent", border: "1px solid var(--danger, #cf8b8b)", borderRadius: 4, color: "var(--danger, #cf8b8b)", fontSize: 10, fontFamily: "var(--mono)", cursor: "pointer", fontWeight: 700 }}
+                      >
+                        RESUME
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Real Action Stream (Compact recent events) */}
+                  {streamEvents.length > 0 && (
+                    <div style={{ marginBottom: 10 }}>
+                      <ActionStream events={streamEvents.slice(-3)} compact />
+                    </div>
+                  )}
+
+                  {/* Dynamic Contextual Suggestions & Quick Actions */}
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+                    {contextualSuggestions.length > 0 ? (
+                      contextualSuggestions.map(prompt => (
                         <button
                           key={prompt}
                           type="button"
@@ -2262,9 +2576,43 @@ export default function Autonomous() {
                         >
                           {prompt}
                         </button>
-                      ))}
-                    </div>
-                  )}
+                      ))
+                    ) : (
+                      ["Check risk", "Available credit", "Prepare repay", "Watch health factor", "DBC pools", "What can you do?"].map(prompt => (
+                        <button
+                          key={prompt}
+                          type="button"
+                          onClick={() => {
+                            if (prompt === "DBC pools") setActiveTab("DBC");
+                            else if (prompt === "What can you do?") setShowCapabilityInspector(true);
+                            else sendWithText(prompt);
+                          }}
+                          style={{
+                            padding: "4px 10px",
+                            fontSize: 10.5,
+                            fontFamily: "var(--mono)",
+                            background: "var(--surface-2)",
+                            border: "1px solid var(--border)",
+                            borderRadius: 16,
+                            color: "var(--text-3)",
+                            cursor: "pointer",
+                            whiteSpace: "nowrap",
+                            transition: "all var(--t-fast)",
+                          }}
+                          onMouseEnter={e => {
+                            e.currentTarget.style.color = "var(--text)";
+                            e.currentTarget.style.borderColor = "var(--border-strong, #333)";
+                          }}
+                          onMouseLeave={e => {
+                            e.currentTarget.style.color = "var(--text-3)";
+                            e.currentTarget.style.borderColor = "var(--border)";
+                          }}
+                        >
+                          {prompt}
+                        </button>
+                      ))
+                    )}
+                  </div>
 
                   {/* Input row */}
                   <div style={{ display: "flex", gap: 10, alignItems: "flex-end", background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 12, padding: "10px 14px" }}>
@@ -2332,17 +2680,29 @@ export default function Autonomous() {
               </div>
             </div>
 
-            {/* Right Column: Context & Telemetry Panel */}
-            <TelemetryContextPanel
-              activeAsset={activeContextAsset}
-              portfolio={portfolio}
-              risk={risk}
-              credit={credit}
-              marketSnapshots={marketSnapshots}
-              onChainAuthorities={onChainAuthorities}
-              isOpen={showTelemetry}
-              onClose={() => setShowTelemetry(false)}
-            />
+            {/* Right Column: Live Agent State Panel (Realtime Strategy, Risk, Capital, Graph) */}
+            <div style={{ width: 340, flexShrink: 0, borderLeft: "1px solid var(--border)", display: "flex", flexDirection: "column", background: "var(--surface-1)", overflow: "hidden" }}>
+              <LiveAgentStatePanel
+                objective={currentObjective}
+                riskState={risk.ratchetState}
+                isMarketOpen={risk.isMarketOpen}
+                totalCollateralUsd={portfolio.totalCollateralUsd}
+                totalDebtUsd={portfolio.totalDebtUsd}
+                availableCreditUsd={credit.availableCreditUsd}
+                healthFactor={portfolio.healthFactor}
+                activeAsset={activeContextAsset}
+                agentAuthority={onChainAuthorities[0] ?? null}
+                activeWatchesCount={taskCounts.watches}
+                activeTasksCount={taskCounts.total}
+                pendingApprovalsCount={pendingProposals.length}
+                currentNode={currentStrategyNode}
+                permissionAllowed={permissionResult !== "BLOCKED"}
+                blockedReason={blockedReason}
+                onOpenDiagnostics={() => setShowTelemetry(true)}
+                onOpenCapabilityInspector={() => setShowCapabilityInspector(true)}
+                onOpenApprovals={() => setShowApprovalsModal(true)}
+              />
+            </div>
           </div>
         )}
 
@@ -2437,6 +2797,107 @@ export default function Autonomous() {
             </div>
           </div>
         )}
+
+        {/* Telemetry & Diagnostics Drawer */}
+        {showTelemetry && (
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 100,
+              background: "rgba(0, 0, 0, 0.65)",
+              backdropFilter: "blur(4px)",
+              display: "flex",
+              justifyContent: "flex-end",
+            }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setShowTelemetry(false);
+            }}
+          >
+            <div
+              style={{
+                width: "min(420px, 95vw)",
+                height: "100%",
+                background: "var(--surface-1)",
+                borderLeft: "1px solid var(--border)",
+                display: "flex",
+                flexDirection: "column",
+                boxShadow: "-8px 0 32px rgba(0,0,0,0.6)",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: "1px solid var(--border)" }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 800, fontFamily: "var(--mono)", color: "var(--text)", letterSpacing: "0.05em" }}>
+                    SYSTEM TELEMETRY &amp; DIAGNOSTICS
+                  </div>
+                  <div style={{ fontSize: 10, color: "var(--text-3)", fontFamily: "var(--mono)", marginTop: 2 }}>
+                    Low-level oracle, RPC, and account state
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowTelemetry(false)}
+                  style={{
+                    background: "var(--surface-2)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 4,
+                    color: "var(--text-2)",
+                    fontSize: 12,
+                    cursor: "pointer",
+                    padding: "4px 8px",
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+              <div style={{ flex: 1, overflowY: "auto" }}>
+                <TelemetryContextPanel
+                  activeAsset={activeContextAsset}
+                  portfolio={portfolio}
+                  risk={risk}
+                  credit={credit}
+                  marketSnapshots={marketSnapshots}
+                  onChainAuthorities={onChainAuthorities}
+                  isOpen={true}
+                  onClose={() => setShowTelemetry(false)}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Command Palette Modal (Cmd/Ctrl + K) */}
+        <CommandPalette
+          isOpen={showCommandPalette}
+          onClose={() => setShowCommandPalette(false)}
+          commands={commandList}
+        />
+
+        {/* Capability Inspector Modal */}
+        <AgentCapabilityInspector
+          isOpen={showCapabilityInspector}
+          onClose={() => setShowCapabilityInspector(false)}
+          agentAuthority={onChainAuthorities[0] ?? null}
+          riskState={risk.ratchetState}
+          isMarketOpen={risk.isMarketOpen}
+          borrowLimitUsd={credit.availableCreditUsd}
+        />
+
+        {/* Approval Queue Modal */}
+        <ApprovalQueueModal
+          isOpen={showApprovalsModal}
+          onClose={() => setShowApprovalsModal(false)}
+          pendingProposals={pendingProposals}
+          onApprove={(p) => {
+            handleApproveProposal(p);
+            setPendingProposals((prev) => prev.filter((x) => x.id !== p.id));
+          }}
+          onReject={(id) => setPendingProposals((prev) => prev.filter((x) => x.id !== id))}
+        />
 
         <style>{`@keyframes agPulse{0%,100%{opacity:1}50%{opacity:0.4}}@keyframes agBlink{0%,100%{opacity:1}50%{opacity:0}}`}</style>
       </div>
