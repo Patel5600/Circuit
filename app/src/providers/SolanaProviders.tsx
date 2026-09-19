@@ -10,7 +10,6 @@ import {
 } from "@solana/wallet-adapter-wallets";
 
 import { RPC_URL } from "../config";
-import "@solana/wallet-adapter-react-ui/styles.css";
 
 /**
  * Solana + wallet context.
