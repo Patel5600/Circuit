@@ -152,10 +152,10 @@ export function useAllUserPositions(): UserPortfolioData {
             } catch {}
           }
 
-          // Decode Pyth
+          // Decode Pyth (real on-chain PriceUpdateV2)
           let priceUsd = 0;
-          let confBps = 18;
-          let oracleHealthy = true;
+          let confBps = 0;
+          let oracleHealthy = false;
           const pythInfo = pythInfos[i];
           if (pythInfo && pythInfo.data.length > 0) {
             try {
@@ -163,21 +163,17 @@ export function useAllUserPositions(): UserPortfolioData {
               if (update && update.isFull && update.price > 0n) {
                 priceUsd = Number(update.price) * Math.pow(10, update.exponent);
                 const abs = update.price < 0n ? -update.price : update.price;
-                confBps = abs === 0n ? -1 : Number((update.conf * 10_000n) / abs);
-                const ageSec = nowSeconds - Number(update.publishTime);
+                confBps = abs === 0n ? 0 : Number((update.conf * 10_000n) / abs);
+                const ageSec = Math.max(0, nowSeconds - Number(update.publishTime));
                 oracleHealthy = ageSec <= maxOracleAge && confBps <= maxConfBps;
               }
             } catch {}
           }
 
-          // Fallback to lastValidPrice or catalogue price
-          if (priceUsd <= 0) {
-            if (lastValidPriceBig > 0n) {
-              priceUsd = Number(lastValidPriceBig) * Math.pow(10, lastValidExpoNum);
-            } else {
-              const cat = MARKETS_DATA.find((c) => c.symbol === m.symbol);
-              priceUsd = cat?.price ?? 100;
-            }
+          // Fallback to on-chain lastValidPrice recorded by the circuit program if live Pyth not yet posted
+          if (priceUsd <= 0 && lastValidPriceBig > 0n) {
+            priceUsd = Number(lastValidPriceBig) * Math.pow(10, lastValidExpoNum);
+            oracleHealthy = false; // Using stale lastValidPrice is not considered healthy live oracle
           }
 
           const collateralUi = toUi(pos.collateralAmount);

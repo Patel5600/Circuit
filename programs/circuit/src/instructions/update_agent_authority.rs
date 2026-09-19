@@ -2,6 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::Mint;
 use crate::state::agent_authority::AgentAuthority;
 use crate::events::{AgentAuthorityUpdated, AgentAuthorityRevoked};
+use crate::errors::CircuitError;
 
 pub fn handler(
     ctx: Context<UpdateAgentAuthority>,
@@ -11,8 +12,11 @@ pub fn handler(
     risk_budget: u64,
     expiry_ts: i64,
 ) -> Result<()> {
-    let auth = &mut ctx.accounts.agent_authority;
     let clock = Clock::get()?;
+    if allowed_actions != 0 {
+        require!(expiry_ts > clock.unix_timestamp, CircuitError::AgentAuthorityExpired);
+    }
+    let auth = &mut ctx.accounts.agent_authority;
 
     auth.allowed_actions = allowed_actions;
     auth.max_borrow_limit = max_borrow_limit;

@@ -8,7 +8,7 @@ import { Icon, IconName, Pill } from "../ui";
 import { SystemHealthModal } from "../ui/SystemHealthModal";
 import { ToastProvider } from "../ui/Toaster";
 import { useCircuitDomain } from "../../lib/domain/context";
-import { NetworkSelector } from "./NetworkSelector";
+import { CLUSTER_LABEL } from "../../env";
 
 /** Primary destinations, shared by the sidebar and the mobile bottom bar. Autonomous is excluded (top-level workspace mode). */
 const PRIMARY: { to: string; label: string; icon: IconName }[] = [
@@ -24,6 +24,16 @@ const SECONDARY: { to: string; label: string; icon: IconName }[] = [
   { to: "/app/verify", label: "Verify", icon: "verify" },
   { to: "/app/faucet", label: "Faucet", icon: "faucet" },
 ];
+
+/** Compact static network indicator for the app bar. Always visible on ≥768px. */
+function NetworkPill() {
+  return (
+    <div className="net-pill" title={`Connected to Solana ${CLUSTER_LABEL}`}>
+      <span className="net-pill__dot" aria-hidden="true" />
+      <span>{CLUSTER_LABEL}</span>
+    </div>
+  );
+}
 
 function Header({ onOpenHealth }: { onOpenHealth?: () => void }) {
   const navigate = useNavigate();
@@ -156,8 +166,9 @@ function Header({ onOpenHealth }: { onOpenHealth?: () => void }) {
       </div>
 
       <div className="row g-8 appbar__right" style={{ alignItems: "center", flexShrink: 0 }}>
+        {/* Network pill: visible on ≥768px via CSS (appbar__hide-mobile hidden only below 640px) */}
         <div className="appbar__hide-mobile">
-          <NetworkSelector />
+          <NetworkPill />
         </div>
         <WalletButton compact />
         <NavLink
@@ -274,7 +285,7 @@ function Sidebar({
 
       <div className="grow" />
 
-      {/* Bottom Rail: Profile Card + Network & Wallet */}
+      {/* Bottom Rail: Profile Card */}
       <div
         className="stack g-10"
         style={{ paddingTop: 14, borderTop: "1px solid var(--border)" }}

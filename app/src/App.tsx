@@ -2,6 +2,7 @@ import React, { Suspense, lazy } from "react";
 import { Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 
 import { AppShell } from "./components/layout/AppShell";
+import { ErrorBoundary } from "./components/layout/ErrorBoundary";
 import { IconKeyframes } from "./components/ui/Icon";
 import { Skeleton } from "./components/ui";
 import { MarketProvider } from "./context/MarketContext";
@@ -112,9 +113,11 @@ function AppLayout() {
             <MarketDataProvider>
               <ActionProvider>
                 <AppShell>
-                  <Suspense fallback={<PageFallback />}>
-                    <Outlet />
-                  </Suspense>
+                  <ErrorBoundary section>
+                    <Suspense fallback={<PageFallback />}>
+                      <Outlet />
+                    </Suspense>
+                  </ErrorBoundary>
                 </AppShell>
                 <AssetActionDrawer />
               </ActionProvider>

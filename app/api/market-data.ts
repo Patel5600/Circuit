@@ -201,15 +201,47 @@ async function fetchSymbolData(symbol: string): Promise<CachedSymbolData> {
   return fallbackData;
 }
 
+function setCorsHeaders(req: any, res: any) {
+  const origin = req.headers?.origin;
+  if (origin && typeof origin === "string") {
+    if (
+      /^https?:\/\/localhost(:\d+)?$/.test(origin) ||
+      /^https:\/\/.*\.vercel\.app$/.test(origin) ||
+      /^https:\/\/circuit\.trade$/.test(origin)
+    ) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Vary", "Origin");
+    }
+  }
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+}
+
 export default async function handler(req: any, res: any) {
+  setCorsHeaders(req, res);
+
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
+
   if (req.method !== "GET") {
     res.status(405).json({ error: "Method not allowed. Use GET." });
     return;
   }
 
-  const querySymbols = req.query?.symbols
+  const rawSymbols = req.query?.symbols
     ? String(req.query.symbols).split(",").map((s) => s.trim().toUpperCase())
     : DEFAULT_SYMBOLS;
+
+  // Security: sanitize symbol format and limit max query symbols to 30
+  const querySymbols = rawSymbols
+    .filter((s) => /^[A-Z0-9-]{1,10}$/.test(s))
+    .slice(0, 30);
+
+  if (querySymbols.length === 0) {
+    res.status(400).json({ error: "No valid symbols provided" });
+    return;
+  }
 
   try {
     const results = await Promise.all(querySymbols.map((s) => fetchSymbolData(s)));

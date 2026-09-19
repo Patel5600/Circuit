@@ -26,6 +26,8 @@ import { PolicyPreview } from "../components/autonomous/PolicyPreview";
 import { loadTasks, loadExecutions, syncToServer, parseTaskProposal, subscribeTasks } from "../lib/automation/store";
 import type { ParsedTaskProposal } from "../lib/automation/types";
 import { useAction } from "../context/ActionContext";
+import { useMarketData } from "../context/MarketDataContext";
+import type { MarketSnapshot } from "../lib/market-data/types";
 import { shortenAddress } from "../lib/format";
 import {
   CIRCUIT_DEVNET_AGENT_KEY,
@@ -1236,20 +1238,25 @@ function TelemetryContextPanel({
   portfolio,
   risk,
   credit,
-  markets,
+  marketSnapshots,
   onChainAuthorities,
+  isOpen,
+  onClose,
 }: {
   activeAsset: DeployedMarket;
   portfolio: any;
   risk: any;
   credit: any;
-  markets: any;
+  marketSnapshots: Record<string, MarketSnapshot>;
   onChainAuthorities: any[];
+  isOpen?: boolean;
+  onClose?: () => void;
 }) {
-  const activeMarketData = markets.markets[activeAsset.symbol] || Object.values(markets.markets).find((m: any) => m.symbol?.toUpperCase() === activeAsset.symbol?.toUpperCase());
-  const activePrice = activeMarketData?.priceData?.price ?? (activeAsset.symbol === "NVDA" ? 138.25 : 100);
-  const activeChange = activeMarketData?.priceData?.change24hPct ?? 0;
-  const activeOracleStatus = activeMarketData?.priceData?.status || "VALID";
+  const activeSnap = marketSnapshots[activeAsset.symbol] || Object.values(marketSnapshots).find((s) => s.symbol.toUpperCase() === activeAsset.symbol.toUpperCase());
+  const activePrice: number | null = activeSnap?.priceUsd ?? null;
+  const activeChange: number | null = activeSnap?.change24hPercent ?? null;
+  const activeConfBps: number | null = (activeSnap?.oracleConfBps !== undefined && activeSnap?.oracleConfBps > 0) ? activeSnap.oracleConfBps : null;
+  const activeOracleStatus = activeSnap?.oracleStatus || "UNKNOWN";
   const isDefensiveOrEmerg = risk.ratchetState === "DEFENSIVE" || risk.ratchetState === "EMERGENCY";
   const isRestricted = risk.ratchetState === "RESTRICTED";
   const activeAuthCount = onChainAuthorities.filter(a => !a.isExpired && !a.isRevoked).length;
@@ -1259,33 +1266,41 @@ function TelemetryContextPanel({
     : "var(--danger, #cf8b8b)";
 
   return (
-    <div style={{
-      width: 290,
-      flexShrink: 0,
-      borderLeft: "1px solid var(--border)",
-      background: "var(--surface-1)",
-      display: "flex",
-      flexDirection: "column",
-      overflowY: "auto",
-      padding: "16px 14px",
-      gap: 14,
-      fontFamily: "var(--mono)",
-    }}>
+    <div className={`ag-telemetry${isOpen ? " ag-telemetry--visible" : ""}`}>
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border)", paddingBottom: 10 }}>
-        <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", color: "var(--text-3)" }}>
-          PROTOCOL TELEMETRY
-        </span>
-        <span style={{
-          fontSize: 9,
-          padding: "2px 6px",
-          borderRadius: 3,
-          background: "rgba(121,194,164,0.15)",
-          color: "var(--mint, #79c2a4)",
-          fontWeight: 700,
-        }}>
-          SOLANA DEVNET
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", color: "var(--text-3)" }}>
+            PROTOCOL TELEMETRY
+          </span>
+          <span style={{
+            fontSize: 9,
+            padding: "2px 6px",
+            borderRadius: 3,
+            background: "rgba(121,194,164,0.15)",
+            color: "var(--mint, #79c2a4)",
+            fontWeight: 700,
+          }}>
+            SOLANA DEVNET
+          </span>
+        </div>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "var(--text-3)",
+              cursor: "pointer",
+              fontSize: 13,
+              padding: "2px 6px",
+            }}
+            title="Close Telemetry Panel"
+          >
+            ✕
+          </button>
+        )}
       </div>
 
       {/* Active Context Asset */}
@@ -1296,17 +1311,19 @@ function TelemetryContextPanel({
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
           <span style={{ fontSize: 15, fontWeight: 800, color: "var(--accent)" }}>{activeAsset.tokenSymbol}</span>
-          <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>${activePrice.toFixed(2)}</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>
+            {activePrice !== null ? `$${activePrice.toFixed(2)}` : "—"}
+          </span>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--text-3)", marginTop: 4 }}>
           <span>{activeAsset.name}</span>
-          <span style={{ color: activeChange >= 0 ? "var(--mint, #79c2a4)" : "var(--danger, #cf8b8b)" }}>
-            {activeChange >= 0 ? "+" : ""}{activeChange.toFixed(2)}% (24h)
+          <span style={{ color: activeChange !== null && activeChange >= 0 ? "var(--mint, #79c2a4)" : activeChange !== null ? "var(--danger, #cf8b8b)" : "var(--text-3)" }}>
+            {activeChange !== null ? `${activeChange >= 0 ? "+" : ""}${activeChange.toFixed(2)}% (24h)` : "—"}
           </span>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9.5, color: "var(--text-3)", marginTop: 6, paddingTop: 6, borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-          <span>Feed Status: <strong style={{ color: "var(--mint, #79c2a4)" }}>{activeOracleStatus}</strong></span>
-          <span>Conf: ~18 bps</span>
+          <span>Feed Status: <strong style={{ color: activeOracleStatus === "LIVE" || activeOracleStatus === "RECENT" ? "var(--mint, #79c2a4)" : "var(--warning, #cfad74)" }}>{activeOracleStatus}</strong></span>
+          <span>{activeConfBps !== null ? `Conf: ±${activeConfBps} bps` : "Conf: —"}</span>
         </div>
       </div>
 
@@ -1423,6 +1440,7 @@ export default function Autonomous() {
     controlMode, setControlMode, hasActiveAuthority, onChainAuthorities,
     portfolio, risk, credit, markets, wallet,
   } = useCircuitDomain();
+  const { snapshots: marketSnapshots } = useMarketData();
 
   // Read ?tab= from URL and use it as the initial tab (case-insensitive).
   const tabFromUrl = searchParams.get("tab")?.toUpperCase() as TabId | null;
@@ -1587,22 +1605,31 @@ export default function Autonomous() {
     availableCreditUsd: credit.availableCreditUsd,
     healthFactor: portfolio.healthFactor,
     positions: portfolio.positions.map((p: any) => ({ symbol: p.symbol, collateralValueUsd: p.collateralValueUsd ?? 0, debtUi: p.debtUi ?? 0, mint: p.mint ?? "" })),
-    markets: Object.values(markets.markets).map((m: any) => ({ symbol: m.symbol, price: m.priceData?.price ?? 0, change24hPct: m.priceData?.change24hPct ?? null })),
+    markets: Object.values(marketSnapshots).map((s) => ({
+      symbol: s.symbol,
+      price: s.priceUsd ?? null,
+      change24hPct: s.change24hPercent ?? null,
+      confBps: s.oracleConfBps ?? null,
+      status: s.oracleStatus,
+    })),
     onChainAuthorities: onChainAuthorities.map(a => {
       const sym = DEPLOYED_MARKETS.find(m => m.mint === a.assetMint.toBase58())?.symbol ?? a.assetMint.toBase58().slice(0, 6);
       return { agentAddress: a.agent.toBase58(), assetSymbol: sym, isExpired: a.isExpired, isRevoked: a.isRevoked, maxBorrowLimit: a.maxBorrowLimitUi, expiryTs: a.expiryTs };
     }),
-  }), [wallet, controlMode, hasActiveAuthority, risk, portfolio, credit, markets, onChainAuthorities]);
+  }), [wallet, controlMode, hasActiveAuthority, risk, portfolio, credit, marketSnapshots, onChainAuthorities]);
 
   const protocolSnapshot: ProtocolSnapshot = useMemo(() => {
     const mktObj: Record<string, { price: number; change24h: number; oracleFreshness: string }> = {};
-    Object.values(markets.markets).forEach((m: any) => {
-      mktObj[m.symbol.toUpperCase()] = {
-        price: m.priceData?.price ?? 100,
-        change24h: m.priceData?.change24hPct ?? 0,
-        oracleFreshness: m.priceData?.status || "VALID",
+    Object.values(marketSnapshots).forEach((s) => {
+      mktObj[s.symbol.toUpperCase()] = {
+        price: s.priceUsd ?? 0,
+        change24h: s.change24hPercent ?? 0,
+        oracleFreshness: s.oracleStatus,
       };
     });
+
+    const activeAuth = onChainAuthorities.find(a => !a.isExpired && !a.isRevoked);
+    const agentBorrowLimit = activeAuth?.maxBorrowLimitUi ?? (hasActiveAuthority ? 500 : 0);
 
     return {
       walletAddress: wallet.address || null,
@@ -1619,9 +1646,9 @@ export default function Autonomous() {
         healthFactor: portfolio.healthFactor,
       })),
       markets: mktObj,
-      agentBorrowLimitUsd: 500,
+      agentBorrowLimitUsd: agentBorrowLimit,
     };
-  }, [wallet.address, risk.ratchetState, risk.isMarketOpen, portfolio, credit.availableCreditUsd, markets]);
+  }, [wallet.address, risk.ratchetState, risk.isMarketOpen, portfolio, credit.availableCreditUsd, marketSnapshots, onChainAuthorities, hasActiveAuthority]);
 
   const addEvent = useCallback((type: ExecEvent["type"], message: string, tx?: string) => {
     setEvents(prev => [...prev, { id: uid(), timestamp: Date.now(), type, message, txSignature: tx }]);
@@ -1915,23 +1942,17 @@ export default function Autonomous() {
 
   const activeAuthCount = onChainAuthorities.filter(a => !a.isExpired && !a.isRevoked).length;
 
+  const [showTelemetry, setShowTelemetry] = useState(false);
+
   return (
-    <div style={{ height: "calc(100vh - 57px)", display: "flex", background: "var(--surface-0, #0c0c0d)", overflow: "hidden" }}>
-      {/* ── Left Sidebar Navigation Rail (~200px) ── */}
-      <div style={{
-        width: 200,
-        flexShrink: 0,
-        borderRight: "1px solid var(--border)",
-        background: "var(--surface-1)",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between",
-      }}>
+    <div className="ag-workspace">
+      {/* ── Left Sidebar Navigation Rail ── */}
+      <div className="ag-rail" style={{ justifyContent: "space-between" }}>
         <div>
           {/* Rail Header */}
           <div style={{ padding: "16px 14px 12px", borderBottom: "1px solid var(--border)" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", color: "var(--text)", fontFamily: "var(--mono)" }}>
+              <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", color: "var(--text)", fontFamily: "var(--mono)" }} className="ag-rail__label">
                 AUTONOMOUS
               </span>
               <span style={{
@@ -1939,9 +1960,10 @@ export default function Autonomous() {
                 background: stateColor(agentState),
                 boxShadow: agentState === "EXECUTING" || agentState === "PLANNING" || agentState === "CONFIRMING" ? `0 0 8px ${stateColor(agentState)}` : "none",
                 display: "inline-block",
+                flexShrink: 0,
               }} />
             </div>
-            <div style={{ fontSize: 9.5, color: "var(--text-3)", fontFamily: "var(--mono)", marginTop: 4 }}>
+            <div style={{ fontSize: 9.5, color: "var(--text-3)", fontFamily: "var(--mono)", marginTop: 4 }} className="ag-rail__label">
               SOLANA DEVNET
             </div>
           </div>
@@ -1956,6 +1978,7 @@ export default function Autonomous() {
                   key={tab}
                   type="button"
                   onClick={() => setActiveTab(tab)}
+                  title={tab}
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -1980,8 +2003,9 @@ export default function Autonomous() {
                       background: isActive ? "var(--accent)" : "transparent",
                       border: `1px solid ${isActive ? "var(--accent)" : "var(--text-3)"}`,
                       display: "inline-block",
+                      flexShrink: 0,
                     }} />
-                    <span>{tab}</span>
+                    <span className="ag-rail__label">{tab}</span>
                   </div>
                   {count !== null && count > 0 && (
                     <span style={{
@@ -1990,7 +2014,7 @@ export default function Autonomous() {
                       borderRadius: 3,
                       background: isActive ? "rgba(236,234,230,0.12)" : "rgba(255,255,255,0.06)",
                       color: isActive ? "var(--accent)" : "var(--text-3)",
-                    }}>
+                    }} className="ag-rail__label">
                       {count}
                     </span>
                   )}
@@ -2001,7 +2025,7 @@ export default function Autonomous() {
         </div>
 
         {/* Rail Footer */}
-        <div style={{ padding: "12px 14px", borderTop: "1px solid var(--border)", fontSize: 10, fontFamily: "var(--mono)", color: "var(--text-3)", display: "flex", flexDirection: "column", gap: 6 }}>
+        <div style={{ padding: "12px 14px", borderTop: "1px solid var(--border)", fontSize: 10, fontFamily: "var(--mono)", color: "var(--text-3)", display: "flex", flexDirection: "column", gap: 6 }} className="ag-rail__footer-text">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span>MODE:</span>
             <span style={{ color: "var(--mint, #79c2a4)", fontWeight: 700 }}>INTERACTIVE</span>
@@ -2137,6 +2161,28 @@ export default function Autonomous() {
               <span style={{ fontSize: 10, fontFamily: "var(--mono)", color: hasActiveAuthority ? "var(--mint,#79c2a4)" : "var(--text-3)" }}>
                 {hasActiveAuthority ? "AGENT ACCESS ACTIVE" : "NO AGENT ACCESS"}
               </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowTelemetry((prev) => !prev)}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                padding: "3px 8px",
+                background: showTelemetry ? "var(--surface-3)" : "var(--surface-2)",
+                border: `1px solid ${showTelemetry ? "var(--accent)" : "var(--border)"}`,
+                borderRadius: 5,
+                color: showTelemetry ? "var(--accent)" : "var(--text-3)",
+                fontSize: 10,
+                fontFamily: "var(--mono)",
+                cursor: "pointer",
+                transition: "all var(--t-fast)",
+              }}
+              title="Toggle Live Protocol Telemetry Drawer"
+            >
+              TELEMETRY
             </button>
 
             <button type="button" onClick={clear} style={{ padding: "4px 9px", fontSize: 10, fontFamily: "var(--mono)", background: "transparent", border: "1px solid var(--border)", borderRadius: 5, color: "var(--text-3)", cursor: "pointer" }}>CLEAR</button>
@@ -2289,8 +2335,10 @@ export default function Autonomous() {
               portfolio={portfolio}
               risk={risk}
               credit={credit}
-              markets={markets}
+              marketSnapshots={marketSnapshots}
               onChainAuthorities={onChainAuthorities}
+              isOpen={showTelemetry}
+              onClose={() => setShowTelemetry(false)}
             />
           </div>
         )}

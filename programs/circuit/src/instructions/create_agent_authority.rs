@@ -2,6 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::Mint;
 use crate::state::agent_authority::AgentAuthority;
 use crate::events::AgentAuthorityCreated;
+use crate::errors::CircuitError;
 
 pub fn handler(
     ctx: Context<CreateAgentAuthority>,
@@ -11,8 +12,11 @@ pub fn handler(
     risk_budget: u64,
     expiry_ts: i64,
 ) -> Result<()> {
-    let auth = &mut ctx.accounts.agent_authority;
     let clock = Clock::get()?;
+    require!(expiry_ts > clock.unix_timestamp, CircuitError::AgentAuthorityExpired);
+    require!(allowed_actions > 0, CircuitError::AgentActionNotPermitted);
+
+    let auth = &mut ctx.accounts.agent_authority;
 
     auth.owner = ctx.accounts.owner.key();
     auth.agent = ctx.accounts.agent.key();

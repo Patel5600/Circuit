@@ -72,7 +72,7 @@ export default function Dashboard() {
           <div className="row g-8" style={{ alignItems: "center" }}>
             <MarketSelector compact />
             <Link to="/app/markets" className="btn btn--secondary btn--sm">
-              All 12 Markets
+              All Markets
             </Link>
           </div>
         </div>
@@ -94,44 +94,12 @@ export default function Dashboard() {
 
           {/* Top: PORTFOLIO RISK STATE (Protocol Risk is Primary) */}
           <div
-            style={{
-              padding: "16px 20px",
-              background: "rgba(18, 20, 26, 0.85)",
-              border: `1px solid ${
-                domain.risk.riskState === "SAFE"
-                  ? "rgba(127, 195, 154, 0.4)"
-                  : domain.risk.riskState === "RESTRICTED"
-                  ? "rgba(207, 173, 116, 0.4)"
-                  : "rgba(207, 139, 139, 0.4)"
-              }`,
-              borderRadius: "var(--r)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              flexWrap: "wrap",
-              gap: "14px",
-            }}
+            className={`risk-banner risk-banner--${(domain.risk.riskState || "safe").toLowerCase()}`}
           >
             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
               <span
-                style={{
-                  width: "10px",
-                  height: "10px",
-                  borderRadius: "50%",
-                  background:
-                    domain.risk.riskState === "SAFE"
-                      ? "#7fc39a"
-                      : domain.risk.riskState === "RESTRICTED"
-                      ? "#cfad74"
-                      : "#cf8b8b",
-                  boxShadow: `0 0 10px ${
-                    domain.risk.riskState === "SAFE"
-                      ? "#7fc39a88"
-                      : domain.risk.riskState === "RESTRICTED"
-                      ? "#cfad7488"
-                      : "#cf8b8b88"
-                  }`,
-                }}
+                className={`risk-banner__dot risk-banner__dot--${(domain.risk.riskState || "safe").toLowerCase()}`}
+                aria-hidden="true"
               />
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -145,10 +113,10 @@ export default function Dashboard() {
                       fontWeight: 700,
                       color:
                         domain.risk.riskState === "SAFE"
-                          ? "#7fc39a"
+                          ? "var(--success)"
                           : domain.risk.riskState === "RESTRICTED"
-                          ? "#cfad74"
-                          : "#cf8b8b",
+                          ? "var(--warning)"
+                          : "var(--danger)",
                     }}
                   >
                     {domain.risk.riskState}
@@ -255,106 +223,56 @@ export default function Dashboard() {
           )}
 
           {/* Autonomous Capital Status Surface */}
-          <Card>
-            <div className="row between g-12 wrap" style={{ alignItems: "center" }}>
-              <div className="row g-10" style={{ alignItems: "center" }}>
-                <span
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: "var(--r-sm, 6px)",
-                    background: "rgba(127, 195, 154, 0.1)",
-                    border: "1px solid rgba(127, 195, 154, 0.25)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "var(--success)",
-                  }}
-                >
-                  <Icon name="layers" size={16} />
-                </span>
-                <div>
-                  <div style={{ fontSize: 11, fontFamily: "var(--mono)", color: "var(--text-3)", letterSpacing: "0.06em" }}>
-                    AGENT CAPITAL CONTROL
-                  </div>
-                  <div style={{ fontSize: 14, fontWeight: 700, marginTop: 1 }}>
-                    {domain.agentAuthority.strategyName} ({display.symbol} Collateral)
-                  </div>
-                </div>
+          <Card
+            title="Agent Capital Control"
+            action={
+              <Link to="/app/autonomous?tab=PERMISSIONS" className="btn btn--ghost btn--sm" style={{ fontSize: 11 }}>
+                Manage
+              </Link>
+            }
+          >
+            <div className="row g-12 wrap" style={{ alignItems: "center" }}>
+              <div className="row g-8" style={{ alignItems: "center" }}>
+                <span className="muted" style={{ fontSize: 12 }}>Strategy:</span>
+                <span style={{ fontSize: 13, fontWeight: 650 }}>{domain.agentAuthority.strategyName}</span>
               </div>
 
-              <div className="row g-8 wrap" style={{ alignItems: "center" }}>
-                <div className="row g-4" style={{ alignItems: "center", fontSize: 12 }}>
-                  <span className="muted">Strategy:</span>
-                  <Pill
-                    tone={
-                      domain.agentAuthority.status === "ACTIVE"
-                        ? "success"
-                        : domain.agentAuthority.status === "LIMITED"
-                        ? "warning"
-                        : "danger"
-                    }
-                  >
-                    {domain.agentAuthority.status}
-                  </Pill>
-                </div>
-
-                <div className="row g-4" style={{ alignItems: "center", fontSize: 12 }}>
-                  <span className="muted">Risk:</span>
-                  <Pill
-                    tone={
-                      domain.risk.ratchetState === "SAFE"
-                        ? "success"
-                        : domain.risk.ratchetState === "RESTRICTED"
-                        ? "warning"
-                        : "danger"
-                    }
-                    withDot
-                  >
-                    {domain.risk.ratchetState}
-                  </Pill>
-                </div>
-
-                <div className="row g-4" style={{ alignItems: "center", fontSize: 12 }}>
-                  <span className="muted">Authority:</span>
-                  <Pill
-                    tone={
-                      domain.agentAuthority.effectiveAuthority === "FULL"
-                        ? "success"
-                        : domain.agentAuthority.effectiveAuthority === "LIMITED"
-                        ? "warning"
-                        : "danger"
-                    }
-                  >
-                    {domain.agentAuthority.effectiveAuthority}
-                  </Pill>
-                </div>
-
-                <div className="row g-4" style={{ alignItems: "center", fontSize: 12 }}>
-                  <span className="muted">Borrow:</span>
-                  <span
-                    style={{
-                      fontFamily: "var(--mono)",
-                      fontWeight: 650,
-                      color:
-                        domain.agentAuthority.effectiveAuthority === "BLOCKED"
-                          ? "var(--danger)"
-                          : domain.agentAuthority.effectiveAuthority === "LIMITED"
-                          ? "var(--warning)"
-                          : "var(--success)",
-                    }}
-                  >
-                    {domain.agentAuthority.effectiveAuthority === "BLOCKED"
-                      ? "BLOCKED"
+              <div className="row g-8" style={{ alignItems: "center" }}>
+                <span className="muted" style={{ fontSize: 12 }}>Authority:</span>
+                <Pill
+                  tone={
+                    domain.agentAuthority.effectiveAuthority === "FULL"
+                      ? "success"
                       : domain.agentAuthority.effectiveAuthority === "LIMITED"
-                      ? "CONSTRAINED"
-                      : "ENABLED"}
-                  </span>
-                </div>
+                      ? "warning"
+                      : "danger"
+                  }
+                >
+                  {domain.agentAuthority.effectiveAuthority}
+                </Pill>
+              </div>
 
-                <Link to="/app/position" className="btn btn--secondary btn--sm" style={{ fontSize: 11, padding: "2px 8px", height: 26 }}>
-                  Manage Authority &rarr;
-                </Link>
+              <div className="row g-8" style={{ alignItems: "center" }}>
+                <span className="muted" style={{ fontSize: 12 }}>Borrow:</span>
+                <span
+                  style={{
+                    fontFamily: "var(--mono)",
+                    fontWeight: 650,
+                    fontSize: 12,
+                    color:
+                      domain.agentAuthority.effectiveAuthority === "BLOCKED"
+                        ? "var(--danger)"
+                        : domain.agentAuthority.effectiveAuthority === "LIMITED"
+                        ? "var(--warning)"
+                        : "var(--success)",
+                  }}
+                >
+                  {domain.agentAuthority.effectiveAuthority === "BLOCKED"
+                    ? "BLOCKED"
+                    : domain.agentAuthority.effectiveAuthority === "LIMITED"
+                    ? "CONSTRAINED"
+                    : "ENABLED"}
+                </span>
               </div>
             </div>
           </Card>

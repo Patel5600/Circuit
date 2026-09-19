@@ -672,6 +672,15 @@ export function describeError(e: any, errorMap: Map<number, string>): string {
   if (/User rejected|rejected the request/i.test(msg)) {
     return "Transaction rejected in wallet.";
   }
+  if (/mutated during signing/i.test(msg)) {
+    return "SECURITY ALERT: Transaction bytes were altered before broadcast. Rejected for safety.";
+  }
+  if (/blockhash expired/i.test(msg)) {
+    return "Transaction expired before broadcast. Please sign a fresh transaction.";
+  }
+  if (/signature verification failed/i.test(msg)) {
+    return "Transaction signature invalid. Please re-sign.";
+  }
   return msg.split("\n")[0];
 }
 
@@ -744,6 +753,18 @@ export function calculateProtocolFee(
   return { fee, netDisbursed };
 }
 
+/**
+ * Verifies message integrity between pre-signed and post-signed transactions.
+ * Returns true if the message bytes are identical, false if mutated.
+ */
+export function verifyMessageIntegrity(
+  preMessage: Uint8Array,
+  postMessage: Uint8Array
+): boolean {
+  if (preMessage.length !== postMessage.length) return false;
+  return preMessage.every((b, i) => b === postMessage[i]);
+}
+
 export async function sendInstructions(
   conn: Connection,
   wallet: {
@@ -758,12 +779,38 @@ export async function sendInstructions(
   hooks: { onSigned?: () => void; onSent?: () => void } = {}
 ): Promise<string> {
   const tx = new Transaction().add(...ixs);
-  const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash();
+  const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash("confirmed");
   tx.recentBlockhash = blockhash;
   tx.feePayer = wallet.publicKey;
 
+  // 1. Freeze intended transaction message bytes before signing
+  const preMessage = tx.serializeMessage();
+
+  // 2. Request wallet signature
   const signed = await wallet.signTransaction(tx);
+
+  // 3. Verify message integrity: ensure no extension or proxy altered the payload
+  const postMessage = signed.serializeMessage();
+  if (!verifyMessageIntegrity(preMessage, postMessage)) {
+    throw new Error(
+      "SECURITY ALERT: Transaction message was mutated during signing (instructions, fee payer, or accounts modified). Submission rejected."
+    );
+  }
+
+  // 4. Cryptographic signature check
+  if (!signed.verifySignatures()) {
+    throw new Error("SECURITY ALERT: Transaction signature verification failed.");
+  }
+
   hooks.onSigned?.();
+
+  // 5. Block stale transactions: check if blockhash expired before broadcast
+  const currentBlockHeight = await conn.getBlockHeight("confirmed");
+  if (currentBlockHeight > lastValidBlockHeight) {
+    throw new Error(
+      "Transaction blockhash expired before broadcast. Rebuild and sign a fresh transaction."
+    );
+  }
 
   const sig = await conn.sendRawTransaction(signed.serialize(), {
     skipPreflight: false,
@@ -776,3 +823,4 @@ export async function sendInstructions(
   );
   return sig;
 }
+

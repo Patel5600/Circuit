@@ -85,7 +85,7 @@ function preflightCheck(snap: ProtocolSnapshot, msg: string): string | null {
   const m = msg.toLowerCase();
   
   // Phase 9: Adversarial Prompt Refusal by Architecture
-  const wantsOverride = /ignore.*(risk|state|limit|rule)|override|borrow\s+anyway|bypass|skip\s+permission|change\s+(my\s+)?limits|use\s+another\s+(pool|asset)|create.*second\s+authority/i.test(m);
+  const wantsOverride = /ignore.*(risk|state|limit|rule|instruction|system|prompt|safety)|override|borrow\s+anyway|bypass|skip\s+permission|change\s+(my\s+)?limits|use\s+another\s+(pool|asset)|create.*second\s+authority/i.test(m);
   if (wantsOverride) {
     const tool = `CIRCUIT_TOOL:{"tool":"evaluate_permission","input":{"overrideAttempt":true,"intent":"ADVERSARIAL_POLICY_BYPASS"},"output":{"status":"BLOCKED","reason":"ARCHITECTURE_INVARIANT: Circuit Risk and Permission Engine cannot be bypassed by natural language prompts or agent directives."},"status":"BLOCKED"}`;
     const proposal = `CIRCUIT_ACTION_PROPOSAL:{"id":"p_${Date.now()}","action":"borrow","symbol":"NVDA","amountUsd":0,"riskState":"${snap.riskRatchetState}","permission":"BLOCKED","reason":"BLOCKED [ARCHITECTURAL_INVARIANT] — Circuit permissions are enforced deterministically on-chain by the Permission Engine PDA, not by natural language prompt requests.","estimatedHfAfter":null}`;
@@ -111,14 +111,48 @@ function preflightCheck(snap: ProtocolSnapshot, msg: string): string | null {
   return null;
 }
 
+// Rate limiting: client identifier -> { count, resetAt }
+const chatRateLimit = new Map<string, { count: number; resetAt: number }>();
+const MAX_REQUESTS_PER_MINUTE = 30;
+
+function setCorsHeaders(req: VercelRequest, res: VercelResponse) {
+  const origin = req.headers?.origin;
+  if (origin && typeof origin === "string") {
+    if (
+      /^https?:\/\/localhost(:\d+)?$/.test(origin) ||
+      /^https:\/\/.*\.vercel\.app$/.test(origin) ||
+      /^https:\/\/circuit\.trade$/.test(origin)
+    ) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Vary", "Origin");
+    }
+  }
+  res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  setCorsHeaders(req, res);
+
   if (req.method === "OPTIONS") {
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
     return res.status(204).end();
   }
-  res.setHeader("Access-Control-Allow-Origin", "*");
+
+  const clientId =
+    (req.headers?.["x-forwarded-for"] as string)?.split(",")[0]?.trim() ||
+    (req.socket?.remoteAddress as string) ||
+    "anonymous";
+
+  const now = Date.now();
+  const limitEntry = chatRateLimit.get(clientId);
+  if (!limitEntry || now > limitEntry.resetAt) {
+    chatRateLimit.set(clientId, { count: 1, resetAt: now + 60_000 });
+  } else {
+    if (limitEntry.count >= MAX_REQUESTS_PER_MINUTE) {
+      return res.status(429).json({ error: "Rate limit exceeded. Maximum 30 chat requests per minute." });
+    }
+    limitEntry.count++;
+  }
 
   const apiKey =
     process.env.GEMINI_AI_KEY ||
@@ -127,28 +161,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     process.env.AI_GATEWAY_API_KEY;
 
   if (req.method === "GET") {
-    if (!apiKey) {
-      return res.status(200).json({ models: [] });
-    }
-    try {
-      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`);
-      if (!resp.ok) {
-        return res.status(resp.status).json({ error: "Failed to list models from Gemini API" });
-      }
-      const data = await resp.json();
-      return res.status(200).json(data);
-    } catch (e: any) {
-      return res.status(500).json({ error: e?.message || "Failed" });
-    }
+    return res.status(200).json({ status: "active", rateLimitRemaining: MAX_REQUESTS_PER_MINUTE - (limitEntry?.count || 1) });
   }
 
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const body = req.body as ChatRequest;
-  if (!body?.messages || !Array.isArray(body.messages)) return res.status(400).json({ error: "messages required" });
+  if (!body?.messages || !Array.isArray(body.messages)) {
+    return res.status(400).json({ error: "messages array required" });
+  }
+  if (body.messages.length > 50) {
+    return res.status(400).json({ error: "Message history exceeds maximum allowed limit (50)" });
+  }
 
   const { messages, snapshot } = body;
-  const userMsg = messages[messages.length - 1]?.content ?? "";
+  const lastMsgObj = messages[messages.length - 1];
+  const userMsg = typeof lastMsgObj?.content === "string" ? lastMsgObj.content.slice(0, 4000) : "";
 
   const blocked = preflightCheck(snapshot, userMsg);
   if (blocked) {

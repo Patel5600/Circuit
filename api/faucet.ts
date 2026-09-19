@@ -11,8 +11,29 @@ import {
   createAssociatedTokenAccountIdempotentInstruction,
   createMintToInstruction,
 } from "@solana/spl-token";
+import { FAUCET_ASSETS } from "../app/src/lib/faucet";
 
 const RPC_URL = process.env.VITE_RPC_URL || "https://api.devnet.solana.com";
+
+// In-memory rate limiting: recipient address -> timestamp
+const recipientRateLimits = new Map<string, number>();
+const RECIPIENT_COOLDOWN_MS = 15_000; // 15 seconds cooldown per address
+
+function setCorsHeaders(req: any, res: any) {
+  const origin = req.headers?.origin;
+  if (origin && typeof origin === "string") {
+    if (
+      /^https?:\/\/localhost(:\d+)?$/.test(origin) ||
+      /^https:\/\/.*\.vercel\.app$/.test(origin) ||
+      /^https:\/\/circuit\.trade$/.test(origin)
+    ) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Vary", "Origin");
+    }
+  }
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+}
 
 /**
  * Resolves the faucet signing authority from FAUCET_AUTHORITY_KEY.
@@ -46,6 +67,12 @@ export function getFaucetAuthority(overrideSecret?: string): Keypair | null {
 }
 
 export default async function handler(req: any, res: any) {
+  setCorsHeaders(req, res);
+
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
+
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed. Use POST." });
     return;
@@ -53,10 +80,47 @@ export default async function handler(req: any, res: any) {
 
   const { recipient, mint, amount, decimals = 6 } = req.body || {};
 
-  if (!recipient || !mint || !amount) {
+  if (!recipient || !mint || amount === undefined || amount === null) {
     res.status(400).json({ error: "Missing required parameters: recipient, mint, amount" });
     return;
   }
+
+  // 1. Recipient PublicKey validation
+  let recipientPubkey: PublicKey;
+  try {
+    recipientPubkey = new PublicKey(recipient);
+  } catch {
+    return res.status(400).json({ error: "Invalid recipient Solana public key." });
+  }
+
+  // 2. Canonical Mint Whitelist Verification
+  const allowedAsset = FAUCET_ASSETS.find((a) => a.mint === mint && !a.isNativeSol);
+  if (!allowedAsset) {
+    return res.status(400).json({
+      error: "Unauthorized mint address. Mint must be a registered Circuit Devnet asset.",
+    });
+  }
+
+  // 3. Amount validation and hard upper-bound quota enforcement
+  const parsedAmount = Number(amount);
+  if (!isFinite(parsedAmount) || parsedAmount <= 0) {
+    return res.status(400).json({ error: "Amount must be a positive finite number." });
+  }
+  if (parsedAmount > allowedAsset.fullAmount) {
+    return res.status(400).json({
+      error: `Requested amount exceeds maximum allowance for ${allowedAsset.symbol} (max: ${allowedAsset.fullAmount}).`,
+    });
+  }
+
+  // 4. Rate-limiting & abuse prevention
+  const now = Date.now();
+  const lastClaim = recipientRateLimits.get(recipientPubkey.toBase58()) || 0;
+  if (now - lastClaim < RECIPIENT_COOLDOWN_MS) {
+    return res.status(429).json({
+      error: `Faucet cooldown active. Please wait ${Math.ceil((RECIPIENT_COOLDOWN_MS - (now - lastClaim)) / 1000)}s before requesting again.`,
+    });
+  }
+  recipientRateLimits.set(recipientPubkey.toBase58(), now);
 
   const authority = getFaucetAuthority();
   if (!authority) {
@@ -68,11 +132,11 @@ export default async function handler(req: any, res: any) {
 
   try {
     const connection = new Connection(RPC_URL, "confirmed");
-    const recipientPubkey = new PublicKey(recipient);
     const mintPubkey = new PublicKey(mint);
 
     const recipientAta = getAssociatedTokenAddressSync(mintPubkey, recipientPubkey, true);
-    const rawAmount = BigInt(Math.round(Number(amount) * 10 ** decimals));
+    const tokenDecimals = allowedAsset.decimals ?? decimals ?? 6;
+    const rawAmount = BigInt(Math.round(parsedAmount * 10 ** tokenDecimals));
 
     const tx = new Transaction().add(
       createAssociatedTokenAccountIdempotentInstruction(
@@ -98,7 +162,7 @@ export default async function handler(req: any, res: any) {
       signature,
       recipient,
       mint,
-      amount,
+      amount: parsedAmount,
     });
   } catch (err: any) {
     console.error("Faucet minting error:", err);
