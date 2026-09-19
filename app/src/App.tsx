@@ -9,6 +9,7 @@ import { MarketProvider } from "./context/MarketContext";
 import { ActionProvider } from "./context/ActionContext";
 import { CircuitProtocolProvider, useCircuitDomain } from "./lib/domain/context";
 import { MarketDataProvider } from "./context/MarketDataContext";
+import { DbcProvider } from "./context/DbcContext";
 import { AssetActionDrawer } from "./components/drawers/AssetActionDrawer";
 
 
@@ -111,16 +112,18 @@ function AppLayout() {
         <CircuitProtocolProvider>
           <MarketProvider>
             <MarketDataProvider>
-              <ActionProvider>
-                <AppShell>
-                  <ErrorBoundary section>
-                    <Suspense fallback={<PageFallback />}>
-                      <Outlet />
-                    </Suspense>
-                  </ErrorBoundary>
-                </AppShell>
-                <AssetActionDrawer />
-              </ActionProvider>
+              <DbcProvider>
+                <ActionProvider>
+                  <AppShell>
+                    <ErrorBoundary section>
+                      <Suspense fallback={<PageFallback />}>
+                        <Outlet />
+                      </Suspense>
+                    </ErrorBoundary>
+                  </AppShell>
+                  <AssetActionDrawer />
+                </ActionProvider>
+              </DbcProvider>
             </MarketDataProvider>
           </MarketProvider>
         </CircuitProtocolProvider>

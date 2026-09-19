@@ -29,10 +29,30 @@ import {
   deriveAssetRegistryPda,
   buildExecuteDbcActionInstruction,
   computeDbcSwapQuote,
+  isDbcActionAllowed,
+  isDbcActionRiskIncreasing,
   CIRCUIT_PROGRAM_ID,
   METEORA_DBC_PROGRAM_ID,
   METEORA_DBC_POOL_AUTHORITY,
 } from "../app/src/lib/meteora/dbc";
+import {
+  DBC_POOL_REGISTRY,
+  getPoolBySymbol,
+  getPoolByAddress,
+  validatePoolRegistryEntry,
+} from "../app/src/lib/meteora/registry";
+import {
+  evaluateDbcPermission,
+  evaluatePermission,
+} from "../app/src/lib/permission-engine";
+import {
+  createDbcTrace,
+  advanceTrace,
+  failTrace,
+  verifyActualOutput,
+  isTraceTerminal,
+} from "../app/src/lib/meteora/execution-trace";
+import { applyDbcExecutionToPortfolio } from "../app/src/lib/risk/portfolio";
 import { checkAutomationPermission, PortfolioState } from "../api/automation/_engine";
 import type { AutomationTask } from "../app/src/lib/automation/types";
 
@@ -420,5 +440,333 @@ describe("Adversarial DBC & Canonical Permission Engine Invariant Tests (Section
     const exitRes = checkAutomationPermission(makeTask({ type: "EXIT_LIQUIDITY" }), emergencyPortfolio);
     expect(exitRes.allowed).to.be.true;
     expect(exitRes.reasonCode).to.equal("ALLOWED");
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // INVARIANT 17: Canonical DBC Pool Registry Enforcement
+  // ───────────────────────────────────────────────────────────────────────────
+  it("Invariant 17: Unregistered pools fail evaluateDbcPermission with DBC_POOL_NOT_REGISTERED", () => {
+    const fakePool = Keypair.generate().publicKey.toBase58();
+    const result = evaluateDbcPermission({
+      actor: "HUMAN",
+      action: "swap",
+      amountUsd: 100,
+      riskState: "SAFE",
+      dbcPoolAddress: fakePool,
+      dbcPoolRegistered: false,
+      dbcAvailability: "AVAILABLE",
+    });
+
+    expect(result.allowed).to.be.false;
+    expect(result.reasonCode).to.equal("DBC_POOL_NOT_REGISTERED");
+  });
+
+  it("Invariant 17b: Registered pools in DBC_POOL_REGISTRY are verified at load time", () => {
+    expect(DBC_POOL_REGISTRY.length).to.be.greaterThan(0);
+    for (const pool of DBC_POOL_REGISTRY) {
+      const val = validatePoolRegistryEntry(pool);
+      expect(val.valid).to.be.true;
+      expect(pool.programId).to.equal(METEORA_DBC_PROGRAM_ID.toBase58());
+      expect(pool.baseMint).to.not.equal(pool.quoteMint);
+    }
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // INVARIANT 18: Meteora Program ID Verification
+  // ───────────────────────────────────────────────────────────────────────────
+  it("Invariant 18: Pool entry with wrong program ID fails validation", () => {
+    const fakeProgramId = Keypair.generate().publicKey.toBase58();
+    const invalidEntry = {
+      ...DBC_POOL_REGISTRY[0],
+      programId: fakeProgramId,
+    };
+    const val = validatePoolRegistryEntry(invalidEntry);
+    expect(val.valid).to.be.false;
+    expect(val.reason).to.include("programId mismatch");
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // INVARIANT 19: DBC Availability & Circuit Protocol Survival
+  // ───────────────────────────────────────────────────────────────────────────
+  it("Invariant 19: Circuit core lending/borrowing survives DBC outage", () => {
+    // When DBC is UNAVAILABLE, DBC actions are blocked
+    const dbcResult = evaluateDbcPermission({
+      actor: "HUMAN",
+      action: "swap",
+      amountUsd: 100,
+      riskState: "SAFE",
+      dbcAvailability: "UNAVAILABLE",
+      dbcPoolRegistered: true,
+    });
+    expect(dbcResult.allowed).to.be.false;
+    expect(dbcResult.reasonCode).to.equal("DBC_UNAVAILABLE");
+
+    // But standard Circuit protocol actions (repay, deposit) are unaffected
+    const repayResult = evaluatePermission({
+      actor: "HUMAN",
+      action: "repay",
+      amountUsd: 100,
+      riskState: "SAFE",
+      collateralUsd: 1000,
+      currentDebtUsd: 500,
+    });
+    expect(repayResult.allowed).to.be.true;
+    expect(repayResult.reasonCode).to.equal("ALLOWED");
+
+    const depositResult = evaluatePermission({
+      actor: "HUMAN",
+      action: "deposit",
+      amountUsd: 500,
+      riskState: "SAFE",
+    });
+    expect(depositResult.allowed).to.be.true;
+    expect(depositResult.reasonCode).to.equal("ALLOWED");
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // INVARIANT 20: Slippage Bounding (10–200 bps)
+  // ───────────────────────────────────────────────────────────────────────────
+  it("Invariant 20: Slippage outside bounds (10-200 bps) is rejected by evaluateDbcPermission", () => {
+    const tooLow = evaluateDbcPermission({
+      actor: "HUMAN",
+      action: "swap",
+      amountUsd: 100,
+      riskState: "SAFE",
+      dbcAvailability: "AVAILABLE",
+      dbcPoolRegistered: true,
+      dbcSlippageBps: 5, // < 10 bps
+    });
+    expect(tooLow.allowed).to.be.false;
+    expect(tooLow.reasonCode).to.equal("DBC_SLIPPAGE_VIOLATION");
+
+    const tooHigh = evaluateDbcPermission({
+      actor: "HUMAN",
+      action: "swap",
+      amountUsd: 100,
+      riskState: "SAFE",
+      dbcAvailability: "AVAILABLE",
+      dbcPoolRegistered: true,
+      dbcSlippageBps: 250, // > 200 bps
+    });
+    expect(tooHigh.allowed).to.be.false;
+    expect(tooHigh.reasonCode).to.equal("DBC_SLIPPAGE_VIOLATION");
+
+    const validSlippage = evaluateDbcPermission({
+      actor: "HUMAN",
+      action: "swap",
+      amountUsd: 100,
+      riskState: "SAFE",
+      dbcAvailability: "AVAILABLE",
+      dbcPoolRegistered: true,
+      dbcSlippageBps: 50,
+    });
+    expect(validSlippage.allowed).to.be.true;
+    expect(validSlippage.reasonCode).to.equal("ALLOWED");
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // INVARIANT 21: Full Monotonic Execution Trace Model
+  // ───────────────────────────────────────────────────────────────────────────
+  it("Invariant 21: DBC execution trace enforces strict step sequence and rejects skipped steps", () => {
+    const trace = createDbcTrace({
+      action: DbcActionType.SWAP,
+      symbol: "NVDA",
+      amountIn: BigInt(1_000_000),
+    });
+    expect(trace.step).to.equal("INTENT");
+    expect(isTraceTerminal(trace)).to.be.false;
+
+    // Skipping steps (INTENT -> SIGN directly) must throw
+    expect(() => advanceTrace(trace, "SIGN")).to.throw("Illegal step advancement");
+
+    // Correct sequential advancement
+    const step2 = advanceTrace(trace, "POLICY");
+    expect(step2.step).to.equal("POLICY");
+
+    const step3 = advanceTrace(step2, "PERMISSION");
+    expect(step3.step).to.equal("PERMISSION");
+
+    const step4 = advanceTrace(step3, "QUOTE", { minAmountOut: BigInt(950_000) });
+    expect(step4.step).to.equal("QUOTE");
+    expect(step4.minAmountOut).to.equal(BigInt(950_000));
+
+    // Terminal failure can be triggered from any state
+    const failedTrace = failTrace(step4, "Slippage exceeded on simulation");
+    expect(failedTrace.step).to.equal("FAILED");
+    expect(isTraceTerminal(failedTrace)).to.be.true;
+    expect(failedTrace.failureReason).to.include("Slippage");
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // INVARIANT 22: Post-CPI Output Verification
+  // ───────────────────────────────────────────────────────────────────────────
+  it("Invariant 22: verifyActualOutput rejects when actual output < minAmountOut", () => {
+    const trace = createDbcTrace({
+      action: DbcActionType.SWAP,
+      symbol: "NVDA",
+      amountIn: BigInt(1_000_000),
+    });
+    const traceWithMin = { ...trace, minAmountOut: BigInt(950_000) };
+
+    // Insufficient output (sandwich attack or unexpected slippage)
+    const badVerify = verifyActualOutput(traceWithMin, BigInt(940_000));
+    expect(badVerify.valid).to.be.false;
+    expect(badVerify.reason).to.include("less than minimum required");
+
+    // Valid output (greater than or equal to minimum)
+    const goodVerify = verifyActualOutput(traceWithMin, BigInt(955_000));
+    expect(goodVerify.valid).to.be.true;
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // INVARIANT 23: Pool Lifecycle State Machine
+  // ───────────────────────────────────────────────────────────────────────────
+  it("Invariant 23: Pool in GRADUATION state blocks new risk-increasing entries", () => {
+    const gradEntry = evaluateDbcPermission({
+      actor: "HUMAN",
+      action: "enter_liquidity",
+      amountUsd: 100,
+      riskState: "SAFE",
+      dbcAvailability: "AVAILABLE",
+      dbcPoolRegistered: true,
+      dbcPoolLifecycle: "GRADUATION",
+    });
+    expect(gradEntry.allowed).to.be.false;
+    expect(gradEntry.reasonCode).to.equal("DBC_POOL_LIFECYCLE_INCOMPATIBLE");
+
+    // But exit/recovery is still allowed during graduation
+    const gradExit = evaluateDbcPermission({
+      actor: "HUMAN",
+      action: "exit_liquidity",
+      amountUsd: 100,
+      riskState: "SAFE",
+      dbcAvailability: "AVAILABLE",
+      dbcPoolRegistered: true,
+      dbcPoolLifecycle: "GRADUATION",
+    });
+    expect(gradExit.allowed).to.be.true;
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // INVARIANT 24: Closed Feedback Loop Recalculates Portfolio Risk
+  // ───────────────────────────────────────────────────────────────────────────
+  it("Invariant 24: Closed feedback loop updates risk analysis after DBC execution", () => {
+    const initialAssets = [
+      {
+        symbol: "NVDA",
+        name: "NVIDIA Corp",
+        collateralUi: 10,
+        priceUsd: 100,
+        confidenceUsd: 0.1,
+        confBps: 10,
+        baseLtvBps: 7000,
+        liqThresholdBps: 8000,
+        oracleHealthy: true,
+        marketOpen: true,
+      },
+    ];
+
+    // Selling half the collateral via DBC swap
+    const updatedAnalysis = applyDbcExecutionToPortfolio({
+      currentAssets: initialAssets,
+      totalDebtUsd: 300,
+      tradedSymbol: "NVDA",
+      deltaCollateralUi: -5, // Sold 5 NVDA
+    });
+
+    expect(updatedAnalysis.totalCollateralUsd).to.equal(500); // 5 * 100
+    expect(updatedAnalysis.totalDebtUsd).to.equal(300);
+    // Health factor decreased due to reduced collateral
+    expect(updatedAnalysis.healthFactorBps).to.be.lessThan(25_000);
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // INVARIANT 25: Recovery-safe Actions Permitted Across All Risk States
+  // ───────────────────────────────────────────────────────────────────────────
+  it("Invariant 25: RECOVER_LIQUIDITY is recovery-safe and permitted in all risk states", () => {
+    expect(isDbcActionRiskIncreasing(DbcActionType.RECOVER_LIQUIDITY)).to.be.false;
+    expect(isDbcActionRiskIncreasing(DbcActionType.EXIT_LIQUIDITY)).to.be.false;
+
+    const states: ("SAFE" | "RESTRICTED" | "DEFENSIVE" | "EMERGENCY")[] = [
+      "SAFE",
+      "RESTRICTED",
+      "DEFENSIVE",
+      "EMERGENCY",
+    ];
+
+    for (const rs of states) {
+      const resRecover = isDbcActionAllowed(DbcActionType.RECOVER_LIQUIDITY, rs);
+      expect(resRecover.allowed).to.be.true;
+
+      const resExit = isDbcActionAllowed(DbcActionType.EXIT_LIQUIDITY, rs);
+      expect(resExit.allowed).to.be.true;
+    }
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // INVARIANT 26: Risk-Increasing DBC Actions Gated in DEFENSIVE & EMERGENCY
+  // ───────────────────────────────────────────────────────────────────────────
+  it("Invariant 26: CREATE_POSITION and MANAGE_POSITION blocked in DEFENSIVE and EMERGENCY", () => {
+    const defensiveCreate = isDbcActionAllowed(DbcActionType.CREATE_POSITION, "DEFENSIVE");
+    expect(defensiveCreate.allowed).to.be.false;
+
+    const emergencyManage = isDbcActionAllowed(DbcActionType.MANAGE_POSITION, "EMERGENCY");
+    expect(emergencyManage.allowed).to.be.false;
+
+    const defensiveRebal = isDbcActionAllowed(DbcActionType.REBALANCE_LIQUIDITY, "DEFENSIVE");
+    expect(defensiveRebal.allowed).to.be.false;
+
+    // Allowed in SAFE
+    const safeCreate = isDbcActionAllowed(DbcActionType.CREATE_POSITION, "SAFE");
+    expect(safeCreate.allowed).to.be.true;
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // INVARIANT 27: RESTRICTED State DBC Volume Cap (50% Capacity)
+  // ───────────────────────────────────────────────────────────────────────────
+  it("Invariant 27: DBC risk-increasing actions exceed volume cap in RESTRICTED state", () => {
+    // Under RESTRICTED: cap is min(250, limit/2) = $250
+    const overCap = evaluatePermission({
+      actor: "HUMAN",
+      action: "enter_liquidity",
+      amountUsd: 300, // > $250 cap
+      riskState: "RESTRICTED",
+    });
+    expect(overCap.allowed).to.be.false;
+    expect(overCap.reasonCode).to.equal("DBC_ACTION_BLOCKED_RISK_STATE");
+
+    const underCap = evaluatePermission({
+      actor: "HUMAN",
+      action: "enter_liquidity",
+      amountUsd: 200, // <= $250 cap
+      riskState: "RESTRICTED",
+    });
+    expect(underCap.allowed).to.be.true;
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // INVARIANT 28: Agent Authority Expiration & Asset Scope Enforcement
+  // ───────────────────────────────────────────────────────────────────────────
+  it("Invariant 28: Expired agent authority fails DBC execution", () => {
+    const expiredResult = evaluateDbcPermission({
+      actor: "AGENT",
+      action: "swap",
+      amountUsd: 50,
+      riskState: "SAFE",
+      dbcAvailability: "AVAILABLE",
+      dbcPoolRegistered: true,
+      agentAuthority: {
+        active: true,
+        isExpired: true, // EXPIRED
+        allowedActions: { deposit: true, borrow: true, repay: true, withdraw: true },
+        maxBorrowLimitUsd: 500,
+        maxWithdrawLimitUsd: 500,
+        currentBorrowedUsd: 0,
+        riskBudgetUsd: 500,
+      },
+    });
+
+    expect(expiredResult.allowed).to.be.false;
+    expect(expiredResult.reasonCode).to.equal("AGENT_EXPIRED");
   });
 });

@@ -66,11 +66,20 @@ export function parseActionVerb(text: string): ProtocolAction | null {
   if (/\b(?:swap|trade|exchange)\b/.test(t)) {
     return "swap";
   }
-  if (/\b(?:enter liquidity|add liquidity|provide liquidity|lp|enter dbc)\b/.test(t)) {
+  if (/\b(?:enter liquidity|add liquidity|provide liquidity|lp|enter dbc|enter pool)\b/.test(t)) {
     return "enter_liquidity";
   }
-  if (/\b(?:exit liquidity|remove liquidity|pull liquidity|withdraw lp)\b/.test(t)) {
+  if (/\b(?:exit liquidity|remove liquidity|pull liquidity|withdraw lp|exit pool|exit dbc)\b/.test(t)) {
     return "exit_liquidity";
+  }
+  if (/\b(?:recover liquidity|recover lp|emergency exit|protective exit)\b/.test(t)) {
+    return "recover_liquidity";
+  }
+  if (/\b(?:rebalance liquidity|rebalance lp|rebalance pool)\b/.test(t)) {
+    return "rebalance_liquidity";
+  }
+  if (/\b(?:create dbc position|open position|create position)\b/.test(t)) {
+    return "create_dbc_position";
   }
   if (/\b(?:recover|protect position|mitigate risk|de-risk)\b/.test(t)) {
     return "repay";
@@ -135,7 +144,62 @@ export function classifyIntent(
     }
   }
 
-  // 5. Watch & Strategy requests
+  // 5. DBC pool queries ("show pool state for nvda", "nvda dbc pool", "meteora nvda")
+  if (
+    /\b(?:pool state|dbc pool|pool status|meteora pool|dbc|bonding curve|liquidity pool)\b/.test(lower) &&
+    !lower.includes("provide") && !lower.includes("enter") && !lower.includes("exit")
+  ) {
+    const mentioned = findMentionedAssets(lower);
+    const asset = mentioned[0]?.market || context.activeAsset || DEPLOYED_MARKETS[0];
+    return {
+      type: "DBC_POOL_QUERY",
+      rawText: trimmed,
+      asset,
+      confidence: "HIGH",
+    };
+  }
+
+  // 5b. DBC liquidity plans ("provide liquidity to nvda", "enter nvda pool")
+  if (/\b(?:provide liquidity|enter pool|enter liquidity|add liquidity|lp into|enter dbc)\b/.test(lower)) {
+    const mentioned = findMentionedAssets(lower);
+    const asset = mentioned[0]?.market || context.activeAsset || DEPLOYED_MARKETS[0];
+    return {
+      type: "DBC_LIQUIDITY_PLAN",
+      rawText: trimmed,
+      action: "enter_liquidity",
+      asset,
+      amount: parseAmount(lower) || undefined,
+      confidence: "HIGH",
+    };
+  }
+
+  // 5c. DBC exit plans ("exit nvda liquidity", "recover liquidity", "exit pool")
+  if (/\b(?:exit pool|exit liquidity|exit dbc|recover liquidity|pull liquidity|remove liquidity)\b/.test(lower)) {
+    const mentioned = findMentionedAssets(lower);
+    const asset = mentioned[0]?.market || context.activeAsset || DEPLOYED_MARKETS[0];
+    return {
+      type: "DBC_EXIT_PLAN",
+      rawText: trimmed,
+      action: "exit_liquidity",
+      asset,
+      confidence: "HIGH",
+    };
+  }
+
+  // 5d. DBC strategy creation ("keep dbc exposure below 10%", "dbc strategy")
+  if (/\b(?:dbc strategy|dbc exposure|automate liquidity|liquidity strategy)\b/.test(lower)) {
+    const mentioned = findMentionedAssets(lower);
+    const asset = mentioned[0]?.market || context.activeAsset || DEPLOYED_MARKETS[0];
+    return {
+      type: "DBC_STRATEGY_CREATE",
+      rawText: trimmed,
+      asset,
+      condition: trimmed,
+      confidence: "HIGH",
+    };
+  }
+
+  // 6. Watch & Strategy requests
   if (/\b(?:watch|monitor|alert|notify)\b/.test(lower)) {
     const mentioned = findMentionedAssets(lower);
     const asset = mentioned[0]?.market || context.activeAsset || DEPLOYED_MARKETS[0];

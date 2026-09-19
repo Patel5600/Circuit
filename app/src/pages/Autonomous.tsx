@@ -25,6 +25,9 @@ import { ExecutionFeed } from "../components/autonomous/ExecutionFeed";
 import { PolicyPreview } from "../components/autonomous/PolicyPreview";
 import { loadTasks, loadExecutions, syncToServer, parseTaskProposal, subscribeTasks } from "../lib/automation/store";
 import type { ParsedTaskProposal } from "../lib/automation/types";
+import { DbcExecutionPanel } from "../components/dbc/DbcExecutionPanel";
+import { DbcCurveVisualizer } from "../components/dbc/DbcCurveVisualizer";
+import { DbcPoolStatusPill } from "../components/dbc/DbcPoolStatusPill";
 import { useAction } from "../context/ActionContext";
 import { useMarketData } from "../context/MarketDataContext";
 import type { MarketSnapshot } from "../lib/market-data/types";
@@ -62,7 +65,7 @@ export type AgentState =
   | "IDLE" | "PLANNING" | "AWAITING_APPROVAL" | "CHECKING_PERMISSION"
   | "EXECUTING" | "CONFIRMING" | "COMPLETED" | "FAILED" | "PAUSED" | "EXPIRED";
 
-export type TabId = "CHAT" | "STRATEGY" | "WATCH" | "AUTO MANAGE" | "SCHEDULE" | "PERMISSIONS";
+export type TabId = "CHAT" | "STRATEGY" | "WATCH" | "AUTO MANAGE" | "SCHEDULE" | "PERMISSIONS" | "DBC";
 
 export interface CircuitToolEvent {
   tool: string;
@@ -1444,7 +1447,7 @@ export default function Autonomous() {
 
   // Read ?tab= from URL and use it as the initial tab (case-insensitive).
   const tabFromUrl = searchParams.get("tab")?.toUpperCase() as TabId | null;
-  const validTabs: TabId[] = ["CHAT", "STRATEGY", "WATCH", "AUTO MANAGE", "SCHEDULE", "PERMISSIONS"];
+  const validTabs: TabId[] = ["CHAT", "STRATEGY", "WATCH", "AUTO MANAGE", "SCHEDULE", "PERMISSIONS", "DBC"];
   const initialTab: TabId = (tabFromUrl && validTabs.includes(tabFromUrl)) ? tabFromUrl : "CHAT";
 
   const [activeTab, setActiveTab] = useState<TabId>(initialTab);
@@ -1970,7 +1973,7 @@ export default function Autonomous() {
 
           {/* Navigation Items */}
           <nav style={{ padding: "10px 8px", display: "flex", flexDirection: "column", gap: 3 }}>
-            {(["CHAT", "STRATEGY", "WATCH", "AUTO MANAGE", "SCHEDULE", "PERMISSIONS"] as TabId[]).map(tab => {
+            {(["CHAT", "STRATEGY", "WATCH", "AUTO MANAGE", "SCHEDULE", "PERMISSIONS", "DBC"] as TabId[]).map(tab => {
               const isActive = activeTab === tab;
               const count = tab === "WATCH" ? taskCounts.watches : tab === "AUTO MANAGE" ? taskCounts.strategies : tab === "SCHEDULE" ? taskCounts.total : tab === "PERMISSIONS" ? activeAuthCount : null;
               return (
@@ -2386,6 +2389,52 @@ export default function Autonomous() {
               updateCounts();
               setActiveTab("CHAT");
             }} />
+          </div>
+        )}
+
+        {/* TAB 7: METEORA DBC */}
+        {activeTab === "DBC" && (
+          <div style={{ flex: 1, overflowY: "auto", background: "var(--surface-0)", padding: 20 }}>
+            <div style={{ maxWidth: 1000, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
+              <div style={{ padding: "16px 18px", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text)" }}>METEORA DYNAMIC BONDING CURVE (DBC)</div>
+                  <div style={{ fontSize: 12, color: "var(--text-2)", marginTop: 4, lineHeight: 1.5 }}>
+                    First-class execution primitive. Circuit governs capital authority and permission boundaries; Meteora provides dynamic virtual curve execution.
+                  </div>
+                </div>
+                <DbcPoolStatusPill />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: 20 }}>
+                <div style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r)", padding: 20 }}>
+                  <DbcExecutionPanel
+                    riskState={risk.ratchetState}
+                    oraclePriceUsd={marketSnapshots[activeContextAsset.symbol]?.priceUsd ?? null}
+                    symbol={activeContextAsset.symbol}
+                  />
+                </div>
+
+                <div style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--r)", padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14, color: "#e4e4e7" }}>
+                    Bonding Curve Dynamics
+                  </div>
+                  <DbcCurveVisualizer
+                    poolState={null}
+                    riskState={risk.ratchetState}
+                    oraclePrice={marketSnapshots[activeContextAsset.symbol]?.priceUsd ?? null}
+                    symbol={activeContextAsset.symbol}
+                    width={420}
+                    height={240}
+                  />
+                  <div style={{ fontSize: 11, color: "var(--text-3)", lineHeight: 1.6, fontFamily: "var(--mono)" }}>
+                    • Safe: full bonding curve accessible for liquidity and swaps.<br />
+                    • Restricted: risk-increasing execution volume capped at 50%.<br />
+                    • Defensive / Emergency: only liquidity recovery and exit permitted.
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 

@@ -37,6 +37,10 @@ export enum DbcActionType {
   ENTER_LIQUIDITY = 1,
   EXIT_LIQUIDITY = 2,
   REBALANCE = 3,
+  CREATE_POSITION = 4,       // Open a new DBC liquidity position
+  MANAGE_POSITION = 5,       // Adjust parameters of an existing position
+  RECOVER_LIQUIDITY = 6,     // Recovery-safe exit (permitted in EMERGENCY/DEFENSIVE)
+  REBALANCE_LIQUIDITY = 7,   // Rebalance liquidity between price ranges
 }
 
 export interface DbcPoolInfo {
@@ -256,45 +260,58 @@ export function validateDbcPool(registryDbcPool: PublicKey, providedDbcPool: Pub
 
 /**
  * Classifies whether a DBC action increases risk or is recovery-safe (risk-reducing).
- * ExitLiquidity is recovery-safe (risk-reducing).
- * Swap, EnterLiquidity, and Rebalance are risk-increasing.
+ * ExitLiquidity and RecoverLiquidity are recovery-safe.
+ * All others are risk-increasing.
  */
 export function isDbcActionRiskIncreasing(actionType: DbcActionType): boolean {
   return (
     actionType === DbcActionType.SWAP ||
     actionType === DbcActionType.ENTER_LIQUIDITY ||
-    actionType === DbcActionType.REBALANCE
+    actionType === DbcActionType.REBALANCE ||
+    actionType === DbcActionType.CREATE_POSITION ||
+    actionType === DbcActionType.MANAGE_POSITION ||
+    actionType === DbcActionType.REBALANCE_LIQUIDITY
   );
 }
 
 /**
  * Evaluates whether a DBC action is permitted under the given canonical MarketState.
- * - In EMERGENCY: Only ExitLiquidity is permitted as a recovery-safe action.
- * - In DEFENSIVE: ExitLiquidity is permitted; Swaps, EnterLiquidity, and Rebalance are blocked.
- * - In RESTRICTED: All actions permitted, but risk-increasing volume is capped at 50%.
- * - In SAFE: All actions permitted at 100% capacity.
+ *
+ * Risk Matrix (Section 15):
+ * ┌────────────────────┬──────┬───────────┬──────┬────────────┬────────┬────────┬─────────┬───────────────────┐
+ * │ Action             │ SWAP │ ENTER_LIQ │ EXIT │ REBALANCE  │ CREATE │ MANAGE │ RECOVER │ REBALANCE_LIQ     │
+ * ├────────────────────┼──────┼───────────┼──────┼────────────┼────────┼────────┼─────────┼───────────────────┤
+ * │ SAFE               │  ✅  │    ✅     │  ✅  │    ✅     │   ✅   │   ✅  │   ✅    │        ✅        │
+ * │ RESTRICTED (50%cap)│  ✅  │    ✅     │  ✅  │    ✅     │   ✅   │   ✅  │   ✅    │        ✅        │
+ * │ DEFENSIVE          │  ❌  │    ❌     │  ✅  │    ❌     │   ❌   │   ❌  │   ✅    │        ❌        │
+ * │ EMERGENCY          │  ❌  │    ❌     │  ✅  │    ❌     │   ❌   │   ❌  │   ✅    │        ❌        │
+ * └────────────────────┴──────┴───────────┴──────┴────────────┴────────┴────────┴─────────┴───────────────────┘
  */
 export function isDbcActionAllowed(
   actionType: DbcActionType,
   riskState: "SAFE" | "RESTRICTED" | "DEFENSIVE" | "EMERGENCY"
 ): { allowed: boolean; reason?: string } {
+  // Recovery-safe actions: always permitted
+  if (
+    actionType === DbcActionType.EXIT_LIQUIDITY ||
+    actionType === DbcActionType.RECOVER_LIQUIDITY
+  ) {
+    return { allowed: true };
+  }
+
   if (riskState === "EMERGENCY") {
-    if (actionType === DbcActionType.EXIT_LIQUIDITY) {
-      return { allowed: true };
-    }
     return {
       allowed: false,
-      reason: "DBC action blocked: Only ExitLiquidity is permitted in Emergency state for capital recovery.",
+      reason:
+        "DBC action blocked: Only ExitLiquidity/RecoverLiquidity are permitted in Emergency state for capital recovery.",
     };
   }
 
   if (riskState === "DEFENSIVE") {
-    if (actionType === DbcActionType.EXIT_LIQUIDITY) {
-      return { allowed: true };
-    }
     return {
       allowed: false,
-      reason: "DBC action blocked: Swaps and new liquidity entry are blocked in Defensive state.",
+      reason:
+        "DBC action blocked: Risk-increasing DBC actions are blocked in Defensive state.",
     };
   }
 

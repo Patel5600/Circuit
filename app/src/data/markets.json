@@ -7,6 +7,35 @@
     "USDC": "23hpSsK3h4na3pwSUf1YzaDF9nzX3t2PppJJf16Qpkxc",
     "WSOL": "DsjcwkWNxJk5Rvw7dvdJLY3AY5jg9fpnYJvewUaVjxbL"
   },
+  "dbcPools": [
+    {
+      "symbol": "NVDA",
+      "poolAddress": "7hwYoFNM1D1ST52bX4UqA97aXt4Ukppww65WoDcARUk3",
+      "baseMint": "CARqKy5GTCxz5G1tFiYA96A3Q8jaUE9Vppk7cjGJxRqq",
+      "quoteMint": "23hpSsK3h4na3pwSUf1YzaDF9nzX3t2PppJJf16Qpkxc",
+      "programId": "dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN",
+      "environment": "devnet",
+      "lifecycleState": "VIRTUAL_POOL"
+    },
+    {
+      "symbol": "AAPL",
+      "poolAddress": "AZoWjEHiCNpjW4NPHKUpvnbqK8raSL6criLkKtJqk9hz",
+      "baseMint": "4zs2vg7MXYms9gwQxA6VYTZCfGy4NVyp1pca8TqdMmnS",
+      "quoteMint": "23hpSsK3h4na3pwSUf1YzaDF9nzX3t2PppJJf16Qpkxc",
+      "programId": "dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN",
+      "environment": "devnet",
+      "lifecycleState": "VIRTUAL_POOL"
+    },
+    {
+      "symbol": "MSFT",
+      "poolAddress": "5mBHmYmNt6rvYcvFXcMZbUtefgegZjt5RM2izhHY6itW",
+      "baseMint": "gLjzboHgbevzEedufXfWyrgaFk7ePNLBKzRnpGbWpF2",
+      "quoteMint": "23hpSsK3h4na3pwSUf1YzaDF9nzX3t2PppJJf16Qpkxc",
+      "programId": "dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN",
+      "environment": "devnet",
+      "lifecycleState": "VIRTUAL_POOL"
+    }
+  ],
   "markets": [
     {
       "symbol": "NVDA",

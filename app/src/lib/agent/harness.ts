@@ -36,6 +36,16 @@ export interface ProtocolSnapshot {
   }[];
   markets: Record<string, { price: number; change24h: number; oracleFreshness: string }>;
   agentBorrowLimitUsd?: number;
+  /** DBC integration availability */
+  dbcAvailability?: "AVAILABLE" | "DEGRADED" | "UNAVAILABLE" | "NOT_CONFIGURED" | "STALE";
+  /** Observable DBC pool states, keyed by symbol */
+  dbcPoolStates?: Record<string, {
+    symbol: string;
+    poolAddress: string;
+    existsOnChain: boolean | null;
+    lifecycleState: string;
+    freshnessSec: number | null;
+  }>;
 }
 
 export class AgentHarnessCoordinator {

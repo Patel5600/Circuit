@@ -35,6 +35,10 @@ export type IntentType =
   | "WATCH_CREATE"        // "watch health factor < 1.8", "watch nvda", "stop borrowing if risk restricted"
   | "STRATEGY_CREATE"     // "manage nvda automatically", "keep HF > 1.8 with auto repay"
   | "MULTI_INTENT"        // "check nvda and tell me if I can borrow 200"
+  | "DBC_POOL_QUERY"      // "show pool state for nvda", "what is the nvda pool status"
+  | "DBC_LIQUIDITY_PLAN"  // "provide liquidity to nvda pool within $100"
+  | "DBC_EXIT_PLAN"       // "exit nvda liquidity position", "recover liquidity"
+  | "DBC_STRATEGY_CREATE" // "keep dbc exposure below 10% of risk budget"
   | "GENERAL_CHAT";       // general questions routed to AI gateway
 
 export interface StructuredIntent {
@@ -146,6 +150,35 @@ export interface ClarificationBlockData {
   options: { label: string; actionText: string; description?: string }[];
 }
 
+/** DBC strategy constraint block shown in agent conversation */
+export interface DbcStrategyConstraintBlock {
+  type: "DBC_STRATEGY_CARD";
+  /** DBC action being proposed */
+  action: DbcActionType;
+  /** Market symbol (canonical — never from free-form input) */
+  symbol: string;
+  /** Canonical pool address from DBC_POOL_REGISTRY */
+  poolAddress: string;
+  /** Maximum amount for this strategy execution in USD */
+  maxAmountUsd: number;
+  /** Maximum slippage in bps (10–200) */
+  maxSlippageBps: number;
+  /** Risk states in which this strategy is allowed to execute */
+  riskStatesAllowed: RiskRatchetState[];
+  /** Whether manual approval is required before execution */
+  requiresApproval: boolean;
+  /** Unix timestamp (seconds) when this constraint expires */
+  expiry: number;
+  /** Permission engine result */
+  permissionResult?: {
+    allowed: boolean;
+    reasonCode: string;
+    message: string;
+  };
+}
+
+import { DbcActionType } from "../meteora/dbc";
+
 export type StructuredMessageBlock =
   | MarketCardBlockData
   | ChartCardBlockData
@@ -153,7 +186,8 @@ export type StructuredMessageBlock =
   | PermissionCardBlockData
   | TransactionCardBlockData
   | StrategyCardBlockData
-  | ClarificationBlockData;
+  | ClarificationBlockData
+  | DbcStrategyConstraintBlock;
 
 export interface HarnessChatMessage {
   id: string;

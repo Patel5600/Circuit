@@ -16,8 +16,10 @@ import { getDeployedMarket } from "../data/markets";
 import { MarketSnapshot } from "../lib/market-data/types";
 import { CANONICAL_ASSET_REGISTRY } from "../lib/market-data/registry";
 import { AssetLogo } from "../components/brand/AssetLogo";
+import { DbcPoolStatusPill } from "../components/dbc/DbcPoolStatusPill";
+import { getRegisteredDbcSymbols } from "../lib/meteora/registry";
 
-type FilterTab = "all" | "live" | "gainers" | "losers" | "collateral" | "recent" | "soon";
+type FilterTab = "all" | "live" | "gainers" | "losers" | "collateral" | "recent" | "soon" | "dbc";
 type SortOption = "default" | "gainers" | "losers" | "price_high" | "price_low" | "ltv";
 
 export default function Markets() {
@@ -82,7 +84,8 @@ export default function Markets() {
     const live = rows.filter((r) => r.live).length;
     const recent = rows.filter((r) => r.freshness === "RECENT").length;
     const soon = rows.filter((r) => !r.live).length;
-    return { total, live, recent, soon };
+    const dbc = rows.filter((r) => getRegisteredDbcSymbols().includes(r.marketSymbol || r.symbol)).length;
+    return { total, live, recent, soon, dbc };
   }, [rows]);
 
   // Filter and Sort
@@ -108,6 +111,7 @@ export default function Markets() {
     else if (filter === "losers") list = list.filter((r) => (r.change24hPercent ?? 0) < 0);
     else if (filter === "recent") list = list.filter((r) => r.freshness === "RECENT");
     else if (filter === "soon") list = list.filter((r) => !r.live);
+    else if (filter === "dbc") list = list.filter((r) => getRegisteredDbcSymbols().includes(r.marketSymbol || r.symbol));
 
     // 3. Sort
     if (sortOption === "gainers") {
@@ -148,6 +152,7 @@ export default function Markets() {
       subtitle="Real-time credit markets for tokenized equities on Solana Devnet. Continuous 24/7 onchain price observability, verified Pyth oracle feeds, and real historical 24h performance."
       action={
         <div className="row g-8" style={{ alignItems: "center" }}>
+          <DbcPoolStatusPill />
           <Pill tone={isStreamHealthy ? "success" : "warning"} withDot>
             {isStreamHealthy ? "STREAM HEALTHY" : "STREAM RECONNECTING"}
           </Pill>
@@ -243,6 +248,15 @@ export default function Markets() {
               {summaryCounts.soon} EQUITIES
             </div>
           </div>
+
+          <div>
+            <div style={{ color: "var(--text-3)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+              Meteora DBC
+            </div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#818cf8" }}>
+              {summaryCounts.dbc} POOLS
+            </div>
+          </div>
         </div>
 
         {/* 4. Controls Toolbar: Search, Filters, Sorting */}
@@ -280,6 +294,7 @@ export default function Markets() {
               [
                 { key: "all", label: `All (${summaryCounts.total})` },
                 { key: "live", label: `Live (${summaryCounts.live})` },
+                { key: "dbc", label: `Meteora DBC (${summaryCounts.dbc})` },
                 { key: "gainers", label: "24h Gainers" },
                 { key: "losers", label: "24h Losers" },
                 { key: "collateral", label: "Collateral" },

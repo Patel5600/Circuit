@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Centralized error classification for Circuit.
  *
  * Maps Solana/Anchor/network errors to human-readable messages.
@@ -133,6 +133,89 @@ export function classifyError(err: unknown): ClassifiedError {
       message: "The transaction was rejected during simulation. No funds were moved.",
       retryable: true,
       suggestion: "Check your position state and retry.",
+    };
+  }
+
+  // Meteora DBC unavailable
+  if (
+    lower.includes("dbc_unavailable") ||
+    lower.includes("meteora unavailable") ||
+    lower.includes("meteora unreachable") ||
+    lower.includes("dbc unavailable")
+  ) {
+    return {
+      title: "DBC execution unavailable",
+      message:
+        "Meteora DBC execution is currently unavailable. Circuit lending, borrowing, and positions are unaffected.",
+      retryable: true,
+      suggestion: "Circuit core functionality continues. Retry DBC action when Meteora RPC recovers.",
+    };
+  }
+
+  // DBC pool not registered
+  if (lower.includes("dbc_pool_not_registered") || lower.includes("pool not registered")) {
+    return {
+      title: "Pool not registered",
+      message: "This pool is not in Circuit's canonical DBC pool registry.",
+      retryable: false,
+      suggestion: "Only registered Meteora DBC pools can be used for DBC actions.",
+    };
+  }
+
+  // DBC wrong pool / identity mismatch
+  if (
+    lower.includes("invaliddbc") ||
+    lower.includes("invalid_dbc_pool") ||
+    lower.includes("pool identity mismatch") ||
+    lower.includes("dbc pool mismatch")
+  ) {
+    return {
+      title: "Pool identity mismatch",
+      message:
+        "The provided DBC pool does not match the canonical pool in Circuit's registry.",
+      retryable: false,
+      suggestion: "Only use pools provided by Circuit's pool registry.",
+    };
+  }
+
+  // DBC slippage exceeded
+  if (
+    lower.includes("dbc_slippage") ||
+    lower.includes("slippage exceeded") ||
+    lower.includes("slippage violation") ||
+    lower.includes("dbcslippage")
+  ) {
+    return {
+      title: "Slippage limit exceeded",
+      message:
+        "The actual received amount is below the minimum enforced by Circuit (slippage exceeded).",
+      retryable: true,
+      suggestion: "Reduce trade size or increase slippage tolerance (max 200 bps).",
+    };
+  }
+
+  // DBC action blocked by risk state
+  if (
+    lower.includes("dbc_action_blocked") ||
+    lower.includes("dbc action blocked") ||
+    lower.includes("dbc risk state")
+  ) {
+    return {
+      title: "DBC action blocked",
+      message:
+        "This DBC action is blocked by the current Risk Ratchet state. Only recovery-safe actions are permitted.",
+      retryable: false,
+      suggestion: "Exit liquidity or recover position to reduce risk exposure.",
+    };
+  }
+
+  // DBC pool stale
+  if (lower.includes("dbc stale") || lower.includes("dbc_stale")) {
+    return {
+      title: "Pool state stale",
+      message: "DBC pool state has not been refreshed recently. Data may be outdated.",
+      retryable: true,
+      suggestion: "Refresh the DBC pool state and try again.",
     };
   }
 

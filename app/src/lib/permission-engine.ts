@@ -37,7 +37,11 @@ export type ProtocolAction =
   | "swap"
   | "enter_liquidity"
   | "exit_liquidity"
-  | "rebalance";
+  | "rebalance"
+  | "create_dbc_position"    // Open a new DBC liquidity position
+  | "manage_dbc_position"    // Adjust parameters of an existing DBC position
+  | "recover_liquidity"      // Recovery-safe exit from DBC position (allowed in all risk states)
+  | "rebalance_liquidity";   // Rebalance liquidity between DBC ranges
 
 export type ActorType = "HUMAN" | "AGENT";
 
@@ -62,7 +66,13 @@ export type PermissionReasonCode =
   | "INVALID_ASSET"
   | "INVALID_AUTHORITY"
   | "PROTOCOL_PAUSED"
-  | "ASSET_DISABLED";
+  | "ASSET_DISABLED"
+  // DBC-specific reason codes
+  | "DBC_UNAVAILABLE"
+  | "DBC_ACTION_BLOCKED_RISK_STATE"
+  | "DBC_POOL_NOT_REGISTERED"
+  | "DBC_SLIPPAGE_VIOLATION"
+  | "DBC_POOL_LIFECYCLE_INCOMPATIBLE";
 
 export interface PermissionResult {
   /** Whether the requested operation is legally permitted onchain */
@@ -262,11 +272,12 @@ export function evaluatePermission(params: PermissionEvaluationParams): Permissi
   // --------------------------------------------------------------------------
   // 4b. METEORA DBC / LIQUIDITY SURFACES (Section 15 Risk Matrix)
   // --------------------------------------------------------------------------
-  if (action === "exit_liquidity") {
+  // Recovery-safe actions: always permitted regardless of risk state
+  if (action === "exit_liquidity" || action === "recover_liquidity") {
     return makeResult(
       true,
       "ALLOWED",
-      "DBC liquidity exit permitted across all market states for recovery.",
+      "DBC liquidity exit/recovery permitted across all market states for capital recovery.",
       riskState,
       effectiveLtvBps,
       0,
@@ -276,12 +287,21 @@ export function evaluatePermission(params: PermissionEvaluationParams): Permissi
     );
   }
 
-  if (action === "swap" || action === "enter_liquidity" || action === "rebalance") {
+  // Risk-increasing DBC actions: subject to full risk-matrix gating
+  const isRiskIncreasingDbc =
+    action === "swap" ||
+    action === "enter_liquidity" ||
+    action === "rebalance" ||
+    action === "create_dbc_position" ||
+    action === "manage_dbc_position" ||
+    action === "rebalance_liquidity";
+
+  if (isRiskIncreasingDbc) {
     if (riskState === "EMERGENCY") {
       return makeResult(
         false,
-        "RISK_STATE_RESTRICTED",
-        "Protocol containment: Meteora DBC swap/liquidity blocked in EMERGENCY state.",
+        "DBC_ACTION_BLOCKED_RISK_STATE",
+        "Protocol containment: DBC risk-increasing actions blocked in EMERGENCY state. Only exit/recovery actions are permitted.",
         riskState,
         0,
         0,
@@ -293,8 +313,8 @@ export function evaluatePermission(params: PermissionEvaluationParams): Permissi
     if (riskState === "DEFENSIVE") {
       return makeResult(
         false,
-        "RISK_STATE_RESTRICTED",
-        "Protocol containment: Meteora DBC swap/liquidity blocked in DEFENSIVE state.",
+        "DBC_ACTION_BLOCKED_RISK_STATE",
+        "Protocol containment: DBC risk-increasing actions blocked in DEFENSIVE state. Only exit/recovery actions are permitted.",
         riskState,
         effectiveLtvBps,
         0,
@@ -308,8 +328,8 @@ export function evaluatePermission(params: PermissionEvaluationParams): Permissi
       if (amountUsd > cap) {
         return makeResult(
           false,
-          "RISK_STATE_RESTRICTED",
-          `Meteora DBC volume capped to $${cap} in RESTRICTED state.`,
+          "DBC_ACTION_BLOCKED_RISK_STATE",
+          `DBC volume capped to $${cap.toFixed(0)} in RESTRICTED state (50% capacity).`,
           riskState,
           effectiveLtvBps,
           0,
@@ -475,4 +495,135 @@ function makeResult(
     actionCostUsd,
     remainingRiskBudgetUsd,
   };
+}
+
+// ── DBC-Specific Permission Evaluator ─────────────────────────────────────────
+// Composes evaluatePermission() + DBC-specific invariants.
+// There is ONE canonical permission engine — this is not a second engine.
+
+export interface DbcPermissionParams extends PermissionEvaluationParams {
+  /** Canonical pool address from DBC_POOL_REGISTRY (base58) */
+  dbcPoolAddress?: string;
+  /** Availability state of the DBC integration */
+  dbcAvailability?: "AVAILABLE" | "DEGRADED" | "UNAVAILABLE" | "NOT_CONFIGURED" | "STALE";
+  /** Current pool lifecycle state */
+  dbcPoolLifecycle?: DbcPoolLifecycle;
+  /** Proposed slippage in basis points (must be 10–200) */
+  dbcSlippageBps?: number;
+  /** Whether this pool address is registered in DBC_POOL_REGISTRY */
+  dbcPoolRegistered?: boolean;
+}
+
+// Imported locally to avoid circular dependencies
+type DbcPoolLifecycle =
+  | "VIRTUAL_POOL"
+  | "ACTIVE_TRADING"
+  | "THRESHOLD_REACHED"
+  | "GRADUATION"
+  | "DAMM_V2"
+  | "UNKNOWN";
+
+/**
+ * Evaluates DBC action permission by composing the canonical Circuit permission
+ * engine with DBC-specific invariants (pool registry, lifecycle, availability, slippage).
+ *
+ * This function MUST be used for all DBC actions — not evaluatePermission() alone.
+ * The canonical permission engine runs first; DBC checks are additive, never bypass.
+ */
+export function evaluateDbcPermission(params: DbcPermissionParams): PermissionResult {
+  const {
+    dbcAvailability = "NOT_CONFIGURED",
+    dbcPoolRegistered = false,
+    dbcSlippageBps,
+    dbcPoolLifecycle,
+    action,
+    riskState = "SAFE",
+  } = params;
+
+  // 1. Check DBC availability — only blocks DBC paths, not Circuit
+  if (dbcAvailability === "UNAVAILABLE") {
+    return makeResult(
+      false,
+      "DBC_UNAVAILABLE",
+      "Meteora DBC execution is unavailable. Circuit lending, borrowing, and position management continue unaffected.",
+      riskState,
+      0,
+      0,
+      null,
+      0,
+      0
+    );
+  }
+
+  if (dbcAvailability === "NOT_CONFIGURED") {
+    return makeResult(
+      false,
+      "DBC_UNAVAILABLE",
+      "No DBC pool has been configured for this market on Devnet. Circuit core functionality is unaffected.",
+      riskState,
+      0,
+      0,
+      null,
+      0,
+      0
+    );
+  }
+
+  // 2. Pool must be in canonical registry — no arbitrary pool addresses
+  if (!dbcPoolRegistered) {
+    return makeResult(
+      false,
+      "DBC_POOL_NOT_REGISTERED",
+      "DBC pool is not in Circuit's canonical pool registry. Unregistered pools cannot be used for DBC actions.",
+      riskState,
+      0,
+      0,
+      null,
+      0,
+      0
+    );
+  }
+
+  // 3. Pool lifecycle compatibility — GRADUATION/DAMM_V2 pool requires updated action type
+  const isRiskIncreasingAction =
+    action === "swap" ||
+    action === "enter_liquidity" ||
+    action === "create_dbc_position" ||
+    action === "manage_dbc_position" ||
+    action === "rebalance_liquidity";
+
+  if (
+    dbcPoolLifecycle === "GRADUATION" &&
+    isRiskIncreasingAction
+  ) {
+    return makeResult(
+      false,
+      "DBC_POOL_LIFECYCLE_INCOMPATIBLE",
+      "Pool is in GRADUATION state. Wait for migration to DAMM v2 to complete before new entries.",
+      riskState,
+      0,
+      0,
+      null,
+      0,
+      0
+    );
+  }
+
+  // 4. Slippage validation (10–200 bps enforced)
+  if (dbcSlippageBps !== undefined && (dbcSlippageBps < 10 || dbcSlippageBps > 200)) {
+    return makeResult(
+      false,
+      "DBC_SLIPPAGE_VIOLATION",
+      `Slippage ${dbcSlippageBps} bps is outside Circuit bounds (10–200 bps).`,
+      riskState,
+      0,
+      0,
+      null,
+      0,
+      0
+    );
+  }
+
+  // 5. Run the canonical Circuit permission engine — same path as all other actions
+  return evaluatePermission(params);
 }

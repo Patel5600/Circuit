@@ -314,3 +314,43 @@ export function calculateStressScenarios(
     };
   });
 }
+
+/**
+ * Closed Feedback Loop:
+ * Recalculates portfolio risk immediately following a confirmed DBC execution.
+ *
+ * Sequence:
+ * 1. Agent or human executes DBC swap / entry / exit
+ * 2. Token balances change on-chain
+ * 3. applyDbcExecutionToPortfolio recomputes concentration, haircuts, LTV, and risk state
+ * 4. Permission engine and agent immediately observe the updated boundary on the next turn.
+ */
+export function applyDbcExecutionToPortfolio(params: {
+  currentAssets: {
+    symbol: string;
+    name: string;
+    collateralUi: number;
+    priceUsd: number;
+    confidenceUsd: number;
+    confBps: number;
+    baseLtvBps: number;
+    liqThresholdBps: number;
+    oracleHealthy: boolean;
+    marketOpen: boolean;
+  }[];
+  totalDebtUsd: number;
+  tradedSymbol: string;
+  deltaCollateralUi: number; // positive = added collateral/bought asset; negative = sold/withdrawn
+}): PortfolioRiskAnalysis {
+  const updatedAssets = params.currentAssets.map((a) => {
+    if (a.symbol === params.tradedSymbol) {
+      return {
+        ...a,
+        collateralUi: Math.max(0, a.collateralUi + params.deltaCollateralUi),
+      };
+    }
+    return a;
+  });
+
+  return analyzePortfolioRisk(updatedAssets, params.totalDebtUsd);
+}

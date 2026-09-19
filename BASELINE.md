@@ -176,3 +176,21 @@
 1. **CapitalPolicy On-Chain State**: Permissions currently derived in instruction handlers rather than stored/emitted as an explicit `CapitalPolicy` account or typed struct.
 2. **Partial Liquidation Restoration**: `liquidate_auction` uses a fixed 50% close factor rather than computing the exact minimum debt repayment required to restore health to the target condition.
 3. **Fixed LTV**: Base LTV is fixed per asset (70%), dynamic portfolio concentration scoring is intentionally stubbed/separated as designed.
+
+---
+
+## 6. Meteora Dynamic Bonding Curve (DBC) First-Class Integration
+
+- **DBC Program ID**: `dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN`
+- **DBC Pool Authority**: `FhVo3mqL8PW5pH5U2CN4XE33DokiyZnUwuGpH2hmHLuM`
+- **Architectural Division**:
+  - **Circuit**: Capital Authority + Risk Authority + Permission Engine
+  - **Meteora DBC**: Liquidity + Price Discovery + Execution Surface
+- **Canonical DBC Pools (Devnet)**:
+  - NVDA: `7hwYoFNM1D1ST52bX4UqA97aXt4Ukppww65WoDcARUk3`
+  - AAPL: `AZoWjEHiCNpjW4NPHKUpvnbqK8raSL6criLkKtJqk9hz`
+  - MSFT: `5mBHmYmNt6rvYcvFXcMZbUtefgegZjt5RM2izhHY6itW`
+- **Zero Fake Data Policy**: Unobserved or unconfigured pools report `NOT_CONFIGURED` or `null`; no synthetic TVL, volume, or APR.
+- **Closed Feedback Loop**: DBC execution confirmation -> portfolio re-observation -> risk recalculation -> permission adaptation.
+- **Circuit Outage Resilience**: Circuit lending, borrowing, and positions survive DBC outages; only DBC-dependent paths degrade.
+- **Test Baseline**: **189 Unit & Integration Tests passing (0 failures)**.
