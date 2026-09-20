@@ -4186,4 +4186,72 @@ svg {
     inset 0 0 32px rgba(0, 0, 0, 0.5) !important;
 }
 
+/* ---- THEME TOGGLE (Landing, AppShell, Footer) ---- */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  min-height: 32px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: all var(--t-fast);
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  user-select: none;
+}
+.theme-toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+.theme-toggle__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  transition: transform var(--t-fast);
+}
+.theme-toggle:hover .theme-toggle__icon {
+  transform: rotate(15deg);
+}
+.theme-toggle__label {
+  display: inline-block;
+  line-height: 1;
+}
+
+[data-theme="light"] .theme-toggle {
+  background: var(--surface-2);
+  border-color: rgba(33, 36, 19, 0.26);
+  color: var(--p-shadow);
+  box-shadow: 0 1px 4px rgba(18, 35, 17, 0.10);
+}
+[data-theme="light"] .theme-toggle:hover {
+  border-color: var(--p-harvest);
+  color: var(--p-harvest);
+  box-shadow: 0 2px 8px rgba(18, 35, 17, 0.16);
+}
+[data-theme="light"] .theme-toggle__icon {
+  color: var(--p-harvest);
+}
+
+/* Landing flow & storm active labels in light mode */
+[data-theme="light"] .flow__dot.is-on {
+  fill: #212413;
+}
+[data-theme="light"] .flow__stage.is-active .flow__stage__label {
+  color: #212413;
+}
+[data-theme="light"] .storm__fault.is-active .storm__fault__label {
+  color: #212413;
+}
+
 

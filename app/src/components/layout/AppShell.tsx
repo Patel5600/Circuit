@@ -170,24 +170,16 @@ function Header({ onOpenHealth }: { onOpenHealth?: () => void }) {
         <button
           type="button"
           onClick={toggle}
-          title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-          aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: 32,
-            height: 32,
-            borderRadius: "var(--r-sm, 6px)",
-            border: "1px solid var(--border)",
-            background: "var(--surface-2)",
-            color: "var(--text-2)",
-            cursor: "pointer",
-            transition: "all var(--t-fast)",
-            flexShrink: 0,
-          }}
+          className="theme-toggle"
+          title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+          aria-label={`Current mode: ${theme}. Click to switch to ${theme === "dark" ? "light" : "dark"} mode`}
         >
-          <Icon name={theme === "dark" ? "sun" : "moon"} size={14} />
+          <span className="theme-toggle__icon" aria-hidden="true">
+            <Icon name={theme === "dark" ? "sun" : "moon"} size={15} />
+          </span>
+          <span className="theme-toggle__label appbar__hide-mobile">
+            {theme === "dark" ? "LIGHT" : "DARK"}
+          </span>
         </button>
         {/* Network pill: visible on ≥768px via CSS (appbar__hide-mobile hidden only below 640px) */}
         <div className="appbar__hide-mobile">

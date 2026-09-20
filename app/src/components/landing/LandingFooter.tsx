@@ -2,7 +2,9 @@ import React from "react";
 import { Link } from "react-router-dom";
 
 import { CircuitWordmark } from "../brand/CircuitLogo";
+import { Icon } from "../ui";
 import { CLUSTER_LABEL, PROGRAM_ID_STRING, explorerUrl } from "../../env";
+import { useTheme } from "../../context/ThemeContext";
 
 /**
  * Minimal footer.
@@ -25,6 +27,8 @@ const COLUMNS = [
 ];
 
 export function LandingFooter() {
+  const { theme, toggle } = useTheme();
+
   return (
     <footer className="foot">
       <div className="sec__inner foot__inner">
@@ -90,12 +94,26 @@ export function LandingFooter() {
         </nav>
       </div>
 
-      <div className="sec__inner foot__base">
+      <div className="sec__inner foot__base" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "16px" }}>
         <p className="foot__net">
           <span className="dot" aria-hidden="true" />
           Solana {CLUSTER_LABEL}
         </p>
-        <p className="foot__note">
+        <button
+          type="button"
+          onClick={toggle}
+          className="theme-toggle"
+          title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+          aria-label={`Current mode: ${theme}. Click to switch to ${theme === "dark" ? "light" : "dark"} mode`}
+        >
+          <span className="theme-toggle__icon" aria-hidden="true">
+            <Icon name={theme === "dark" ? "sun" : "moon"} size={14} />
+          </span>
+          <span className="theme-toggle__label">
+            {theme === "dark" ? "LIGHT MODE" : "DARK MODE"}
+          </span>
+        </button>
+        <p className="foot__note" style={{ width: "100%", margin: "8px 0 0" }}>
           Unaudited software on a test network. Nothing here is an offer, a quote
           or investment advice. Company marks identify the equity each tokenized
           asset tracks and imply no endorsement.

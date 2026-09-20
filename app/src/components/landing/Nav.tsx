@@ -62,24 +62,22 @@ export function Nav() {
         </nav>
 
         <div className="nav__right">
+          {/* Prominent Theme Switcher: Impossible to miss */}
           <button
             type="button"
-            className="iconbtn"
+            className="theme-toggle"
             onClick={toggle}
-            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-            style={{
-              width: 32,
-              height: 32,
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: "var(--r-sm, 6px)",
-              flexShrink: 0,
-            }}
+            title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            aria-label={`Current mode: ${theme}. Click to switch to ${theme === "dark" ? "light" : "dark"} mode`}
           >
-            <Icon name={theme === "dark" ? "sun" : "moon"} size={15} />
+            <span className="theme-toggle__icon" aria-hidden="true">
+              <Icon name={theme === "dark" ? "sun" : "moon"} size={16} />
+            </span>
+            <span className="theme-toggle__label">
+              {theme === "dark" ? "LIGHT" : "DARK"}
+            </span>
           </button>
+
           <span className="nav__net">
             <Pill tone="accent" withDot>
               {CLUSTER_LABEL}
@@ -107,18 +105,16 @@ export function Nav() {
             <div className="row g-8" style={{ alignItems: "center" }}>
               <button
                 type="button"
-                className="iconbtn"
+                className="theme-toggle"
                 onClick={toggle}
-                aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-                style={{
-                  width: 36,
-                  height: 36,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
+                aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
               >
-                <Icon name={theme === "dark" ? "sun" : "moon"} size={16} />
+                <span className="theme-toggle__icon" aria-hidden="true">
+                  <Icon name={theme === "dark" ? "sun" : "moon"} size={15} />
+                </span>
+                <span className="theme-toggle__label">
+                  {theme === "dark" ? "LIGHT" : "DARK"}
+                </span>
               </button>
               <button
                 type="button"
@@ -141,6 +137,23 @@ export function Nav() {
           </nav>
 
           <div className="navsheet__foot">
+            <button
+              type="button"
+              className="theme-toggle"
+              onClick={toggle}
+              style={{
+                width: "100%",
+                justifyContent: "center",
+                height: "40px",
+                fontSize: "12px",
+                marginBottom: "10px",
+              }}
+            >
+              <span className="theme-toggle__icon" aria-hidden="true">
+                <Icon name={theme === "dark" ? "sun" : "moon"} size={16} />
+              </span>
+              <span>SWITCH TO {theme === "dark" ? "LIGHT MODE" : "DARK MODE"}</span>
+            </button>
             <Pill tone="accent" withDot>
               Solana {CLUSTER_LABEL}
             </Pill>

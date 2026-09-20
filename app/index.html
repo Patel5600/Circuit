@@ -10,6 +10,19 @@
       content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https: blob:; font-src 'self' data: https: https://fonts.gstatic.com; connect-src 'self' https://api.devnet.solana.com https://devnet.helius-rpc.com https://hermes.pyth.network wss://api.devnet.solana.com https://generativelanguage.googleapis.com https://query1.finance.yahoo.com; frame-ancestors 'none'; object-src 'none'; base-uri 'self';"
     />
 
+    <script>
+      (function () {
+        try {
+          var p = new URLSearchParams(window.location.search);
+          var q = p.get("theme");
+          var s = q || localStorage.getItem("circuit-theme");
+          var t = (s === "light" || s === "dark") ? s : (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+          document.documentElement.setAttribute("data-theme", t);
+          if (q) localStorage.setItem("circuit-theme", q);
+        } catch (e) {}
+      })();
+    </script>
+
     <title>circuit — Programmable Credit Infrastructure for Tokenized Equities on Solana</title>
     <meta
       name="description"

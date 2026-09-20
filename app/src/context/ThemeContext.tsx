@@ -14,24 +14,39 @@ const ThemeContext = createContext<ThemeContextValue>({
   setTheme: () => {},
 });
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    try {
+function getInitialTheme(): Theme {
+  try {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const q = params.get("theme");
+      if (q === "light" || q === "dark") {
+        try {
+          localStorage.setItem("circuit-theme", q);
+        } catch {}
+        return q;
+      }
       const stored = localStorage.getItem("circuit-theme") as Theme | null;
       if (stored === "light" || stored === "dark") {
         return stored;
       }
-      // Check system preference as default if nothing stored
-      if (typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) {
+      if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) {
         return "light";
       }
-      return "dark";
-    } catch {
-      return "dark";
     }
+  } catch {}
+  return "dark";
+}
+
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const [theme, setThemeState] = useState<Theme>(() => {
+    const initial = getInitialTheme();
+    if (typeof document !== "undefined") {
+      document.documentElement.setAttribute("data-theme", initial);
+    }
+    return initial;
   });
 
-  // Apply data-theme to <html> for the entire application (including Landing page)
+  // Keep data-theme and localStorage in sync whenever theme changes
   useEffect(() => {
     const root = document.documentElement;
     root.setAttribute("data-theme", theme);
@@ -43,11 +58,26 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [theme]);
 
   const toggle = () => {
-    setThemeState((prev) => (prev === "dark" ? "light" : "dark"));
+    setThemeState((prev) => {
+      const next: Theme = prev === "dark" ? "light" : "dark";
+      if (typeof document !== "undefined") {
+        document.documentElement.setAttribute("data-theme", next);
+      }
+      try {
+        localStorage.setItem("circuit-theme", next);
+      } catch {}
+      return next;
+    });
   };
 
   const setTheme = (t: Theme) => {
     setThemeState(t);
+    if (typeof document !== "undefined") {
+      document.documentElement.setAttribute("data-theme", t);
+    }
+    try {
+      localStorage.setItem("circuit-theme", t);
+    } catch {}
   };
 
   return (
