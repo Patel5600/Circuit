@@ -33,8 +33,9 @@ import { LiveAgentStatePanel } from "../components/autonomous/LiveAgentStatePane
 import { CommandPalette, CommandItem } from "../components/autonomous/CommandPalette";
 import { AgentCapabilityInspector } from "../components/autonomous/AgentCapabilityInspector";
 import { ApprovalQueueModal } from "../components/autonomous/ApprovalQueueModal";
-import { ActionStream, StreamEvent } from "../components/autonomous/ActionStream";
 import { StrategyNodeId } from "../components/autonomous/LiveStrategyGraph";
+import { ProtocolBoundaryInspector } from "../components/autonomous/ProtocolBoundaryInspector";
+import { Icon } from "../components/ui";
 import { useAction } from "../context/ActionContext";
 import { useMarketData } from "../context/MarketDataContext";
 import type { MarketSnapshot } from "../lib/market-data/types";
@@ -67,6 +68,19 @@ import {
   filterCuratedModels,
 } from "../lib/agent/curatedModels";
 import { getContextualSuggestions } from "../lib/agent/suggestions";
+import { useTransaction } from "../hooks/useTransaction";
+import { buildBorrow, buildRepay, buildDeposit, buildWithdraw, toNative } from "../lib/protocol";
+import { derivePriceAccount } from "../lib/pyth";
+import { PYTH_FEED_ID } from "../config";
+import { decisionLogStore } from "../lib/realtime/decision-log";
+import { protocolEventBus, createEvent } from "../lib/realtime/event-bus";
+import { calculateMinimumRestorationDebt } from "../lib/recovery-engine";
+import { agentCreditStore, ClientCreditState } from "../lib/agent/credit-store";
+import { routeAgentRequest, ModelRoutingDecision, AgentTier } from "../lib/agent/model-router";
+import { getCreditWarning, DEFAULT_CREDIT_POLICY } from "../lib/agent/credit-policy";
+import { circuitSentinelEngine } from "../lib/agent/sentinels";
+import { persistentAgentMemory } from "../lib/agent/memory";
+import { agentCircuitBreaker } from "../lib/agent/circuit-breaker";
 
 export type AgentState =
   | "OFFLINE"
@@ -477,8 +491,8 @@ function ActionProposalCard({
                 fontSize: 11,
                 fontWeight: 700,
                 fontFamily: "var(--mono)",
-                background: executed ? "rgba(121,194,164,0.15)" : "var(--accent, #eceae6)",
-                color: executed ? "var(--mint, #79c2a4)" : "#0c0c0d",
+                background: executed ? "rgba(121,194,164,0.15)" : "var(--p-deep, #122311)",
+                color: executed ? "var(--mint, #79c2a4)" : "#ffffff",
                 border: "none",
                 borderRadius: 6,
                 cursor: executed ? "default" : "pointer",
@@ -491,17 +505,18 @@ function ActionProposalCard({
               type="button"
               onClick={onDismiss}
               style={{
-                padding: "8px 12px",
+                padding: "8px 14px",
                 fontSize: 11,
                 fontFamily: "var(--mono)",
                 background: "transparent",
                 border: "1px solid var(--border)",
                 borderRadius: 6,
-                color: "var(--text-3)",
+                color: "var(--text-2)",
                 cursor: "pointer",
+                fontWeight: 600,
               }}
             >
-              DECLINE
+              DISMISS
             </button>
           </div>
         </div>
@@ -515,6 +530,7 @@ function Bubble({
   owner,
   onTaskCreated,
   onApproveProposal,
+  onDismissProposal,
   onActionClick,
   onChartClick,
   onSubTabClick,
@@ -524,6 +540,7 @@ function Bubble({
   owner: string;
   onTaskCreated: (name: string) => void;
   onApproveProposal: (proposal: CircuitActionProposal) => void;
+  onDismissProposal?: (proposalId?: string) => void;
   onActionClick?: (action: ProtocolAction, symbol: string) => void;
   onChartClick?: (symbol: string) => void;
   onSubTabClick?: (tab: "Market" | "Risk" | "Position" | "Activity", symbol: string) => void;
@@ -627,7 +644,8 @@ function Bubble({
                     });
                   }}
                   onCancel={() => {
-                    onActionClick?.("borrow", block.symbol); // cancel or re-prompt
+                    setDismissedProposal(true);
+                    onDismissProposal?.(block.id);
                   }}
                 />
               );
@@ -660,13 +678,15 @@ function Bubble({
       {displayContent.length > 0 && (
         <AgentMessageRenderer
           content={displayContent}
-          blocks={msg.blocks}
           tools={tools}
           streaming={msg.streaming}
           onApproveProposal={(p) => {
             onApproveProposal(p);
           }}
-          onRejectProposal={() => setDismissedProposal(true)}
+          onRejectProposal={() => {
+            setDismissedProposal(true);
+            onDismissProposal?.(actionProposal?.id);
+          }}
           onActionClick={onActionClick}
         />
       )}
@@ -676,7 +696,10 @@ function Bubble({
           <ActionProposalCard
             proposal={actionProposal}
             onApprove={(p) => onApproveProposal(p)}
-            onDismiss={() => setDismissedProposal(true)}
+            onDismiss={() => {
+              setDismissedProposal(true);
+              onDismissProposal?.(actionProposal.id);
+            }}
           />
         </div>
       )}
@@ -1505,8 +1528,39 @@ export default function Autonomous() {
   const [pendingProposals, setPendingProposals] = useState<CircuitActionProposal[]>([]);
   const [executionState, setExecutionState] = useState<"IDLE" | "READY" | "SIGNING" | "CONFIRMING" | "CONFIRMED" | "REJECTED" | "FAILED">("IDLE");
   const [permissionResult, setPermissionResult] = useState<"ALLOWED" | "CAPPED" | "BLOCKED" | null>(null);
+  const { publicKey } = useWallet();
+  const tx = useTransaction();
+  const [showAuditInspector, setShowAuditInspector] = useState(false);
   const [events, setEvents] = useState<ExecEvent[]>([]);
+  const addEvent = useCallback((type: ExecEvent["type"], message: string, tx?: string) => {
+    setEvents(prev => [...prev, { id: uid(), timestamp: Date.now(), type, message, txSignature: tx }]);
+  }, []);
   const [showTelemetry, setShowTelemetry] = useState(false);
+  const [railCollapsed, setRailCollapsed] = useState(false);
+  const [telemetryOpen, setTelemetryOpen] = useState(false);
+  const [creditState, setCreditState] = useState<ClientCreditState>(() => agentCreditStore.getState());
+  const [agentTierMode, setAgentTierMode] = useState<AgentTier>("LITE");
+
+  useEffect(() => {
+    if (wallet.address) {
+      agentCreditStore.loadForWallet(wallet.address);
+    }
+    const unsub = agentCreditStore.subscribe(setCreditState);
+    return () => unsub();
+  }, [wallet.address]);
+
+  const handleEmergencyKillSwitch = useCallback(() => {
+    if (isAgentPaused) {
+      setIsAgentPaused(false);
+      setAgentState("READY");
+      addEvent("info", "Agent execution resumed by operator.");
+    } else {
+      setIsAgentPaused(true);
+      setAgentState("PAUSED");
+      setPendingProposals([]);
+      addEvent("blocked", "EMERGENCY KILL SWITCH: All autonomous execution and background watchers halted by operator. Manual protocol permissions remain sovereign.");
+    }
+  }, [isAgentPaused, addEvent]);
 
   // Cmd/Ctrl + K shortcut for Command Palette
   useEffect(() => {
@@ -1611,14 +1665,19 @@ export default function Autonomous() {
     const hasPos = portfolio.positions.some(
       (p: any) => p.symbol?.toUpperCase() === activeContextAsset.symbol?.toUpperCase() && ((p.collateralValueUsd ?? 0) > 0 || (p.debtUi ?? 0) > 0)
     );
-    return getContextualSuggestions({
+    const base = getContextualSuggestions({
       activeAsset: activeContextAsset,
       riskState: risk.ratchetState,
       hasPosition: hasPos,
       totalDebtUsd: portfolio.totalDebtUsd,
       hasActiveAuthority,
     });
-  }, [activeContextAsset, risk.ratchetState, portfolio.positions, portfolio.totalDebtUsd, hasActiveAuthority]);
+    if (portfolio.totalDebtUsd > 0 && portfolio.healthFactor !== null && portfolio.healthFactor < 1.15) {
+      const dStar = calculateMinimumRestorationDebt(portfolio.totalCollateralUsd, portfolio.totalDebtUsd, 0.80, 1.05);
+      return [`Repay $${dStar.toLocaleString()} to restore HF to 1.05`, ...base];
+    }
+    return base;
+  }, [activeContextAsset, risk.ratchetState, portfolio.positions, portfolio.totalDebtUsd, portfolio.totalCollateralUsd, portfolio.healthFactor, hasActiveAuthority]);
 
   const updateCounts = useCallback(() => {
     const all = loadTasks().filter(t => t.owner === wallet.address || !wallet.address);
@@ -1700,10 +1759,6 @@ export default function Autonomous() {
       agentBorrowLimitUsd: agentBorrowLimit,
     };
   }, [wallet.address, risk.ratchetState, risk.isMarketOpen, portfolio, credit.availableCreditUsd, marketSnapshots, onChainAuthorities, hasActiveAuthority]);
-
-  const addEvent = useCallback((type: ExecEvent["type"], message: string, tx?: string) => {
-    setEvents(prev => [...prev, { id: uid(), timestamp: Date.now(), type, message, txSignature: tx }]);
-  }, []);
 
   const handleApproveProposal = useCallback((proposal: CircuitActionProposal) => {
     // LLM is untrusted: client strictly validates proposal against real on-chain context
@@ -1791,6 +1846,22 @@ export default function Autonomous() {
       return;
     }
 
+    // Mark proposal block as executed
+    setMsgs(prev => prev.map(m => {
+      if (m.blocks && m.blocks.length > 0) {
+        return {
+          ...m,
+          blocks: m.blocks.map(b => {
+            if (b.type === "PROPOSAL_CARD" && (b as any).id === proposal.id) {
+              return { ...b, executed: true };
+            }
+            return b;
+          })
+        };
+      }
+      return m;
+    }));
+
     // All real on-chain validation checks passed
     setExecutionState("SIGNING");
     setAgentState("CONFIRMING");
@@ -1798,13 +1869,107 @@ export default function Autonomous() {
     setBlockedReason(null);
     setPendingProposals(prev => prev.filter(p => p.id !== proposal.id));
     addEvent("permission", `On-chain validation passed: ${proposal.action.toUpperCase()} $${proposal.amountUsd} against ${proposal.symbol}`);
-    openAction({
-      type: proposal.action as any,
-      market,
-      amount: String(proposal.amountUsd),
+
+    const isLending = ["deposit", "borrow", "repay", "withdraw"].includes(proposal.action);
+
+    // Record decision audit trail (PENDING)
+    decisionLogStore.recordDecision({
+      actor: hasActiveAuthority ? "AGENT" : "HUMAN",
+      owner: wallet.address || publicKey?.toBase58() || "unknown",
+      assetSymbol: proposal.symbol,
+      action: proposal.action,
+      requestedAmountUsd: proposal.amountUsd,
+      riskState: currentRisk,
+      policyVersion: 1,
+      allowed: true,
+      reasonCode: "ALLOWED",
+      message: `Proposal approved: ${proposal.action.toUpperCase()} $${proposal.amountUsd} against ${proposal.symbol}`,
+      venue: isLending ? "CIRCUIT_LENDING" : "METEORA_DBC",
+      executionStatus: "PENDING",
     });
-    addEvent("info", `Opened action drawer for ${proposal.symbol} ${proposal.action.toUpperCase()} ($${proposal.amountUsd}). Confirm signature with wallet.`);
-  }, [addEvent, openAction, risk.ratchetState, portfolio.totalDebtUsd, credit.availableCreditUsd]);
+
+    if (publicKey && isLending) {
+      const amountNative = toNative(proposal.amountUsd);
+      const priceAccount = derivePriceAccount(market.feedId || PYTH_FEED_ID, 0);
+
+      tx.run({
+        verb: proposal.action.toUpperCase(),
+        summary: `${proposal.action.toUpperCase()} $${proposal.amountUsd} against ${proposal.symbol}`,
+        priceUpdate: priceAccount,
+        equityMint: new PublicKey(market.mint),
+        quoteMint: new PublicKey(market.quoteMint),
+        build: async (ctx) => {
+          if (proposal.action === "deposit") return buildDeposit(ctx, amountNative);
+          if (proposal.action === "withdraw") return buildWithdraw(ctx, amountNative);
+          if (proposal.action === "borrow") return buildBorrow(ctx, amountNative);
+          return buildRepay(ctx, amountNative);
+        },
+        onSuccess: () => {
+          setExecutionState("CONFIRMED");
+          setAgentState("COMPLETED");
+          addEvent("confirmed", `Transaction confirmed on-chain for ${proposal.symbol} ${proposal.action.toUpperCase()}`);
+          protocolEventBus.emit(
+            createEvent("TRANSACTION_LIFECYCLE", "AutonomousAgent", `${proposal.action.toUpperCase()} confirmed`, {
+              assetSymbol: proposal.symbol,
+              detail: `${proposal.action.toUpperCase()} $${proposal.amountUsd} confirmed`,
+              data: { amount: proposal.amountUsd },
+            })
+          );
+          decisionLogStore.recordDecision({
+            actor: hasActiveAuthority ? "AGENT" : "HUMAN",
+            owner: wallet.address || publicKey.toBase58(),
+            assetSymbol: proposal.symbol,
+            action: proposal.action,
+            requestedAmountUsd: proposal.amountUsd,
+            riskState: currentRisk,
+            policyVersion: 1,
+            allowed: true,
+            reasonCode: "ALLOWED",
+            message: `${proposal.action.toUpperCase()} confirmed on Solana Devnet`,
+            venue: "CIRCUIT_LENDING",
+            executionStatus: "EXECUTED",
+          });
+        },
+      }).then((success) => {
+        if (!success) {
+          setExecutionState("FAILED");
+          setAgentState("FAILED");
+          addEvent("error", `Transaction failed or rejected by wallet: ${tx.state.error || "Unknown error"}`);
+        }
+      });
+    } else {
+      openAction({
+        type: proposal.action as any,
+        market,
+        amount: String(proposal.amountUsd),
+      });
+      addEvent("info", `Opened action drawer for ${proposal.symbol} ${proposal.action.toUpperCase()} ($${proposal.amountUsd}). Confirm signature with wallet.`);
+    }
+  }, [addEvent, openAction, risk.ratchetState, portfolio.totalDebtUsd, credit.availableCreditUsd, publicKey, hasActiveAuthority, tx, wallet.address]);
+
+  const handleDismissProposal = useCallback((proposalId?: string) => {
+    setPendingProposals(prev => proposalId ? prev.filter(p => p.id !== proposalId) : []);
+    setExecutionState("IDLE");
+    setAgentState("READY");
+    setCurrentStrategyNode("OBSERVE");
+    setBlockedReason(null);
+    addEvent("info", "Action proposal dismissed by operator.");
+    setMsgs(prev => prev.map(m => {
+      let updated = { ...m };
+      if (m.actionProposal && (!proposalId || m.actionProposal.id === proposalId)) {
+        updated.actionProposal = null;
+      }
+      if (m.blocks && m.blocks.length > 0) {
+        updated.blocks = m.blocks.map(b => {
+          if (b.type === "PROPOSAL_CARD" && (!proposalId || (b as any).id === proposalId)) {
+            return { ...b, dismissed: true };
+          }
+          return b;
+        });
+      }
+      return updated;
+    }));
+  }, [addEvent]);
 
   const sendWithText = useCallback(async (customText?: string) => {
     const text = (customText ?? input).trim();
@@ -1822,6 +1987,59 @@ export default function Autonomous() {
     setBlockedReason(null);
     addEvent("info", `User query: "${text.slice(0, 60)}${text.length > 60 ? "..." : ""}"`);
 
+    // 0. Rate limiting & circuit breaker check
+    const rateCheck = agentCircuitBreaker.checkRateLimit(wallet.address || "anonymous", agentTierMode === "PRO");
+    if (!rateCheck.allowed) {
+      addEvent("blocked", rateCheck.error || "Rate limit exceeded.");
+      setMsgs(prev => [
+        ...prev,
+        {
+          id: uid(),
+          role: "agent",
+          content: `⚠ ${rateCheck.error || "Rate limit reached. Please wait a moment before sending more queries."}`,
+          timestamp: Date.now(),
+        },
+      ]);
+      return;
+    }
+
+    // Dynamic model routing
+    const routingDecision = routeAgentRequest(text, {
+      availableCredits: creditState.available,
+      riskRatchetState: risk.ratchetState,
+      totalDebtUsd: portfolio.totalDebtUsd,
+      totalCollateralUsd: portfolio.totalCollateralUsd,
+      hasActiveAuthority,
+      activeTasksCount: taskCounts.total,
+      messageHistoryLength: msgs.length,
+    });
+    setAgentTierMode(routingDecision.tier);
+
+    // 0.1 Credit budget check: if budget is 0, agent compute is blocked
+    if (creditState.available <= 0) {
+      addEvent("blocked", "Agent compute budget exhausted. Automatic reasoning paused.");
+      setMsgs(prev => [
+        ...prev,
+        {
+          id: uid(),
+          role: "agent",
+          content: "● **Agent Budget Exhausted**\n\nYour Circuit Agent compute credits have reached 0. Autonomous reasoning, strategy generation, and background watchers are paused.\n\n*Note: Your Solana wallet, manual deposits, borrows, repays, and withdrawals remain 100% operational under Circuit Protocol permissions.*",
+          timestamp: Date.now(),
+        },
+      ]);
+      return;
+    }
+
+    // Consume compute credits for this interaction
+    agentCreditStore.consumeDirect(routingDecision.estimatedCost, text.slice(0, 30));
+    agentCircuitBreaker.recordCreditConsumption(wallet.address || "anonymous", routingDecision.estimatedCost);
+
+    // Update structured memory
+    persistentAgentMemory.updateMemory(wallet.address || "anonymous", {
+      activeAssetSymbol: activeContextAsset.symbol,
+      conversationSummary: text.slice(0, 100),
+    });
+
     // 1. Process through deterministic local Agent Harness
     if (harnessRef.current) {
       const harnessResult = harnessRef.current.processInput(text, protocolSnapshot);
@@ -1833,26 +2051,52 @@ export default function Autonomous() {
         const agentId = uid();
         const propBlock = harnessResult.blocks.find(b => b.type === "PROPOSAL_CARD") as ProposalCardBlockData | undefined;
 
+        // Stage A: Show immediate evaluation (not simulated multi-stage pipeline)
+        setStreaming(true);
+        setCurrentStrategyNode("OBSERVE");
+        setAgentState("OBSERVING");
+        addEvent("info", `Evaluating ${harnessResult.intent.asset?.symbol || activeContextAsset.symbol}...`);
+
+        // Insert thinking placeholder
         setMsgs(prev => [
           ...prev,
           {
             id: agentId,
             role: "agent",
-            content: harnessResult.replyText,
+            content: `● Evaluating market state, risk, and permission...`,
             timestamp: Date.now(),
-            blocks: harnessResult.blocks,
-            actionProposal: propBlock ? {
-              id: propBlock.id,
-              action: propBlock.action,
-              symbol: propBlock.symbol,
-              amountUsd: propBlock.amountUsd,
-              riskState: propBlock.riskState,
-              permission: propBlock.permission,
-              reason: propBlock.reason,
-              estimatedHfAfter: propBlock.estimatedHfAfter,
-            } : null,
+            streaming: true,
           }
         ]);
+
+        // Brief visual transition (100ms) — honest: just UI rendering time
+        await new Promise(r => setTimeout(r, 100));
+
+        // Complete: all evaluation was done synchronously by the harness
+        setCurrentStrategyNode("PERMISSION");
+        setAgentState("CHECKING_PERMISSION");
+
+        // Stage D: Deliver Verified Output
+        setStreaming(false);
+
+        setMsgs(prev => prev.map(m => m.id === agentId ? {
+          id: agentId,
+          role: "agent",
+          content: harnessResult.replyText,
+          timestamp: Date.now(),
+          streaming: false,
+          blocks: harnessResult.blocks,
+          actionProposal: propBlock ? {
+            id: propBlock.id,
+            action: propBlock.action,
+            symbol: propBlock.symbol,
+            amountUsd: propBlock.amountUsd,
+            riskState: propBlock.riskState,
+            permission: propBlock.permission,
+            reason: propBlock.reason,
+            estimatedHfAfter: propBlock.estimatedHfAfter,
+          } : null,
+        } : m));
 
         if (propBlock) {
           const isBlocked = propBlock.permission === "BLOCKED";
@@ -2053,25 +2297,6 @@ export default function Autonomous() {
 
   const activeAuthCount = onChainAuthorities.filter(a => !a.isExpired && !a.isRevoked).length;
 
-  const streamEvents: StreamEvent[] = useMemo(() => {
-    return events.map((ev) => ({
-      id: ev.id,
-      timestamp: ev.timestamp,
-      category:
-        ev.type === "permission"
-          ? "PERMISSION"
-          : ev.type === "blocked"
-          ? "RISK"
-          : ev.type === "confirmed"
-          ? "CONFIRM"
-          : ev.type === "tx"
-          ? "EXECUTE"
-          : "OBSERVE",
-      title: ev.message,
-      tone: ev.type === "blocked" || ev.type === "error" ? "danger" : ev.type === "confirmed" ? "success" : "default",
-    }));
-  }, [events]);
-
   const commandList: CommandItem[] = useMemo(
     () => [
       {
@@ -2132,32 +2357,122 @@ export default function Autonomous() {
     [sendWithText, isAgentPaused]
   );
 
+  function renderRailIcon(tab: TabId, isActive: boolean) {
+  const stroke = isActive ? "var(--p-harvest, #AD8820)" : "currentColor";
+  const size = 15;
+  switch (tab) {
+    case "CHAT":
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          <path d="M8 10h.01M12 10h.01M16 10h.01" />
+        </svg>
+      );
+    case "STRATEGY":
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="6" cy="6" r="3" />
+          <circle cx="6" cy="18" r="3" />
+          <circle cx="18" cy="12" r="3" />
+          <path d="M9 6h3a3 3 0 0 1 3 3v3M9 18h3a3 3 0 0 0 3-3v-3" />
+        </svg>
+      );
+    case "WATCH":
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+          <circle cx="12" cy="12" r="3" />
+        </svg>
+      );
+    case "AUTO MANAGE":
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+        </svg>
+      );
+    case "SCHEDULE":
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10" />
+          <polyline points="12 6 12 12 16 14" />
+        </svg>
+      );
+    case "PERMISSIONS":
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10" />
+          <path d="m9 12 2 2 4-4" />
+        </svg>
+      );
+    case "DBC":
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 3v18h18" />
+          <path d="m7 15 5-5 4 4 5-8" />
+        </svg>
+      );
+  }
+}
+
   return (
     <div className="ag-workspace">
-      {/* ── Left Sidebar Navigation Rail ── */}
-      <div className="ag-rail" style={{ justifyContent: "space-between" }}>
+      {/* ── Left Sidebar Navigation Rail (Slidable) ── */}
+      <div
+        className="ag-rail"
+        style={{
+          width: railCollapsed ? 54 : 200,
+          transition: "width 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
+          justifyContent: "space-between",
+          flexShrink: 0,
+          overflow: "hidden",
+        }}
+      >
         <div>
-          {/* Rail Header */}
-          <div style={{ padding: "16px 14px 12px", borderBottom: "1px solid var(--border)" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", color: "var(--text)", fontFamily: "var(--mono)" }} className="ag-rail__label">
-                AUTONOMOUS
-              </span>
-              <span style={{
-                width: 7, height: 7, borderRadius: "50%",
-                background: stateColor(agentState),
-                boxShadow: agentState === "EXECUTING" || agentState === "PLANNING" || agentState === "CONFIRMING" ? `0 0 8px ${stateColor(agentState)}` : "none",
-                display: "inline-block",
-                flexShrink: 0,
-              }} />
-            </div>
-            <div style={{ fontSize: 9.5, color: "var(--text-3)", fontFamily: "var(--mono)", marginTop: 4 }} className="ag-rail__label">
-              SOLANA DEVNET
-            </div>
+          {/* Rail Header with collapse trigger */}
+          <div style={{ padding: railCollapsed ? "14px 10px" : "14px 12px 10px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: railCollapsed ? "center" : "space-between" }}>
+            {!railCollapsed && (
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", color: "var(--text)", fontFamily: "var(--mono)" }}>
+                    AUTONOMOUS
+                  </span>
+                  <span style={{
+                    width: 7, height: 7, borderRadius: "50%",
+                    background: stateColor(agentState),
+                    boxShadow: agentState === "EXECUTING" || agentState === "PLANNING" || agentState === "CONFIRMING" ? `0 0 8px ${stateColor(agentState)}` : "none",
+                    display: "inline-block",
+                  }} />
+                </div>
+                <div style={{ fontSize: 9, color: "var(--text-3)", fontFamily: "var(--mono)", marginTop: 2 }}>
+                  SOLANA DEVNET
+                </div>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setRailCollapsed(p => !p)}
+              style={{
+                background: "var(--surface-2)",
+                border: "1px solid var(--border)",
+                borderRadius: 4,
+                color: "var(--text-3)",
+                cursor: "pointer",
+                padding: "2px 6px",
+                fontSize: 10,
+                fontFamily: "var(--mono)",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+              title={railCollapsed ? "Expand navigation rail" : "Collapse navigation rail (maximize space)"}
+            >
+              {railCollapsed ? "»" : "«"}
+            </button>
           </div>
 
           {/* Navigation Items */}
-          <nav style={{ padding: "10px 8px", display: "flex", flexDirection: "column", gap: 3 }}>
+          <nav style={{ padding: "10px 6px", display: "flex", flexDirection: "column", gap: 3 }}>
             {(["CHAT", "STRATEGY", "WATCH", "AUTO MANAGE", "SCHEDULE", "PERMISSIONS", "DBC"] as TabId[]).map(tab => {
               const isActive = activeTab === tab;
               const count = tab === "WATCH" ? taskCounts.watches : tab === "AUTO MANAGE" ? taskCounts.strategies : tab === "SCHEDULE" ? taskCounts.total : tab === "PERMISSIONS" ? activeAuthCount : null;
@@ -2170,9 +2485,9 @@ export default function Autonomous() {
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    justifyContent: "space-between",
+                    justifyContent: railCollapsed ? "center" : "space-between",
                     width: "100%",
-                    padding: "8px 10px",
+                    padding: railCollapsed ? "9px 0" : "8px 10px",
                     borderRadius: 6,
                     border: isActive ? "1px solid var(--border)" : "1px solid transparent",
                     background: isActive ? "var(--surface-3)" : "transparent",
@@ -2183,28 +2498,34 @@ export default function Autonomous() {
                     cursor: "pointer",
                     textAlign: "left",
                     transition: "all var(--t-fast)",
+                    position: "relative",
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                    <span style={{
-                      width: 5, height: 5, borderRadius: "50%",
-                      background: isActive ? "var(--accent)" : "transparent",
-                      border: `1px solid ${isActive ? "var(--accent)" : "var(--text-3)"}`,
-                      display: "inline-block",
-                      flexShrink: 0,
-                    }} />
-                    <span className="ag-rail__label">{tab}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    {renderRailIcon(tab, isActive)}
+                    {!railCollapsed && <span>{tab}</span>}
                   </div>
-                  {count !== null && count > 0 && (
+                  {!railCollapsed && count !== null && count > 0 && (
                     <span style={{
                       fontSize: 9,
                       padding: "1px 5px",
                       borderRadius: 3,
                       background: isActive ? "rgba(236,234,230,0.12)" : "rgba(255,255,255,0.06)",
                       color: isActive ? "var(--accent)" : "var(--text-3)",
-                    }} className="ag-rail__label">
+                    }}>
                       {count}
                     </span>
+                  )}
+                  {railCollapsed && count !== null && count > 0 && (
+                    <span style={{
+                      position: "absolute",
+                      top: 4,
+                      right: 8,
+                      width: 5,
+                      height: 5,
+                      borderRadius: "50%",
+                      background: "var(--p-harvest, #AD8820)",
+                    }} />
                   )}
                 </button>
               );
@@ -2213,283 +2534,238 @@ export default function Autonomous() {
         </div>
 
         {/* Rail Footer */}
-        <div style={{ padding: "12px 14px", borderTop: "1px solid var(--border)", fontSize: 10, fontFamily: "var(--mono)", color: "var(--text-3)", display: "flex", flexDirection: "column", gap: 6 }} className="ag-rail__footer-text">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span>MODE:</span>
-            <span style={{ color: "var(--mint, #79c2a4)", fontWeight: 700 }}>{operatingMode}</span>
+        {!railCollapsed && (
+          <div style={{ padding: "12px 14px", borderTop: "1px solid var(--border)", fontSize: 10, fontFamily: "var(--mono)", color: "var(--text-3)", display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span>MODE:</span>
+              <span style={{ color: "var(--mint, #79c2a4)", fontWeight: 700 }}>{operatingMode}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span>AGENT KEY:</span>
+              <span style={{ color: "var(--text-2)" }}>{shortenAddress(CIRCUIT_DEVNET_AGENT_KEY.toBase58())}</span>
+            </div>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span>AGENT KEY:</span>
-            <span style={{ color: "var(--text-2)" }}>{shortenAddress(CIRCUIT_DEVNET_AGENT_KEY.toBase58())}</span>
-          </div>
-        </div>
+        )}
       </div>
 
-      {/* ── Main Workspace Area (Header + Tab Content) ── */}
+      {/* ── Main Workspace Area ── */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" }}>
-        {/* ── Top Workspace Header: Operating Console Controls & State Dimensions ── */}
-        <div style={{
-          flexShrink: 0,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "8px 16px",
-          borderBottom: "1px solid var(--border)",
-          background: "var(--surface-1)",
-          gap: 10,
-          flexWrap: "wrap",
-        }}>
-          {/* Left Dimensions */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", color: "var(--text)", fontFamily: "var(--mono)", flexShrink: 0 }}>
-              AGENT:
+        {/* ── Top Institutional Header Bar ── */}
+        <header
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "8px 20px",
+            background: "var(--surface-1)",
+            borderBottom: "1px solid var(--border)",
+            fontSize: 12,
+            fontFamily: "var(--mono)",
+            flexShrink: 0,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <span style={{ fontWeight: 800, color: "var(--text)", letterSpacing: "0.04em", fontSize: 13 }}>
+              CIRCUIT AGENT
             </span>
-            <div style={{ flexShrink: 0 }}>
-              <StateBadge state={isAgentPaused ? "PAUSED" : agentState} />
-            </div>
-            <span style={{ width: 1, height: 14, background: "var(--border)", display: "inline-block", flexShrink: 0 }} />
-
-            {/* Operating Mode Selector */}
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 5, padding: "2px 4px" }}>
-              <span style={{ fontSize: 9, fontFamily: "var(--mono)", color: "var(--text-3)", paddingLeft: 3 }}>MODE:</span>
-              <select
-                value={operatingMode}
-                onChange={(e) => setOperatingMode(e.target.value as AgentOperatingMode)}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "var(--accent)",
-                  fontSize: 9.5,
-                  fontWeight: 700,
-                  fontFamily: "var(--mono)",
-                  cursor: "pointer",
-                  outline: "none",
-                  padding: "1px 4px",
-                }}
-              >
-                <option value="COPILOT" style={{ background: "#141416", color: "#fff" }}>COPILOT</option>
-                <option value="DELEGATED" style={{ background: "#141416", color: "#fff" }}>DELEGATED</option>
-                <option value="WATCH" style={{ background: "#141416", color: "#fff" }}>WATCH</option>
-                <option value="AUTO MANAGE" style={{ background: "#141416", color: "#fff" }}>AUTO MANAGE</option>
-                <option value="SCHEDULE" style={{ background: "#141416", color: "#fff" }}>SCHEDULE</option>
-              </select>
-            </div>
-
-            {/* Execution Reality Badge: INTERACTIVE (WALLET-SIGNED) vs AUTONOMOUS (EXECUTOR ACTIVE) */}
-            <span
-              style={{
-                fontSize: 9.5,
-                fontWeight: 700,
-                fontFamily: "var(--mono)",
-                padding: "2px 6px",
-                borderRadius: 4,
-                background: hasActiveAuthority && operatingMode === "DELEGATED" ? "rgba(121, 194, 164, 0.15)" : "rgba(207, 173, 116, 0.15)",
-                color: hasActiveAuthority && operatingMode === "DELEGATED" ? "var(--mint, #79c2a4)" : "var(--warning, #cfad74)",
-                border: `1px solid ${hasActiveAuthority && operatingMode === "DELEGATED" ? "rgba(121, 194, 164, 0.3)" : "rgba(207, 173, 116, 0.3)"}`,
-                letterSpacing: "0.04em",
-                flexShrink: 0,
-              }}
-              title={hasActiveAuthority && operatingMode === "DELEGATED" ? "Autonomous executor key active with bounded on-chain delegated authority." : "Interactive mode: all transaction signing routed to your connected wallet."}
-            >
-              {hasActiveAuthority && operatingMode === "DELEGATED" ? "AUTONOMOUS (EXECUTOR ACTIVE)" : "INTERACTIVE (WALLET-SIGNED)"}
-            </span>
-
-            {/* Risk Ratchet Badge */}
-            <span style={{
-              fontSize: 9.5,
-              fontWeight: 700,
-              fontFamily: "var(--mono)",
-              padding: "2px 6px",
-              borderRadius: 4,
-              background: risk.ratchetState === "SAFE" ? "rgba(121,194,164,0.15)" : risk.ratchetState === "RESTRICTED" ? "rgba(207,173,116,0.15)" : "rgba(207,139,139,0.15)",
-              color: risk.ratchetState === "SAFE" ? "var(--mint, #79c2a4)" : risk.ratchetState === "RESTRICTED" ? "var(--warning, #cfad74)" : "var(--danger, #cf8b8b)",
-              border: `1px solid ${risk.ratchetState === "SAFE" ? "rgba(121,194,164,0.3)" : risk.ratchetState === "RESTRICTED" ? "rgba(207,173,116,0.3)" : "rgba(207,139,139,0.3)"}`,
-            }}>
-              RISK: {risk.ratchetState}
-            </span>
-
-            {/* Market Session Badge */}
-            <span style={{
-              fontSize: 9.5,
-              fontWeight: 700,
-              fontFamily: "var(--mono)",
-              padding: "2px 6px",
-              borderRadius: 4,
-              background: risk.isMarketOpen ? "rgba(121,194,164,0.15)" : "rgba(255,255,255,0.06)",
-              color: risk.isMarketOpen ? "var(--mint, #79c2a4)" : "var(--text-3)",
-              border: "1px solid var(--border)",
-            }}>
-              MARKET: {risk.isMarketOpen ? "OPEN" : "CLOSED"}
-            </span>
-
-            {/* Oracle Badge */}
-            <span style={{
-              fontSize: 9.5,
-              fontWeight: 700,
-              fontFamily: "var(--mono)",
-              padding: "2px 6px",
-              borderRadius: 4,
-              background: "rgba(121,194,164,0.15)",
-              color: "var(--mint, #79c2a4)",
-              border: "1px solid rgba(121,194,164,0.3)",
-            }}>
-              ORACLE: VALID
-            </span>
-          </div>
-
-          {/* Right Dimensions & Controls */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
-            {/* Command Palette Trigger */}
-            <button
-              type="button"
-              onClick={() => setShowCommandPalette(true)}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 5,
-                padding: "3px 8px",
-                background: "var(--surface-2)",
-                border: "1px solid var(--border)",
-                borderRadius: 5,
-                color: "var(--text-2)",
-                fontSize: 10,
-                fontFamily: "var(--mono)",
-                cursor: "pointer",
-                transition: "all var(--t-fast)",
-              }}
-              title="Open Command Palette (Cmd/Ctrl + K)"
-            >
-              <span>⌘K</span>
-              <span style={{ color: "var(--text-3)" }}>PALETTE</span>
-            </button>
-
-            {/* Emergency Pause Toggle */}
-            <button
-              type="button"
-              onClick={() => {
-                setIsAgentPaused((p) => !p);
-                addEvent("info", isAgentPaused ? "Agent execution resumed by operator." : "Emergency pause engaged by operator.");
-              }}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 5,
-                padding: "3px 8px",
-                background: isAgentPaused ? "rgba(207, 139, 139, 0.25)" : "var(--surface-2)",
-                border: `1px solid ${isAgentPaused ? "rgba(207, 139, 139, 0.6)" : "var(--border)"}`,
-                borderRadius: 5,
-                color: isAgentPaused ? "var(--danger, #cf8b8b)" : "var(--text-2)",
-                fontSize: 10,
-                fontWeight: 700,
-                fontFamily: "var(--mono)",
-                cursor: "pointer",
-                transition: "all var(--t-fast)",
-              }}
-              title={isAgentPaused ? "Resume agent execution" : "Emergency pause all agent execution"}
-            >
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: isAgentPaused ? "var(--danger, #cf8b8b)" : "var(--mint, #79c2a4)", display: "inline-block" }} />
-              {isAgentPaused ? "PAUSED" : "PAUSE"}
-            </button>
-
-            {/* Approvals Queue Button if any pending */}
-            {pendingProposals.length > 0 && (
+            <div style={{ display: "inline-flex", alignItems: "center", background: "var(--surface-2)", borderRadius: 6, padding: "2px 4px", border: "1px solid var(--border)" }}>
               <button
                 type="button"
-                onClick={() => setShowApprovalsModal(true)}
+                onClick={() => setAgentTierMode("LITE")}
                 style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 5,
-                  padding: "3px 8px",
-                  background: "rgba(207, 173, 116, 0.2)",
-                  border: "1px solid rgba(207, 173, 116, 0.5)",
-                  borderRadius: 5,
-                  color: "var(--warning, #cfad74)",
+                  padding: "2px 8px",
+                  borderRadius: 4,
                   fontSize: 10,
-                  fontFamily: "var(--mono)",
                   fontWeight: 700,
+                  border: "none",
                   cursor: "pointer",
+                  background: agentTierMode === "LITE" ? "var(--accent)" : "transparent",
+                  color: agentTierMode === "LITE" ? "#0c0c0d" : "var(--text-3)",
+                  transition: "all var(--t-fast)",
                 }}
               >
-                <span>APPROVALS ({pendingProposals.length})</span>
+                LITE
               </button>
-            )}
-
-            {/* Active Context Indicator */}
-            <div
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 5,
-                background: "var(--surface-2)",
-                border: "1px solid var(--border)",
-                borderRadius: 5,
-                padding: "2px 7px",
-              }}
-              title={`Active Conversational Asset: ${activeContextAsset.tokenSymbol} (${activeContextAsset.name})`}
-            >
-              <span style={{ fontSize: 9.5, fontFamily: "var(--mono)", color: "var(--text-3)", letterSpacing: "0.04em" }}>CONTEXT:</span>
-              <span style={{ fontSize: 10.5, fontFamily: "var(--mono)", fontWeight: 700, color: "var(--accent)" }}>
-                {activeContextAsset.tokenSymbol}
+              <button
+                type="button"
+                onClick={() => setAgentTierMode("PRO")}
+                style={{
+                  padding: "2px 8px",
+                  borderRadius: 4,
+                  fontSize: 10,
+                  fontWeight: 700,
+                  border: "none",
+                  cursor: "pointer",
+                  background: agentTierMode === "PRO" ? "#a78bfa" : "transparent",
+                  color: agentTierMode === "PRO" ? "#0c0c0d" : "var(--text-3)",
+                  transition: "all var(--t-fast)",
+                }}
+              >
+                PRO AGENT
+              </button>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 11, color: "var(--text-2)" }}>
+              <span>
+                <strong style={{ color: creditState.available <= 10 ? "var(--danger, #cf8b8b)" : creditState.available <= 25 ? "var(--warning, #cfad74)" : "var(--mint, #79c2a4)" }}>
+                  {creditState.available}
+                </strong>{" "}
+                credits AVAILABLE
+              </span>
+              {creditState.reserved > 0 && (
+                <span style={{ color: "var(--text-3)" }}>
+                  ({creditState.reserved} pending)
+                </span>
+              )}
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--mint, #79c2a4)", fontSize: 10, fontWeight: 700 }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--mint, #79c2a4)" }} />
+                LIVE
               </span>
             </div>
+          </div>
 
-            {/* Active Model Selector Popover */}
-            <ModelSelectorPopover
-              selectedModelId={selectedModel}
-              availableModels={availableModels}
-              onSelectModel={handleSelectModel}
-            />
-
-            {/* Agent Capability Inspector Trigger */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {/* Kill Switch Button */}
             <button
               type="button"
-              onClick={() => setShowCapabilityInspector(true)}
-              style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 7px", borderRadius: 4, background: "transparent", border: "none", cursor: "pointer" }}
-              title="Inspect bounded agent capabilities and limits"
-            >
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: hasActiveAuthority ? "var(--mint,#79c2a4)" : "var(--text-3)", display: "inline-block" }} />
-              <span style={{ fontSize: 10, fontFamily: "var(--mono)", color: hasActiveAuthority ? "var(--mint,#79c2a4)" : "var(--text-3)" }}>
-                {hasActiveAuthority ? "CAPABILITIES" : "NO ACCESS"}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowTelemetry((prev) => !prev)}
+              onClick={handleEmergencyKillSwitch}
               style={{
                 display: "inline-flex",
                 alignItems: "center",
-                gap: 5,
-                padding: "3px 8px",
-                background: showTelemetry ? "var(--surface-3)" : "var(--surface-2)",
-                border: `1px solid ${showTelemetry ? "var(--accent)" : "var(--border)"}`,
-                borderRadius: 5,
-                color: showTelemetry ? "var(--accent)" : "var(--text-3)",
-                fontSize: 10,
-                fontFamily: "var(--mono)",
+                gap: 6,
+                padding: "4px 12px",
+                background: isAgentPaused ? "rgba(121, 194, 164, 0.15)" : "rgba(207, 139, 139, 0.15)",
+                border: `1px solid ${isAgentPaused ? "var(--mint, #79c2a4)" : "var(--danger, #cf8b8b)"}`,
+                borderRadius: 6,
+                color: isAgentPaused ? "var(--mint, #79c2a4)" : "var(--danger, #cf8b8b)",
+                fontSize: 10.5,
+                fontWeight: 700,
                 cursor: "pointer",
                 transition: "all var(--t-fast)",
               }}
-              title="Toggle Live System Diagnostics Drawer"
+              title={isAgentPaused ? "Resume Agent Background Execution" : "Immediately Halt All Agent Executions & Background Sentinels"}
             >
-              DIAGNOSTICS
+              <span>{isAgentPaused ? "▶ RESUME AGENT" : "⏹ STOP ALL AGENT EXECUTION"}</span>
             </button>
-
-            <button type="button" onClick={clear} style={{ padding: "4px 9px", fontSize: 10, fontFamily: "var(--mono)", background: "transparent", border: "1px solid var(--border)", borderRadius: 5, color: "var(--text-3)", cursor: "pointer" }}>CLEAR</button>
           </div>
-        </div>
+        </header>
+
+        {/* Dynamic Non-Spammy Threshold Warning Banner */}
+        {creditState.warning && (
+          <div
+            style={{
+              padding: "6px 20px",
+              background: creditState.available <= 0 ? "rgba(207, 139, 139, 0.15)" : "rgba(207, 173, 116, 0.12)",
+              borderBottom: "1px solid var(--border)",
+              color: creditState.available <= 0 ? "var(--danger, #cf8b8b)" : "var(--warning, #cfad74)",
+              fontSize: 11,
+              fontFamily: "var(--mono)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <span>⚠ {creditState.warning}</span>
+            {creditState.available <= 0 && (
+              <span style={{ fontSize: 10, color: "var(--text-3)" }}>
+                Solana Devnet manual trading &amp; permissions continue normally.
+              </span>
+            )}
+          </div>
+        )}
 
         {/* ── Body: Tab Content ── */}
 
-        {/* TAB 1: CHAT — 2-Column: Left/Center Chat + Right Telemetry Panel */}
+        {/* TAB 1: CHAT */}
         {activeTab === "CHAT" && (
-          <div style={{ flex: 1, display: "flex", overflow: "hidden", background: "var(--surface-0)" }}>
-            {/* Left/Center Column: Chat Feed & Input */}
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" }}>
+          <div style={{ flex: 1, display: "flex", overflow: "hidden", background: "var(--surface-0)", position: "relative" }}>
+            {/* Left/Center Column: Spacious Chat Feed & Capsule Input */}
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden", position: "relative" }}>
+              {/* Slidable Telemetry Toggle & Approvals Bar */}
+              <div style={{ position: "absolute", top: 12, right: 16, zIndex: 10, display: "flex", alignItems: "center", gap: 8 }}>
+                {pendingProposals.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowApprovalsModal(true)}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 5,
+                      padding: "4px 10px",
+                      background: "rgba(207, 173, 116, 0.2)",
+                      border: "1px solid rgba(207, 173, 116, 0.5)",
+                      borderRadius: 999,
+                      color: "var(--warning, #cfad74)",
+                      fontSize: 10.5,
+                      fontFamily: "var(--mono)",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    APPROVALS ({pendingProposals.length})
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowAuditInspector(prev => !prev)}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "5px 12px",
+                    background: showAuditInspector ? "rgba(121, 194, 164, 0.2)" : "rgba(255, 255, 255, 0.06)",
+                    backdropFilter: "blur(16px)",
+                    WebkitBackdropFilter: "blur(16px)",
+                    border: `1px solid ${showAuditInspector ? "var(--mint, #79c2a4)" : "var(--border)"}`,
+                    borderRadius: 999,
+                    color: showAuditInspector ? "var(--mint, #79c2a4)" : "var(--text-2)",
+                    fontSize: 11,
+                    fontFamily: "var(--mono)",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+                    transition: "all var(--t-fast)",
+                  }}
+                  title={showAuditInspector ? "Hide Protocol Boundary Inspector" : "View Protocol Boundary Inspector & Decision Audit Log"}
+                >
+                  <Icon name="shield" size={13} />
+                  <span>{showAuditInspector ? "HIDE AUDIT" : "AUDIT LOG & SOVEREIGNTY"}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTelemetryOpen(prev => !prev)}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "5px 12px",
+                    background: telemetryOpen ? "var(--surface-3)" : "rgba(255, 255, 255, 0.06)",
+                    backdropFilter: "blur(16px)",
+                    WebkitBackdropFilter: "blur(16px)",
+                    border: `1px solid ${telemetryOpen ? "var(--accent)" : "var(--border)"}`,
+                    borderRadius: 999,
+                    color: telemetryOpen ? "var(--accent)" : "var(--text-2)",
+                    fontSize: 11,
+                    fontFamily: "var(--mono)",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+                    transition: "all var(--t-fast)",
+                  }}
+                  title={telemetryOpen ? "Hide Live State Panel" : "Slide Open Live State Panel"}
+                >
+                  <Icon name="gauge" size={13} />
+                  <span>{telemetryOpen ? "HIDE TELEMETRY" : "TELEMETRY"}</span>
+                </button>
+              </div>
+
               {/* Scrollable message feed */}
               <div style={{ flex: 1, overflowY: "auto", scrollbarWidth: "thin" }}>
-                <div style={{ maxWidth: 760, margin: "0 auto", padding: "28px 20px 16px" }}>
+                <div style={{ maxWidth: 920, margin: "0 auto", padding: "32px 24px 20px" }}>
+                  {showAuditInspector && (
+                    <div style={{ marginBottom: 20 }}>
+                      <ProtocolBoundaryInspector />
+                    </div>
+                  )}
                   {msgs.map(m => (
                     <Bubble
                       key={m.id}
@@ -2497,6 +2773,7 @@ export default function Autonomous() {
                       owner={wallet.address || ""}
                       onTaskCreated={handleTaskCreated}
                       onApproveProposal={handleApproveProposal}
+                      onDismissProposal={handleDismissProposal}
                       onActionClick={(action, symbol) => sendWithText(`${action} against ${symbol}`)}
                       onChartClick={(symbol) => sendWithText(`chart ${symbol}`)}
                       onSubTabClick={(tab, symbol) => {
@@ -2535,87 +2812,25 @@ export default function Autonomous() {
                     </div>
                   )}
 
-                  {/* Real Action Stream (Compact recent events) */}
-                  {streamEvents.length > 0 && (
-                    <div style={{ marginBottom: 10 }}>
-                      <ActionStream events={streamEvents.slice(-3)} compact />
-                    </div>
-                  )}
 
-                  {/* Dynamic Contextual Suggestions & Quick Actions */}
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
-                    {contextualSuggestions.length > 0 ? (
-                      contextualSuggestions.map(prompt => (
-                        <button
-                          key={prompt}
-                          type="button"
-                          onClick={() => {
-                            setInput(prompt);
-                            inputRef.current?.focus();
-                          }}
-                          style={{
-                            padding: "4px 10px",
-                            fontSize: 10.5,
-                            fontFamily: "var(--mono)",
-                            background: "var(--surface-2)",
-                            border: "1px solid var(--border)",
-                            borderRadius: 16,
-                            color: "var(--text-3)",
-                            cursor: "pointer",
-                            whiteSpace: "nowrap",
-                            transition: "all var(--t-fast)",
-                          }}
-                          onMouseEnter={e => {
-                            e.currentTarget.style.color = "var(--text)";
-                            e.currentTarget.style.borderColor = "var(--border-strong, #333)";
-                          }}
-                          onMouseLeave={e => {
-                            e.currentTarget.style.color = "var(--text-3)";
-                            e.currentTarget.style.borderColor = "var(--border)";
-                          }}
-                        >
-                          {prompt}
-                        </button>
-                      ))
-                    ) : (
-                      ["Check risk", "Available credit", "Prepare repay", "Watch health factor", "DBC pools", "What can you do?"].map(prompt => (
-                        <button
-                          key={prompt}
-                          type="button"
-                          onClick={() => {
-                            if (prompt === "DBC pools") setActiveTab("DBC");
-                            else if (prompt === "What can you do?") setShowCapabilityInspector(true);
-                            else sendWithText(prompt);
-                          }}
-                          style={{
-                            padding: "4px 10px",
-                            fontSize: 10.5,
-                            fontFamily: "var(--mono)",
-                            background: "var(--surface-2)",
-                            border: "1px solid var(--border)",
-                            borderRadius: 16,
-                            color: "var(--text-3)",
-                            cursor: "pointer",
-                            whiteSpace: "nowrap",
-                            transition: "all var(--t-fast)",
-                          }}
-                          onMouseEnter={e => {
-                            e.currentTarget.style.color = "var(--text)";
-                            e.currentTarget.style.borderColor = "var(--border-strong, #333)";
-                          }}
-                          onMouseLeave={e => {
-                            e.currentTarget.style.color = "var(--text-3)";
-                            e.currentTarget.style.borderColor = "var(--border)";
-                          }}
-                        >
-                          {prompt}
-                        </button>
-                      ))
-                    )}
-                  </div>
 
-                  {/* Input row */}
-                  <div style={{ display: "flex", gap: 10, alignItems: "flex-end", background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 12, padding: "10px 14px" }}>
+                  {/* Liquid Glass Capsule Input Bar */}
+                  <div
+                    className="liquid-capsule-input"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      background: "rgba(22, 24, 30, 0.65)",
+                      backdropFilter: "blur(24px) saturate(180%)",
+                      WebkitBackdropFilter: "blur(24px) saturate(180%)",
+                      border: "1px solid rgba(255, 255, 255, 0.14)",
+                      borderRadius: 9999,
+                      padding: "8px 10px 8px 22px",
+                      boxShadow: "0 8px 32px rgba(0, 0, 0, 0.2), inset 0 1px 1px rgba(255, 255, 255, 0.2)",
+                      transition: "all 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
+                    }}
+                  >
                     <textarea
                       ref={inputRef}
                       value={input}
@@ -2630,12 +2845,13 @@ export default function Autonomous() {
                         border: "none",
                         color: "var(--text)",
                         fontFamily: "var(--sans)",
-                        fontSize: 14,
+                        fontSize: 14.5,
                         resize: "none",
                         outline: "none",
-                        lineHeight: 1.55,
-                        maxHeight: 140,
+                        lineHeight: 1.45,
+                        maxHeight: 120,
                         overflowY: "auto",
+                        padding: "6px 0",
                       }}
                     />
                     {streaming ? (
@@ -2643,13 +2859,22 @@ export default function Autonomous() {
                         type="button"
                         onClick={stop}
                         style={{
-                          flexShrink: 0, padding: "7px 14px", background: "rgba(207,139,139,0.15)",
-                          border: "1px solid rgba(207,139,139,0.4)", borderRadius: 8,
-                          color: "var(--danger,#cf8b8b)", fontSize: 11, fontWeight: 700,
-                          cursor: "pointer", fontFamily: "var(--mono)", whiteSpace: "nowrap",
+                          flexShrink: 0,
+                          width: 38,
+                          height: 38,
+                          borderRadius: "50%",
+                          background: "rgba(207, 139, 139, 0.2)",
+                          border: "1px solid rgba(207, 139, 139, 0.5)",
+                          color: "var(--danger, #cf8b8b)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          cursor: "pointer",
+                          transition: "all var(--t-fast)",
                         }}
+                        title="Stop Generation"
                       >
-                        ■ STOP
+                        <span style={{ width: 10, height: 10, background: "currentColor", borderRadius: 2 }} />
                       </button>
                     ) : (
                       <button
@@ -2657,51 +2882,73 @@ export default function Autonomous() {
                         onClick={() => sendWithText()}
                         disabled={!input.trim() || !connected}
                         style={{
-                          flexShrink: 0, padding: "7px 14px",
-                          background: !input.trim() || !connected ? "transparent" : "var(--accent, #eceae6)",
-                          border: !input.trim() || !connected ? "1px solid var(--border)" : "none",
-                          borderRadius: 8,
+                          flexShrink: 0,
+                          width: 38,
+                          height: 38,
+                          borderRadius: "50%",
+                          background: !input.trim() || !connected ? "var(--surface-3)" : "var(--accent, #eceae6)",
+                          border: "none",
                           color: !input.trim() || !connected ? "var(--text-3)" : "#0c0c0d",
-                          fontSize: 13, fontWeight: 700,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: 16,
+                          fontWeight: 700,
                           cursor: !input.trim() || !connected ? "not-allowed" : "pointer",
-                          fontFamily: "var(--mono)", whiteSpace: "nowrap", transition: "all var(--t-fast)",
+                          boxShadow: !input.trim() || !connected ? "none" : "0 2px 10px rgba(0, 0, 0, 0.3)",
+                          transition: "all 0.18s cubic-bezier(0.16, 1, 0.3, 1)",
                         }}
+                        title="Send Message"
                       >
                         ↑
                       </button>
                     )}
                   </div>
-
-                  {/* Footer note */}
-                  <div style={{ marginTop: 6, fontSize: 10, color: "var(--text-3)", fontFamily: "var(--mono)", textAlign: "center" }}>
-                    Circuit Agent · Risk Ratchet enforced on-chain · Solana Devnet · {risk.ratchetState} {risk.isMarketOpen ? "· NYSE OPEN" : "· MARKET CLOSED"}
-                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Right Column: Live Agent State Panel (Realtime Strategy, Risk, Capital, Graph) */}
-            <div style={{ width: 340, flexShrink: 0, borderLeft: "1px solid var(--border)", display: "flex", flexDirection: "column", background: "var(--surface-1)", overflow: "hidden" }}>
-              <LiveAgentStatePanel
-                objective={currentObjective}
-                riskState={risk.ratchetState}
-                isMarketOpen={risk.isMarketOpen}
-                totalCollateralUsd={portfolio.totalCollateralUsd}
-                totalDebtUsd={portfolio.totalDebtUsd}
-                availableCreditUsd={credit.availableCreditUsd}
-                healthFactor={portfolio.healthFactor}
-                activeAsset={activeContextAsset}
-                agentAuthority={onChainAuthorities[0] ?? null}
-                activeWatchesCount={taskCounts.watches}
-                activeTasksCount={taskCounts.total}
-                pendingApprovalsCount={pendingProposals.length}
-                currentNode={currentStrategyNode}
-                permissionAllowed={permissionResult !== "BLOCKED"}
-                blockedReason={blockedReason}
-                onOpenDiagnostics={() => setShowTelemetry(true)}
-                onOpenCapabilityInspector={() => setShowCapabilityInspector(true)}
-                onOpenApprovals={() => setShowApprovalsModal(true)}
-              />
+            {/* Right Column: Slidable Live Agent State Panel */}
+            <div
+              style={{
+                width: telemetryOpen ? 340 : 0,
+                flexShrink: 0,
+                borderLeft: telemetryOpen ? "1px solid var(--border)" : "none",
+                display: "flex",
+                flexDirection: "column",
+                background: "var(--surface-1)",
+                overflow: "hidden",
+                transition: "width 0.28s cubic-bezier(0.16, 1, 0.3, 1)",
+                visibility: telemetryOpen ? "visible" : "hidden",
+              }}
+            >
+              {telemetryOpen && (
+                <LiveAgentStatePanel
+                  objective={currentObjective}
+                  riskState={risk.ratchetState}
+                  isMarketOpen={risk.isMarketOpen}
+                  totalCollateralUsd={portfolio.totalCollateralUsd}
+                  totalDebtUsd={portfolio.totalDebtUsd}
+                  availableCreditUsd={credit.availableCreditUsd}
+                  healthFactor={portfolio.healthFactor}
+                  activeAsset={activeContextAsset}
+                  agentAuthority={onChainAuthorities[0] ?? null}
+                  activeWatchesCount={taskCounts.watches}
+                  activeTasksCount={taskCounts.total}
+                  pendingApprovalsCount={pendingProposals.length}
+                  currentNode={currentStrategyNode}
+                  permissionAllowed={permissionResult !== "BLOCKED"}
+                  blockedReason={blockedReason}
+                  onOpenDiagnostics={() => setShowTelemetry(true)}
+                  onOpenCapabilityInspector={() => setShowCapabilityInspector(true)}
+                  onOpenApprovals={() => setShowApprovalsModal(true)}
+                  agentTier={agentTierMode}
+                  agentCreditsAvailable={creditState.available}
+                  agentCreditsReserved={creditState.reserved}
+                  isAgentPaused={isAgentPaused}
+                  onTogglePause={handleEmergencyKillSwitch}
+                />
+              )}
             </div>
           </div>
         )}
@@ -2716,6 +2963,7 @@ export default function Autonomous() {
                   Configure bounded multi-step autonomous policies combining collateral deposits, risk-gated borrowing, and Meteora Dynamic Bonding Curve (DBC) liquidity rebalancing.
                 </div>
               </div>
+              <ProtocolBoundaryInspector />
               <StrategiesPanel owner={wallet.address || ""} onAddStrategy={() => startAction("Auto manage: keep my portfolio health above 1.8 with repay up to $200")} />
             </div>
           </div>

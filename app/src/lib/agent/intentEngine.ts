@@ -87,12 +87,21 @@ export function parseActionVerb(text: string): ProtocolAction | null {
   return null;
 }
 
+export const DEFAULT_CONVERSATIONAL_CONTEXT: ConversationalContext = {
+  activeAsset: null,
+  pendingIntent: null,
+  pendingProposal: null,
+  lastAction: null,
+  lastAmount: null,
+  lastQueryTime: 0,
+};
+
 /**
  * Main intent classification function
  */
 export function classifyIntent(
   rawInput: string,
-  context: ConversationalContext
+  context: ConversationalContext = DEFAULT_CONVERSATIONAL_CONTEXT
 ): StructuredIntent {
   const trimmed = rawInput.trim();
   const lower = trimmed.toLowerCase();

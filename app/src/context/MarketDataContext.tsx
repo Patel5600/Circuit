@@ -36,6 +36,14 @@ export function MarketDataProvider({ children }: { children: React.ReactNode }) 
   );
 }
 
+const fallbackMarketData: MarketDataContextValue = {
+  snapshots: {},
+  loading: false,
+  lastRefreshedAt: 0,
+  refreshAllMarkets: async () => {},
+  isStreamHealthy: true,
+};
+
 /**
  * useMarketData() — reads from the shared singleton store.
  * No new fetch loop is created; returns live data from the single provider instance.
@@ -43,7 +51,7 @@ export function MarketDataProvider({ children }: { children: React.ReactNode }) 
 export function useMarketData(): MarketDataContextValue {
   const ctx = useContext(MarketDataContext);
   if (!ctx) {
-    throw new Error("useMarketData must be used inside <MarketDataProvider>");
+    return fallbackMarketData;
   }
   return ctx;
 }

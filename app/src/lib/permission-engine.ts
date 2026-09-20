@@ -28,6 +28,10 @@
  *   A_effective(t) = A_owner ∩ A_agent ∩ A_risk(t) ∩ A_position(t)
  */
 
+import { decisionLogStore } from "./realtime/decision-log";
+
+export const CANONICAL_POLICY_VERSION = 1;
+
 export type ProtocolAction =
   | "deposit"
   | "borrow"
@@ -93,6 +97,12 @@ export interface PermissionResult {
   actionCostUsd: number;
   /** Remaining dynamic risk budget B_t in USD */
   remainingRiskBudgetUsd: number;
+  /** Canonical Policy Version */
+  policyVersion: number;
+  /** Exact evaluation timestamp in ms */
+  evaluatedAt: number;
+  /** Execution venue */
+  venue: "CIRCUIT_LENDING" | "METEORA_DBC";
 }
 
 export interface PermissionEvaluationParams {
@@ -129,6 +139,12 @@ export interface PermissionEvaluationParams {
     currentBorrowedUsd: number;
     riskBudgetUsd: number;
   } | null;
+
+  // Policy & Audit Context
+  policyVersion?: number;
+  venue?: "CIRCUIT_LENDING" | "METEORA_DBC";
+  assetSymbol?: string;
+  owner?: string;
 }
 
 /**
@@ -137,7 +153,7 @@ export interface PermissionEvaluationParams {
  *
  * Deterministic and actor-agnostic: both humans and agents use this exact logic.
  */
-export function evaluatePermission(params: PermissionEvaluationParams): PermissionResult {
+function evaluatePermissionInternal(params: PermissionEvaluationParams): PermissionResult {
   const {
     actor,
     action,
@@ -473,6 +489,36 @@ export function evaluatePermission(params: PermissionEvaluationParams): Permissi
   return makeResult(true, "ALLOWED", "Operation authorized.", riskState, effectiveLtvBps, maxBorrowCapacity, null, 0, agentRiskBudget);
 }
 
+/**
+ * Canonical Protocol Entry Point for Permission Evaluation.
+ * Records every evaluated intent (ALLOWED or BLOCKED) into the audit trail.
+ */
+export function evaluatePermission(params: PermissionEvaluationParams): PermissionResult {
+  const result = evaluatePermissionInternal(params);
+  try {
+    decisionLogStore.recordDecision({
+      actor: params.actor,
+      owner: params.owner,
+      assetSymbol: params.assetSymbol ?? "UNKNOWN",
+      action: params.action,
+      requestedAmountUsd: params.amountUsd ?? 0,
+      riskState: result.riskState,
+      oracleConfidenceBps: params.confBps,
+      policyVersion: result.policyVersion,
+      allowed: result.allowed,
+      reasonCode: result.reasonCode,
+      message: result.message,
+      effectiveLtvBps: result.effectiveLtvBps,
+      remainingRiskBudgetUsd: result.remainingRiskBudgetUsd,
+      venue: params.venue ?? result.venue ?? "CIRCUIT_LENDING",
+      executionStatus: result.allowed ? "PENDING" : "BLOCKED",
+    });
+  } catch (e) {
+    // Non-blocking for audit logging
+  }
+  return result;
+}
+
 function makeResult(
   allowed: boolean,
   reasonCode: PermissionReasonCode,
@@ -482,7 +528,9 @@ function makeResult(
   borrowCapacityUsd: number,
   healthFactorBps: number | null,
   actionCostUsd: number,
-  remainingRiskBudgetUsd: number
+  remainingRiskBudgetUsd: number,
+  policyVersion: number = CANONICAL_POLICY_VERSION,
+  venue: "CIRCUIT_LENDING" | "METEORA_DBC" = "CIRCUIT_LENDING"
 ): PermissionResult {
   return {
     allowed,
@@ -494,6 +542,9 @@ function makeResult(
     healthFactorBps,
     actionCostUsd,
     remainingRiskBudgetUsd,
+    policyVersion,
+    evaluatedAt: Date.now(),
+    venue,
   };
 }
 

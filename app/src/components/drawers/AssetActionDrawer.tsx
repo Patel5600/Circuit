@@ -22,6 +22,8 @@ import {
 } from "../../lib/protocol";
 import { derivePriceAccount } from "../../lib/pyth";
 import { PYTH_FEED_ID } from "../../config";
+import { decisionLogStore } from "../../lib/realtime/decision-log";
+import { protocolEventBus, createEvent } from "../../lib/realtime/event-bus";
 
 export function AssetActionDrawer() {
   const { actionIntent } = useAction();
@@ -176,6 +178,26 @@ function AssetActionDrawerContent({ intent }: { intent: ActionIntent }) {
       onSuccess: () => {
         invalidate({ portfolio: true, wallet: true, activity: true });
         s.refresh();
+        protocolEventBus.emit(
+          createEvent("TRANSACTION_LIFECYCLE", "AssetActionDrawer", `${action.toUpperCase()} ${parsedAmount} ${tokenSymbol} confirmed`, {
+            assetSymbol: market.symbol,
+            detail: summary,
+          })
+        );
+        decisionLogStore.recordDecision({
+          actor: "HUMAN",
+          owner: publicKey.toBase58(),
+          assetSymbol: market.symbol,
+          action,
+          requestedAmountUsd: parsedAmount,
+          riskState: domainRisk.ratchetState,
+          policyVersion: 1,
+          allowed: true,
+          reasonCode: "ALLOWED",
+          message: summary,
+          venue: "CIRCUIT_LENDING",
+          executionStatus: "EXECUTED",
+        });
         setAmount("");
       },
     });

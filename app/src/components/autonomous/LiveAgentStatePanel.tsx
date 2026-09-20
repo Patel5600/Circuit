@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Circuit Protocol — Live Agent State Panel
  *
  * Primary right-hand workspace column:
@@ -34,6 +34,11 @@ interface LiveAgentStatePanelProps {
   onOpenDiagnostics: () => void;
   onOpenCapabilityInspector: () => void;
   onOpenApprovals?: () => void;
+  agentTier?: "LITE" | "PRO";
+  agentCreditsAvailable?: number;
+  agentCreditsReserved?: number;
+  isAgentPaused?: boolean;
+  onTogglePause?: () => void;
 }
 
 export function LiveAgentStatePanel({
@@ -56,6 +61,11 @@ export function LiveAgentStatePanel({
   onOpenDiagnostics,
   onOpenCapabilityInspector,
   onOpenApprovals,
+  agentTier = "LITE",
+  agentCreditsAvailable = 100,
+  agentCreditsReserved = 0,
+  isAgentPaused = false,
+  onTogglePause,
 }: LiveAgentStatePanelProps) {
   const fmtMoney = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const fmtHf = (hf: number | null) => {
@@ -131,6 +141,50 @@ export function LiveAgentStatePanel({
           <span style={{ fontSize: 11, fontFamily: "var(--mono)", color: "var(--text-2)", fontWeight: 600 }}>
             {strategyName}
           </span>
+        </div>
+      </div>
+
+      {/* 2.5 Agent Compute Budget */}
+      <div
+        style={{
+          background: "var(--surface-1, #121214)",
+          border: "1px solid var(--border)",
+          borderRadius: 8,
+          padding: "12px 14px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 6,
+          fontFamily: "var(--mono)",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 10, color: "var(--text-3)", letterSpacing: "0.08em" }}>AGENT COMPUTE BUDGET</span>
+          <span
+            style={{
+              fontSize: 9,
+              fontWeight: 700,
+              padding: "1px 6px",
+              borderRadius: 3,
+              background: agentTier === "PRO" ? "rgba(167, 139, 250, 0.2)" : "rgba(236, 234, 230, 0.12)",
+              color: agentTier === "PRO" ? "#a78bfa" : "var(--accent)",
+            }}
+          >
+            CIRCUIT {agentTier === "PRO" ? "PRO AGENT" : "LITE"}
+          </span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 2 }}>
+          <span style={{ fontSize: 16, fontWeight: 800, color: agentCreditsAvailable <= 10 ? "var(--danger, #cf8b8b)" : "var(--mint, #79c2a4)" }}>
+            {agentCreditsAvailable} <span style={{ fontSize: 10, fontWeight: 500, color: "var(--text-3)" }}>CREDITS</span>
+          </span>
+          {agentCreditsReserved > 0 && (
+            <span style={{ fontSize: 10, color: "var(--text-3)" }}>
+              {agentCreditsReserved} reserved
+            </span>
+          )}
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--text-3)", marginTop: 4, paddingTop: 6, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+          <span>SENTINELS: <strong style={{ color: "var(--text-2)" }}>9 ACTIVE</strong></span>
+          <span>STATUS: <strong style={{ color: isAgentPaused ? "var(--danger, #cf8b8b)" : "var(--mint, #79c2a4)" }}>{isAgentPaused ? "PAUSED" : "ONLINE"}</strong></span>
         </div>
       </div>
 

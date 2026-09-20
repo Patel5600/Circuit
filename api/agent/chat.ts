@@ -174,7 +174,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: "Message history exceeds maximum allowed limit (50)" });
   }
 
-  const { messages, snapshot } = body;
+  const { messages } = body;
+  const rawSnap = (body.snapshot || {}) as any;
+  const snapshot: ProtocolSnapshot = {
+    walletAddress: rawSnap.walletAddress ?? null,
+    controlMode: rawSnap.controlMode ?? "MANUAL",
+    hasActiveAuthority: !!rawSnap.hasActiveAuthority,
+    riskRatchetState: rawSnap.riskRatchetState ?? "NORMAL",
+    isMarketOpen: rawSnap.isMarketOpen ?? true,
+    totalCollateralUsd: Number(rawSnap.totalCollateralUsd) || 0,
+    totalDebtUsd: Number(rawSnap.totalDebtUsd) || 0,
+    availableCreditUsd: Number(rawSnap.availableCreditUsd) || 0,
+    healthFactor: rawSnap.healthFactor !== undefined && rawSnap.healthFactor !== null ? Number(rawSnap.healthFactor) : null,
+    positions: Array.isArray(rawSnap.positions) ? rawSnap.positions : [],
+    markets: Array.isArray(rawSnap.markets) ? rawSnap.markets : [],
+    onChainAuthorities: Array.isArray(rawSnap.onChainAuthorities) ? rawSnap.onChainAuthorities : [],
+  };
   const lastMsgObj = messages[messages.length - 1];
   const userMsg = typeof lastMsgObj?.content === "string" ? lastMsgObj.content.slice(0, 4000) : "";
 
@@ -301,12 +316,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.end();
     }
 
-    // 4. Risk observation intent
-    if (m.includes("risk") || m.includes("restricted") || m.includes("why") || m.includes("state") || m.includes("ratchet")) {
+    // 4. Risk & Status observation intent
+    if (m.includes("risk") || m.includes("restricted") || m.includes("why") || m.includes("state") || m.includes("ratchet") || m.includes("status")) {
       const tool1 = `CIRCUIT_TOOL:{"tool":"get_risk_state","input":{},"output":{"ratchetState":"${snapshot.riskRatchetState}","marketOpen":${snapshot.isMarketOpen}},"status":"CONFIRMED"}`;
       const tool2 = `CIRCUIT_TOOL:{"tool":"get_portfolio","input":{},"output":{"totalCollateralUsd":${snapshot.totalCollateralUsd.toFixed(2)},"totalDebtUsd":${snapshot.totalDebtUsd.toFixed(2)},"healthFactor":${snapshot.healthFactor !== null ? snapshot.healthFactor.toFixed(3) : 999}},"status":"CONFIRMED"}`;
       
-      res.write(`${tool1}\n${tool2}\n\nCurrent Risk Ratchet telemetry on Solana Devnet:\n\n• State: ${snapshot.riskRatchetState}\n• Market Session: ${snapshot.isMarketOpen ? 'NYSE Regular Trading Hours' : 'Outside Regular US Equities Hours'}\n• Portfolio Health Factor: ${snapshot.healthFactor !== null ? snapshot.healthFactor.toFixed(3) : 'Infinite (No active debt)'}\n• Total Collateral: $${snapshot.totalCollateralUsd.toFixed(2)}\n• Outstanding Debt: $${snapshot.totalDebtUsd.toFixed(2)}\n\nCircuit's Dynamic Risk Ratchet transitions immediately when oracle uncertainty (confidence interval spread) increases or market sessions change, and enforces monotonic, evidence-based recovery.`);
+      res.write(`${tool1}\n${tool2}\n\nCurrent Risk Ratchet & Protocol Status on Solana Devnet:\n\n• State: ${snapshot.riskRatchetState}\n• Market Session: ${snapshot.isMarketOpen ? 'NYSE Regular Trading Hours (ACTIVE)' : 'Outside Regular US Equities Hours (GUARD)'}\n• Portfolio Health Factor: ${snapshot.healthFactor !== null ? snapshot.healthFactor.toFixed(3) : 'Infinite (No active debt)'}\n• Total Collateral: $${snapshot.totalCollateralUsd.toFixed(2)}\n• Outstanding Debt: $${snapshot.totalDebtUsd.toFixed(2)}\n• Available Credit: $${snapshot.availableCreditUsd.toFixed(2)}\n• Sentinels: 9 Active Event-Driven Background Sentinels\n\nCircuit's Dynamic Risk Ratchet transitions immediately when oracle uncertainty (confidence interval spread) increases or market sessions change, and enforces monotonic, evidence-based recovery.`);
       return res.end();
     }
 

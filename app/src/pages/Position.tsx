@@ -30,10 +30,9 @@ import { DEPLOYED_MARKETS, getDeployedMarket, getDeployedMarketByMint } from "..
 import { formatCurrency, formatMoney, formatPercent, formatTokens } from "../lib/format";
 import { getAssetMark } from "../data/logos";
 import { Position as PositionModel } from "../lib/portfolio/provider";
-import {
-  PortfolioRiskGraph,
-  AssetNode,
-} from "../components/profile/PortfolioRiskGraph";
+import { PortfolioRiskGraph, AssetNode } from "../components/profile/PortfolioRiskGraph";
+import { RiskTopology3D } from "../components/risk/RiskTopology3D";
+import { RiskSensitivityMatrix } from "../components/risk/RiskSensitivityMatrix";
 import {
   buildDeposit,
   buildRepay,
@@ -43,8 +42,10 @@ import {
 } from "../lib/protocol";
 import { derivePriceAccount } from "../lib/pyth";
 import { PYTH_FEED_ID } from "../config";
+import { calculateMinimumRestorationDebt } from "../lib/recovery-engine";
 
 type ActionType = "deposit" | "repay" | "withdraw";
+type ViewMode = "table" | "graph" | "topology3d" | "sensitivity";
 
 export default function Position() {
   const { connected, publicKey } = useWallet();
@@ -65,7 +66,7 @@ export default function Position() {
   const [action, setAction] = useState<ActionType>("deposit");
   const [amount, setAmount] = useState("");
   const [txOpen, setTxOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<"table" | "graph">("table");
+  const [viewMode, setViewMode] = useState<ViewMode>("table");
 
   const positions = portfolio.positions;
   const hasPositions = portfolio.hasPositions;
@@ -108,6 +109,17 @@ export default function Position() {
   const activeTokenSymbol = targetMarket ? targetMarket.tokenSymbol : null;
   const isWithdrawBlocked = credit.permissions.withdraw.status === "BLOCKED";
   const isBorrowBlocked = credit.permissions.borrow.status === "BLOCKED";
+
+  const recoveryAdvice = useMemo(() => {
+    if (portfolio.totalDebtUsd <= 0 || portfolio.healthFactor === null) return null;
+    return calculateMinimumRestorationDebt(
+      portfolio.totalCollateralUsd,
+      portfolio.totalDebtUsd,
+      8000,
+      10500,
+      500
+    );
+  }, [portfolio.totalCollateralUsd, portfolio.totalDebtUsd, portfolio.healthFactor]);
 
   const handleDepositClick = (pos: PositionModel) => {
     const m = getDeployedMarketByMint(pos.mint) || getDeployedMarket(pos.symbol);
@@ -322,13 +334,57 @@ export default function Position() {
             </Card>
           </div>
 
+          {/* Capital Recovery Advisor Banner */}
+          {recoveryAdvice && recoveryAdvice.isRecoveryNeeded && (
+            <div
+              style={{
+                padding: "14px 18px",
+                borderRadius: "var(--r, 8px)",
+                background: "rgba(207, 139, 139, 0.08)",
+                border: "1px solid rgba(207, 139, 139, 0.3)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 16,
+              }}
+            >
+              <div>
+                <div style={{ fontFamily: "var(--mono)", fontSize: 11, fontWeight: 700, color: "var(--danger, #cf8b8b)", letterSpacing: "0.05em" }}>
+                  CAPITAL RECOVERY ENGINE · PREVENT EXCESS LIQUIDATION
+                </div>
+                <div style={{ fontSize: 12.5, color: "var(--text-2)", marginTop: 4, lineHeight: 1.4 }}>
+                  {recoveryAdvice.explanation}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (positions[0]) {
+                    const m = getDeployedMarketByMint(positions[0].mint) || getDeployedMarket(positions[0].symbol);
+                    if (m) {
+                      openAction({
+                        type: "repay",
+                        market: m,
+                        amount: String(recoveryAdvice.requiredRepayUsd),
+                      });
+                    }
+                  }
+                }}
+                className="btn btn--primary btn--sm"
+                style={{ flexShrink: 0, fontFamily: "var(--mono)", fontSize: 11, whiteSpace: "nowrap" }}
+              >
+                Repay ${recoveryAdvice.requiredRepayUsd.toFixed(2)} &rarr;
+              </button>
+            </div>
+          )}
+
           {/* POSITIONS SECTION: Professional Multi-Asset Table & Live Risk Graph */}
           <Card
             title="Deposited Collateral Holdings"
             action={
               <div className="row g-8" style={{ alignItems: "center" }}>
                 {hasPositions && (
-                  <div className="chips" style={{ margin: 0 }}>
+                  <div className="chips" style={{ margin: 0, gap: 5 }}>
                     <button
                       type="button"
                       className={`chip ${viewMode === "table" ? "chip--active" : ""}`}
@@ -344,6 +400,22 @@ export default function Position() {
                       style={{ fontSize: 11, padding: "3px 10px", height: 26 }}
                     >
                       Risk Graph
+                    </button>
+                    <button
+                      type="button"
+                      className={`chip ${viewMode === "topology3d" ? "chip--active" : ""}`}
+                      onClick={() => setViewMode("topology3d")}
+                      style={{ fontSize: 11, padding: "3px 10px", height: 26 }}
+                    >
+                      3D Risk CAD
+                    </button>
+                    <button
+                      type="button"
+                      className={`chip ${viewMode === "sensitivity" ? "chip--active" : ""}`}
+                      onClick={() => setViewMode("sensitivity")}
+                      style={{ fontSize: 11, padding: "3px 10px", height: 26 }}
+                    >
+                      Stress Matrix
                     </button>
                   </div>
                 )}
@@ -379,6 +451,63 @@ export default function Position() {
                   hardOverride={risk.hardOverride}
                   hardOverrideReason={risk.hardOverrideReason}
                   uneditable
+                />
+              </div>
+            ) : viewMode === "topology3d" ? (
+              <div style={{ margin: "4px 0" }}>
+                <RiskTopology3D
+                  collateralPriceUsd={
+                    activePosition?.priceUsd ??
+                    positions[0]?.priceUsd ??
+                    200
+                  }
+                  collateralAmountUi={
+                    activePosition?.collateralUi ??
+                    positions[0]?.collateralUi ??
+                    10
+                  }
+                  currentDebtUsd={
+                    activePosition?.debtUi ??
+                    portfolio.totalDebtUsd ??
+                    0
+                  }
+                  liquidationThresholdBps={
+                    targetMarket?.liqThresholdBps ?? 6500
+                  }
+                  maxBorrowUsd={portfolio.borrowCapacityUsd}
+                  tokenSymbol={
+                    targetMarket?.tokenSymbol ??
+                    positions[0]?.symbol ??
+                    "NVDAx"
+                  }
+                />
+              </div>
+            ) : viewMode === "sensitivity" ? (
+              <div style={{ margin: "4px 0" }}>
+                <RiskSensitivityMatrix
+                  collateralPriceUsd={
+                    activePosition?.priceUsd ??
+                    positions[0]?.priceUsd ??
+                    200
+                  }
+                  collateralAmountUi={
+                    activePosition?.collateralUi ??
+                    positions[0]?.collateralUi ??
+                    10
+                  }
+                  currentDebtUsd={
+                    activePosition?.debtUi ??
+                    portfolio.totalDebtUsd ??
+                    0
+                  }
+                  liquidationThresholdBps={
+                    targetMarket?.liqThresholdBps ?? 6500
+                  }
+                  tokenSymbol={
+                    targetMarket?.tokenSymbol ??
+                    positions[0]?.symbol ??
+                    "NVDAx"
+                  }
                 />
               </div>
             ) : (

@@ -375,19 +375,15 @@ describe("Agent Harness & Conversational Protocol Execution Tests", () => {
   });
 
   describe("8. Curated Model Whitelist & Dynamic Suggestions", () => {
-    it("strictly bounds model options to the curated 5-model whitelist", () => {
-      expect(CURATED_MODELS).to.have.lengthOf(5);
+    it("strictly bounds model options to curated agent tiers", () => {
       const ids = CURATED_MODELS.map(m => m.id);
-      expect(ids).to.include("gemini-3.8-flash");
-      expect(ids).to.include("gemini-3.7-flash");
-      expect(ids).to.include("gemini-3.6-flash");
-      expect(ids).to.include("gemini-2.5-flash");
-      expect(ids).to.include("gemini-2.5-pro");
+      expect(ids).to.include("circuit-lite");
+      expect(ids).to.include("circuit-pro");
 
       expect(ids).to.not.include("gemini-1.5-pro");
       expect(ids).to.not.include("gemini-1.5-flash");
       expect(ids).to.not.include("gemini-2.0-flash");
-      expect(DEFAULT_MODEL_ID).to.equal("gemini-3.8-flash");
+      expect(DEFAULT_MODEL_ID).to.equal("circuit-lite");
     });
 
     it("filterCuratedModels never allows large 50+ raw catalog to pollute UI", () => {
@@ -402,19 +398,13 @@ describe("Agent Harness & Conversational Protocol Execution Tests", () => {
         { name: "models/imagen-3" },
         { name: "models/gemini-3.8-flash" },
         { name: "models/gemini-3.7-flash" },
-        { name: "models/gemini-3.6-flash" },
-        { name: "models/gemini-2.5-flash" },
-        { name: "models/gemini-2.5-pro" },
       ];
 
       const filtered = filterCuratedModels(largeCatalog);
-      expect(filtered).to.have.lengthOf(5);
+      expect(filtered).to.have.lengthOf(2);
       expect(filtered.map(m => m.id)).to.deep.equal([
-        "gemini-3.8-flash",
-        "gemini-3.7-flash",
-        "gemini-3.6-flash",
-        "gemini-2.5-flash",
-        "gemini-2.5-pro",
+        "circuit-lite",
+        "circuit-pro",
       ]);
     });
 

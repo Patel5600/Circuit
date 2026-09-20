@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 
 import { CircuitWordmark } from "../brand/CircuitLogo";
@@ -10,6 +10,9 @@ import { ToastProvider } from "../ui/Toaster";
 import { useCircuitDomain } from "../../lib/domain/context";
 import { CLUSTER_LABEL } from "../../env";
 import { useTheme } from "../../context/ThemeContext";
+
+import { CommandPalette } from "../terminal/CommandPalette";
+import NetworkStatusBar from "../ui/NetworkStatusBar";
 
 /** Primary destinations, shared by the sidebar and the mobile bottom bar. Autonomous is excluded (top-level workspace mode). */
 const PRIMARY: { to: string; label: string; icon: IconName }[] = [
@@ -36,7 +39,13 @@ function NetworkPill() {
   );
 }
 
-function Header({ onOpenHealth }: { onOpenHealth?: () => void }) {
+function Header({
+  onOpenHealth,
+  onOpenCommand,
+}: {
+  onOpenHealth?: () => void;
+  onOpenCommand?: () => void;
+}) {
   const navigate = useNavigate();
   const location = useLocation();
   const isAutonomous = location.pathname.startsWith("/app/autonomous");
@@ -68,6 +77,32 @@ function Header({ onOpenHealth }: { onOpenHealth?: () => void }) {
         <NavLink to="/" aria-label="circuit home" style={{ display: "flex", alignItems: "center" }}>
           <CircuitWordmark size={22} />
         </NavLink>
+        {onOpenCommand && (
+          <button
+            type="button"
+            onClick={onOpenCommand}
+            className="command-trigger-btn"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "4px 8px",
+              background: "var(--surface-2)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--r-sm, 6px)",
+              color: "var(--text-3)",
+              fontSize: 11,
+              fontFamily: "var(--mono)",
+              cursor: "pointer",
+              transition: "all var(--t-fast)",
+            }}
+            title="Open Command Terminal (⌘K or Ctrl+K)"
+          >
+            <Icon name="search" size={12} />
+            <span className="appbar__hide-mobile">COMMAND</span>
+            <kbd style={{ fontSize: 9.5, opacity: 0.8, fontFamily: "var(--mono)" }}>⌘K</kbd>
+          </button>
+        )}
       </div>
 
       <div className="appbar__center">
@@ -405,6 +440,41 @@ export function PageContainer({
   );
 }
 
+/** Derives real network source statuses from domain context */
+function NetworkStatusBarWrapper() {
+  const { systemHealth } = useCircuitDomain();
+  const rpcStatus = systemHealth.isOnline
+    ? systemHealth.rpcLatencyMs > 3000
+      ? "DEGRADED" as const
+      : "LIVE" as const
+    : "DISCONNECTED" as const;
+  const pythStatus = systemHealth.isOnline ? "LIVE" as const : "UNAVAILABLE" as const;
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "center",
+        padding: "2px 16px",
+        borderBottom: "1px solid var(--border)",
+        background: "var(--surface-0)",
+      }}
+    >
+      <NetworkStatusBar
+        sources={[
+          {
+            name: "SOLANA RPC",
+            status: rpcStatus,
+            detail: systemHealth.rpcLatencyMs > 0 ? `${systemHealth.rpcLatencyMs}ms` : undefined,
+          },
+          { name: "PYTH", status: pythStatus },
+          { name: "CIRCUIT", status: systemHealth.isOnline ? "LIVE" : "UNAVAILABLE" },
+        ]}
+      />
+    </div>
+  );
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const isAutonomous = location.pathname.startsWith("/app/autonomous");
@@ -417,6 +487,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   });
 
   const [healthOpen, setHealthOpen] = useState<boolean>(false);
+  const [commandOpen, setCommandOpen] = useState<boolean>(false);
+
+  // Global shortcut for Command Palette (⌘K, Ctrl+K, or /)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setCommandOpen((prev) => !prev);
+      } else if (
+        e.key === "/" &&
+        document.activeElement?.tagName !== "INPUT" &&
+        document.activeElement?.tagName !== "TEXTAREA"
+      ) {
+        e.preventDefault();
+        setCommandOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const toggleCollapse = () => {
     setCollapsed((prev) => {
@@ -434,7 +524,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <a className="skip-link" href="#main">
           Skip to content
         </a>
-        <Header onOpenHealth={() => setHealthOpen(true)} />
+        <Header
+          onOpenHealth={() => setHealthOpen(true)}
+          onOpenCommand={() => setCommandOpen(true)}
+        />
+        {/* Real-state network health bar */}
+        <NetworkStatusBarWrapper />
         <div className="shell__body">
           {!isAutonomous && <Sidebar collapsed={collapsed} onToggleCollapse={toggleCollapse} />}
           <main
@@ -461,6 +556,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {!isAutonomous && <MobileNav />}
 
         <SystemHealthModal open={healthOpen} onClose={() => setHealthOpen(false)} />
+        <CommandPalette open={commandOpen} onClose={() => setCommandOpen(false)} />
       </div>
     </ToastProvider>
   );

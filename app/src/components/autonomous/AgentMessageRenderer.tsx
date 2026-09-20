@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Circuit Protocol — Structured Agent Message Renderer
  *
  * Transforms agent responses into typed, high-fidelity financial cards.
@@ -447,6 +447,136 @@ function RenderParsedBlock({
       );
   }
 }
+function ProposalParsedCard({
+  block,
+  onApproveProposal,
+  onRejectProposal,
+}: {
+  block: any;
+  onApproveProposal?: (p: any) => void;
+  onRejectProposal?: () => void;
+}) {
+  const [isDismissed, setIsDismissed] = React.useState(false);
+  const [isApproved, setIsApproved] = React.useState(false);
+  const isAllowed = block.permission === "ALLOWED";
+
+  if (isDismissed || block.dismissed) {
+    return (
+      <div
+        style={{
+          padding: "10px 14px",
+          background: "var(--surface-2)",
+          border: "1px dashed var(--border)",
+          borderRadius: 8,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          color: "var(--text-3)",
+          fontSize: 11,
+          fontFamily: "var(--mono)",
+        }}
+      >
+        <span>✕ {block.action?.toUpperCase()} PROPOSAL DISMISSED</span>
+        <span style={{ fontSize: 10 }}>${block.amountUsd?.toFixed(2)} {block.symbol}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        background: "var(--surface-1)",
+        border: `1px solid ${isAllowed ? "rgba(121,194,164,0.3)" : "rgba(207,139,139,0.3)"}`,
+        borderRadius: 10,
+        padding: "16px",
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <div style={{ fontSize: 11, fontFamily: "var(--mono)", fontWeight: 700, color: "var(--text-3)", letterSpacing: "0.08em" }}>
+          ACTION PROPOSAL
+        </div>
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            fontFamily: "var(--mono)",
+            padding: "2px 8px",
+            borderRadius: 4,
+            background: isAllowed ? "rgba(121,194,164,0.12)" : "rgba(207,139,139,0.12)",
+            color: isAllowed ? "var(--mint, #79c2a4)" : "var(--danger, #cf8b8b)",
+          }}
+        >
+          {block.permission}
+        </span>
+      </div>
+
+      <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text)", marginBottom: 8 }}>
+        {block.action?.toUpperCase()} {block.amountUsd ? `$${block.amountUsd.toFixed(2)}` : ""} {block.symbol}
+      </div>
+
+      {/* Compact Permission Gate flow */}
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", margin: "10px 0", fontSize: 11, fontFamily: "var(--mono)" }}>
+        <GateBadge label="Intent" passed />
+        <GateBadge label="Authority" passed />
+        <GateBadge label="Risk State" passed={block.riskState !== "EMERGENCY"} />
+        <GateBadge label="Policy" passed={isAllowed} />
+      </div>
+
+      {block.reason && (
+        <div style={{ fontSize: 12, color: isAllowed ? "var(--text-2)" : "var(--danger)", marginBottom: 12, lineHeight: 1.4 }}>
+          {block.reason}
+        </div>
+      )}
+
+      {isAllowed && (
+        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+          <button
+            type="button"
+            disabled={isApproved}
+            onClick={() => {
+              setIsApproved(true);
+              onApproveProposal?.(block);
+            }}
+            style={{
+              flex: 1,
+              padding: "8px 14px",
+              background: isApproved ? "rgba(121,194,164,0.15)" : "var(--p-deep, #122311)",
+              color: isApproved ? "var(--mint, #79c2a4)" : "#ffffff",
+              border: "none",
+              borderRadius: 6,
+              fontWeight: 700,
+              fontSize: 12,
+              cursor: isApproved ? "default" : "pointer",
+              fontFamily: "var(--mono)",
+            }}
+          >
+            {isApproved ? "✓ Opened for Signature" : "Approve & Sign"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setIsDismissed(true);
+              onRejectProposal?.();
+            }}
+            style={{
+              padding: "8px 14px",
+              background: "transparent",
+              color: "var(--text-2)",
+              border: "1px solid var(--border)",
+              borderRadius: 6,
+              fontWeight: 600,
+              fontSize: 12,
+              cursor: "pointer",
+              fontFamily: "var(--mono)",
+            }}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function RenderTypedBlock({
   block,
@@ -461,91 +591,12 @@ function RenderTypedBlock({
 }) {
   // If block is a ProposalCardBlockData
   if (block.type === "PROPOSAL_CARD") {
-    const isAllowed = block.permission === "ALLOWED";
     return (
-      <div
-        style={{
-          background: "var(--surface-1, #121214)",
-          border: `1px solid ${isAllowed ? "var(--mint, #79c2a4)40" : "var(--danger, #cf8b8b)40"}`,
-          borderRadius: 10,
-          padding: "16px",
-        }}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <div style={{ fontSize: 11, fontFamily: "var(--mono)", fontWeight: 700, color: "var(--text-3)", letterSpacing: "0.08em" }}>
-            ACTION PROPOSAL
-          </div>
-          <span
-            style={{
-              fontSize: 10,
-              fontWeight: 700,
-              fontFamily: "var(--mono)",
-              padding: "2px 8px",
-              borderRadius: 4,
-              background: isAllowed ? "rgba(121,194,164,0.12)" : "rgba(207,139,139,0.12)",
-              color: isAllowed ? "var(--mint, #79c2a4)" : "var(--danger, #cf8b8b)",
-            }}
-          >
-            {block.permission}
-          </span>
-        </div>
-
-        <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text)", marginBottom: 8 }}>
-          {block.action.toUpperCase()} {block.amountUsd ? `$${block.amountUsd.toFixed(2)}` : ""} {block.symbol}
-        </div>
-
-        {/* Compact Permission Gate flow */}
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", margin: "10px 0", fontSize: 11, fontFamily: "var(--mono)" }}>
-          <GateBadge label="Intent" passed />
-          <GateBadge label="Authority" passed />
-          <GateBadge label="Risk State" passed={block.riskState !== "EMERGENCY"} />
-          <GateBadge label="Policy" passed={isAllowed} />
-        </div>
-
-        {block.reason && (
-          <div style={{ fontSize: 12, color: isAllowed ? "var(--text-2)" : "var(--danger)", marginBottom: 12, lineHeight: 1.4 }}>
-            {block.reason}
-          </div>
-        )}
-
-        {isAllowed && (
-          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-            <button
-              onClick={() => onApproveProposal?.(block)}
-              style={{
-                flex: 1,
-                padding: "8px 14px",
-                background: "var(--accent, #eceae6)",
-                color: "#0c0c0d",
-                border: "none",
-                borderRadius: 6,
-                fontWeight: 700,
-                fontSize: 12,
-                cursor: "pointer",
-                fontFamily: "var(--mono)",
-              }}
-            >
-              Approve &amp; Sign
-            </button>
-            <button
-              onClick={() => onRejectProposal?.()}
-              style={{
-                padding: "8px 14px",
-                background: "transparent",
-                color: "var(--text-3)",
-                border: "1px solid var(--border)",
-                borderRadius: 6,
-                fontWeight: 600,
-                fontSize: 12,
-                cursor: "pointer",
-                fontFamily: "var(--mono)",
-              }}
-            >
-              Dismiss
-            </button>
-          </div>
-        )}
-      </div>
+      <ProposalParsedCard
+        block={block}
+        onApproveProposal={onApproveProposal}
+        onRejectProposal={onRejectProposal}
+      />
     );
   }
 

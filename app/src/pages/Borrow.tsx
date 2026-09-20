@@ -16,6 +16,8 @@ import {
 import { BlockedAction, RiskCheckList, buildSafetyChecks } from "../components/risk/SafetyStatus";
 import { HealthFactor } from "../components/position/PositionParts";
 import { TransactionModal } from "../components/transactions/TransactionModal";
+import { RiskTopology3D } from "../components/risk/RiskTopology3D";
+import { RiskSensitivityMatrix } from "../components/risk/RiskSensitivityMatrix";
 import { MarketSelector } from "../components/market/MarketSelector";
 import { useProtocolState } from "../hooks/useProtocolState";
 import { useTransaction } from "../hooks/useTransaction";
@@ -124,11 +126,19 @@ export default function Borrow() {
 
   const [amount, setAmount] = useState("");
   const [txOpen, setTxOpen] = useState(false);
+  const [riskModelView, setRiskModelView] = useState<"none" | "topology3d" | "sensitivity">("none");
 
   const minBps = s.protocol?.minHealthFactorBps ?? 10_000;
   const collateral = s.position?.collateralAmount ?? 0n;
   const debt = s.position?.debtAmount ?? 0n;
   const hasCollateral = collateral > 0n;
+
+  const collateralPriceUsd = useMemo(() => {
+    if (s.oracle?.update) {
+      return Number(s.oracle.update.price) * Math.pow(10, s.oracle.update.exponent);
+    }
+    return 100;
+  }, [s.oracle]);
 
   const priceAccount = useMemo(
     () => s.oracle?.address ?? derivePriceAccount(selectedMarket.feedId || PYTH_FEED_ID, 0),
@@ -693,6 +703,110 @@ export default function Borrow() {
               </div>
             </div>
           </Step>
+        )}
+
+        {/* Quantitative Solvency Modeling (3D CAD Topology / Sensitivity Matrix) */}
+        {hasCollateral && (
+          <Card>
+            <div className="row between g-12" style={{ alignItems: "center", marginBottom: 12 }}>
+              <div>
+                <div className="row g-8" style={{ alignItems: "center" }}>
+                  <Icon name="activity" size={16} />
+                  <h3 className="t-title" style={{ margin: 0, fontSize: 14 }}>
+                    Solvency Risk Horizon
+                  </h3>
+                </div>
+                <div className="t-meta" style={{ marginTop: 2 }}>
+                  Parametric stress testing and 3D CAD liquidation projection for this borrow
+                </div>
+              </div>
+
+              <div className="chips" style={{ margin: 0 }}>
+                <button
+                  type="button"
+                  className={`chip ${riskModelView === "none" ? "chip--active" : ""}`}
+                  onClick={() => setRiskModelView("none")}
+                  style={{ fontSize: 11, padding: "2px 8px" }}
+                >
+                  Summary
+                </button>
+                <button
+                  type="button"
+                  className={`chip ${riskModelView === "topology3d" ? "chip--active" : ""}`}
+                  onClick={() => setRiskModelView("topology3d")}
+                  style={{ fontSize: 11, padding: "2px 8px" }}
+                >
+                  3D CAD Risk Topology
+                </button>
+                <button
+                  type="button"
+                  className={`chip ${riskModelView === "sensitivity" ? "chip--active" : ""}`}
+                  onClick={() => setRiskModelView("sensitivity")}
+                  style={{ fontSize: 11, padding: "2px 8px" }}
+                >
+                  Stress Matrix
+                </button>
+              </div>
+            </div>
+
+            {riskModelView === "topology3d" && (
+              <div style={{ marginTop: 12 }}>
+                <RiskTopology3D
+                  collateralPriceUsd={collateralPriceUsd}
+                  collateralAmountUi={toUi(collateral)}
+                  currentDebtUsd={toUi(valid ? newDebt : debt)}
+                  liquidationThresholdBps={s.asset?.liquidationThresholdBps ?? 8000}
+                  maxBorrowUsd={toUi(max)}
+                  tokenSymbol={display.symbol}
+                  quoteSymbol={quoteSymbol}
+                  compact
+                />
+              </div>
+            )}
+
+            {riskModelView === "sensitivity" && (
+              <div style={{ marginTop: 12 }}>
+                <RiskSensitivityMatrix
+                  collateralPriceUsd={collateralPriceUsd}
+                  collateralAmountUi={toUi(collateral)}
+                  currentDebtUsd={toUi(valid ? newDebt : debt)}
+                  liquidationThresholdBps={s.asset?.liquidationThresholdBps ?? 8000}
+                  tokenSymbol={display.symbol}
+                  quoteSymbol={quoteSymbol}
+                />
+              </div>
+            )}
+
+            {riskModelView === "none" && (
+              <div
+                style={{
+                  padding: "10px 14px",
+                  background: "var(--surface-2)",
+                  borderRadius: "var(--r)",
+                  border: "1px solid var(--border)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  fontSize: 12,
+                }}
+              >
+                <span className="muted">
+                  Projected Health Factor with {valid ? `${formatMoney(parsed)} ${quoteSymbol}` : "current"} debt:{" "}
+                  <strong style={{ color: projectedHf && projectedHf < minBps ? "var(--danger)" : "var(--success)" }}>
+                    {projectedHf ? (projectedHf / 10_000).toFixed(2) : (s.risk?.healthFactorBps ? (s.risk.healthFactorBps / 10_000).toFixed(2) : "Infinite")}
+                  </strong>
+                </span>
+                <button
+                  type="button"
+                  className="btn btn--secondary btn--sm"
+                  onClick={() => setRiskModelView("topology3d")}
+                  style={{ fontSize: 11, padding: "3px 10px" }}
+                >
+                  Inspect 3D Surface &rarr;
+                </button>
+              </div>
+            )}
+          </Card>
         )}
 
         {/* Step 4 - Live market safety check */}

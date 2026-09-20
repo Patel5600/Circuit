@@ -90,10 +90,17 @@ export function ActionProvider({ children }: { children: React.ReactNode }) {
   return <ActionContext.Provider value={value}>{children}</ActionContext.Provider>;
 }
 
-export function useAction() {
+const noopActionContext: ActionContextValue = {
+  actionIntent: null,
+  openAction: () => {},
+  closeAction: () => {},
+  setActionType: () => {},
+};
+
+export function useAction(): ActionContextValue {
   const context = useContext(ActionContext);
   if (!context) {
-    throw new Error("useAction must be used within an ActionProvider");
+    return noopActionContext;
   }
   return context;
 }

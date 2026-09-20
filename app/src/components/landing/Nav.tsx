@@ -9,6 +9,7 @@ import { useTheme } from "../../context/ThemeContext";
 const LINKS = [
   { href: "#markets", label: "Markets" },
   { href: "#how", label: "The Circuit" },
+  { href: "#autonomous", label: "Agent" },
   { href: "#product", label: "Credit" },
   { href: "#technology", label: "Technology" },
   { href: "#economics", label: "Economics" },

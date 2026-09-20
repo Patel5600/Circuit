@@ -1,9 +1,11 @@
 /**
- * Circuit Protocol — Curated Agent Models
+ * Circuit Protocol — Curated Agent Tiers & Models
  *
- * Whitelist of verified, high-performance reasoning models for autonomous execution.
- * Raw Google Gemini catalogs containing 50+ experimental/preview/vision/audio/embedding
- * models are strictly filtered out to preserve Circuit's minimal institutional interface.
+ * Exposes exactly two institutional user-facing agent tiers:
+ *   1. CIRCUIT LITE (Fast everyday interaction, low latency, 1 credit base)
+ *   2. CIRCUIT PRO AGENT (Deep strategy planning, multi-step orchestration, 4 credits base)
+ *
+ * Provider/model details remain internal implementation details.
  */
 
 export interface AgentModelOption {
@@ -11,39 +13,41 @@ export interface AgentModelOption {
   name: string;
   badge: string;
   desc: string;
+  tier?: "LITE" | "PRO";
+  creditCost?: number;
 }
 
-export const DEFAULT_MODEL_ID = "gemini-3.8-flash";
-export const FALLBACK_MODEL_ID = "gemini-3.6-flash";
+export const CIRCUIT_LITE_ID = "circuit-lite";
+export const CIRCUIT_PRO_ID = "circuit-pro";
 
-export const CURATED_MODELS: AgentModelOption[] = [
-  { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash", badge: "DEFAULT", desc: "Fast agentic reasoning & live telemetry" },
-  { id: "gemini-3.7-flash", name: "Gemini 3.7 Flash", badge: "HYBRID", desc: "High precision agent execution" },
-  { id: "gemini-3.6-flash", name: "Gemini 3.6 Flash", badge: "STABLE", desc: "Financial reasoning & risk synthesis" },
-  { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", badge: "FAST", desc: "Low latency streaming" },
-  { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", badge: "PRO", desc: "Complex multi-step portfolio analysis" },
+export const CANONICAL_AGENT_TIERS: AgentModelOption[] = [
+  {
+    id: CIRCUIT_LITE_ID,
+    name: "Circuit Lite",
+    badge: "1 CREDIT",
+    desc: "Fast everyday interaction: telemetry, market checks, simple planning & navigation",
+    tier: "LITE",
+    creditCost: 1,
+  },
+  {
+    id: CIRCUIT_PRO_ID,
+    name: "Circuit Pro Agent",
+    badge: "4 CREDITS",
+    desc: "Deep multi-step reasoning: portfolio strategy, risk recovery, DBC liquidity planning",
+    tier: "PRO",
+    creditCost: 4,
+  },
 ];
 
-/**
- * Filter an upstream Google Gemini model catalog to only the verified curated set.
- * Returns only models that exist in CURATED_MODELS, preserving curated order and display labels.
- */
+export const DEFAULT_MODEL_ID = CIRCUIT_LITE_ID;
+export const FALLBACK_MODEL_ID = "circuit-lite";
+
+export const CURATED_MODELS: AgentModelOption[] = [
+  ...CANONICAL_AGENT_TIERS,
+  { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash", badge: "LITE", desc: "Fast agentic reasoning & live telemetry", tier: "LITE", creditCost: 1 },
+  { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", badge: "PRO", desc: "Complex multi-step portfolio analysis", tier: "PRO", creditCost: 4 },
+];
+
 export function filterCuratedModels(rawCatalog: Array<{ name?: string }>): AgentModelOption[] {
-  if (!Array.isArray(rawCatalog) || rawCatalog.length === 0) {
-    return [...CURATED_MODELS];
-  }
-
-  const liveIds = new Set(
-    rawCatalog
-      .map(m => (m.name?.replace(/^models\//, "") || "").toLowerCase())
-      .filter(Boolean)
-  );
-
-  return CURATED_MODELS.map(curated => {
-    const isLive = liveIds.has(curated.id.toLowerCase());
-    return {
-      ...curated,
-      badge: isLive ? curated.badge : "READY",
-    };
-  });
+  return [...CANONICAL_AGENT_TIERS];
 }

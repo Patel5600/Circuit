@@ -456,7 +456,33 @@ export function ProposalCardBlock({
   onApprove: (block: ProposalCardBlockData) => void;
   onCancel: () => void;
 }) {
+  const [isDismissed, setIsDismissed] = useState(false);
+  const [isApproved, setIsApproved] = useState(false);
   const isAllowed = block.permission === "ALLOWED";
+
+  if (isDismissed || (block as any).dismissed) {
+    return (
+      <div
+        style={{
+          margin: "8px 0",
+          padding: "10px 14px",
+          background: "var(--surface-2)",
+          border: "1px dashed var(--border)",
+          borderRadius: 8,
+          maxWidth: 500,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          color: "var(--text-3)",
+          fontSize: 11,
+          fontFamily: "var(--mono)",
+        }}
+      >
+        <span>✕ {block.action.toUpperCase()} PROPOSAL DISMISSED</span>
+        <span style={{ fontSize: 10 }}>${block.amountUsd.toFixed(2)} {block.symbol}</span>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -467,12 +493,12 @@ export function ProposalCardBlock({
         border: "1px solid var(--border-strong, #2e2e34)",
         borderRadius: 12,
         maxWidth: 500,
-        boxShadow: "0 6px 20px rgba(0,0,0,0.3)",
+        boxShadow: "0 6px 20px rgba(0,0,0,0.18)",
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ width: 8, height: 8, borderRadius: "50%", background: isAllowed ? "var(--mint)" : "var(--danger)" }} />
+          <span style={{ width: 8, height: 8, borderRadius: "50%", background: isAllowed ? "var(--mint, #79c2a4)" : "var(--danger, #cf8b8b)" }} />
           <span style={{ fontSize: 13, fontWeight: 800, fontFamily: "var(--mono)", color: "var(--text)" }}>
             {block.action.toUpperCase()} PROPOSAL
           </span>
@@ -505,12 +531,12 @@ export function ProposalCardBlock({
         </div>
         <div style={{ display: "flex", justifyContent: "space-between" }}>
           <span style={{ color: "var(--text-3)" }}>Permission Engine:</span>
-          <span style={{ color: isAllowed ? "var(--mint)" : "var(--danger)", fontWeight: 700 }}>
+          <span style={{ color: isAllowed ? "var(--mint, #79c2a4)" : "var(--danger, #cf8b8b)", fontWeight: 700 }}>
             {block.permission}
           </span>
         </div>
         {!isAllowed && (
-          <div style={{ color: "var(--danger)", marginTop: 4, lineHeight: 1.4 }}>
+          <div style={{ color: "var(--danger, #cf8b8b)", marginTop: 4, lineHeight: 1.4 }}>
             {block.reason}
           </div>
         )}
@@ -519,38 +545,47 @@ export function ProposalCardBlock({
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
         <button
           type="button"
-          onClick={onCancel}
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsDismissed(true);
+            onCancel();
+          }}
           style={{
-            padding: "7px 14px",
+            padding: "8px 14px",
             background: "transparent",
             border: "1px solid var(--border)",
             borderRadius: 6,
-            color: "var(--text-3)",
+            color: "var(--text-2)",
             fontSize: 11,
             fontFamily: "var(--mono)",
+            fontWeight: 600,
             cursor: "pointer",
           }}
         >
-          Cancel
+          Dismiss
         </button>
 
         <button
           type="button"
-          disabled={!isAllowed}
-          onClick={() => onApprove(block)}
+          disabled={!isAllowed || isApproved}
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsApproved(true);
+            onApprove(block);
+          }}
           style={{
-            padding: "7px 16px",
-            background: isAllowed ? "var(--accent, #eceae6)" : "var(--surface-2)",
+            padding: "8px 16px",
+            background: isAllowed ? (isApproved ? "rgba(121,194,164,0.2)" : "var(--p-deep, #122311)") : "var(--surface-2)",
             border: "none",
             borderRadius: 6,
-            color: isAllowed ? "#0c0c0d" : "var(--text-3)",
+            color: isApproved ? "var(--mint, #79c2a4)" : "#ffffff",
             fontSize: 11,
             fontFamily: "var(--mono)",
             fontWeight: 700,
-            cursor: isAllowed ? "pointer" : "not-allowed",
+            cursor: isAllowed && !isApproved ? "pointer" : "not-allowed",
           }}
         >
-          Approve &amp; Sign &rarr;
+          {isApproved ? "✓ Opened for Signature" : "Approve & Sign →"}
         </button>
       </div>
     </div>

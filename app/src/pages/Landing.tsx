@@ -9,10 +9,10 @@ import { HeroOrbit } from "../components/landing/HeroOrbit";
 import { LandingFooter } from "../components/landing/LandingFooter";
 import { Nav } from "../components/landing/Nav";
 import { SafeState } from "../components/landing/SafeState";
+import { AutonomousLayer } from "../components/landing/AutonomousLayer";
 import { Storm } from "../components/landing/Storm";
 import { Technology } from "../components/landing/Technology";
 import { Economics } from "../components/landing/Economics";
-import { FaultLineMatrix } from "../components/landing/FaultLineMatrix";
 import { Icon } from "../components/ui";
 import { CLUSTER_LABEL } from "../env";
 
@@ -89,7 +89,7 @@ export default function Landing() {
               </h1>
 
               <p className="hero__lede">
-                circuit turns verified market conditions into enforceable capital permissions for credit, liquidity and recovery.
+                circuit turns verified market conditions into enforceable capital permissions for credit, liquidity and recovery—enabling humans and autonomous agents to execute strictly within mathematical risk boundaries.
               </p>
 
               <p style={{ margin: "10px 0 0", fontSize: "14px", color: "var(--text-3)", lineHeight: 1.5 }}>
@@ -143,6 +143,10 @@ export default function Landing() {
                 </li>
                 <li>
                   <span className="dot" aria-hidden="true" />
+                  Autonomous Agent Runtime
+                </li>
+                <li>
+                  <span className="dot" aria-hidden="true" />
                   4-State Ratchet
                 </li>
               </ul>
@@ -161,10 +165,10 @@ export default function Landing() {
         <CircuitFlow />
         <Storm />
         <SafeState />
+        <AutonomousLayer />
         <Credit />
         <Technology />
         <Economics />
-        <FaultLineMatrix />
         <FinalCTA />
       </main>
 

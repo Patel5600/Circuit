@@ -48,7 +48,7 @@ export default defineConfig({
                   res.end(JSON.stringify(payload));
                 },
               };
-              const apiFile = path.resolve(__dirname, "../api/market-data.ts");
+              const apiFile = path.resolve(__dirname, "api/market-data.ts");
               const mod = await server.ssrLoadModule(apiFile);
               const handler = mod.default;
               await handler(mockReq, mockRes);
@@ -57,6 +57,58 @@ export default defineConfig({
               res.statusCode = 500;
               res.setHeader("Content-Type", "application/json");
               res.end(JSON.stringify({ error: err?.message || "Internal server error" }));
+              return;
+            }
+          }
+
+          if (req.url?.startsWith("/api/agent/credit")) {
+            try {
+              let bodyStr = "";
+              for await (const chunk of req) {
+                bodyStr += chunk;
+              }
+              const parsedBody = bodyStr ? JSON.parse(bodyStr) : {};
+              const urlObj = new URL(req.url, "http://localhost");
+              const query: Record<string, string> = {};
+              urlObj.searchParams.forEach((val, key) => {
+                query[key] = val;
+              });
+              const mockReq = {
+                method: req.method,
+                headers: req.headers,
+                body: parsedBody,
+                query,
+              };
+              const mockRes = {
+                statusCode: 200,
+                status(c: number) {
+                  this.statusCode = c;
+                  res.statusCode = c;
+                  return this;
+                },
+                setHeader(k: string, v: string) {
+                  res.setHeader(k, v);
+                  return this;
+                },
+                json(payload: any) {
+                  res.statusCode = this.statusCode;
+                  res.setHeader("Content-Type", "application/json");
+                  res.end(JSON.stringify(payload));
+                },
+                send(payload: any) {
+                  res.statusCode = this.statusCode;
+                  res.end(typeof payload === "string" ? payload : JSON.stringify(payload));
+                },
+              };
+              const apiFile = path.resolve(__dirname, "api/agent/credit.ts");
+              const mod = await server.ssrLoadModule(apiFile);
+              const handler = mod.default;
+              await handler(mockReq, mockRes);
+              return;
+            } catch (err: any) {
+              res.statusCode = 500;
+              res.setHeader("Content-Type", "application/json");
+              res.end(JSON.stringify({ error: err?.message || "Internal server error", stack: err?.stack }));
               return;
             }
           }
@@ -73,17 +125,36 @@ export default defineConfig({
                 headers: req.headers,
                 body: parsedBody,
                 query: {},
+                socket: req.socket,
               };
-              const mockRes = res as any;
-              mockRes.status = function (c: number) {
-                this.statusCode = c;
-                return this;
+              const mockRes = {
+                statusCode: 200,
+                status(c: number) {
+                  this.statusCode = c;
+                  res.statusCode = c;
+                  return this;
+                },
+                setHeader(k: string, v: string) {
+                  res.setHeader(k, v);
+                  return this;
+                },
+                json(payload: any) {
+                  res.statusCode = this.statusCode;
+                  res.setHeader("Content-Type", "application/json");
+                  res.end(JSON.stringify(payload));
+                },
+                send(payload: any) {
+                  res.statusCode = this.statusCode;
+                  res.end(typeof payload === "string" ? payload : JSON.stringify(payload));
+                },
+                write(chunk: any) {
+                  return res.write(chunk);
+                },
+                end(chunk?: any) {
+                  return res.end(chunk);
+                },
               };
-              mockRes.json = function (payload: any) {
-                this.setHeader("Content-Type", "application/json");
-                this.end(JSON.stringify(payload));
-              };
-              const apiFile = path.resolve(__dirname, "../api/agent/chat.ts");
+              const apiFile = path.resolve(__dirname, "api/agent/chat.ts");
               const mod = await server.ssrLoadModule(apiFile);
               const handler = mod.default;
               await handler(mockReq, mockRes);
@@ -100,6 +171,9 @@ export default defineConfig({
       },
     },
   ],
+  ssr: {
+    external: ["node:crypto", "crypto", "node:buffer", "buffer"],
+  },
   build: {
     target: "esnext",
     cssCodeSplit: false,

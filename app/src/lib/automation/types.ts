@@ -19,14 +19,20 @@ export type TaskType =
   | "REBALANCE";
 
 export type TaskStatus =
-  | "ACTIVE"
-  | "PAUSED"
+  | "CREATED"
+  | "QUEUED"
   | "RUNNING"
   | "WAITING"
+  | "AWAITING_APPROVAL"
+  | "EXECUTING"
+  | "PAUSED"
   | "COMPLETED"
+  | "BLOCKED"
   | "FAILED"
   | "EXPIRED"
-  | "REVOKED";
+  | "CANCELLED"
+  | "ACTIVE"   // Backward compatibility alias for RUNNING
+  | "REVOKED";  // Backward compatibility alias for CANCELLED
 
 export type WatchField =
   | "health_factor"

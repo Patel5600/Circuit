@@ -17,6 +17,7 @@
   --bg: #040406;
   --bg-elevated: #090a0f;
   --surface: #0e1017;
+  --surface-0: #08090c;
   --surface-1: #0e1017;
   --surface-2: #141722;
   --surface-3: #1a1e2e;
@@ -2207,6 +2208,19 @@ svg {
   flex: none;
 }
 
+.proto-system-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 0.95fr);
+  gap: 24px;
+  align-items: start;
+}
+@media (max-width: 960px) {
+  .proto-system-grid {
+    grid-template-columns: 1fr !important;
+    gap: 18px !important;
+  }
+}
+
 .flow__grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -3715,6 +3729,7 @@ svg {
   --bg:          #B6BBD9;
   --bg-elevated: #C4C8DF;
   --surface:     #FFFFFF;
+  --surface-0:   #F2F4F8;
   --surface-1:   #FFFFFF;
   --surface-2:   #EFF1F6;
   --surface-3:   #E2E5EE;
@@ -4363,6 +4378,39 @@ svg {
   color: #38481B;
 }
 
+/* ---- AUTONOMOUS WORKSPACE IN LIGHT MODE ---- */
+[data-theme="light"] .ag-workspace {
+  background: var(--surface-0, #F2F4F8) !important;
+}
+[data-theme="light"] .ag-feed {
+  background: var(--surface-0, #F2F4F8) !important;
+}
+[data-theme="light"] .ag-rail {
+  background: #FFFFFF !important;
+  border-right-color: var(--border) !important;
+}
+[data-theme="light"] .ag-bubble__user-text {
+  background: #122311 !important;
+  color: #FFFFFF !important;
+  border-color: #122311 !important;
+}
+[data-theme="light"] .ag-bubble__agent-text {
+  color: #122311 !important;
+}
+[data-theme="light"] .ag-thinking {
+  background: #FFFFFF !important;
+  border-color: var(--border) !important;
+  color: #212413 !important;
+}
+[data-theme="light"] .liquid-capsule-input {
+  background: rgba(255, 255, 255, 0.92) !important;
+  border-color: rgba(33, 36, 19, 0.22) !important;
+  box-shadow: 0 8px 32px rgba(33, 36, 19, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9) !important;
+}
+[data-theme="light"] .liquid-capsule-input textarea {
+  color: #122311 !important;
+}
+
 /* ---- 04 THE STORM IN LIGHT MODE ---- */
 [data-theme="light"] .storm__fault {
   opacity: 0.55;
@@ -4689,4 +4737,259 @@ svg {
   color: #122311;
 }
 
+/* ==========================================================================
+   INSTITUTIONAL PRECISION & COMMAND PALETTE
+   ========================================================================== */
 
+.command-trigger-btn {
+  user-select: none;
+}
+
+.command-trigger-btn:hover {
+  background: var(--surface-3) !important;
+  border-color: var(--border-strong) !important;
+  color: var(--text) !important;
+}
+
+.command-trigger-btn:active {
+  transform: scale(0.98);
+}
+
+.command-trigger-btn kbd {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+[data-theme="light"] .final__statement em {
+  color: #7D5A00;
+}
+[data-theme="light"] .final__sub {
+  color: rgba(18, 35, 17, 0.86);
+}
+[data-theme="light"] .final__meta {
+  color: #38481B;
+}
+[data-theme="light"] .final__meta .dot {
+  background: #345826;
+  box-shadow: 0 0 6px rgba(52, 88, 38, 0.6);
+}
+
+/* ---- FOOTER IN LIGHT MODE ---- */
+[data-theme="light"] .foot {
+  border-top-color: rgba(33, 36, 19, 0.2);
+}
+[data-theme="light"] .foot__brand {
+  color: #122311;
+}
+[data-theme="light"] .foot__tag {
+  color: rgba(18, 35, 17, 0.84);
+}
+[data-theme="light"] .foot__col__title {
+  color: #38481B;
+  font-weight: 700;
+}
+[data-theme="light"] .foot__col a {
+  color: rgba(18, 35, 17, 0.82);
+}
+[data-theme="light"] .foot__col a:hover {
+  color: #122311;
+}
+[data-theme="light"] .foot__base {
+  border-top-color: rgba(33, 36, 19, 0.18);
+}
+[data-theme="light"] .foot__net {
+  color: #38481B;
+}
+[data-theme="light"] .foot__net .dot {
+  background: #345826;
+  box-shadow: 0 0 6px rgba(52, 88, 38, 0.6);
+}
+
+/* ---- CODE / PRE ---- */
+[data-theme="light"] code {
+  background: rgba(18, 35, 17, 0.07);
+  border-radius: 4px;
+  padding: 1px 4px;
+  color: #212413;
+}
+[data-theme="light"] pre {
+  background: rgba(18, 35, 17, 0.07);
+  border: 1px solid rgba(18, 35, 17, 0.12);
+  border-radius: 8px;
+  padding: 12px 14px;
+  color: #212413;
+}
+
+/* ---- DIVIDER ---- */
+[data-theme="light"] .divider {
+  background: rgba(33, 36, 19, 0.18);
+}
+
+/* ---- RISK STATE BANNERS ---- */
+[data-theme="light"] .risk-banner--safe       { background: rgba(42, 54, 20, 0.12);  border-color: rgba(42, 54, 20, 0.35);  color: #2A3614; }
+[data-theme="light"] .risk-banner--restricted { background: rgba(173, 136, 32, 0.14); border-color: rgba(173, 136, 32, 0.36); color: #7D5A00; }
+[data-theme="light"] .risk-banner--defensive  { background: rgba(144, 132, 74, 0.14); border-color: rgba(144, 132, 74, 0.36); color: #3B441F; }
+[data-theme="light"] .risk-banner--emergency  { background: rgba(122, 46, 30, 0.12);   border-color: rgba(122, 46, 30, 0.40);   color: #7A2E1E; }
+
+/* ---- TRANSACTION STEP BAR ---- */
+[data-theme="light"] .txstep         { background: var(--surface-2); border-color: rgba(33, 36, 19, 0.18); }
+[data-theme="light"] .txstep--active { border-color: #8A6400; color: #7D5A00; }
+[data-theme="light"] .txstep--done   { border-color: #2A3614; color: #2A3614; }
+
+/* ---- SCROLLBARS ---- */
+[data-theme="light"] ::-webkit-scrollbar { width: 6px; height: 6px; }
+[data-theme="light"] ::-webkit-scrollbar-track { background: var(--surface-2); }
+[data-theme="light"] ::-webkit-scrollbar-thumb { background: rgba(33, 36, 19, 0.25); border-radius: 3px; }
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover { background: rgba(33, 36, 19, 0.42); }
+
+/* ---- WALLET ADAPTER ---- */
+[data-theme="light"] .wallet-adapter-button            { background-color: var(--surface-2) !important; color: #212413 !important; border: 1px solid rgba(33, 36, 19, 0.26) !important; }
+[data-theme="light"] .wallet-adapter-button:hover      { background-color: var(--surface-3) !important; }
+[data-theme="light"] .wallet-adapter-dropdown-list     { background: var(--surface) !important; border: 1px solid rgba(33, 36, 19, 0.26) !important; box-shadow: 0 12px 40px rgba(18, 35, 17, 0.22) !important; }
+[data-theme="light"] .wallet-adapter-dropdown-list-item         { color: #212413 !important; }
+[data-theme="light"] .wallet-adapter-dropdown-list-item:hover   { background: var(--surface-2) !important; }
+[data-theme="light"] .wallet-adapter-modal-wrapper     { background: var(--surface) !important; border: 1px solid rgba(33, 36, 19, 0.26) !important; }
+[data-theme="light"] .wallet-adapter-modal-title       { color: #212413 !important; }
+
+/* ---- 3D Visual Structural Object ---- */
+[data-theme="light"] .closed-cover-face {
+  background: radial-gradient(ellipse at 50% 35%, #1c3518 0%, #122311 70%, #0d1a0c 100%) !important;
+  border-color: rgba(173, 136, 32, 0.50) !important;
+  box-shadow:
+    -8px 0 0 #0d1a0c,
+    -14px 0 24px rgba(18, 35, 17, 0.5),
+    18px 24px 44px rgba(18, 35, 17, 0.45),
+    inset 0 0 32px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* ---- THEME TOGGLE (Landing, AppShell, Footer) ---- */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  min-height: 32px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: all var(--t-fast);
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  user-select: none;
+}
+.theme-toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+.theme-toggle__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  transition: transform var(--t-fast);
+}
+.theme-toggle:hover .theme-toggle__icon {
+  transform: rotate(15deg);
+}
+.theme-toggle__label {
+  display: inline-block;
+  line-height: 1;
+}
+
+[data-theme="light"] .theme-toggle {
+  background: var(--surface-2);
+  border-color: rgba(33, 36, 19, 0.28);
+  color: var(--p-shadow);
+  box-shadow: 0 1px 4px rgba(18, 35, 17, 0.10);
+}
+[data-theme="light"] .theme-toggle:hover {
+  border-color: var(--p-harvest);
+  color: var(--p-harvest);
+  box-shadow: 0 2px 8px rgba(18, 35, 17, 0.16);
+}
+[data-theme="light"] .theme-toggle__icon {
+  color: var(--p-harvest);
+}
+
+/* Landing flow & storm active labels in light mode */
+[data-theme="light"] .flow__dot.is-on {
+  fill: #122311;
+}
+[data-theme="light"] .flow__stage.is-active .flow__stage__label {
+  color: #122311;
+}
+[data-theme="light"] .storm__fault.is-active .storm__fault__label {
+  color: #122311;
+}
+
+/* ==========================================================================
+   INSTITUTIONAL PRECISION & COMMAND PALETTE
+   ========================================================================== */
+
+.command-trigger-btn {
+  user-select: none;
+}
+
+.command-trigger-btn:hover {
+  background: var(--surface-3) !important;
+  border-color: var(--border-strong) !important;
+  color: var(--text) !important;
+}
+
+.command-trigger-btn:active {
+  transform: scale(0.98);
+}
+
+.command-trigger-btn kbd {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.mono, .tabular-nums, .stat-num, table td, .drow__v {
+  font-variant-numeric: tabular-nums;
+}
+
+.cad-canvas {
+  touch-action: none;
+  display: block;
+}
+
+/* ==========================================================================
+   LIQUID GLASS CAPSULE INPUT & FLUID AGENT WORKSPACE
+   ========================================================================== */
+
+.liquid-capsule-input {
+  transition: border-color var(--t), box-shadow var(--t), background var(--t), transform var(--t-fast);
+}
+
+.liquid-capsule-input:focus-within {
+  border-color: var(--accent) !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.28), inset 0 1px 1px rgba(255, 255, 255, 0.35), 0 0 0 2px rgba(236, 234, 230, 0.15) !important;
+  transform: translateY(-1px);
+}
+
+[data-theme="light"] .liquid-capsule-input {
+  background: rgba(255, 255, 255, 0.82) !important;
+  border-color: rgba(33, 36, 19, 0.18) !important;
+  box-shadow: 0 8px 30px rgba(18, 35, 17, 0.08), inset 0 1px 1px #ffffff !important;
+}
+
+[data-theme="light"] .liquid-capsule-input:focus-within {
+  border-color: var(--p-harvest, #ad8820) !important;
+  box-shadow: 0 14px 40px rgba(18, 35, 17, 0.14), inset 0 1px 1px #ffffff, 0 0 0 2px rgba(173, 136, 32, 0.22) !important;
+}
+
+.ag-workspace {
+  transition: all var(--t);
+}

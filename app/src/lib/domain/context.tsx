@@ -51,6 +51,7 @@ import {
   CIRCUIT_DEVNET_AGENT_KEY,
 } from "../agentAuthority";
 import { Transaction } from "@solana/web3.js";
+import { protocolEventBus, createEvent } from "../realtime/event-bus";
 
 export interface DomainContextValue {
   wallet: WalletDomainState;
@@ -420,6 +421,30 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
       freshness: makeFreshness("credit-permissions"),
     };
   }, [riskState, portfolioState]);
+
+  // ── Event Bus: emit real state transition events ──
+  const prevRiskStateRef = useRef<string>(riskState.ratchetState);
+  useEffect(() => {
+    const prev = prevRiskStateRef.current;
+    if (prev !== riskState.ratchetState) {
+      protocolEventBus.emit(
+        createEvent("RISK_TRANSITION", "domain-context", `Risk state ${prev} → ${riskState.ratchetState}`, {
+          data: { from: prev, to: riskState.ratchetState, reason: riskState.hardOverrideReason ?? "Market conditions changed" },
+        })
+      );
+      prevRiskStateRef.current = riskState.ratchetState;
+    }
+  }, [riskState.ratchetState, riskState.hardOverrideReason]);
+
+  useEffect(() => {
+    if (walletState.address) {
+      protocolEventBus.emit(
+        createEvent("SYSTEM_EVENT", "wallet-adapter", `Wallet connected: ${walletState.address.slice(0, 8)}…`, {
+          data: { address: walletState.address, cluster: walletState.cluster },
+        })
+      );
+    }
+  }, [walletState.address, walletState.cluster]);
 
   const hasActiveAuthority = useMemo(() => {
     return onChainAuthorities.some((a) => a.isActive);
