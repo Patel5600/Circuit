@@ -81,9 +81,9 @@ export function FinalCTA() {
         >
           <defs>
             <radialGradient id="finPool" cx="50%" cy="100%" r="72%">
-              <stop offset="0%" stopColor={isLight ? "#AD8820" : "#8b7bc4"} stopOpacity={isLight ? "0.08" : "0.1"} />
-              <stop offset="58%" stopColor={isLight ? "#90844A" : "#6f6690"} stopOpacity={isLight ? "0.03" : "0.035"} />
-              <stop offset="100%" stopColor={isLight ? "#B6BBD9" : "#000000"} stopOpacity="0" />
+              <stop offset="0%" stopColor={isLight ? "#AD8820" : "#8b7bc4"} stopOpacity={isLight ? "0.14" : "0.1"} />
+              <stop offset="58%" stopColor={isLight ? "#90844A" : "#6f6690"} stopOpacity={isLight ? "0.04" : "0.035"} />
+              <stop offset="100%" stopColor={isLight ? "#CCD2E4" : "#000000"} stopOpacity="0" />
             </radialGradient>
             {/* Fades the dome out toward the top, so it never fights the type. */}
             <linearGradient id="finFade" x1="0" y1="1" x2="0" y2="0">
@@ -125,7 +125,7 @@ export function FinalCTA() {
                     cx={x}
                     cy={y}
                     r={chip}
-                    fill={isLight ? "#E4E7F5" : "#0a0a0c"}
+                    fill={isLight ? "#F3F5FC" : "#0a0a0c"}
                     fillOpacity={isLight ? "1" : "0.82"}
                   />
                   <circle
@@ -133,8 +133,8 @@ export function FinalCTA() {
                     cy={y}
                     r={chip}
                     fill="none"
-                    stroke={isLight ? "#212413" : "#ffffff"}
-                    strokeOpacity={isLight ? "0.28" : "0.12"}
+                    stroke={isLight ? "rgba(33, 36, 19, 0.22)" : "#ffffff"}
+                    strokeOpacity={isLight ? "1" : "0.12"}
                     strokeWidth={isLight ? "1.5" : "1"}
                   />
                   <g
