@@ -334,6 +334,7 @@ function DemoView() {
   } = useDemoHarness();
 
   const isBorrowBlocked = ratchetState !== 'SAFE';
+  const [borrowSuccess, setBorrowSuccess] = React.useState(false);
 
   return (
     <PageContainer>
@@ -439,11 +440,36 @@ function DemoView() {
                   <Icon name="alert" size={15} />
                   Simulate On-Chain Revert (0x1774)
                 </Button>
+              ) : borrowSuccess ? (
+                <div
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: 'var(--r)',
+                    background: 'rgba(121, 194, 164, 0.12)',
+                    border: '1px solid rgba(121, 194, 164, 0.4)',
+                    color: 'var(--mint, #79c2a4)',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}
+                >
+                  <Icon name="check" size={14} />
+                  Simulated borrow executed. Risk Ratchet: {ratchetState}.
+                  <button
+                    type="button"
+                    style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', opacity: 0.7, fontSize: 11 }}
+                    onClick={() => setBorrowSuccess(false)}
+                  >
+                    Dismiss
+                  </button>
+                </div>
               ) : (
                 <Button
                   variant="accent"
                   style={{ width: '100%', justifyContent: 'center' }}
-                  onClick={() => alert('Simulated borrow executed successfully on-chain!')}
+                  onClick={() => { setBorrowSuccess(true); }}
                 >
                   Borrow 100.00 USDC
                 </Button>

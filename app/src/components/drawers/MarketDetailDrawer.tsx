@@ -43,8 +43,8 @@ export function MarketDetailDrawer({
   const quoteSymbol = snapshot?.quoteSymbol ?? market?.quoteSymbol ?? "USDC";
   const displaySymbol = snapshot?.displaySymbol ?? activeSymbol;
   const priceUsd = snapshot?.priceUsd ?? (market as any)?.priceUsd ?? null;
-  const change24h = snapshot?.change24hPercent ?? (market as any)?.change24hPercent ?? 0;
-  const isPos = change24h >= 0;
+  const change24h: number | null = snapshot?.change24hPercent ?? (market as any)?.change24hPercent ?? null;
+  const isPos = (change24h ?? 0) >= 0;
   const feedId = snapshot?.pythFeedId ?? (market as any)?.pythFeedId ?? (market as any)?.feedId ?? "";
   const baseLtv = snapshot?.baseLtvBps ?? (market as any)?.baseLtvBps ?? (market as any)?.ltvBps ?? 7000;
   const liqThreshold = snapshot?.liqThresholdBps ?? (market as any)?.liqThresholdBps ?? 8000;
@@ -151,7 +151,7 @@ export function MarketDetailDrawer({
                 marginTop: 2,
               }}
             >
-              {isPos ? "+" : ""}{change24h.toFixed(2)}%
+              {change24h !== null ? `${isPos ? "+" : ""}${change24h.toFixed(2)}%` : "—"}
             </div>
           </div>
         </div>
