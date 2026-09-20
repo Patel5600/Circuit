@@ -214,8 +214,8 @@ export function CircuitFlow() {
                         style={{
                           margin: "6px 0",
                           padding: "4px 8px",
-                          background: "rgba(255, 255, 255, 0.03)",
-                          border: "1px solid var(--border, #1a1d26)",
+                          background: "var(--surface-2)",
+                          border: "1px solid var(--border)",
                           borderRadius: "4px",
                           fontFamily: "var(--mono)",
                           fontSize: "10.5px",
@@ -251,8 +251,8 @@ export function CircuitFlow() {
                             key={act}
                             style={{
                               padding: "1px 7px",
-                              background: "rgba(255, 255, 255, 0.04)",
-                              border: "1px solid var(--border, #262b3a)",
+                              background: "var(--surface-2)",
+                              border: "1px solid var(--border)",
                               borderRadius: "4px",
                               fontSize: "10.5px",
                               fontFamily: "var(--mono)",
@@ -271,8 +271,8 @@ export function CircuitFlow() {
                         style={{
                           margin: "6px 0",
                           padding: "6px 10px",
-                          background: "rgba(207, 173, 116, 0.05)",
-                          border: "1px solid rgba(207, 173, 116, 0.2)",
+                          background: "var(--accent-dim)",
+                          border: "1px solid var(--border-strong)",
                           borderRadius: "4px",
                           fontFamily: "var(--mono)",
                           fontSize: "10.5px",

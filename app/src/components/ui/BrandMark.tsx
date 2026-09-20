@@ -2,6 +2,7 @@ import React from "react";
 
 import { LOGO_VIEWBOX, type LogoMark } from "../../data/logos";
 import type { TickerAsset } from "../../data/tickers";
+import { useTheme } from "../../context/ThemeContext";
 
 /**
  * Renders a brand mark as SVG.
@@ -36,6 +37,7 @@ export function Mark({
   const s = mark.optical;
   const offset = (LOGO_VIEWBOX * (1 - s)) / 2;
   const labelled = Boolean(title);
+  const { theme } = useTheme();
 
   return (
     <svg
@@ -54,7 +56,7 @@ export function Mark({
           : (
             <path
               d={mark.d}
-              fill={tone === "brand" ? mark.onDark : "currentColor"}
+              fill={tone === "brand" ? (theme === "light" ? (mark.hex || mark.onDark) : mark.onDark) : "currentColor"}
             />
           )}
       </g>

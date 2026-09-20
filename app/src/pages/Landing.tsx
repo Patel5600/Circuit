@@ -115,7 +115,7 @@ export default function Landing() {
                   gap: "8px",
                   padding: "6px 12px",
                   borderRadius: "4px",
-                  background: "rgba(255, 255, 255, 0.025)",
+                  background: "var(--surface-2)",
                   border: "1px solid var(--border)",
                   fontFamily: "var(--mono)",
                   fontSize: "11px",

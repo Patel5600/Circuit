@@ -51,7 +51,7 @@ export function Economics() {
               marginTop: "40px",
               padding: "24px",
               borderRadius: "6px",
-              background: "rgba(255, 255, 255, 0.02)",
+              background: "var(--surface-2)",
               border: "1px solid var(--border)",
             }}
           >
@@ -82,8 +82,8 @@ export function Economics() {
                   style={{
                     padding: "14px",
                     borderRadius: "4px",
-                    background: "rgba(255, 255, 255, 0.015)",
-                    border: "1px solid rgba(255, 255, 255, 0.06)",
+                    background: "var(--surface-1)",
+                    border: "1px solid var(--border)",
                     display: "flex",
                     flexDirection: "column",
                     justifyContent: "space-between",
@@ -141,7 +141,7 @@ export function Economics() {
               style={{
                 padding: "22px",
                 borderRadius: "6px",
-                background: "rgba(255, 255, 255, 0.02)",
+                background: "var(--surface-2)",
                 border: "1px solid var(--border)",
               }}
             >
@@ -160,8 +160,8 @@ export function Economics() {
               style={{
                 padding: "22px",
                 borderRadius: "6px",
-                background: "rgba(207, 173, 116, 0.03)",
-                border: "1px solid rgba(207, 173, 116, 0.22)",
+                background: "var(--accent-dim)",
+                border: "1px solid var(--border-strong)",
               }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "8px" }}>
@@ -180,8 +180,8 @@ export function Economics() {
                   wordBreak: "break-all",
                   padding: "8px 10px",
                   borderRadius: "4px",
-                  background: "rgba(0, 0, 0, 0.4)",
-                  border: "1px solid rgba(255, 255, 255, 0.08)",
+                  background: "var(--bg-elevated)",
+                  border: "1px solid var(--border-strong)",
                   marginBottom: "10px",
                 }}
               >

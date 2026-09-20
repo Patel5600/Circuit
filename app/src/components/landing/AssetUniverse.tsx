@@ -53,9 +53,10 @@ export function AssetUniverse() {
                     letterSpacing: "0.1em",
                     padding: "4px 10px",
                     borderRadius: "4px",
-                    background: "rgba(255, 255, 255, 0.04)",
+                    background: "var(--surface-2)",
                     border: "1px solid var(--border)",
-                    color: "var(--text-2)",
+                    color: "var(--text)",
+                    fontWeight: 600,
                   }}
                 >
                   {dim}

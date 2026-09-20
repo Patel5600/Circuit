@@ -6,6 +6,7 @@ import { LOGO_VIEWBOX } from "../../data/logos";
 import { asset } from "../../data/tickers";
 import { Icon } from "../ui";
 import { Reveal } from "../ui/Reveal";
+import { useTheme } from "../../context/ThemeContext";
 
 /**
  * Section 08 - the close.
@@ -66,6 +67,9 @@ const PLACED: Placed[] = MIRRORED.flatMap((m) => [
 ]);
 
 export function FinalCTA() {
+  const { theme } = useTheme();
+  const isLight = theme === "light";
+
   return (
     <section className="sec final">
       <div className="final__art" aria-hidden="true">
@@ -77,9 +81,9 @@ export function FinalCTA() {
         >
           <defs>
             <radialGradient id="finPool" cx="50%" cy="100%" r="72%">
-              <stop offset="0%" stopColor="#8b7bc4" stopOpacity="0.1" />
-              <stop offset="58%" stopColor="#6f6690" stopOpacity="0.035" />
-              <stop offset="100%" stopColor="#000000" stopOpacity="0" />
+              <stop offset="0%" stopColor={isLight ? "#AD8820" : "#8b7bc4"} stopOpacity={isLight ? "0.08" : "0.1"} />
+              <stop offset="58%" stopColor={isLight ? "#90844A" : "#6f6690"} stopOpacity={isLight ? "0.03" : "0.035"} />
+              <stop offset="100%" stopColor={isLight ? "#B6BBD9" : "#000000"} stopOpacity="0" />
             </radialGradient>
             {/* Fades the dome out toward the top, so it never fights the type. */}
             <linearGradient id="finFade" x1="0" y1="1" x2="0" y2="0">
@@ -95,14 +99,14 @@ export function FinalCTA() {
           <rect width={VB_W} height={VB_H} fill="url(#finPool)" />
 
           <g mask="url(#finMask)">
-            <g fill="none" stroke="#ffffff">
+            <g fill="none" stroke={isLight ? "#212413" : "#ffffff"}>
               {RINGS.map((r, i) => (
                 <circle
                   key={r}
                   cx={CX}
                   cy={CY}
                   r={r}
-                  strokeOpacity={0.13 - i * 0.032}
+                  strokeOpacity={isLight ? (0.24 - i * 0.05) : (0.13 - i * 0.032)}
                 />
               ))}
             </g>
@@ -116,15 +120,22 @@ export function FinalCTA() {
               const s = (box / LOGO_VIEWBOX) * a.mark.optical;
               const drawn = box * a.mark.optical;
               return (
-                <g key={p.key} opacity={RING_DIM[p.ring]}>
-                  <circle cx={x} cy={y} r={chip} fill="#0a0a0c" fillOpacity="0.82" />
+                <g key={p.key} opacity={isLight ? 1 : RING_DIM[p.ring]}>
+                  <circle
+                    cx={x}
+                    cy={y}
+                    r={chip}
+                    fill={isLight ? "#E4E7F5" : "#0a0a0c"}
+                    fillOpacity={isLight ? "1" : "0.82"}
+                  />
                   <circle
                     cx={x}
                     cy={y}
                     r={chip}
                     fill="none"
-                    stroke="#ffffff"
-                    strokeOpacity="0.12"
+                    stroke={isLight ? "#212413" : "#ffffff"}
+                    strokeOpacity={isLight ? "0.28" : "0.12"}
+                    strokeWidth={isLight ? "1.5" : "1"}
                   />
                   <g
                     transform={
@@ -132,7 +143,11 @@ export function FinalCTA() {
                       `${y - box / 2 + (box - drawn) / 2}) scale(${s})`
                     }
                   >
-                    <path d={a.mark.d} fill="#ffffff" fillOpacity="0.86" />
+                    <path
+                      d={a.mark.d}
+                      fill={isLight ? "#122311" : "#ffffff"}
+                      fillOpacity={isLight ? "1" : "0.86"}
+                    />
                   </g>
                 </g>
               );
