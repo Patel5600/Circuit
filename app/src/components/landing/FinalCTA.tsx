@@ -125,7 +125,7 @@ export function FinalCTA() {
                     cx={x}
                     cy={y}
                     r={chip}
-                    fill={isLight ? "#F3F5FC" : "#0a0a0c"}
+                    fill={isLight ? "#FFFFFF" : "#0a0a0c"}
                     fillOpacity={isLight ? "1" : "0.82"}
                   />
                   <circle

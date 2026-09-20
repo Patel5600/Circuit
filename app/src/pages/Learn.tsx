@@ -608,7 +608,7 @@ function RiskRatchetNarrative() {
             key={s.state}
             style={{
               padding: "14px 16px",
-              background: "rgba(255, 255, 255, 0.02)",
+              background: "var(--surface-2)",
               border: "1px solid var(--border)",
               borderRadius: 8,
               display: "flex",
@@ -660,7 +660,7 @@ export default function Learn() {
             flexWrap: "wrap",
             gap: 14,
             padding: "16px 20px",
-            background: "rgba(255, 255, 255, 0.02)",
+            background: "var(--surface-2)",
             border: "1px solid var(--border)",
             borderRadius: 10,
           }}
@@ -846,7 +846,7 @@ export default function Learn() {
                   border: "1px solid var(--border)",
                   borderRadius: 8,
                   padding: "12px 16px",
-                  background: "rgba(255, 255, 255, 0.015)",
+                  background: "var(--surface-2)",
                 }}
               >
                 <summary
@@ -867,7 +867,7 @@ export default function Learn() {
                         width: 24,
                         height: 24,
                         borderRadius: "50%",
-                        background: "rgba(255,255,255,0.06)",
+                        background: "var(--surface-3)",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
@@ -887,7 +887,7 @@ export default function Learn() {
                   </div>
                 </summary>
 
-                <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(255, 255, 255, 0.05)", fontSize: 13, lineHeight: 1.6, color: "var(--text-2)" }}>
+                <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--border)", fontSize: 13, lineHeight: 1.6, color: "var(--text-2)" }}>
                   <p style={{ fontSize: 12, color: "var(--text-3)", fontStyle: "italic", margin: "0 0 8px 0" }}>
                     {m.summary}
                   </p>

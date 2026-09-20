@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useMarket } from "../../context/MarketContext";
 import { Icon, Pill } from "../ui";
 import { DeployedMarket } from "../../data/markets";
@@ -11,19 +12,65 @@ interface MarketSelectorProps {
 export function MarketSelector({ compact = false, onSelect }: MarketSelectorProps) {
   const { markets, selectedMarket, selectedMeta, selectMarket } = useMarket();
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; width: number } | null>(null);
 
-  // Close on outside click
+  const updatePosition = useCallback(() => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const dropdownWidth = 320;
+    // Align right edge of dropdown with trigger right edge
+    let left = rect.right - dropdownWidth;
+    if (left < 12) left = 12;
+    if (left + dropdownWidth > window.innerWidth - 12) {
+      left = window.innerWidth - dropdownWidth - 12;
+    }
+    const top = rect.bottom + 6;
+    setDropdownPos({ top, left, width: dropdownWidth });
+  }, []);
+
+  // Update position on open, scroll, resize
   useEffect(() => {
+    if (!open) return;
+    updatePosition();
+    const onScroll = () => updatePosition();
+    const onResize = () => updatePosition();
+    window.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("scroll", onScroll, { capture: true });
+      window.removeEventListener("resize", onResize);
+    };
+  }, [open, updatePosition]);
+
+  // Close on outside click or Escape
+  useEffect(() => {
+    if (!open) return;
     function handleClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        triggerRef.current &&
+        !triggerRef.current.contains(target) &&
+        dropdownRef.current &&
+        !dropdownRef.current.contains(target)
+      ) {
         setOpen(false);
       }
     }
-    if (open) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
     }
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, [open]);
 
   const handlePick = (m: DeployedMarket) => {
@@ -35,12 +82,20 @@ export function MarketSelector({ compact = false, onSelect }: MarketSelectorProp
   const isSolBorrow = selectedMarket.quoteSymbol === "WSOL";
 
   return (
-    <div className="market-selector-container" ref={ref} style={{ position: "relative" }}>
+    <div className="market-selector-container" ref={containerRef} style={{ position: "relative", display: "inline-block" }}>
       <button
+        ref={triggerRef}
         type="button"
         className="market-selector-trigger"
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={() => {
+          setOpen((prev) => {
+            const next = !prev;
+            if (next) updatePosition();
+            return next;
+          });
+        }}
         aria-expanded={open}
+        aria-haspopup="menu"
         aria-label="Select collateral market"
         style={{
           display: "inline-flex",
@@ -99,30 +154,34 @@ export function MarketSelector({ compact = false, onSelect }: MarketSelectorProp
         </span>
       </button>
 
-      {open && (
-        <div
-          className="market-dropdown"
-          role="menu"
-          style={{
-            position: "absolute",
-            top: "calc(100% + 6px)",
-            right: 0,
-            width: 320,
-            maxHeight: 420,
-            overflowY: "auto",
-            backgroundColor: "var(--surface)",
-            background: "var(--surface)",
-            border: "1px solid var(--border-strong)",
-            borderRadius: 14,
-            boxShadow: "var(--shadow-lg)",
-            zIndex: 1000,
-            padding: 8,
-          }}
-        >
+      {open &&
+        dropdownPos &&
+        typeof document !== "undefined" &&
+        createPortal(
           <div
+            ref={dropdownRef}
+            className="market-dropdown"
+            role="menu"
             style={{
-              padding: "6px 8px 10px 8px",
-              borderBottom: "1px solid var(--border)",
+              position: "fixed",
+              top: dropdownPos.top,
+              left: dropdownPos.left,
+              width: dropdownPos.width,
+              maxHeight: "min(420px, calc(100vh - " + (dropdownPos.top + 16) + "px))",
+              overflowY: "auto",
+              backgroundColor: "var(--surface)",
+              background: "var(--surface)",
+              border: "1.5px solid var(--border-strong)",
+              borderRadius: 14,
+              boxShadow: "var(--shadow-lg)",
+              zIndex: 99999,
+              padding: 8,
+            }}
+          >
+            <div
+              style={{
+                padding: "6px 8px 10px 8px",
+                borderBottom: "1px solid var(--border)",
               marginBottom: 6,
             }}
           >
@@ -204,7 +263,8 @@ export function MarketSelector({ compact = false, onSelect }: MarketSelectorProp
               );
             })}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

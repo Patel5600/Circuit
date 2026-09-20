@@ -238,11 +238,11 @@ export default function Borrow() {
             padding: "12px 16px",
             background:
               controlMode === "MANUAL"
-                ? "rgba(255, 255, 255, 0.03)"
-                : "rgba(245, 158, 11, 0.05)",
+                ? "var(--surface-2)"
+                : "rgba(245, 158, 11, 0.08)",
             border: `1px solid ${
               controlMode === "MANUAL"
-                ? "rgba(255, 255, 255, 0.08)"
+                ? "var(--border)"
                 : "rgba(245, 158, 11, 0.25)"
             }`,
             borderRadius: "var(--r)",

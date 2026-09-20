@@ -475,7 +475,7 @@ export default function Profile() {
                   {snapshot.positions.map((p) => {
                     const mark = p.mark || getAssetMark(p.symbol);
                     return (
-                      <tr key={p.mint} style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.04)" }}>
+                      <tr key={p.mint} style={{ borderBottom: "1px solid var(--border)" }}>
                         <td style={{ padding: "10px 12px" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                             <div
@@ -483,7 +483,7 @@ export default function Profile() {
                                 width: 26,
                                 height: 26,
                                 borderRadius: "50%",
-                                background: "rgba(255, 255, 255, 0.05)",
+                                background: "var(--surface-2)",
                                 display: "flex",
                                 alignItems: "center",
                                 justifyContent: "center",
@@ -537,7 +537,7 @@ export default function Profile() {
                                 width: 64,
                                 height: 6,
                                 borderRadius: 3,
-                                background: "rgba(255, 255, 255, 0.08)",
+                                background: "var(--surface-3)",
                                 overflow: "hidden",
                               }}
                             >
