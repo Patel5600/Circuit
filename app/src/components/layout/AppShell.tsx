@@ -9,6 +9,7 @@ import { SystemHealthModal } from "../ui/SystemHealthModal";
 import { ToastProvider } from "../ui/Toaster";
 import { useCircuitDomain } from "../../lib/domain/context";
 import { CLUSTER_LABEL } from "../../env";
+import { useTheme } from "../../context/ThemeContext";
 
 /** Primary destinations, shared by the sidebar and the mobile bottom bar. Autonomous is excluded (top-level workspace mode). */
 const PRIMARY: { to: string; label: string; icon: IconName }[] = [
@@ -39,6 +40,7 @@ function Header({ onOpenHealth }: { onOpenHealth?: () => void }) {
   const navigate = useNavigate();
   const location = useLocation();
   const isAutonomous = location.pathname.startsWith("/app/autonomous");
+  const { theme, toggle } = useTheme();
 
   const {
     controlMode,
@@ -164,6 +166,29 @@ function Header({ onOpenHealth }: { onOpenHealth?: () => void }) {
       </div>
 
       <div className="row g-8 appbar__right" style={{ alignItems: "center", flexShrink: 0 }}>
+        {/* Theme toggle */}
+        <button
+          type="button"
+          onClick={toggle}
+          title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 32,
+            height: 32,
+            borderRadius: "var(--r-sm, 6px)",
+            border: "1px solid var(--border)",
+            background: "var(--surface-2)",
+            color: "var(--text-2)",
+            cursor: "pointer",
+            transition: "all var(--t-fast)",
+            flexShrink: 0,
+          }}
+        >
+          <Icon name={theme === "dark" ? "sun" : "moon"} size={14} />
+        </button>
         {/* Network pill: visible on ≥768px via CSS (appbar__hide-mobile hidden only below 640px) */}
         <div className="appbar__hide-mobile">
           <NetworkPill />

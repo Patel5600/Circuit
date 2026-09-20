@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { CircuitWordmark } from "../brand/CircuitLogo";
 import { Icon, Pill } from "../ui";
 import { CLUSTER_LABEL } from "../../env";
+import { useTheme } from "../../context/ThemeContext";
 
 const LINKS = [
   { href: "#markets", label: "Markets" },
@@ -23,6 +24,7 @@ const LINKS = [
 export function Nav() {
   const [solid, setSolid] = useState(false);
   const [open, setOpen] = useState(false);
+  const { theme, toggle } = useTheme();
 
   useEffect(() => {
     const onScroll = () => setSolid(window.scrollY > 24);
@@ -60,6 +62,24 @@ export function Nav() {
         </nav>
 
         <div className="nav__right">
+          <button
+            type="button"
+            className="iconbtn"
+            onClick={toggle}
+            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            style={{
+              width: 32,
+              height: 32,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: "var(--r-sm, 6px)",
+              flexShrink: 0,
+            }}
+          >
+            <Icon name={theme === "dark" ? "sun" : "moon"} size={15} />
+          </button>
           <span className="nav__net">
             <Pill tone="accent" withDot>
               {CLUSTER_LABEL}
@@ -84,15 +104,32 @@ export function Nav() {
         <div className="navsheet" role="dialog" aria-modal="true" aria-label="Menu">
           <div className="navsheet__top">
             <CircuitWordmark size={25} />
-            <button
-              type="button"
-              className="iconbtn"
-              aria-label="Close menu"
-              onClick={() => setOpen(false)}
-              autoFocus
-            >
-              <Icon name="close" size={17} />
-            </button>
+            <div className="row g-8" style={{ alignItems: "center" }}>
+              <button
+                type="button"
+                className="iconbtn"
+                onClick={toggle}
+                aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                style={{
+                  width: 36,
+                  height: 36,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Icon name={theme === "dark" ? "sun" : "moon"} size={16} />
+              </button>
+              <button
+                type="button"
+                className="iconbtn"
+                aria-label="Close menu"
+                onClick={() => setOpen(false)}
+                autoFocus
+              >
+                <Icon name="close" size={17} />
+              </button>
+            </div>
           </div>
 
           <nav className="navsheet__links" aria-label="Primary">

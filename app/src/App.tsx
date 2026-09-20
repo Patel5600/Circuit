@@ -11,6 +11,7 @@ import { CircuitProtocolProvider, useCircuitDomain } from "./lib/domain/context"
 import { MarketDataProvider } from "./context/MarketDataContext";
 import { DbcProvider } from "./context/DbcContext";
 import { AssetActionDrawer } from "./components/drawers/AssetActionDrawer";
+import { ThemeProvider } from "./context/ThemeContext";
 
 
 /**
@@ -137,69 +138,71 @@ export default function App() {
     <>
       <IconKeyframes />
       <TitleSync />
-      <Routes>
-        {/* Public landing page */}
-        <Route
-          path="/"
-          element={
-            <Suspense fallback={<PageFallback />}>
-              <Landing />
-            </Suspense>
-          }
-        />
+      <ThemeProvider>
+        <Routes>
+          {/* Public landing page — always dark */}
+          <Route
+            path="/"
+            element={
+              <Suspense fallback={<PageFallback />}>
+                <Landing />
+              </Suspense>
+            }
+          />
 
-        {/* Standalone /learn */}
-        <Route
-          path="/learn"
-          element={
-            <Suspense fallback={<ShellFallback />}>
-              <SolanaProviders>
-                <CircuitProtocolProvider>
-                  <MarketProvider>
-                    <ActionProvider>
-                      <AppShell>
-                        <Suspense fallback={<PageFallback />}>
-                          <Learn />
-                        </Suspense>
-                      </AppShell>
-                    </ActionProvider>
-                  </MarketProvider>
-                </CircuitProtocolProvider>
-              </SolanaProviders>
-            </Suspense>
-          }
-        />
+          {/* Standalone /learn */}
+          <Route
+            path="/learn"
+            element={
+              <Suspense fallback={<ShellFallback />}>
+                <SolanaProviders>
+                  <CircuitProtocolProvider>
+                    <MarketProvider>
+                      <ActionProvider>
+                        <AppShell>
+                          <Suspense fallback={<PageFallback />}>
+                            <Learn />
+                          </Suspense>
+                        </AppShell>
+                      </ActionProvider>
+                    </MarketProvider>
+                  </CircuitProtocolProvider>
+                </SolanaProviders>
+              </Suspense>
+            }
+          />
 
-        {/*
-         * App routes — all wrapped in AppLayout.
-         * AppShell automatically hides sidebar on /app/autonomous for full-screen agent workspace,
-         * while keeping the top Header for seamless switching between MANUAL and AUTONOMOUS modes.
-         */}
-        <Route element={<AppLayout />}>
-          <Route path="/app"               element={<Dashboard />} />
-          <Route path="/app/markets"        element={<Markets />} />
-          <Route path="/app/position"       element={<Position />} />
-          <Route path="/app/borrow"         element={<Borrow />} />
-          <Route path="/app/profile"        element={<Profile />} />
-          <Route path="/app/portfolio-risk" element={<Profile />} />
-          <Route path="/app/faucet"         element={<Faucet />} />
-          <Route path="/app/activity"       element={<Activity />} />
-          <Route path="/app/learn"          element={<Learn />} />
-          <Route path="/app/verify"         element={<Verify />} />
-          <Route path="/app/demo"           element={<Demo />} />
-          <Route path="/app/autonomous"     element={<Autonomous />} />
-          <Route path="/app/economics"      element={<Navigate to="/app/verify" replace />} />
-        </Route>
+          {/*
+           * App routes — all wrapped in AppLayout.
+           * AppShell automatically hides sidebar on /app/autonomous for full-screen agent workspace,
+           * while keeping the top Header for seamless switching between MANUAL and AUTONOMOUS modes.
+           */}
+          <Route element={<AppLayout />}>
+            <Route path="/app"               element={<Dashboard />} />
+            <Route path="/app/markets"        element={<Markets />} />
+            <Route path="/app/position"       element={<Position />} />
+            <Route path="/app/borrow"         element={<Borrow />} />
+            <Route path="/app/profile"        element={<Profile />} />
+            <Route path="/app/portfolio-risk" element={<Profile />} />
+            <Route path="/app/faucet"         element={<Faucet />} />
+            <Route path="/app/activity"       element={<Activity />} />
+            <Route path="/app/learn"          element={<Learn />} />
+            <Route path="/app/verify"         element={<Verify />} />
+            <Route path="/app/demo"           element={<Demo />} />
+            <Route path="/app/autonomous"     element={<Autonomous />} />
+            <Route path="/app/economics"      element={<Navigate to="/app/verify" replace />} />
+          </Route>
 
-        <Route
-          path="*"
-          element={
-            <Suspense fallback={<PageFallback />}>
-              <NotFound />
-            </Suspense>
-          }
-        />
-      </Routes>
+          <Route
+            path="*"
+            element={
+              <Suspense fallback={<PageFallback />}>
+                <NotFound />
+              </Suspense>
+            }
+          />
+        </Routes>
+      </ThemeProvider>
     </>
   );
 }
