@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Circuit Protocol - System Health Diagnostic Modal
  */
 
@@ -151,7 +151,7 @@ export function SystemHealthModal({
           className="stack g-6"
           style={{
             padding: 14,
-            background: "#08090d",
+            background: "var(--bg-elevated)",
             borderRadius: "var(--r, 10px)",
             border: "1px solid var(--border, #1a1d26)",
           }}

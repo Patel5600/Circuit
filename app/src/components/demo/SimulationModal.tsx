@@ -15,7 +15,7 @@ export function SimulationModal() {
         position: 'fixed',
         inset: 0,
         zIndex: 1000,
-        background: 'rgba(3, 3, 4, 0.85)',
+        background: 'rgba(18, 35, 17, 0.72)',
         backdropFilter: 'blur(10px)',
         display: 'flex',
         alignItems: 'center',
@@ -31,7 +31,7 @@ export function SimulationModal() {
           background: 'var(--bg-elevated)',
           border: '1px solid var(--border-strong)',
           borderRadius: 'var(--r-lg)',
-          boxShadow: '0 24px 60px rgba(0, 0, 0, 0.7)',
+          boxShadow: 'var(--shadow-lg)',
           overflow: 'hidden',
         }}
         onClick={(e) => e.stopPropagation()}
@@ -112,17 +112,18 @@ export function SimulationModal() {
 
           <div style={{ marginBottom: 12 }}>
             <span className="t-meta">SIMULATED SOLANA RUNTIME LOGS</span>
+            {/* Terminal panel: intentionally dark in both modes — runtime logs */}
             <div
               style={{
                 marginTop: 6,
                 padding: '12px 14px',
-                background: '#050506',
-                border: '1px solid #1a1a1f',
+                background: '#122311',
+                border: '1px solid rgba(255,255,255,0.08)',
                 borderRadius: 'var(--r)',
                 fontFamily: 'var(--mono)',
                 fontSize: 11.5,
                 lineHeight: 1.55,
-                color: '#e2e2e5',
+                color: '#c8d4b8',
                 maxHeight: 220,
                 overflowY: 'auto',
                 whiteSpace: 'pre-wrap',

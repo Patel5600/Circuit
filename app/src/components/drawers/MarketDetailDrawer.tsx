@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Circuit Protocol - Institutional Market Detail Drawer
  *
  * Comprehensive forensic parameters for tokenized equity markets.
@@ -91,7 +91,7 @@ export function MarketDetailDrawer({
       open={open}
       onClose={onClose}
       title={`${name} (${displaySymbol})`}
-      subtitle={`Market · ${activeSymbol}/${quoteSymbol}`}
+      subtitle={`Market Â· ${activeSymbol}/${quoteSymbol}`}
       badge={
         <Pill tone={underlyingSession === "REGULAR" ? "success" : "neutral"} withDot>
           {underlyingSession === "REGULAR" ? "NYSE Regular Open" : "NYSE Session Closed"}
@@ -151,7 +151,7 @@ export function MarketDetailDrawer({
                 marginTop: 2,
               }}
             >
-              {change24h !== null ? `${isPos ? "+" : ""}${change24h.toFixed(2)}%` : "—"}
+              {change24h !== null ? `${isPos ? "+" : ""}${change24h.toFixed(2)}%` : "â€”"}
             </div>
           </div>
         </div>
@@ -166,7 +166,7 @@ export function MarketDetailDrawer({
           }}
         >
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-3)", textTransform: "uppercase", marginBottom: 12 }}>
-            Intraday Candlestick Chart · 15M Intervals
+            Intraday Candlestick Chart Â· 15M Intervals
           </div>
           <MarketCandlestick
             candles={snapshot?.candles}
@@ -226,7 +226,7 @@ export function MarketDetailDrawer({
           <div className="row between g-8" style={{ alignItems: "center" }}>
             <span className="t-label">Confidence Uncertainty</span>
             <span className="mono" style={{ fontSize: 12 }}>
-              ±${formatMoney(confUsd)} ({(confBps / 100).toFixed(2)}%)
+              Â±${formatMoney(confUsd)} ({(confBps / 100).toFixed(2)}%)
             </span>
           </div>
         </div>
@@ -394,7 +394,7 @@ export function MarketDetailDrawer({
             className="stack g-6"
             style={{
               padding: "12px 14px",
-              background: "#08090d",
+              background: "var(--bg-elevated)",
               borderRadius: "var(--r, 10px)",
               border: "1px solid var(--border, #1a1d26)",
             }}

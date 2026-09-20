@@ -3687,3 +3687,552 @@ svg {
   }
 }
 
+
+/* ==========================================================================
+   CIRCUIT LIGHT MODE — EARTHY / TECHNICAL PALETTE
+
+   Palette reference:
+     MIST    #B6BBD9  — dominant light background
+     HARVEST #AD8820  — primary accent / CTA / interaction
+     TERRAIN #90844A  — secondary accent / muted labels / borders
+     FOREST  #444F24  — success / SAFE / healthy states
+     SHADOW  #212413  — primary typography
+     DEEP    #122311  — maximum contrast / panels / anchors
+
+   Implementation: CSS variable override via prefers-color-scheme media query.
+   Dark mode (:root defaults) remains completely untouched.
+   ========================================================================== */
+
+@media (prefers-color-scheme: light) {
+
+  :root {
+    /* Palette primitives */
+    --p-mist:    #B6BBD9;
+    --p-harvest: #AD8820;
+    --p-terrain: #90844A;
+    --p-forest:  #444F24;
+    --p-shadow:  #212413;
+    --p-deep:    #122311;
+
+    /* Surfaces — derived from MIST, no random whites */
+    --bg:          #BFC3D8;
+    --bg-elevated: #C9CDDF;
+    --surface:     #B6BBD9;
+    --surface-1:   #B6BBD9;
+    --surface-2:   #AAAFCA;
+    --surface-3:   #9EA3BC;
+
+    /* Borders — SHADOW at transparency */
+    --border:        rgba(33, 36, 19, 0.13);
+    --border-strong: rgba(33, 36, 19, 0.26);
+
+    /* Text — SHADOW primary (~8.5:1 on MIST, AAA) */
+    --text:   #212413;
+    --text-1: #212413;
+    --text-2: rgba(33, 36, 19, 0.68);
+    --text-3: #90844A;
+
+    /* Semantic status */
+    --success:     #444F24;
+    --success-dim: rgba(68, 79, 36, 0.12);
+    --warning:     #AD8820;
+    --warning-dim: rgba(173, 136, 32, 0.12);
+    --danger:      #7A2E1E;
+    --danger-dim:  rgba(122, 46, 30, 0.10);
+
+    /* Accents */
+    --accent:      #AD8820;
+    --accent-dim:  rgba(173, 136, 32, 0.14);
+    --violet:      #90844A;
+    --violet-dim:  rgba(144, 132, 74, 0.12);
+    --mint:        #444F24;
+    --mint-dim:    rgba(68, 79, 36, 0.12);
+
+    /* Shadows — warm earthy depth */
+    --shadow:    0 1px 3px rgba(18, 35, 17, 0.15);
+    --shadow-lg: 0 12px 40px rgba(18, 35, 17, 0.22);
+  }
+
+  /* Body */
+  body {
+    background: var(--bg);
+    color: var(--text);
+  }
+
+  /* Focus ring */
+  :focus-visible {
+    outline-color: #AD8820;
+  }
+
+  /* Skip link */
+  .skip-link {
+    background: #122311;
+    border-color: rgba(255, 255, 255, 0.2);
+    color: #fff;
+  }
+
+  /* ---- APP BAR ---- */
+  .appbar {
+    background: rgba(182, 187, 217, 0.88);
+    backdrop-filter: blur(10px);
+    border-bottom-color: rgba(33, 36, 19, 0.13);
+  }
+
+  /* ---- SIDEBAR ---- */
+  .sidebar {
+    background: var(--bg);
+    border-right-color: rgba(33, 36, 19, 0.13);
+  }
+  .navlink {
+    color: rgba(33, 36, 19, 0.68);
+  }
+  .navlink:hover {
+    background: rgba(33, 36, 19, 0.06);
+    color: #212413;
+  }
+  .navlink[aria-current="page"] {
+    background: rgba(173, 136, 32, 0.11);
+    color: #212413;
+  }
+  .navlink[aria-current="page"] .navlink__icon {
+    color: #AD8820;
+  }
+  .navlink__icon {
+    color: #90844A;
+  }
+  .navgroup {
+    border-top-color: rgba(33, 36, 19, 0.13);
+  }
+
+  /* ---- BOTTOM NAV ---- */
+  .bottomnav {
+    background: rgba(182, 187, 217, 0.96);
+    backdrop-filter: blur(12px);
+    border-top-color: rgba(33, 36, 19, 0.13);
+  }
+  .bottomnav__item {
+    color: #90844A;
+  }
+  .bottomnav__item[aria-current="page"] {
+    color: #212413;
+  }
+  .bottomnav__item[aria-current="page"] svg {
+    color: #AD8820;
+  }
+
+  /* ---- CARDS ---- */
+  .card {
+    background: var(--surface);
+    border-color: rgba(33, 36, 19, 0.13);
+    box-shadow: 0 1px 4px rgba(18, 35, 17, 0.08);
+  }
+  .card--quiet {
+    background: var(--bg-elevated);
+  }
+  .card__foot {
+    border-top-color: rgba(33, 36, 19, 0.13);
+    color: rgba(33, 36, 19, 0.68);
+  }
+
+  /* ---- BUTTONS ---- */
+  .btn--primary {
+    background: #122311;
+    color: #f0ede8;
+  }
+  .btn--primary:hover:not(:disabled) {
+    background: #1c3518;
+  }
+  .btn--accent {
+    background: #AD8820;
+    color: #122311;
+  }
+  .btn--accent:hover:not(:disabled) {
+    background: #BF991E;
+    filter: none;
+  }
+  .btn--secondary {
+    background: var(--surface-2);
+    border-color: rgba(144, 132, 74, 0.40);
+    color: #212413;
+  }
+  .btn--secondary:hover:not(:disabled) {
+    background: var(--surface-3);
+  }
+  .btn--ghost {
+    background: transparent;
+    border-color: rgba(33, 36, 19, 0.26);
+    color: rgba(33, 36, 19, 0.68);
+  }
+  .btn--ghost:hover:not(:disabled) {
+    color: #212413;
+    border-color: rgba(33, 36, 19, 0.40);
+  }
+  .btn--danger {
+    background: rgba(122, 46, 30, 0.10);
+    border-color: #7A2E1E;
+    color: #7A2E1E;
+  }
+
+  /* ---- PILLS ---- */
+  .pill {
+    background: var(--surface-2);
+    border-color: rgba(33, 36, 19, 0.13);
+    color: rgba(33, 36, 19, 0.68);
+  }
+  .pill--success {
+    color: #444F24;
+    background: rgba(68, 79, 36, 0.12);
+    border-color: rgba(68, 79, 36, 0.30);
+  }
+  .pill--warning {
+    color: #AD8820;
+    background: rgba(173, 136, 32, 0.12);
+    border-color: rgba(173, 136, 32, 0.32);
+  }
+  .pill--danger {
+    color: #7A2E1E;
+    background: rgba(122, 46, 30, 0.10);
+    border-color: rgba(122, 46, 30, 0.28);
+  }
+  .pill--accent {
+    color: #AD8820;
+    background: rgba(173, 136, 32, 0.12);
+    border-color: rgba(173, 136, 32, 0.32);
+  }
+
+  /* ---- DATA ROWS ---- */
+  .drow {
+    border-bottom-color: rgba(33, 36, 19, 0.13);
+  }
+  .drow__k {
+    color: rgba(33, 36, 19, 0.68);
+  }
+
+  /* ---- HEALTH BAR ---- */
+  .hbar {
+    background: var(--surface-3);
+  }
+
+  /* ---- NOTICES ---- */
+  .notice {
+    border-color: rgba(33, 36, 19, 0.13);
+    background: var(--surface);
+  }
+  .notice--success {
+    border-color: rgba(68, 79, 36, 0.34);
+    background: rgba(68, 79, 36, 0.09);
+  }
+  .notice--warning {
+    border-color: rgba(173, 136, 32, 0.34);
+    background: rgba(173, 136, 32, 0.09);
+  }
+  .notice--danger {
+    border-color: rgba(122, 46, 30, 0.34);
+    background: rgba(122, 46, 30, 0.08);
+  }
+  .notice--accent {
+    border-color: rgba(173, 136, 32, 0.34);
+    background: rgba(173, 136, 32, 0.09);
+  }
+
+  /* ---- INPUTS ---- */
+  .input {
+    background: var(--bg-elevated);
+    border-color: rgba(33, 36, 19, 0.22);
+    color: #212413;
+  }
+  .input:focus-visible {
+    border-color: #AD8820;
+  }
+  .input::placeholder {
+    color: #90844A;
+    opacity: 0.75;
+  }
+
+  /* ---- CHIPS ---- */
+  .chip {
+    background: var(--surface-2);
+    border-color: rgba(33, 36, 19, 0.13);
+    color: rgba(33, 36, 19, 0.68);
+  }
+  .chip:hover:not(:disabled) {
+    color: #212413;
+    border-color: rgba(33, 36, 19, 0.26);
+  }
+  .chip--active {
+    background: rgba(173, 136, 32, 0.16);
+    border-color: rgba(173, 136, 32, 0.44);
+    color: #7A5E00;
+  }
+
+  /* ---- SEGMENTED CONTROL ---- */
+  .seg {
+    background: var(--surface-2);
+    border-color: rgba(33, 36, 19, 0.13);
+  }
+  .seg__btn {
+    color: rgba(33, 36, 19, 0.68);
+  }
+  .seg__btn[aria-selected="true"] {
+    background: var(--surface-3);
+    color: #212413;
+  }
+
+  /* ---- MODAL / OVERLAY ---- */
+  .overlay {
+    background: rgba(18, 35, 17, 0.52);
+  }
+  .modal {
+    background: var(--surface);
+    border-color: rgba(33, 36, 19, 0.26);
+    box-shadow: 0 12px 40px rgba(18, 35, 17, 0.22);
+    color: #212413;
+  }
+
+  /* ---- SKELETON ---- */
+  .skel {
+    background: linear-gradient(
+      90deg,
+      var(--surface-2) 0%,
+      var(--surface-3) 50%,
+      var(--surface-2) 100%
+    );
+    background-size: 200% 100%;
+  }
+
+  /* ---- ICON BUTTON ---- */
+  .iconbtn {
+    border-color: rgba(33, 36, 19, 0.13);
+    color: rgba(33, 36, 19, 0.68);
+  }
+  .iconbtn:hover {
+    color: #212413;
+    border-color: rgba(33, 36, 19, 0.26);
+  }
+
+  /* ---- ACTIVITY ICON ---- */
+  .act__icon {
+    background: var(--surface-2);
+    border-color: rgba(33, 36, 19, 0.13);
+  }
+
+  /* ---- MARKET DROPDOWN (hardcoded dark override) ---- */
+  .market-dropdown {
+    background: var(--surface) !important;
+    background-color: var(--surface) !important;
+    backdrop-filter: blur(14px) !important;
+    border-color: rgba(33, 36, 19, 0.26) !important;
+    box-shadow: 0 16px 48px rgba(18, 35, 17, 0.25), 0 0 0 1px rgba(33, 36, 19, 0.10) !important;
+    color: #212413 !important;
+  }
+
+  /* ---- NET PILL ---- */
+  .net-pill {
+    background: var(--surface-2);
+    border-color: rgba(33, 36, 19, 0.13);
+    color: rgba(33, 36, 19, 0.68);
+  }
+  .net-pill__dot {
+    background: #444F24;
+    box-shadow: 0 0 5px rgba(68, 79, 36, 0.5);
+  }
+
+  /* ---- SECTION ERROR BOUNDARY ---- */
+  .section-error {
+    background: var(--surface);
+    border-color: rgba(33, 36, 19, 0.13);
+  }
+
+  /* ---- AUTONOMOUS WORKSPACE ---- */
+  .ag-workspace {
+    background: var(--bg);
+  }
+  .ag-rail {
+    background: var(--bg);
+    border-right-color: rgba(33, 36, 19, 0.13);
+  }
+  .ag-main {
+    background: var(--bg);
+  }
+  .ag-header {
+    background: rgba(182, 187, 217, 0.88);
+    border-bottom-color: rgba(33, 36, 19, 0.13);
+    backdrop-filter: blur(10px);
+  }
+  .ag-input-area {
+    background: rgba(182, 187, 217, 0.90);
+    border-top-color: rgba(33, 36, 19, 0.13);
+  }
+  .ag-mobile-tabs {
+    background: rgba(182, 187, 217, 0.96);
+    border-top-color: rgba(33, 36, 19, 0.13);
+  }
+  .ag-mobile-tab {
+    color: #90844A;
+  }
+  .ag-mobile-tab--active {
+    color: #AD8820;
+  }
+
+  /* ---- TYPOGRAPHY UTILITIES ---- */
+  .t-meta   { color: rgba(33, 36, 19, 0.68); }
+  .t-label  { color: #90844A; }
+  .muted    { color: rgba(33, 36, 19, 0.68); }
+  .dim      { color: #90844A; }
+
+  /* ---- LANDING PAGE VOID ---- */
+  .lp__void {
+    background:
+      radial-gradient(78% 60% at 86% 34%, rgba(173, 136, 32, 0.06) 0%, rgba(173, 136, 32, 0.02) 40%, transparent 74%),
+      radial-gradient(54% 44% at 4% 2%, rgba(68, 79, 36, 0.04) 0%, transparent 70%),
+      radial-gradient(120% 78% at 46% 118%, rgba(144, 132, 74, 0.05) 0%, transparent 62%),
+      #BFC3D8;
+  }
+
+  /* ---- LANDING NAV ---- */
+  .nav--solid {
+    background: rgba(182, 187, 217, 0.82);
+    backdrop-filter: blur(14px) saturate(110%);
+    border-bottom-color: rgba(33, 36, 19, 0.13);
+  }
+  .nav__link:hover {
+    color: #212413;
+    background: rgba(33, 36, 19, 0.05);
+  }
+  .lp__skip {
+    background: #122311;
+    border-color: rgba(255, 255, 255, 0.2);
+    color: #fff;
+  }
+
+  /* ---- MOBILE NAVSHEET ---- */
+  .navsheet {
+    background: rgba(191, 195, 216, 0.98);
+    backdrop-filter: blur(18px);
+  }
+  .navsheet__links a {
+    color: #212413;
+    border-bottom-color: rgba(33, 36, 19, 0.13);
+  }
+  .navsheet__links {
+    border-top-color: rgba(33, 36, 19, 0.13);
+  }
+
+  /* ---- LANDING SECTION TEXT ---- */
+  .sec__title     { color: #212413; }
+  .sec__title em  { color: #90844A; }
+  .sec__lede      { color: rgba(33, 36, 19, 0.68); }
+  .sec__index     { border-bottom-color: rgba(33, 36, 19, 0.13); }
+  .sec__index__n  { color: #AD8820; }
+  .sec__index__t  { color: #90844A; }
+
+  /* ---- LANDING HERO TEXT ---- */
+  .hero__eyebrow  { color: #90844A; }
+  .hero__title    { color: #212413; }
+  .hero__title em { color: #90844A; }
+  .hero__lede     { color: rgba(33, 36, 19, 0.68); }
+  .hero__status li { color: #90844A; }
+
+  /* ---- CODE / PRE (Verify page technical panels) ---- */
+  code {
+    background: rgba(18, 35, 17, 0.07);
+    border-radius: 4px;
+    padding: 1px 4px;
+    color: #212413;
+  }
+  pre {
+    background: rgba(18, 35, 17, 0.07);
+    border: 1px solid rgba(18, 35, 17, 0.12);
+    border-radius: 8px;
+    padding: 12px 14px;
+    color: #212413;
+  }
+
+  /* ---- DIVIDER ---- */
+  .divider {
+    background: rgba(33, 36, 19, 0.13);
+  }
+
+  /* ---- RISK STATE BANNERS ---- */
+  .risk-banner--safe      { background: rgba(68, 79, 36, 0.10);  border-color: rgba(68, 79, 36, 0.30);  color: #444F24; }
+  .risk-banner--restricted{ background: rgba(173, 136, 32, 0.10);border-color: rgba(173, 136, 32, 0.30);color: #AD8820; }
+  .risk-banner--defensive { background: rgba(144, 132, 74, 0.10);border-color: rgba(144, 132, 74, 0.30);color: #90844A; }
+  .risk-banner--emergency { background: rgba(18, 35, 17, 0.10);  border-color: rgba(18, 35, 17, 0.40);  color: #122311; }
+
+  /* ---- TRANSACTION STEP BAR ---- */
+  .txstep        { background: var(--surface-2); border-color: rgba(33, 36, 19, 0.13); }
+  .txstep--active{ border-color: #AD8820; color: #AD8820; }
+  .txstep--done  { border-color: #444F24; color: #444F24; }
+
+  /* ---- SCROLLBARS ---- */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--surface-2); }
+  ::-webkit-scrollbar-thumb { background: rgba(33, 36, 19, 0.22); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(33, 36, 19, 0.38); }
+
+  /* ---- WALLET ADAPTER ---- */
+  .wallet-adapter-button           { background-color: var(--surface-2) !important; color: #212413 !important; border: 1px solid rgba(33, 36, 19, 0.26) !important; }
+  .wallet-adapter-button:hover     { background-color: var(--surface-3) !important; }
+  .wallet-adapter-dropdown-list    { background: var(--surface) !important; border: 1px solid rgba(33, 36, 19, 0.26) !important; box-shadow: 0 12px 40px rgba(18, 35, 17, 0.22) !important; }
+  .wallet-adapter-dropdown-list-item        { color: #212413 !important; }
+  .wallet-adapter-dropdown-list-item:hover  { background: var(--surface-2) !important; }
+  .wallet-adapter-modal-wrapper    { background: var(--surface) !important; border: 1px solid rgba(33, 36, 19, 0.26) !important; }
+  .wallet-adapter-modal-title      { color: #212413 !important; }
+
+} /* end @media (prefers-color-scheme: light) */
+
+
+/* ============================================================================
+   DATA-THEME ATTRIBUTE — future manual toggle support
+   ============================================================================ */
+
+[data-theme="light"] {
+  --p-mist:    #B6BBD9;
+  --p-harvest: #AD8820;
+  --p-terrain: #90844A;
+  --p-forest:  #444F24;
+  --p-shadow:  #212413;
+  --p-deep:    #122311;
+
+  --bg:          #BFC3D8;
+  --bg-elevated: #C9CDDF;
+  --surface:     #B6BBD9;
+  --surface-1:   #B6BBD9;
+  --surface-2:   #AAAFCA;
+  --surface-3:   #9EA3BC;
+  --border:        rgba(33, 36, 19, 0.13);
+  --border-strong: rgba(33, 36, 19, 0.26);
+  --text:   #212413;
+  --text-1: #212413;
+  --text-2: rgba(33, 36, 19, 0.68);
+  --text-3: #90844A;
+  --success:     #444F24;
+  --success-dim: rgba(68, 79, 36, 0.12);
+  --warning:     #AD8820;
+  --warning-dim: rgba(173, 136, 32, 0.12);
+  --danger:      #7A2E1E;
+  --danger-dim:  rgba(122, 46, 30, 0.10);
+  --accent:      #AD8820;
+  --accent-dim:  rgba(173, 136, 32, 0.14);
+  --violet:      #90844A;
+  --violet-dim:  rgba(144, 132, 74, 0.12);
+  --mint:        #444F24;
+  --mint-dim:    rgba(68, 79, 36, 0.12);
+  --shadow:      0 1px 3px rgba(18, 35, 17, 0.15);
+  --shadow-lg:   0 12px 40px rgba(18, 35, 17, 0.22);
+}
+
+/* FaultLineMatrix / Circuit 3D visual in light mode.
+   The circuit board geometry uses DEEP palette as structural surface.
+   It stays dark intentionally — it's a visual object, not a UI panel. */
+@media (prefers-color-scheme: light) {
+  .closed-cover-face {
+    background: radial-gradient(ellipse at 50% 35%, #1c3518 0%, #122311 70%, #0d1a0c 100%) !important;
+    border-color: rgba(173, 136, 32, 0.50) !important;
+    box-shadow:
+      -8px 0 0 #0d1a0c,
+      -14px 0 24px rgba(18, 35, 17, 0.5),
+      18px 24px 44px rgba(18, 35, 17, 0.45),
+      inset 0 0 32px rgba(0, 0, 0, 0.5) !important;
+  }
+}

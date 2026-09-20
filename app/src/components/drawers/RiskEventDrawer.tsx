@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Circuit Protocol - Risk Event Drawer
  *
  * Explains on-chain Risk Ratchet states, asymmetric tightening, and monotonic recovery.
@@ -80,11 +80,11 @@ export function RiskEventDrawer({
             </div>
 
             <div style={{ padding: "8px 10px", borderRadius: 6, background: "rgba(229, 169, 59, 0.08)", border: "1px solid rgba(229, 169, 59, 0.2)" }}>
-              <strong style={{ color: "var(--warning)" }}>2. RESTRICTED:</strong> Spread 50–150 bps. Haircuts applied to borrow capacity.
+              <strong style={{ color: "var(--warning)" }}>2. RESTRICTED:</strong> Spread 50â€“150 bps. Haircuts applied to borrow capacity.
             </div>
 
             <div style={{ padding: "8px 10px", borderRadius: 6, background: "rgba(240, 110, 40, 0.08)", border: "1px solid rgba(240, 110, 40, 0.2)" }}>
-              <strong style={{ color: "#f06e28" }}>3. DEFENSIVE:</strong> Spread 150–300 bps. Borrowing locked; withdrawals restricted.
+              <strong style={{ color: "#f06e28" }}>3. DEFENSIVE:</strong> Spread 150â€“300 bps. Borrowing locked; withdrawals restricted.
             </div>
 
             <div style={{ padding: "8px 10px", borderRadius: 6, background: "rgba(224, 82, 82, 0.08)", border: "1px solid rgba(224, 82, 82, 0.2)" }}>
@@ -98,7 +98,7 @@ export function RiskEventDrawer({
           className="stack g-6"
           style={{
             padding: 14,
-            background: "#08090d",
+            background: "var(--bg-elevated)",
             borderRadius: "var(--r, 10px)",
             border: "1px solid var(--border, #1a1d26)",
             fontSize: 12,

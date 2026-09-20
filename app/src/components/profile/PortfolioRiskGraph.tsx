@@ -926,7 +926,9 @@ export function PortfolioRiskGraph({
             style={{
               position: "absolute",
               inset: 0,
-              background: "rgba(6, 6, 8, 0.85)",
+              background: "var(--bg-elevated)",
+              opacity: 0.9,
+              backdropFilter: "blur(2px)",
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
