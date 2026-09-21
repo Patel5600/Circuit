@@ -219,11 +219,10 @@ export const ManifestoAndRing: React.FC<ManifestoAndRingProps> = ({ simpleMode }
       c.style.width = `${Math.round(S.w)}px`;
       c.style.height = `${Math.round(S.h)}px`;
       if (isTriangle) {
-        c.style.borderRadius = "0px";
-        c.style.clipPath = "url(#circuit-cur-tri-clip)";
+        c.classList.add("is-triangle");
       } else {
+        c.classList.remove("is-triangle");
         c.style.borderRadius = `${Math.round(S.r)}px`;
-        c.style.clipPath = "none";
       }
 
       rafId = inside || moving ? requestAnimationFrame(step) : 0;
@@ -249,7 +248,7 @@ export const ManifestoAndRing: React.FC<ManifestoAndRingProps> = ({ simpleMode }
         const triTarget = targetEl.classList.contains("lf-cur-triangle") || !!targetEl.closest(".lf-cur-triangle");
         isTriangle = triTarget;
         const r = targetEl.getBoundingClientRect();
-        const pad = 8;
+        const pad = triTarget ? 0 : 8;
         const w = r.width + pad * 2;
         const h = r.height + pad * 2;
         const cx = r.left - b.left + r.width / 2;
@@ -278,7 +277,7 @@ export const ManifestoAndRing: React.FC<ManifestoAndRingProps> = ({ simpleMode }
       inside = false;
       isTriangle = false;
       c.style.opacity = "0";
-      c.style.clipPath = "none";
+      c.classList.remove("is-triangle");
     };
 
     st.addEventListener("pointermove", onMove);
@@ -293,16 +292,13 @@ export const ManifestoAndRing: React.FC<ManifestoAndRingProps> = ({ simpleMode }
 
   return (
     <>
-      {/* Standalone SVG Filter for Melting Headline & Triangle Cursor Clip */}
+      {/* Standalone SVG Filter for Melting Headline */}
       <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true" focusable="false">
         <filter id="circuit-melt-f" x="-10%" y="-20%" width="120%" height="240%" colorInterpolationFilters="sRGB">
           <feTurbulence ref={turbRef} type="fractalNoise" baseFrequency="0.012 0.03" numOctaves={2} seed={3} result="n" />
           <feColorMatrix in="n" type="matrix" values="0 0 0 0 .5  0 .7 0 0 .05  0 0 0 0 0  0 0 0 0 1" result="n2" />
           <feDisplacementMap ref={dispRef} in="SourceGraphic" in2="n2" scale="0" xChannelSelector="R" yChannelSelector="G" />
         </filter>
-        <clipPath id="circuit-cur-tri-clip" clipPathUnits="objectBoundingBox">
-          <path d="M 0.5 0.03 C 0.53 0.03, 0.56 0.06, 0.58 0.10 L 0.98 0.91 C 1.00 0.95, 0.98 0.99, 0.93 0.99 L 0.07 0.99 C 0.02 0.99, 0.00 0.95, 0.02 0.91 L 0.42 0.10 C 0.44 0.06, 0.47 0.03, 0.5 0.03 Z" />
-        </clipPath>
       </svg>
 
       {/* ── MELTING HEADLINE ── */}
@@ -404,28 +400,51 @@ export const ManifestoAndRing: React.FC<ManifestoAndRingProps> = ({ simpleMode }
             </ul>
             <div className="lf-cur-side">
               <button type="button" className="lf-cur-triangle" data-snap aria-label="Pyth Oracle">
-                <svg className="lf-cur-tri-border" viewBox="0 0 116 104" preserveAspectRatio="none" aria-hidden="true">
-                  <polygon points="58,3 113,101 3,101" fill="none" stroke="currentColor" strokeWidth="1" vectorEffect="non-scaling-stroke" />
-                </svg>
-                <div className="lf-cur-tri-inner">
-                  <svg viewBox="0 0 24 24" className="lf-cur-tri-icon" width="20" height="20" fill="currentColor" aria-hidden="true">
-                    <path d="M12 1.4 22.2 19.2a.7.7 0 0 1-.6 1.05H2.4a.7.7 0 0 1-.6-1.05L12 1.4zm0 4.3-6.6 11.5h13.2L12 5.7zM12 9.9l3.4 5.9H8.6L12 9.9z" />
+                <Link to="/app/markets" style={{ color: "inherit", textDecoration: "none", width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end" }}>
+                  <svg className="lf-cur-tri-border" viewBox="0 0 116 104" preserveAspectRatio="none" aria-hidden="true">
+                    <polygon points="58,3 113,101 3,101" fill="none" stroke="currentColor" strokeWidth="1" vectorEffect="non-scaling-stroke" />
                   </svg>
-                  <span className="lf-cur-tri-name">Pyth</span>
-                </div>
+                  <div className="lf-cur-tri-inner">
+                    <svg viewBox="0 0 24 24" className="lf-cur-tri-icon" width="20" height="20" fill="currentColor" aria-hidden="true">
+                      <path d="M12 1.4 22.2 19.2a.7.7 0 0 1-.6 1.05H2.4a.7.7 0 0 1-.6-1.05L12 1.4zm0 4.3-6.6 11.5h13.2L12 5.7zM12 9.9l3.4 5.9H8.6L12 9.9z" />
+                    </svg>
+                    <span className="lf-cur-tri-name">Pyth</span>
+                  </div>
+                </Link>
               </button>
-              <button type="button" className="lf-cur-card" data-snap>
-                (Protocol) Dutch Auction
+              <button type="button" className="lf-cur-card" data-snap aria-label="Dutch Auction Liquidation">
+                <Link to="/app" style={{ color: "inherit", textDecoration: "none", width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: "10px", opacity: 0.55, letterSpacing: "0.04em" }}>(Protocol)</span>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: "12px", lineHeight: 1.25 }}>Dutch Auction</div>
+                    <div style={{ fontSize: "10px", opacity: 0.5, marginTop: "3px" }}>Orderly Clearing</div>
+                  </div>
+                </Link>
               </button>
-              <button type="button" className="lf-cur-badge" data-snap>
-                Agents
+              <button type="button" className="lf-cur-badge" data-snap aria-label="Autonomous Agents">
+                <Link to="/app/agent" style={{ color: "inherit", textDecoration: "none", width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "2px" }}>
+                  <span style={{ fontSize: "9px", opacity: 0.55, letterSpacing: "0.04em" }}>[AUTOMATION]</span>
+                  <span style={{ fontWeight: 600, fontSize: "13px" }}>Agents</span>
+                </Link>
               </button>
-              <button type="button" className="lf-cur-pill" data-snap>
-                Risk Ratchet
+              <button type="button" className="lf-cur-pill" data-snap aria-label="Risk Ratchet Engine">
+                <Link to="/app/demo" style={{ color: "inherit", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                  <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#10b981", display: "inline-block" }} />
+                  <span>Risk Ratchet</span>
+                </Link>
               </button>
             </div>
           </div>
-          <i className="lf-fcur" ref={fcurRef as any} />
+          <i className="lf-fcur" ref={fcurRef as any}>
+            <svg
+              className="lf-fcur-tri"
+              viewBox="0 0 116 104"
+              preserveAspectRatio="none"
+              aria-hidden="true"
+            >
+              <polygon points="58,3 113,101 3,101" fill="#ffffff" />
+            </svg>
+          </i>
         </div>
       </section>
     </>
