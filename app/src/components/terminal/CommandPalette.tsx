@@ -370,7 +370,7 @@ export function CommandPalette({
                       height: 28,
                       borderRadius: 6,
                       background: isSelected ? "var(--accent)" : "var(--surface-2)",
-                      color: isSelected ? "#122311" : "var(--text-2)",
+                      color: isSelected ? "#FFFFFF" : "var(--text-2)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",

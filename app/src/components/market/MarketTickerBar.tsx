@@ -59,7 +59,7 @@ export function MarketTickerBar({
               width: 6,
               height: 6,
               borderRadius: "50%",
-              background: "var(--mint, #7fc39a)",
+              background: "var(--text-3)",
               display: "inline-block",
             }}
           />
@@ -79,7 +79,7 @@ export function MarketTickerBar({
               onClick={() => onSelectSymbol(item.symbol)}
               style={{
                 background: isSelected ? "var(--surface-3, #1e222d)" : "transparent",
-                border: isSelected ? "1px solid var(--accent)" : "1px solid transparent",
+                border: isSelected ? "1px solid var(--text)" : "1px solid transparent",
                 borderRadius: "var(--r-sm)",
                 padding: "4px 8px",
                 display: "inline-flex",

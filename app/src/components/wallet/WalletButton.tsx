@@ -40,30 +40,27 @@ export function WalletButton({ compact = false }: { compact?: boolean }) {
       <button
         type="button"
         onClick={() => setMenuOpen(true)}
-        className="row g-8"
-        style={{
-          minHeight: 38,
-          padding: "0 10px",
-          borderRadius: "var(--r)",
-          border: isWrongNetwork
-            ? "1px solid var(--danger)"
-            : "1px solid var(--border-strong)",
-          background: isWrongNetwork ? "rgba(224, 82, 82, 0.1)" : "var(--surface-2)",
-          cursor: "pointer",
-          transition: "all var(--t-fast)",
-          alignItems: "center",
-        }}
+        className={`wallet-btn appbar__capsule-btn ${isWrongNetwork ? "wallet-btn--wrong-net" : ""}`}
         aria-label={`Wallet connected: ${address}. Open account menu`}
       >
         <span
           className="dot"
-          style={{ color: isWrongNetwork ? "var(--danger)" : "var(--success)" }}
+          style={{
+            width: 6,
+            height: 6,
+            borderRadius: "50%",
+            background: isWrongNetwork ? "var(--danger)" : "var(--mint, #14F195)",
+            boxShadow: isWrongNetwork
+              ? "0 0 6px rgba(239, 68, 68, 0.6)"
+              : "0 0 6px rgba(20, 241, 149, 0.6)",
+            flexShrink: 0,
+          }}
           aria-hidden="true"
         />
         <span style={{ color: "var(--text-3)", display: "inline-flex", flexShrink: 0 }}>
-          <Icon name="user" size={14} />
+          <Icon name="user" size={13} />
         </span>
-        <span className="stack" style={{ lineHeight: 1.15, textAlign: "left" }}>
+        <span className="row g-6" style={{ lineHeight: 1.15, alignItems: "center" }}>
           {isWrongNetwork ? (
             <span style={{ fontSize: 10.5, color: "var(--danger)", fontWeight: 700 }}>
               WRONG NETWORK
@@ -75,7 +72,7 @@ export function WalletButton({ compact = false }: { compact?: boolean }) {
               </span>
             )
           )}
-          <span className="mono" style={{ fontSize: 12, fontWeight: 600 }}>
+          <span className="mono" style={{ fontSize: 11.5, fontWeight: 600 }}>
             {shortenAddress(address)}
           </span>
         </span>

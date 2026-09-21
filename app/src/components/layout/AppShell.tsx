@@ -13,6 +13,7 @@ import { useTheme } from "../../context/ThemeContext";
 
 import { CommandPalette } from "../terminal/CommandPalette";
 import NetworkStatusBar from "../ui/NetworkStatusBar";
+import { useInkButtons } from "../../hooks/useInkButtons";
 
 /** Primary destinations, shared by the sidebar and the mobile bottom bar. Autonomous is excluded (top-level workspace mode). */
 const PRIMARY: { to: string; label: string; icon: IconName }[] = [
@@ -32,7 +33,7 @@ const SECONDARY: { to: string; label: string; icon: IconName }[] = [
 /** Compact static network indicator for the app bar. Always visible on ≥768px. */
 function NetworkPill() {
   return (
-    <div className="net-pill" title={`Connected to Solana ${CLUSTER_LABEL}`}>
+    <div className="net-pill appbar__capsule-btn" title={`Connected to Solana ${CLUSTER_LABEL}`}>
       <span className="net-pill__dot" aria-hidden="true" />
       <span>{CLUSTER_LABEL}</span>
     </div>
@@ -81,60 +82,27 @@ function Header({
           <button
             type="button"
             onClick={onOpenCommand}
-            className="command-trigger-btn"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "4px 8px",
-              background: "var(--surface-2)",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--r-sm, 6px)",
-              color: "var(--text-3)",
-              fontSize: 11,
-              fontFamily: "var(--mono)",
-              cursor: "pointer",
-              transition: "all var(--t-fast)",
-            }}
+            className="appbar__cmd-btn appbar__capsule-btn"
             title="Open Command Terminal (⌘K or Ctrl+K)"
           >
             <Icon name="search" size={12} />
             <span className="appbar__hide-mobile">COMMAND</span>
-            <kbd style={{ fontSize: 9.5, opacity: 0.8, fontFamily: "var(--mono)" }}>⌘K</kbd>
+            <kbd className="appbar__cmd-kbd">⌘K</kbd>
           </button>
         )}
       </div>
 
       <div className="appbar__center">
         {/* Authoritative Execution Actor Switcher */}
-        <div
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            background: "var(--surface-2)",
-            borderRadius: "var(--r-sm, 6px)",
-            padding: "2px 3px",
-            border: "1px solid var(--border)",
-          }}
-        >
+        <div className="appbar__mode-segmented">
           <button
             type="button"
+            className={`appbar__mode-btn ${!isAutonomous ? "appbar__mode-btn--active" : ""}`}
             onClick={() => {
               setControlMode("MANUAL");
               if (isAutonomous) {
                 navigate("/app");
               }
-            }}
-            style={{
-              padding: "5px 12px",
-              fontSize: 11,
-              fontWeight: !isAutonomous ? 700 : 500,
-              color: !isAutonomous ? "var(--text-1)" : "var(--text-3)",
-              background: !isAutonomous ? "var(--surface-3)" : "transparent",
-              border: !isAutonomous ? "1px solid var(--border)" : "1px solid transparent",
-              borderRadius: "var(--r-sm, 4px)",
-              cursor: "pointer",
-              transition: "all var(--t-fast)",
             }}
             title="Manual Mode: Direct wallet actions"
           >
@@ -142,56 +110,19 @@ function Header({
           </button>
           <button
             type="button"
+            className={`appbar__mode-btn ${isAutonomous ? "appbar__mode-btn--active" : ""}`}
             onClick={() => {
               setControlMode("AUTONOMOUS");
               if (!isAutonomous) {
                 navigate("/app/autonomous");
               }
             }}
-            style={{
-              padding: authorityStatusBadge ? "5px 10px" : "5px 12px",
-              fontSize: 11,
-              fontWeight: isAutonomous ? 700 : 500,
-              color: isAutonomous ? "var(--accent)" : "var(--text-3)",
-              background: isAutonomous ? "var(--surface-3)" : "transparent",
-              border: isAutonomous ? "1px solid var(--border-strong)" : "1px solid transparent",
-              borderRadius: "var(--r-sm, 4px)",
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 5,
-              transition: "all var(--t-fast)",
-            }}
             title="Agent Mode: Bounded execution within your risk limits"
           >
             <span>AGENT</span>
             {authorityStatusBadge && (
               <span
-                className="appbar__mode-badge"
-                style={{
-                  fontSize: 9,
-                  fontWeight: 700,
-                  fontFamily: "var(--mono)",
-                  letterSpacing: "0.04em",
-                  padding: "1px 5px",
-                  borderRadius: 3,
-                  background:
-                    authorityStatusBadge.tone === "active"
-                      ? "rgba(121, 194, 164, 0.18)"
-                      : authorityStatusBadge.tone === "danger"
-                      ? "rgba(207, 139, 139, 0.18)"
-                      : "rgba(207, 173, 116, 0.18)",
-                  color:
-                    authorityStatusBadge.tone === "active"
-                      ? "var(--mint, #79c2a4)"
-                      : authorityStatusBadge.tone === "danger"
-                      ? "var(--danger, #cf8b8b)"
-                      : "var(--warning, #cfad74)",
-                  border:
-                    authorityStatusBadge.tone === "active"
-                      ? "1px solid rgba(121, 194, 164, 0.3)"
-                      : "1px solid transparent",
-                }}
+                className={`appbar__mode-badge appbar__mode-badge--${authorityStatusBadge.tone}`}
               >
                 {authorityStatusBadge.label}
               </span>
@@ -205,12 +136,12 @@ function Header({
         <button
           type="button"
           onClick={toggle}
-          className="theme-toggle"
+          className="theme-toggle appbar__capsule-btn"
           title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
           aria-label={`Current mode: ${theme}. Click to switch to ${theme === "dark" ? "light" : "dark"} mode`}
         >
           <span className="theme-toggle__icon" aria-hidden="true">
-            <Icon name={theme === "dark" ? "sun" : "moon"} size={15} />
+            <Icon name={theme === "dark" ? "sun" : "moon"} size={14} />
           </span>
           <span className="theme-toggle__label appbar__hide-mobile">
             {theme === "dark" ? "LIGHT" : "DARK"}
@@ -223,25 +154,13 @@ function Header({
         <WalletButton compact />
         <NavLink
           to="/app/profile"
-          style={({ isActive }) => ({
-            padding: "5px 9px",
-            fontSize: 12,
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 5,
-            border: `1px solid ${isActive ? "var(--accent)" : "var(--border)"}`,
-            borderRadius: "var(--r-sm, 6px)",
-            background: isActive ? "var(--surface-3)" : "var(--surface-2)",
-            color: isActive ? "var(--text)" : "var(--text-2)",
-            textDecoration: "none",
-            height: 32,
-            boxSizing: "border-box",
-            transition: "all var(--t-fast)",
-          })}
+          className={({ isActive }) =>
+            `appbar__profile-btn appbar__capsule-btn ${isActive ? "appbar__profile-btn--active" : ""}`
+          }
           title="Risk Profile & Account Settings"
         >
           <Icon name="user" size={14} />
-          <span className="appbar__hide-mobile" style={{ fontSize: 11, fontWeight: 600, fontFamily: "var(--sans)" }}>Profile</span>
+          <span className="appbar__hide-mobile">Profile</span>
         </NavLink>
       </div>
     </header>
@@ -336,53 +255,24 @@ function Sidebar({
       <div className="grow" />
 
       {/* Bottom Rail: Profile Card */}
-      <div
-        className="stack g-10"
-        style={{ paddingTop: 14, borderTop: "1px solid var(--border)" }}
-      >
+      <div style={{ marginTop: "auto", paddingTop: 16 }}>
         <NavLink
           to="/app/profile"
-          className="navlink"
-          style={({ isActive }) => ({
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            padding: collapsed ? "8px 0" : "8px 10px",
-            justifyContent: collapsed ? "center" : "flex-start",
-            borderRadius: "var(--r)",
-            background: isActive ? "var(--surface-3)" : "rgba(255, 255, 255, 0.03)",
-            border: `1px solid ${isActive ? "var(--accent)" : "var(--border)"}`,
-            color: "var(--text)",
-            textDecoration: "none",
-            transition: "all var(--t-fast)",
-            marginBottom: 2,
-          })}
+          className={({ isActive }) =>
+            `sidebar-profile-card ${isActive ? "sidebar-profile-card--active" : ""}`
+          }
           title={collapsed ? "Risk Profile" : undefined}
         >
-          <span
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: 7,
-              background: "rgba(236, 234, 230, 0.08)",
-              color: "var(--accent)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-            }}
-          >
-            <Icon name="user" size={16} />
+          <span className="sidebar-profile-icon">
+            <Icon name="user" size={15} />
           </span>
           {!collapsed && (
             <>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 650, lineHeight: 1.2 }}>Profile</div>
-                <div style={{ fontSize: 10, color: "var(--text-3)", fontFamily: "var(--mono)" }}>
-                  Risk Posture
-                </div>
+                <div className="sidebar-profile-title">Profile</div>
+                <div className="sidebar-profile-sub">Risk Posture</div>
               </div>
-              <span style={{ opacity: 0.4, display: "flex", alignItems: "center" }}>
+              <span className="sidebar-profile-chevron">
                 <Icon name="chevron" size={13} />
               </span>
             </>
@@ -488,6 +378,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const [healthOpen, setHealthOpen] = useState<boolean>(false);
   const [commandOpen, setCommandOpen] = useState<boolean>(false);
+
+  // ── Ink micro-interactions: fill, magnetic, underline, squash ──
+  useInkButtons();
 
   // Global shortcut for Command Palette (⌘K, Ctrl+K, or /)
   useEffect(() => {

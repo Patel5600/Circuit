@@ -120,14 +120,14 @@ export function RiskTopology3D({
     const scaleZ = scaleFactor * 1.4;
 
     // Palette Colors
-    const gridColor = isLight ? "rgba(33, 36, 19, 0.14)" : "rgba(182, 187, 217, 0.16)";
-    const axisColor = isLight ? "rgba(33, 36, 19, 0.45)" : "rgba(182, 187, 217, 0.40)";
-    const textColor = isLight ? "#212413" : "#C4C8DF";
-    const textMuted = isLight ? "rgba(33, 36, 19, 0.60)" : "rgba(182, 187, 217, 0.50)";
-    const accentColor = "#AD8820";
-    const safeColor = isLight ? "#2A3614" : "#7FC39A";
-    const liqColor = isLight ? "rgba(195, 40, 40, 0.35)" : "rgba(235, 87, 87, 0.35)";
-    const liqLineColor = isLight ? "#9E2A2B" : "#FF6B6B";
+    const gridColor = isLight ? "rgba(21, 23, 63, 0.12)" : "rgba(236, 234, 247, 0.14)";
+    const axisColor = isLight ? "rgba(21, 23, 63, 0.35)" : "rgba(236, 234, 247, 0.35)";
+    const textColor = isLight ? "#15173F" : "#ECEAF7";
+    const textMuted = isLight ? "rgba(70, 74, 120, 0.70)" : "#A9ABD6";
+    const accentColor = isLight ? "#3D5AFE" : "#8FA2FF";
+    const safeColor = isLight ? "#059669" : "#10B981";
+    const liqColor = isLight ? "rgba(220, 38, 38, 0.30)" : "rgba(239, 68, 68, 0.35)";
+    const liqLineColor = isLight ? "#DC2626" : "#EF4444";
 
     // Surface bounds
     const shockMin = -0.5; // -50% shock
@@ -288,7 +288,7 @@ export function RiskTopology3D({
       // Position Node Core
       ctx.beginPath();
       ctx.arc(curPos.px, curPos.py, 3.5, 0, Math.PI * 2);
-      ctx.fillStyle = isLight ? "#122311" : "#FFFFFF";
+      ctx.fillStyle = isLight ? "#15173F" : "#FFFFFF";
       ctx.fill();
 
       // Position Text Readout Callout

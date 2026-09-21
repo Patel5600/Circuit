@@ -24,10 +24,6 @@ window.addEventListener("vite:preloadError", (event) => {
  */
 const container = document.getElementById("root")!;
 
-// The static boot message in index.html is only a fallback for "JS never ran".
-// Clear it before mounting so it cannot linger behind the app.
-container.innerHTML = "";
-
 ReactDOM.createRoot(container).render(
   <React.StrictMode>
     <ErrorBoundary>
@@ -37,3 +33,20 @@ ReactDOM.createRoot(container).render(
     </ErrorBoundary>
   </React.StrictMode>
 );
+
+// Gracefully finish format-kit-3 preloader once React has mounted
+if (typeof (window as any).Loader !== "undefined") {
+  (window as any).Loader.finish();
+}
+
+// Complete and cleanly remove initial in-app ink bar if present
+const initialInkBar = document.getElementById("app-ink-bar");
+if (initialInkBar) {
+  initialInkBar.style.width = "100%";
+  setTimeout(() => {
+    initialInkBar.style.opacity = "0";
+    setTimeout(() => {
+      initialInkBar.remove();
+    }, 380);
+  }, 120);
+}

@@ -485,3 +485,4 @@ export function Modal({
 
 export { Icon };
 export type { IconName };
+export { InkBarProvider, useInkBar, InkRouteTracker } from "./InkLoadingBar";

@@ -73,6 +73,15 @@ interface AgentMessageRendererProps {
 export function stripMarkdown(raw: string): string {
   if (!raw) return "";
   return raw
+    .replace(/^\[Note:\s*Switched to .*gemini.*\]\n*/gim, "")
+    .replace(/gemini[- ]3\.[68][- ]flash/gi, "Circuit Lite")
+    .replace(/gemini[- ]3\.7[- ]flash/gi, "Circuit Pro")
+    .replace(/gemini[- ]2\.5[- ]pro/gi, "Circuit Pro")
+    .replace(/gemini[- ]2\.5[- ]flash/gi, "Circuit Lite")
+    .replace(/gemini[- ]flash[-a-z0-9]*/gi, "Circuit Lite")
+    .replace(/gemini[- ]pro[-a-z0-9]*/gi, "Circuit Pro")
+    .replace(/gpt-4o[-a-z0-9]*/gi, "Circuit Pro")
+    .replace(/gpt-3\.5[-a-z0-9]*/gi, "Circuit Lite")
     .replace(/^###+\s*/gm, "")
     .replace(/^##+\s*/gm, "")
     .replace(/^#+\s*/gm, "")
@@ -540,8 +549,8 @@ function ProposalParsedCard({
             style={{
               flex: 1,
               padding: "8px 14px",
-              background: isApproved ? "rgba(121,194,164,0.15)" : "var(--p-deep, #122311)",
-              color: isApproved ? "var(--mint, #79c2a4)" : "#ffffff",
+              background: isApproved ? "rgba(16,185,129,0.15)" : "var(--accent, #3D5AFE)",
+              color: isApproved ? "var(--success, #10B981)" : "#ffffff",
               border: "none",
               borderRadius: 6,
               fontWeight: 700,

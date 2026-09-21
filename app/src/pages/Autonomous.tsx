@@ -242,11 +242,26 @@ function cleanDisplayContent(rawContent: string): string {
     .split("\n")
     .filter(line => {
       const t = line.trim();
-      return !t.startsWith("CIRCUIT_TOOL:") &&
-             !t.startsWith("CIRCUIT_ACTION_PROPOSAL:") &&
-             !t.startsWith("CIRCUIT_TASK:");
+      if (t.startsWith("CIRCUIT_TOOL:") ||
+          t.startsWith("CIRCUIT_ACTION_PROPOSAL:") ||
+          t.startsWith("CIRCUIT_TASK:")) {
+        return false;
+      }
+      // Scrub any obsolete provider-leaking notes like [Note: Switched to Gemini...]
+      if (/^\[Note:\s*Switched to .*gemini.*\]$/i.test(t)) {
+        return false;
+      }
+      return true;
     })
     .join("\n")
+    .replace(/gemini[- ]3\.[68][- ]flash/gi, "Circuit Lite")
+    .replace(/gemini[- ]3\.7[- ]flash/gi, "Circuit Pro")
+    .replace(/gemini[- ]2\.5[- ]pro/gi, "Circuit Pro")
+    .replace(/gemini[- ]2\.5[- ]flash/gi, "Circuit Lite")
+    .replace(/gemini[- ]flash[-a-z0-9]*/gi, "Circuit Lite")
+    .replace(/gemini[- ]pro[-a-z0-9]*/gi, "Circuit Pro")
+    .replace(/gpt-4o[-a-z0-9]*/gi, "Circuit Pro")
+    .replace(/gpt-3\.5[-a-z0-9]*/gi, "Circuit Lite")
     .trim();
 }
 
@@ -491,8 +506,8 @@ function ActionProposalCard({
                 fontSize: 11,
                 fontWeight: 700,
                 fontFamily: "var(--mono)",
-                background: executed ? "rgba(121,194,164,0.15)" : "var(--p-deep, #122311)",
-                color: executed ? "var(--mint, #79c2a4)" : "#ffffff",
+                background: executed ? "rgba(16,185,129,0.15)" : "var(--accent, #3D5AFE)",
+                color: executed ? "var(--success, #10B981)" : "#ffffff",
                 border: "none",
                 borderRadius: 6,
                 cursor: executed ? "default" : "pointer",
@@ -1503,16 +1518,17 @@ export default function Autonomous() {
   const [taskCounts, setTaskCounts] = useState({ total: 0, watches: 0, strategies: 0, executions: 0 });
   const [availableModels, setAvailableModels] = useState<AgentModelOption[]>(CURATED_MODELS);
 
-  // Gemini model selection (defaults to gemini-3.8-flash, dynamically switches by availability)
+  // Institutional agent tier selection (defaults to Circuit Lite)
   const [selectedModel, setSelectedModel] = useState<string>(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("circuit_selected_model");
       if (stored && CURATED_MODELS.some(m => m.id === stored)) {
         return stored;
       }
-      return "gemini-3.8-flash";
+      localStorage.setItem("circuit_selected_model", DEFAULT_MODEL_ID);
+      return DEFAULT_MODEL_ID;
     }
-    return "gemini-3.8-flash";
+    return DEFAULT_MODEL_ID;
   });
 
   const [input, setInput] = useState("");
@@ -1539,7 +1555,7 @@ export default function Autonomous() {
   const [railCollapsed, setRailCollapsed] = useState(false);
   const [telemetryOpen, setTelemetryOpen] = useState(false);
   const [creditState, setCreditState] = useState<ClientCreditState>(() => agentCreditStore.getState());
-  const [agentTierMode, setAgentTierMode] = useState<AgentTier>("LITE");
+  const [agentTierMode, setAgentTierMode] = useState<AgentTier>(() => selectedModel === "circuit-pro" ? "PRO" : "LITE");
 
   useEffect(() => {
     if (wallet.address) {
@@ -1601,6 +1617,7 @@ export default function Autonomous() {
 
   const handleSelectModel = (modelId: string) => {
     setSelectedModel(modelId);
+    setAgentTierMode(modelId === "circuit-pro" ? "PRO" : "LITE");
     if (typeof window !== "undefined") {
       localStorage.setItem("circuit_selected_model", modelId);
     }
@@ -2150,7 +2167,7 @@ export default function Autonomous() {
       }
     }
 
-    // 2. General conversational query — route through Serverless Gemini AI gateway
+    // 2. General conversational query — route through Serverless AI gateway
     const agentId = uid();
     setMsgs(prev => [...prev, { id: agentId, role: "agent", content: "", timestamp: Date.now(), streaming: true }]);
     setStreaming(true);
@@ -2358,7 +2375,7 @@ export default function Autonomous() {
   );
 
   function renderRailIcon(tab: TabId, isActive: boolean) {
-  const stroke = isActive ? "var(--p-harvest, #AD8820)" : "currentColor";
+  const stroke = isActive ? "var(--accent, #3D5AFE)" : "currentColor";
   const size = 15;
   switch (tab) {
     case "CHAT":
@@ -2524,7 +2541,7 @@ export default function Autonomous() {
                       width: 5,
                       height: 5,
                       borderRadius: "50%",
-                      background: "var(--p-harvest, #AD8820)",
+                      background: "var(--accent, #3D5AFE)",
                     }} />
                   )}
                 </button>
@@ -2571,7 +2588,7 @@ export default function Autonomous() {
             <div style={{ display: "inline-flex", alignItems: "center", background: "var(--surface-2)", borderRadius: 6, padding: "2px 4px", border: "1px solid var(--border)" }}>
               <button
                 type="button"
-                onClick={() => setAgentTierMode("LITE")}
+                onClick={() => handleSelectModel("circuit-lite")}
                 style={{
                   padding: "2px 8px",
                   borderRadius: 4,
@@ -2588,7 +2605,7 @@ export default function Autonomous() {
               </button>
               <button
                 type="button"
-                onClick={() => setAgentTierMode("PRO")}
+                onClick={() => handleSelectModel("circuit-pro")}
                 style={{
                   padding: "2px 8px",
                   borderRadius: 4,
@@ -2836,8 +2853,8 @@ export default function Autonomous() {
                       value={input}
                       onChange={e => setInput(e.target.value)}
                       onKeyDown={onKey}
-                      placeholder={!connected ? "Connect your Solana Devnet wallet to start..." : "Ask about a market, risk, position, or action… (Enter to send, Shift+Enter for newline)"}
-                      disabled={!connected || streaming}
+                      placeholder={streaming ? "Agent reasoning in progress..." : connected ? "Ask about a market, risk, position, or action… (Enter to send, Shift+Enter for newline)" : "Ask about Circuit Protocol, markets, or general questions… (Enter to send)"}
+                      disabled={streaming}
                       rows={1}
                       style={{
                         flex: 1,
@@ -2880,22 +2897,22 @@ export default function Autonomous() {
                       <button
                         type="button"
                         onClick={() => sendWithText()}
-                        disabled={!input.trim() || !connected}
+                        disabled={!input.trim() || streaming}
                         style={{
                           flexShrink: 0,
                           width: 38,
                           height: 38,
                           borderRadius: "50%",
-                          background: !input.trim() || !connected ? "var(--surface-3)" : "var(--accent, #eceae6)",
+                          background: !input.trim() || streaming ? "var(--surface-3)" : "var(--accent, #eceae6)",
                           border: "none",
-                          color: !input.trim() || !connected ? "var(--text-3)" : "#0c0c0d",
+                          color: !input.trim() || streaming ? "var(--text-3)" : "#0c0c0d",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
                           fontSize: 16,
                           fontWeight: 700,
-                          cursor: !input.trim() || !connected ? "not-allowed" : "pointer",
-                          boxShadow: !input.trim() || !connected ? "none" : "0 2px 10px rgba(0, 0, 0, 0.3)",
+                          cursor: !input.trim() || streaming ? "not-allowed" : "pointer",
+                          boxShadow: !input.trim() || streaming ? "none" : "0 2px 10px rgba(0, 0, 0, 0.3)",
                           transition: "all 0.18s cubic-bezier(0.16, 1, 0.3, 1)",
                         }}
                         title="Send Message"

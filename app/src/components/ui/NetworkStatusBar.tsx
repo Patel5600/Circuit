@@ -19,11 +19,11 @@ interface NetworkStatusBarProps {
 }
 
 const STATUS_COLORS: Record<NetworkStatus, string> = {
-  LIVE: "#79C2A4",
-  DEGRADED: "#AD8820",
-  STALE: "#90844A",
-  DISCONNECTED: "#CF8B8B",
-  UNAVAILABLE: "#555",
+  LIVE: "#10B981",
+  DEGRADED: "#FFB320",
+  STALE: "#A99BFF",
+  DISCONNECTED: "#EF4444",
+  UNAVAILABLE: "#7477A0",
 };
 
 export default function NetworkStatusBar({ sources }: NetworkStatusBarProps) {

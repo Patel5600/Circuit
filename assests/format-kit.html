@@ -1,0 +1,700 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Format kit — seven components inspired by format.obys.agency</title>
+<style>
+/* =====================================================================
+   TOKENS
+   Cards are always white paper with black ink; only the canvas flips.
+   ===================================================================== */
+@property --a { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+
+:root {
+  --bg: #e6e6e3;
+  --fg: #000;
+  --paper: #fff;
+  --ink: #000;
+  --mute: #7d7d79;
+  --line: rgba(0,0,0,.38);
+  --note: #3d5afe;
+  --note-ink: #fff;
+  --font: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #202020; --fg: #f5f5f2; --mute: #8a8a86; --line: rgba(255,255,255,.38);
+    --note: #8fa2ff; --note-ink: #000; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #202020; --fg: #f5f5f2; --mute: #8a8a86; --line: rgba(255,255,255,.38);
+  --note: #8fa2ff; --note-ink: #000; color-scheme: dark;
+}
+
+/* =====================================================================
+   BASE
+   ===================================================================== */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg); color: var(--fg);
+  font: 400 15px/1.4 var(--font);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--note); outline-offset: 3px; }
+
+/* Shared: dashed crosshair guides drawn as background (no pseudo-elements) */
+.guides {
+  background:
+    repeating-linear-gradient(90deg, var(--line) 0 6px, transparent 6px 12px) center / 100% 1px no-repeat,
+    repeating-linear-gradient(180deg, var(--line) 0 6px, transparent 6px 12px) center / 1px 100% no-repeat;
+}
+
+/* Shared: pill button on the canvas */
+.pill {
+  border: 1px solid currentColor; border-radius: 999px; padding: 7px 16px; font-size: 13px;
+  transition: background .2s, color .2s;
+}
+.pill:hover, .pill[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.tools { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+
+/* Shared: micro type used on white paper */
+.meta { display: block; font-size: 8px; line-height: 1.25; color: #999995; }
+.meta b { display: block; font-size: 9px; font-weight: 500; color: var(--ink); }
+.micro { list-style: none; font-size: 7px; line-height: 1.4; color: #6b6b68; }
+.n { position: absolute; right: 10px; top: 10px; font-size: 8px; color: var(--ink); }
+
+/* Shared: procedural "ink" texture (needs the #ink-b / #ink-w filters below) */
+.ink {
+  position: absolute; inset: -40%; pointer-events: none;
+  transform: translate(var(--ox, 0%), var(--oy, 0%));
+  filter: url(#ink-b);
+}
+.ink.w { filter: url(#ink-w); }
+
+/* =====================================================================
+   PAGE CHROME
+   ===================================================================== */
+.bar {
+  position: sticky; top: 12px; z-index: 1000; margin: 12px;
+  display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 24px;
+  background: var(--paper); color: var(--ink); padding: 8px 14px; font-size: 14px;
+}
+.bar a, .bar button { color: inherit; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+.bar button { padding: 0 4px; }
+.bar button[aria-pressed="true"] { background: var(--ink); color: var(--paper); text-decoration: none; }
+.bar-r { display: flex; gap: 18px; }
+
+.hero { max-width: 1200px; margin: 0 auto; padding: 5vh 24px 4vh; }
+.hero h1 { font-weight: 400; font-size: clamp(44px, 9.5vw, 132px); line-height: .88; letter-spacing: -.05em; }
+.hero h1 span { display: block; }
+.hero h1 span + span { padding-left: 1.05em; }
+.hero p { margin-top: 28px; max-width: 46ch; color: var(--mute); }
+
+.lab { max-width: 1200px; margin: 0 auto; padding: 0 24px 120px; }
+.lab-head {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 440px); gap: 16px 40px;
+  padding-top: 22px; margin-bottom: 34px; border-top: 1px dashed var(--line);
+}
+.lab-head h2 { font-weight: 400; font-size: clamp(26px, 3.4vw, 44px); line-height: 1; letter-spacing: -.04em; }
+.lab-head p { font-size: 13px; color: var(--mute); }
+@media (max-width: 720px) { .lab-head { grid-template-columns: 1fr; } }
+
+.stage { position: relative; border: 1px dashed var(--line); }
+footer { max-width: 1200px; margin: 0 auto; padding: 0 24px 80px; font-size: 13px; color: var(--mute); }
+
+/* =====================================================================
+   NOTES MODE  (body.notes)  +  PLAIN WORDS  (body.simple)
+   ===================================================================== */
+.notes [data-note] { outline: 1px dashed var(--note); outline-offset: 8px; }
+.notes [data-note]::before {
+  content: attr(data-note); position: absolute; left: -8px; top: -8px; transform: translateY(-100%);
+  z-index: 5; background: var(--note); color: var(--note-ink);
+  font-size: 10px; font-weight: 500; line-height: 1; padding: 4px 6px; white-space: nowrap; pointer-events: none;
+}
+.simple .lab-head p, .simple .hero p { font-size: 17px; color: var(--fg); }
+
+/* =====================================================================
+   SCATTER CANVAS
+   ===================================================================== */
+.scatter { position: relative; height: clamp(560px, 82vh, 760px); overflow: hidden; isolation: isolate; }
+.card {
+  position: absolute; left: 0; top: 0; will-change: transform;
+  transform: translate3d(var(--x, 0px), var(--y, 0px), 0);
+  touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; outline: none;
+}
+.card.anim { transition: transform .7s cubic-bezier(.2, .8, .2, 1); }
+.card .face {
+  position: relative; width: 100%; height: 100%; overflow: hidden;
+  background: var(--paper); color: var(--ink);
+  transform: rotate(var(--r0, 0deg));
+  transition: transform .35s cubic-bezier(.2, .8, .2, 1), box-shadow .35s;
+  box-shadow: 0 1px 2px rgba(0,0,0,.2);
+}
+.card:focus-visible .face { outline: 2px solid var(--note); outline-offset: 3px; }
+.card.drag { cursor: grabbing; }
+.card.drag .face { transform: rotate(calc(var(--r0, 0deg) * .2)) scale(1.03); box-shadow: 0 30px 50px -18px rgba(0,0,0,.6); }
+
+.k-h { width: 300px; height: 200px; }
+.k-v { width: 190px; height: 290px; }
+.k-c { width: 220px; height: 220px; }
+.k-s { width: 140px; height: 140px; }
+.k-p { width: 340px; height: 112px; }
+
+/* horizontal */
+.face.h { display: grid; grid-template-columns: 36% 1fr; }
+.face.h .l { padding: 12px; display: flex; flex-direction: column; justify-content: space-between; }
+.face.h .blk { position: relative; background: #000; overflow: hidden; isolation: isolate; }
+.blk .vt {
+  position: absolute; left: 12px; bottom: 10px; color: #fff; mix-blend-mode: difference;
+  font-size: 30px; line-height: .92; letter-spacing: -.04em; font-weight: 500;
+  writing-mode: vertical-rl; transform: rotate(180deg); text-align: left;
+}
+/* vertical */
+.face.v .thumbs { display: grid; grid-template-columns: 1fr 1fr; height: 44%; }
+.thumb { position: relative; overflow: hidden; background: #d4d4d0; }
+.thumb.k { background: #000; }
+.face.v .meta { position: absolute; left: 12px; top: calc(44% + 10px); }
+.face.v .ghost { position: absolute; left: 12px; bottom: 8px; font-size: 42px; line-height: .86; letter-spacing: -.05em; font-weight: 500; color: #dcdcd8; }
+/* circle */
+.face.c { border-radius: 50%; display: grid; place-items: center; text-align: center; }
+.face.c::before { content: ""; position: absolute; inset: 14%; border: 1px solid #e2e2de; border-radius: 50%; }
+.face.c .dot {
+  position: absolute; left: 50%; top: 50%; width: 12px; height: 12px; margin: -6px; border-radius: 50%; background: #000;
+  transform: rotate(var(--da, 40deg)) translateY(calc(var(--rad, 92px) * -1));
+}
+.k-s .dot { --rad: 56px; }
+/* pill */
+.face.p { border-radius: 999px; display: flex; align-items: center; gap: 16px; padding: 0 36px; }
+.face.p p { font-size: 8px; line-height: 1.35; color: #6b6b68; max-width: 150px; }
+
+/* =====================================================================
+   CLOCK DIAL
+   ===================================================================== */
+.dial-wrap { display: grid; place-items: center; gap: 18px; padding: 48px 16px; }
+.dial {
+  --R: 44.5cqw; position: relative; width: min(400px, 84vw); aspect-ratio: 1;
+  border-radius: 50%; background: var(--paper); color: var(--ink); container-type: inline-size;
+}
+.dial::before { content: ""; position: absolute; inset: 11%; border: 1px solid #e2e2de; border-radius: 50%; }
+.dial > .meta { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+.tick {
+  position: absolute; left: 50%; top: 50%; font-size: 9px;
+  transform: translate(-50%, -50%) rotate(var(--a)) translateY(calc(var(--R) * -1));
+}
+.dt {
+  --s: 14px; position: absolute; left: 50%; top: 50%; width: var(--s); height: var(--s);
+  margin: calc(var(--s) / -2); border-radius: 50%; background: #000; cursor: grab; touch-action: none; outline: none;
+  transform: rotate(var(--a)) translateY(calc(var(--rad) * -1));
+  transition: --a .55s cubic-bezier(.3, 1.5, .4, 1);
+}
+.dt::after { content: ""; position: absolute; inset: -12px; border-radius: 50%; }
+.dt.drag { cursor: grabbing; transition: none; }
+.dt:focus-visible { box-shadow: 0 0 0 3px var(--note); }
+.readout { font-size: 12px; color: var(--mute); min-height: 1.4em; white-space: pre; font-variant-numeric: tabular-nums; }
+
+/* =====================================================================
+   TILTED TYPE STACK
+   ===================================================================== */
+.stack-stage { display: grid; place-items: center; padding: 90px 16px; }
+.stack {
+  container-type: inline-size; position: relative; width: min(520px, 80%); height: 440px;
+  background: var(--paper); color: var(--ink); overflow: hidden; transform: rotate(-8deg);
+}
+.track { transform-origin: 0 0; will-change: transform; padding: 0 6cqw; }
+.track p { font-size: 12cqw; line-height: .96; letter-spacing: -.045em; font-weight: 500; white-space: nowrap; }
+
+/* =====================================================================
+   FORMAT MORPH
+   ===================================================================== */
+.morph-stage { display: grid; place-items: center; height: 420px; }
+.morph {
+  --w: 340px; --h: 210px; --rad: 4px; --ox: 0%;
+  position: relative; overflow: hidden; isolation: isolate; background: var(--paper);
+  width: var(--w); height: var(--h); border-radius: var(--rad); max-width: 92%;
+  transition: width .8s cubic-bezier(.7, 0, .2, 1), height .8s cubic-bezier(.7, 0, .2, 1), border-radius .8s cubic-bezier(.7, 0, .2, 1);
+}
+.morph[data-f="horizontal"] { --w: 340px; --h: 210px; --rad: 4px;   --ox: 0%; }
+.morph[data-f="vertical"]   { --w: 210px; --h: 320px; --rad: 4px;   --ox: 22%; }
+.morph[data-f="rounded"]    { --w: 360px; --h: 120px; --rad: 60px;  --ox: -22%; }
+.morph[data-f="circle"]     { --w: 260px; --h: 260px; --rad: 130px; --ox: 10%; }
+.morph .ink { inset: -50%; transition: transform 1s cubic-bezier(.7, 0, .2, 1); }
+.morph .txt {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; color: #fff; mix-blend-mode: difference;
+}
+.morph .txt small { font-size: 9px; opacity: .8; }
+.morph .txt strong { font-size: 34px; font-weight: 500; letter-spacing: -.05em; line-height: .95; }
+
+/* =====================================================================
+   COLOUR REVEAL
+   ===================================================================== */
+.reveal-stage { padding: 24px; display: grid; place-items: center; }
+.reveal { --mx: 50%; --my: 50%; --rr: 0px; position: relative; width: 100%; max-width: 760px; aspect-ratio: 16 / 10; overflow: hidden; touch-action: pan-y; cursor: crosshair; }
+.art {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(55% 65% at 25% 70%, #2f8f1f, transparent 78%),
+    radial-gradient(45% 55% at 75% 30%, #e0121f, transparent 78%),
+    radial-gradient(50% 60% at 55% 85%, #2a4bff, transparent 78%),
+    #ecece8;
+}
+.art .ink { inset: -50%; }
+.art.gray {
+  filter: grayscale(1) contrast(1.05);
+  -webkit-mask-image: radial-gradient(circle at var(--mx) var(--my), transparent calc(var(--rr) * .92), #000 var(--rr));
+          mask-image: radial-gradient(circle at var(--mx) var(--my), transparent calc(var(--rr) * .92), #000 var(--rr));
+}
+.reveal .cap { position: absolute; left: 14px; bottom: 12px; font-size: 11px; color: #fff; mix-blend-mode: difference; pointer-events: none; }
+
+/* =====================================================================
+   MICRO-TYPE SPEC SHEET
+   ===================================================================== */
+.spec-stage { display: grid; place-items: center; padding: 48px 16px; }
+.spec {
+  --fs: 7px; container-type: inline-size; position: relative; width: min(100%, 440px); aspect-ratio: 3 / 4;
+  background: var(--paper); color: var(--ink); overflow: hidden; outline: none;
+}
+.spec:hover, .spec:focus-visible { --fs: 12px; }
+.spec:focus-visible { box-shadow: 0 0 0 2px var(--note); }
+.spec header { display: flex; justify-content: space-between; padding: 14px; }
+.spec header .n { position: static; }
+.spec .cols { display: grid; grid-template-columns: 34% 1fr; gap: 12px; padding: 0 14px; }
+.spec .phs { display: grid; gap: 8px; align-content: start; }
+.spec .ph { position: relative; height: 84px; overflow: hidden; background: #d4d4d0; }
+.spec .ph.k { background: #000; }
+.sp { display: grid; gap: 1.1em; align-content: start; font-size: var(--fs); line-height: 1.35; transition: font-size .45s cubic-bezier(.2, .8, .2, 1); }
+.sp dt { font-weight: 500; }
+.sp dd { color: #6b6b68; }
+.spec .ghost {
+  position: absolute; left: 14px; bottom: -.06em; font-weight: 500; font-size: 15cqw; line-height: .88;
+  letter-spacing: -.055em; color: #dededa; transition: color .45s;
+}
+.spec:hover .ghost, .spec:focus-visible .ghost { color: var(--ink); }
+
+/* =====================================================================
+   TWO-AUDIENCE TOGGLE
+   ===================================================================== */
+.duo { padding: 40px 32px; }
+.duo .big { max-width: 22ch; font-size: clamp(26px, 3.6vw, 48px); line-height: 1; letter-spacing: -.04em; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- Shared SVG filters: smoke-like ink shapes from thresholded noise. Keep once per page. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <filter id="ink-b" x="0%" y="0%" width="100%" height="100%" color-interpolation-filters="sRGB">
+    <feTurbulence type="fractalNoise" baseFrequency=".008 .014" numOctaves="3" seed="4"/>
+    <feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 14 -7.2"/>
+  </filter>
+  <filter id="ink-w" x="0%" y="0%" width="100%" height="100%" color-interpolation-filters="sRGB">
+    <feTurbulence type="fractalNoise" baseFrequency=".008 .014" numOctaves="3" seed="9"/>
+    <feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 14 -7.2"/>
+  </filter>
+</svg>
+
+<header class="bar">
+  <span>Format kit — inspired by <a href="https://format.obys.agency" target="_blank" rel="noopener">format.obys.agency</a></span>
+  <span class="bar-r">
+    <button data-toggle="notes" aria-pressed="false">Notes mode</button>
+    <button data-toggle="simple" aria-pressed="false">Plain words</button>
+  </span>
+</header>
+
+<main>
+  <section class="hero">
+    <h1><span>Seven parts</span><span>of one format</span></h1>
+    <p data-simple="Seven small building blocks for a website. Play with each one.">Seven interface patterns lifted from the reference site, rebuilt in vanilla HTML, CSS and JS. Each block is self-contained: copy its CSS, its markup and its script.</p>
+  </section>
+
+  <!-- ============================ SCATTER CANVAS ============================ -->
+  <section class="lab" id="scatter-lab">
+    <div class="lab-head">
+      <h2>Scatter canvas</h2>
+      <p data-simple="Pick up the cards and move them around like papers on a desk.">Rotated cards on a dashed-guide canvas. Pointer-capture dragging, z-lift on grab, tilt easing toward flat while held, arrow-key nudging.</p>
+    </div>
+    <div class="stage guides" data-note="Scatter canvas">
+      <div class="scatter" id="scatter"></div>
+    </div>
+    <div class="tools"><button class="pill" id="scatter-shuffle">Re-scatter</button></div>
+  </section>
+
+  <!-- ============================ CLOCK DIAL ============================ -->
+  <section class="lab">
+    <div class="lab-head">
+      <h2>Clock dial</h2>
+      <p data-simple="Grab a dot and spin it. It clicks into place like a clock.">Radial 1–12 numerals with free-orbit dots. Drag to move; on release the angle snaps to the nearest hour through a registered <code>@property</code> transition.</p>
+    </div>
+    <div class="stage guides" data-note="Clock dial">
+      <div class="dial-wrap">
+        <div class="dial" id="dial"><span class="meta">(Format)<b>Circle</b></span></div>
+        <output class="readout" id="dial-out"></output>
+        <button class="pill" id="dial-live" aria-pressed="false">Live clock</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ TILTED TYPE STACK ============================ -->
+  <section class="lab">
+    <div class="lab-head">
+      <h2>Tilted type stack</h2>
+      <p data-simple="Big words that slide and wobble when you scroll.">An endless word loop inside a rotated frame. Scroll velocity is fed into the track, decays each frame and skews the type.</p>
+    </div>
+    <div class="stage stack-stage" data-note="Tilted type stack">
+      <div class="stack"><div class="track" id="track"></div></div>
+    </div>
+  </section>
+
+  <!-- ============================ FORMAT MORPH ============================ -->
+  <section class="lab">
+    <div class="lab-head">
+      <h2>Format morph</h2>
+      <p data-simple="One card that changes shape: wide, tall, pill and round.">A single element, four formats. Width, height and radius are CSS custom properties keyed off <code>data-f</code>; the script only flips one attribute.</p>
+    </div>
+    <div class="stage guides morph-stage" data-note="Format morph">
+      <div class="morph" id="morph" data-f="horizontal">
+        <i class="ink" style="--oy:-10%"></i>
+        <div class="txt"><small>(Format)</small><strong id="morph-name">Horizontal</strong></div>
+      </div>
+    </div>
+    <div class="tools" id="morph-seg" role="group" aria-label="Format">
+      <button class="pill" data-f="horizontal" aria-pressed="true">Horizontal</button>
+      <button class="pill" data-f="vertical" aria-pressed="false">Vertical</button>
+      <button class="pill" data-f="rounded" aria-pressed="false">Rounded</button>
+      <button class="pill" data-f="circle" aria-pressed="false">Circle</button>
+    </div>
+  </section>
+
+  <!-- ============================ COLOUR REVEAL ============================ -->
+  <section class="lab">
+    <div class="lab-head">
+      <h2>Colour reveal</h2>
+      <p data-simple="Move your mouse to paint colour into a black-and-white picture.">Monochrome art with a lerp-following radial mask that uncovers the colour layer beneath. The imagery is SVG turbulence, so there are no image files.</p>
+    </div>
+    <div class="stage reveal-stage" data-note="Colour reveal">
+      <div class="reveal" id="reveal">
+        <div class="art" aria-hidden="true"><i class="ink" style="--ox:8%;--oy:-6%"></i></div>
+        <div class="art gray" aria-hidden="true"><i class="ink" style="--ox:8%;--oy:-6%"></i></div>
+        <span class="cap">Move your cursor</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ MICRO-TYPE SPEC SHEET ============================ -->
+  <section class="lab">
+    <div class="lab-head">
+      <h2>Micro-type spec sheet</h2>
+      <p data-simple="Tiny writing grows big when you point at it.">Spec columns set at 7px scale to readable size on hover or focus while the ghost headline darkens. Dense at rest, legible on demand.</p>
+    </div>
+    <div class="stage guides spec-stage" data-note="Micro-type spec sheet">
+      <article class="spec" tabindex="0" aria-label="Vertical format spec sheet. Hover or focus to enlarge the text.">
+        <header>
+          <span class="meta">(Format)<b>Vertical</b></span>
+          <span class="n">1</span>
+        </header>
+        <div class="cols">
+          <div class="phs">
+            <div class="ph"><i class="ink" style="--ox:-10%"></i></div>
+            <div class="ph k"><i class="ink w" style="--ox:15%"></i></div>
+            <div class="ph"><i class="ink" style="--oy:12%"></i></div>
+          </div>
+          <dl class="sp">
+            <div><dt>1.1 Usage</dt><dd>Mobile design<br>Poster design<br>Editorial design</dd></div>
+            <div><dt>1.2 Geometry</dt><dd>Vertical ratio<br>Linear edges<br>Defined corners</dd></div>
+            <div><dt>1.3 Perception</dt><dd>Visually taller<br>Narrow presence<br>Tight tension</dd></div>
+            <div><dt>1.4 Behavior</dt><dd>Central gravity<br>Stable layout<br>Strong axis</dd></div>
+          </dl>
+        </div>
+        <h3 class="ghost">1.3<br>Perception</h3>
+      </article>
+    </div>
+  </section>
+
+  <!-- ============================ TWO-AUDIENCE TOGGLE ============================ -->
+  <section class="lab">
+    <div class="lab-head">
+      <h2>Two-audience toggle</h2>
+      <p data-simple="Two buttons at the top: one shows labels, one uses easier words.">Two classes on <code>body</code>. <code>.notes</code> draws dashed annotations from <code>data-note</code>; <code>.simple</code> swaps copy from <code>data-simple</code>. About fifteen lines of JS.</p>
+    </div>
+    <div class="stage duo" data-note="Two-audience toggle">
+      <p class="big" data-simple="Tap a button. See labels, or easier words.">Show the notes, or say it plainly.</p>
+      <div class="tools">
+        <button class="pill" data-toggle="notes" aria-pressed="false">Notes mode</button>
+        <button class="pill" data-toggle="simple" aria-pressed="false">Plain words</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>Every block is wrapped in its own script closure and styled under its own comment header, so each can be lifted on its own. The SVG filters and the shared <code>.ink</code> class are needed by the scatter canvas, format morph, colour reveal and spec sheet.</footer>
+
+<script>
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const rnd = (a, b) => a + Math.random() * (b - a);
+
+/* =====================================================================
+   SCATTER CANVAS
+   ===================================================================== */
+(() => {
+  const root = $('#scatter'); if (!root) return;
+
+  const ink = w => `<i class="ink${w ? ' w' : ''}" style="--ox:${rnd(-15, 15) | 0}%;--oy:${rnd(-15, 15) | 0}%"></i>`;
+  const meta = t => `<span class="meta">(Format)<b>${t}</b></span>`;
+  const micro = '<ul class="micro"><li>2.1 Usage</li><li>Desktop design</li><li>Poster design</li><li>TV &amp; films</li></ul>';
+  const FACE = {
+    h: () => `<div class="face h"><div class="l">${meta('Horizontal')}${micro}</div><div class="blk">${ink(1)}<p class="vt">2.1 Usage<br>Desktop<br>Screens</p></div></div>`,
+    v: () => `<div class="face v"><div class="thumbs"><div class="thumb">${ink()}</div><div class="thumb k">${ink(1)}</div></div>${meta('Vertical')}<div class="ghost">1.3<br>Percep-<br>tion</div></div>`,
+    c: () => `<div class="face c">${meta('Circle')}<i class="dot" style="--da:${rnd(0, 360) | 0}deg"></i></div>`,
+    p: () => `<div class="face p">${meta('Rounded')}<p>Softened edges keep the horizontal stability with a friendlier rhythm.</p></div>`
+  };
+  // [kind, x fraction, y fraction, rotation°]
+  const SPECS = [
+    ['h', .03, .05, -5], ['c', .30, .02, 10], ['v', .55, .06, 7], ['p', .28, .66, -12],
+    ['h', .60, .60, 4],  ['s', .04, .64, 0],  ['v', .87, .36, -6], ['c', .80, .74, 20]
+  ];
+
+  const move = (el, x, y) => {
+    el._x = clamp(x, 0, Math.max(0, root.clientWidth - el.offsetWidth));
+    el._y = clamp(y, 0, Math.max(0, root.clientHeight - el.offsetHeight));
+    el.style.setProperty('--x', el._x + 'px');
+    el.style.setProperty('--y', el._y + 'px');
+  };
+  const place = (el, fx, fy) => move(el, fx * (root.clientWidth - el.offsetWidth), fy * (root.clientHeight - el.offsetHeight));
+
+  let z = SPECS.length;
+  const cards = SPECS.map(([k, fx, fy, r], i) => {
+    const el = document.createElement('article');
+    el.className = `card k-${k}`;
+    el.tabIndex = 0;
+    el.style.zIndex = i + 1;
+    el.style.setProperty('--r0', r + 'deg');
+    el.setAttribute('aria-label', 'Draggable format card. Arrow keys nudge it.');
+    el.innerHTML = FACE[k === 's' ? 'c' : k]();
+    root.append(el);
+    place(el, fx, fy);
+    return el;
+  });
+
+  let drag = null;
+  root.addEventListener('pointerdown', e => {
+    const el = e.target.closest('.card'); if (!el) return;
+    el.setPointerCapture(e.pointerId);
+    el.classList.remove('anim');
+    el.classList.add('drag');
+    el.style.zIndex = ++z;
+    drag = { el, dx: e.clientX - el._x, dy: e.clientY - el._y };
+  });
+  root.addEventListener('pointermove', e => { if (drag) move(drag.el, e.clientX - drag.dx, e.clientY - drag.dy); });
+  const end = () => { if (drag) { drag.el.classList.remove('drag'); drag = null; } };
+  root.addEventListener('pointerup', end);
+  root.addEventListener('pointercancel', end);
+
+  root.addEventListener('keydown', e => {
+    const el = e.target.closest('.card');
+    const d = { ArrowLeft: [-12, 0], ArrowRight: [12, 0], ArrowUp: [0, -12], ArrowDown: [0, 12] }[e.key];
+    if (!el || !d) return;
+    e.preventDefault();
+    move(el, el._x + d[0], el._y + d[1]);
+  });
+
+  addEventListener('resize', () => cards.forEach(c => move(c, c._x, c._y)));
+
+  $('#scatter-shuffle').addEventListener('click', () => {
+    cards.forEach(c => {
+      c.classList.add('anim');
+      c.style.setProperty('--r0', rnd(-16, 16).toFixed(1) + 'deg');
+      place(c, Math.random(), Math.random());
+      setTimeout(() => c.classList.remove('anim'), 750);
+    });
+  });
+})();
+
+/* =====================================================================
+   CLOCK DIAL
+   ===================================================================== */
+(() => {
+  const dial = $('#dial'); if (!dial) return;
+  const out = $('#dial-out'), liveBtn = $('#dial-live');
+
+  for (let i = 1; i <= 12; i++) {
+    const t = document.createElement('span');
+    t.className = 'tick'; t.textContent = i; t.style.setProperty('--a', i * 30 + 'deg');
+    dial.append(t);
+  }
+
+  const cfg = [{ s: 22, rad: 19, angle: 120, n: 'A' }, { s: 15, rad: 29, angle: 240, n: 'B' }, { s: 10, rad: 38, angle: 330, n: 'C' }];
+  const paint = d => { d.el.style.setProperty('--a', d.angle + 'deg'); d.el.style.setProperty('--rad', d.rad + 'cqw'); };
+  const hour = a => ((Math.round(a / 30) % 12) + 12) % 12 || 12;
+  const report = () => { out.textContent = dots.map(d => `${d.n} → ${hour(d.angle)}`).join('    '); };
+
+  const dots = cfg.map((c, i) => {
+    const el = document.createElement('div');
+    el.className = 'dt'; el.tabIndex = 0; el.dataset.i = i;
+    el.setAttribute('aria-label', `Dot ${c.n}. Arrow keys rotate and move it.`);
+    el.style.setProperty('--s', c.s + 'px');
+    dial.append(el);
+    const d = { ...c, el }; paint(d);
+    return d;
+  });
+  report();
+
+  // angle in degrees, 0 at 12 o'clock, clockwise
+  const raw = (e, r) => Math.atan2(e.clientX - (r.left + r.width / 2), -(e.clientY - (r.top + r.height / 2))) * 180 / Math.PI;
+  let cur = null, prev = 0;
+
+  dial.addEventListener('pointerdown', e => {
+    const el = e.target.closest('.dt'); if (!el) return;
+    setLive(false);
+    cur = dots[el.dataset.i];
+    el.setPointerCapture(e.pointerId);
+    el.classList.add('drag');
+    prev = raw(e, dial.getBoundingClientRect());
+  });
+  dial.addEventListener('pointermove', e => {
+    if (!cur) return;
+    const r = dial.getBoundingClientRect(), a = raw(e, r);
+    cur.angle += ((a - prev + 540) % 360) - 180;   // unwrap so it never jumps at ±180°
+    prev = a;
+    const dist = Math.hypot(e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2));
+    cur.rad = clamp(dist / r.width * 100, 8, 40);
+    paint(cur);
+  });
+  const drop = () => {
+    if (!cur) return;
+    cur.el.classList.remove('drag');
+    cur.angle = Math.round(cur.angle / 30) * 30;    // snap; transition animates it
+    paint(cur); report(); cur = null;
+  };
+  dial.addEventListener('pointerup', drop);
+  dial.addEventListener('pointercancel', drop);
+
+  dial.addEventListener('keydown', e => {
+    const el = e.target.closest('.dt'); if (!el) return;
+    const d = dots[el.dataset.i];
+    if (e.key === 'ArrowRight') d.angle += 30;
+    else if (e.key === 'ArrowLeft') d.angle -= 30;
+    else if (e.key === 'ArrowUp') d.rad = clamp(d.rad + 2, 8, 40);
+    else if (e.key === 'ArrowDown') d.rad = clamp(d.rad - 2, 8, 40);
+    else return;
+    e.preventDefault(); setLive(false); paint(d); report();
+  });
+
+  // Live clock: A = hours, B = minutes, C = seconds
+  let timer = 0;
+  const tick = () => {
+    const n = new Date(), s = n.getSeconds(), m = n.getMinutes() + s / 60, h = (n.getHours() % 12) + m / 60;
+    [h * 30, m * 6, s * 6].forEach((t, i) => {
+      const d = dots[i];
+      d.angle = t + 360 * Math.round((d.angle - t) / 360);   // nearest equivalent angle: no backwards spin at 12
+      paint(d);
+    });
+    out.textContent = n.toLocaleTimeString([], { hour12: false });
+  };
+  function setLive(on) {
+    clearInterval(timer);
+    timer = on ? setInterval(tick, 1000) : 0;
+    liveBtn.setAttribute('aria-pressed', on);
+    if (on) tick(); else report();
+  }
+  liveBtn.addEventListener('click', () => setLive(liveBtn.getAttribute('aria-pressed') !== 'true'));
+})();
+
+/* =====================================================================
+   TILTED TYPE STACK
+   ===================================================================== */
+(() => {
+  const track = $('#track'); if (!track) return;
+  const words = ['Desktop', 'Business Cards', 'Editorial', 'TV', 'Advert'];
+  const set = words.map(w => `<p>${w}</p>`).join('');
+  track.innerHTML = set + set + set;                   // 3 copies: one full set always covers the frame
+
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let h = 0, y = 0, v = 0, last = scrollY, on = false;
+  const measure = () => { h = track.scrollHeight / 3; };
+  measure(); addEventListener('resize', measure);
+  addEventListener('scroll', () => { v += (scrollY - last) * .3; last = scrollY; }, { passive: true });
+  new IntersectionObserver(([e]) => { on = e.isIntersecting; }).observe(track.parentElement);
+
+  (function loop() {
+    if (on && !still && h) {
+      v = clamp(v, -60, 60);
+      y = ((y + .5 + v) % h + h) % h;                  // .5px/frame idle drift + scroll velocity
+      track.style.transform = `translate3d(0,${-y}px,0) skewY(${clamp(v * .25, -9, 9)}deg)`;
+    }
+    v *= .92;
+    requestAnimationFrame(loop);
+  })();
+})();
+
+/* =====================================================================
+   FORMAT MORPH
+   ===================================================================== */
+(() => {
+  const m = $('#morph'), name = $('#morph-name'); if (!m) return;
+  const btns = $$('#morph-seg button');
+  btns.forEach(b => b.addEventListener('click', () => {
+    m.dataset.f = b.dataset.f;
+    name.textContent = b.textContent;
+    btns.forEach(x => x.setAttribute('aria-pressed', x === b));
+  }));
+})();
+
+/* =====================================================================
+   COLOUR REVEAL
+   ===================================================================== */
+(() => {
+  const el = $('#reveal'); if (!el) return;
+  let x = el.clientWidth / 2, y = el.clientHeight / 2, r = 0;
+  let tx = x, ty = y, tr = 0, raf = 0;
+
+  const step = () => {
+    x += (tx - x) * .2; y += (ty - y) * .2; r += (tr - r) * .14;
+    el.style.setProperty('--mx', x + 'px');
+    el.style.setProperty('--my', y + 'px');
+    el.style.setProperty('--rr', r + 'px');
+    raf = Math.abs(tx - x) + Math.abs(ty - y) + Math.abs(tr - r) > .3 ? requestAnimationFrame(step) : 0;
+  };
+  const kick = () => { if (!raf) raf = requestAnimationFrame(step); };
+
+  el.addEventListener('pointermove', e => {
+    const b = el.getBoundingClientRect();
+    tx = e.clientX - b.left; ty = e.clientY - b.top;
+    tr = Math.min(b.width, b.height) * .28;
+    kick();
+  });
+  el.addEventListener('pointerleave', () => { tr = 0; kick(); });
+})();
+
+/* =====================================================================
+   TWO-AUDIENCE TOGGLE  (Notes mode / Plain words)
+   ===================================================================== */
+(() => {
+  const state = { notes: false, simple: false };
+  $$('[data-simple]').forEach(el => { el.dataset.full = el.innerHTML; });
+
+  const apply = k => {
+    document.body.classList.toggle(k, state[k]);
+    $$(`[data-toggle="${k}"]`).forEach(b => b.setAttribute('aria-pressed', state[k]));
+    if (k === 'simple') $$('[data-simple]').forEach(el => { el.innerHTML = state[k] ? el.dataset.simple : el.dataset.full; });
+  };
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-toggle]'); if (!b) return;
+    const k = b.dataset.toggle;
+    state[k] = !state[k];
+    apply(k);
+  });
+})();
+</script>
+</body>
+</html>

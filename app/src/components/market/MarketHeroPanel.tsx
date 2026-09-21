@@ -249,7 +249,7 @@ export function MarketHeroPanel({
             <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-3)" }}>
               FEATURED MARKET TERMINAL
             </span>
-            <Pill tone="accent" withDot>
+            <Pill tone="neutral" withDot>
               {snapshot.displaySymbol} / {snapshot.quoteSymbol}
             </Pill>
           </div>
@@ -265,14 +265,7 @@ export function MarketHeroPanel({
         </div>
       }
     >
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(220px,auto) 1fr minmax(200px,240px)",
-          gap: 28,
-          alignItems: "start",
-        }}
-      >
+      <div className="featured-terminal-grid">
         {/* ── LEFT: Identity + Price ──────────────────────────────────── */}
         <div className="stack g-14">
           {/* Logo + Name */}
@@ -362,9 +355,7 @@ export function MarketHeroPanel({
                   fontFamily: "var(--mono)",
                   color: snapshot.oracleStatus === "LIVE"
                     ? "var(--mint,#7fc39a)"
-                    : snapshot.oracleStatus === "RECENT"
-                    ? "var(--accent)"
-                    : "var(--danger,#cf8b8b)",
+                    : "var(--text-2)",
                   display: "inline-flex",
                   alignItems: "center",
                   gap: 4,
@@ -386,7 +377,7 @@ export function MarketHeroPanel({
 
           {/* Action buttons */}
           <div className="row g-10" style={{ marginTop: 2 }}>
-            <button type="button" className="btn btn--accent" onClick={onBorrow} style={{ minWidth: 130 }}>
+            <button type="button" className="btn btn--primary" onClick={onBorrow} style={{ minWidth: 130 }}>
               Borrow {isSol ? "SOL" : snapshot.quoteSymbol}
             </button>
             <button type="button" className="btn btn--secondary" onClick={onDeposit} style={{ minWidth: 110 }}>
@@ -475,7 +466,7 @@ export function MarketHeroPanel({
             <span className="t-meta" style={{ fontSize: 10, textTransform: "uppercase" }}>
               Underlying Equity
             </span>
-            <Pill tone={snapshot.underlyingSession === "REGULAR" ? "success" : "neutral"} withDot>
+            <Pill tone="neutral" withDot>
               {snapshot.underlyingSession}
             </Pill>
           </div>
@@ -486,7 +477,7 @@ export function MarketHeroPanel({
               On-Chain Market
             </span>
             <Pill
-              tone={snapshot.onchainAvailability === "TRADEABLE" ? "accent" : "neutral"}
+              tone="neutral"
               withDot
             >
               24/7 TRADEABLE
@@ -499,7 +490,7 @@ export function MarketHeroPanel({
               Collateral Status
             </span>
             <Pill
-              tone={snapshot.collateralStatus === "AVAILABLE" ? "success" : "neutral"}
+              tone="neutral"
               withDot
             >
               {snapshot.collateralStatus === "AVAILABLE"
@@ -519,11 +510,7 @@ export function MarketHeroPanel({
                   fontSize: 12,
                   fontFamily: "var(--mono)",
                   fontWeight: 600,
-                  color: snapshot.oracleConfBps <= 25
-                    ? "var(--mint,#7fc39a)"
-                    : snapshot.oracleConfBps <= 60
-                    ? "var(--accent)"
-                    : "var(--danger,#cf8b8b)",
+                  color: "var(--text)",
                 }}
               >
                 ±{snapshot.oracleConfBps} BPS

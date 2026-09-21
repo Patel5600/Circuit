@@ -73,6 +73,16 @@
 
   --t-fast: 120ms ease;
   --t: 180ms ease;
+
+  /* Soft Liquid Glass Capsule Design Tokens (Dark Mode / Default) */
+  --glass-bg: rgba(255, 255, 255, 0.05);
+  --glass-bg-hover: rgba(255, 255, 255, 0.09);
+  --glass-bg-active: rgba(255, 255, 255, 0.14);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-border-hover: rgba(255, 255, 255, 0.22);
+  --glass-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 2px 8px rgba(0, 0, 0, 0.25);
+  --glass-shadow-hover: inset 0 1px 0.5px rgba(255, 255, 255, 0.26), 0 4px 14px rgba(0, 0, 0, 0.35);
+  --glass-blur: blur(12px) saturate(150%);
 }
 
 /* Reset -------------------------------------------------------------------- */
@@ -91,6 +101,7 @@ body,
 
 html {
   -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   scroll-behavior: smooth;
 }
 
@@ -103,8 +114,6 @@ body {
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  /* Guards against any single wide child forcing a horizontal scrollbar. */
-  overflow-x: hidden;
 }
 
 h1,
@@ -372,22 +381,28 @@ svg {
   }
 }
 
-/* Buttons ------------------------------------------------------------------ */
+/* Buttons â€” Capsule with Soft Liquid Glass Design System ------------------- */
 
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 44px;
-  padding: 0 18px;
-  border-radius: var(--r);
+  min-height: 40px;
+  height: 40px;
+  padding: 0 20px;
+  border-radius: 9999px !important;
   border: 1px solid transparent;
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 600;
   white-space: nowrap;
-  transition: background var(--t-fast), border-color var(--t-fast),
-    opacity var(--t-fast), transform var(--t-fast);
+  cursor: pointer;
+  box-sizing: border-box;
+  text-decoration: none;
+  transition: all var(--t-fast);
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
 }
 .btn:active:not(:disabled) {
   transform: translateY(1px);
@@ -399,49 +414,300 @@ svg {
 
 .btn--primary {
   background: var(--text);
-  color: #08080a;
+  color: var(--surface-0);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 .btn--primary:hover:not(:disabled) {
   background: #ffffff;
+  color: #08080a;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
 .btn--accent {
   background: var(--accent);
   color: #08080a;
+  border: 1px solid transparent;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 .btn--accent:hover:not(:disabled) {
-  filter: brightness(1.08);
+  background: #ffffff;
+  color: #08080a;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
 .btn--secondary {
-  background: var(--surface-2);
-  border-color: var(--border-strong);
-  color: var(--text);
+  background: var(--glass-bg) !important;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border) !important;
+  box-shadow: var(--glass-shadow) !important;
+  color: var(--text) !important;
 }
 .btn--secondary:hover:not(:disabled) {
-  background: var(--surface-3);
+  background: var(--glass-bg-hover) !important;
+  border-color: var(--glass-border-hover) !important;
+  box-shadow: var(--glass-shadow-hover) !important;
+  color: var(--text) !important;
+  transform: translateY(-1px);
+}
+.btn--secondary:active:not(:disabled) {
+  background: var(--glass-bg-active) !important;
+  transform: translateY(0);
 }
 
 .btn--ghost {
-  background: transparent;
-  border-color: var(--border);
-  color: var(--text-2);
+  background: var(--glass-bg) !important;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border) !important;
+  box-shadow: var(--glass-shadow) !important;
+  color: var(--text-2) !important;
 }
 .btn--ghost:hover:not(:disabled) {
-  color: var(--text);
-  border-color: var(--border-strong);
+  background: var(--glass-bg-hover) !important;
+  border-color: var(--glass-border-hover) !important;
+  color: var(--text) !important;
+  box-shadow: var(--glass-shadow-hover) !important;
+  transform: translateY(-1px);
+}
+.btn--ghost:active:not(:disabled) {
+  background: var(--glass-bg-active) !important;
+  transform: translateY(0);
 }
 
 .btn--danger {
   background: var(--danger-dim);
-  border-color: var(--danger);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--danger);
   color: var(--danger);
+}
+.btn--danger:hover:not(:disabled) {
+  background: var(--danger);
+  color: #ffffff;
+  transform: translateY(-1px);
 }
 
 .btn--sm {
   min-height: 34px;
+  height: 34px;
+  padding: 0 14px;
+  font-size: 12px;
+}
+
+/* Header & Application Capsule System --------------------------------------- */
+
+.appbar__capsule-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0 13px;
+  border-radius: 9999px !important;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  color: var(--text-2);
+  font-size: 11.5px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+  box-sizing: border-box;
+  transition: background var(--t-fast), border-color var(--t-fast),
+    box-shadow var(--t-fast), color var(--t-fast), transform var(--t-fast);
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.appbar__capsule-btn:hover {
+  background: var(--glass-bg-hover);
+  border-color: var(--glass-border-hover);
+  box-shadow: var(--glass-shadow-hover);
+  color: var(--text);
+  transform: translateY(-1px);
+}
+.appbar__capsule-btn:active {
+  background: var(--glass-bg-active);
+}
+
+/* Command Palette Trigger Capsule */
+.appbar__cmd-btn {
+  font-family: var(--mono);
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+}
+.appbar__cmd-btn:hover {
+  color: var(--text);
+}
+.appbar__cmd-kbd {
+  font-size: 9.5px;
+  font-family: var(--mono);
+  padding: 1.5px 6px;
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  color: var(--text-3);
+}
+[data-theme="dark"] .appbar__cmd-kbd {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: var(--text-2);
+}
+
+/* Mode Switcher Segmented Capsule */
+.appbar__mode-segmented {
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: 9999px;
+  padding: 3px;
+  box-shadow: var(--glass-shadow);
+  box-sizing: border-box;
+}
+.appbar__mode-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 26px;
   padding: 0 12px;
-  font-size: 13px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--t-fast), color var(--t-fast), transform var(--t-fast);
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.appbar__mode-btn:hover:not(.appbar__mode-btn--active) {
+  color: var(--text);
+}
+.appbar__mode-btn--active {
+  background: #ffffff;
+  color: #15173F;
+  border-color: rgba(21, 23, 63, 0.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), inset 0 1px 0 #ffffff;
+  font-weight: 700;
+}
+[data-theme="dark"] .appbar__mode-btn--active {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ECEAF7;
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.appbar__mode-badge {
+  font-size: 9px;
+  font-weight: 700;
+  font-family: var(--mono);
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 9999px;
+}
+.appbar__mode-badge--active {
+  background: rgba(16, 185, 129, 0.18);
+  color: var(--success);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+.appbar__mode-badge--warning {
+  background: rgba(255, 179, 32, 0.18);
+  color: var(--warning);
+  border: 1px solid rgba(255, 179, 32, 0.3);
+}
+.appbar__mode-badge--danger {
+  background: rgba(239, 68, 68, 0.18);
+  color: var(--danger);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* Theme Toggle Capsule */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  letter-spacing: 0.03em;
+}
+.theme-toggle__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-2);
+}
+.theme-toggle:hover .theme-toggle__icon {
+  color: var(--text);
+}
+.theme-toggle__label {
+  font-family: var(--sans);
+  font-weight: 600;
+  font-size: 11px;
+}
+
+/* Profile Capsule Button */
+.appbar__profile-btn {
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.appbar__profile-btn--active {
+  color: var(--text);
+  background: var(--glass-bg-hover);
+  border-color: var(--text);
+}
+
+/* Wallet Capsule Button */
+.wallet-btn {
+  min-height: 34px !important;
+  height: 34px !important;
+  padding: 0 13px !important;
+}
+.wallet-btn--wrong-net {
+  border-color: var(--danger) !important;
+  background: rgba(239, 68, 68, 0.12) !important;
+  color: var(--danger) !important;
+}
+
+/* Market Selector Trigger Capsule */
+.market-selector-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 9999px !important;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 600;
+  box-sizing: border-box;
+  transition: all var(--t-fast);
+}
+.market-selector-trigger:hover {
+  background: var(--glass-bg-hover);
+  border-color: var(--glass-border-hover);
+  box-shadow: var(--glass-shadow-hover);
+  transform: translateY(-1px);
 }
 .btn--block {
   width: 100%;
@@ -685,16 +951,20 @@ svg {
     flex: none;
     width: var(--sidebar-w);
     border-right: 1px solid var(--border);
-    padding: 18px 12px;
+    padding: 16px 12px;
     position: sticky;
     top: var(--header-h);
     height: calc(100vh - var(--header-h));
+    height: calc(100dvh - var(--header-h));
     overflow-y: auto;
+    overflow-x: hidden;
+    align-self: flex-start;
+    z-index: 30;
     transition: width var(--t-fast) cubic-bezier(0.16, 1, 0.3, 1), padding var(--t-fast) cubic-bezier(0.16, 1, 0.3, 1);
   }
   .sidebar.sidebar--collapsed {
     width: 68px !important;
-    padding: 18px 8px !important;
+    padding: 16px 8px !important;
   }
   .sidebar.sidebar--collapsed .navlink__label,
   .sidebar.sidebar--collapsed .sidebar__hide-collapsed {
@@ -712,40 +982,141 @@ svg {
   display: flex;
   align-items: center;
   gap: 11px;
-  min-height: 42px;
+  min-height: 38px;
+  height: 38px;
   padding: 0 12px;
-  border-radius: var(--r);
+  border-radius: var(--r, 10px);
   color: var(--text-2);
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 550;
-  transition: background var(--t-fast), color var(--t-fast);
+  text-decoration: none;
+  transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
+  background-image: none !important;
+  border: 1px solid transparent;
 }
 .navlink:hover {
-  background: var(--surface);
+  background: var(--glass-bg-hover);
   color: var(--text);
 }
+[data-theme="light"] .navlink {
+  color: #4B5563;
+}
+[data-theme="light"] .navlink:hover:not([aria-current="page"]) {
+  background: rgba(0, 0, 0, 0.04);
+  color: #111827;
+}
+
 .navlink[aria-current="page"] {
-  background: var(--surface-2);
-  color: var(--text);
+  background: #E0E7FD;
+  color: #15173F;
+  font-weight: 650;
+  border-color: rgba(79, 70, 229, 0.15);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 .navlink[aria-current="page"] .navlink__icon {
+  color: #4F46E5;
+}
+
+[data-theme="dark"] .navlink[aria-current="page"] {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f5f5f3;
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: var(--glass-shadow);
+}
+[data-theme="dark"] .navlink[aria-current="page"] .navlink__icon {
   color: var(--accent);
 }
+
 .navlink__icon {
   flex: none;
   color: var(--text-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+[data-theme="light"] .navlink__icon {
+  color: #6B7280;
 }
 
 .navgroup {
-  margin-top: 18px;
-  padding-top: 14px;
-  border-top: 1px solid var(--border);
+  margin-top: 12px;
+  padding-top: 0;
+  border-top: none;
+}
+
+/* Sidebar Profile Card at Bottom */
+.sidebar-profile-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--r, 10px);
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  color: var(--text);
+  text-decoration: none;
+  transition: all var(--t-fast);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+[data-theme="dark"] .sidebar-profile-card {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: var(--border);
+  box-shadow: none;
+}
+.sidebar-profile-card:hover {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(79, 70, 229, 0.2);
+}
+[data-theme="dark"] .sidebar-profile-card:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--border-strong);
+}
+.sidebar-profile-card--active {
+  border-color: #4F46E5 !important;
+}
+[data-theme="dark"] .sidebar-profile-card--active {
+  border-color: var(--accent) !important;
+}
+.sidebar-profile-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  background: rgba(79, 70, 229, 0.08);
+  color: #4F46E5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+[data-theme="dark"] .sidebar-profile-icon {
+  background: rgba(236, 234, 230, 0.08);
+  color: var(--accent);
+}
+.sidebar-profile-title {
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.2;
+  color: var(--text);
+}
+[data-theme="light"] .sidebar-profile-title {
+  color: #15173F;
+}
+.sidebar-profile-sub {
+  font-size: 10px;
+  color: var(--text-3);
+  font-family: var(--mono);
+}
+.sidebar-profile-chevron {
+  opacity: 0.5;
+  display: flex;
+  align-items: center;
+  color: var(--text-3);
 }
 
 .main {
   flex: 1 1 auto;
   min-width: 0;
-  padding: 18px 16px calc(var(--bottomnav-h) + env(safe-area-inset-bottom) + 24px);
+  padding: 18px 16px calc(var(--bottomnav-h) + 24px);
 }
 @media (min-width: 768px) {
   .main {
@@ -3194,7 +3565,7 @@ svg {
 }
 
 /* ==========================================================================
-   AUTONOMOUS WORKSPACE — Responsive layout
+   AUTONOMOUS WORKSPACE â€” Responsive layout
    ========================================================================== */
 
 /* Outer workspace shell: sidebar nav + main area + telemetry panel */
@@ -3703,17 +4074,17 @@ svg {
 
 
 /* ==========================================================================
-   CIRCUIT LIGHT MODE — EARTHY / TECHNICAL PALETTE
+   CIRCUIT LIGHT MODE â€” EARTHY / TECHNICAL PALETTE
    Active whenever [data-theme="light"] is present on <html>.
    Applies across ALL pages, including Landing page and all app routes.
 
    Palette reference:
-     MIST    #B6BBD9  — dominant light background
-     HARVEST #AD8820  — primary accent / CTA / interaction
-     TERRAIN #90844A  — secondary accent / muted labels / borders
-     FOREST  #444F24  — success / SAFE / healthy states
-     SHADOW  #212413  — primary typography
-     DEEP    #122311  — maximum contrast / panels / anchors
+     MIST    #B6BBD9  â€” dominant light background
+     HARVEST #AD8820  â€” primary accent / CTA / interaction
+     TERRAIN #90844A  â€” secondary accent / muted labels / borders
+     FOREST  #444F24  â€” success / SAFE / healthy states
+     SHADOW  #212413  â€” primary typography
+     DEEP    #122311  â€” maximum contrast / panels / anchors
    ========================================================================== */
 
 [data-theme="light"] {
@@ -3725,7 +4096,7 @@ svg {
   --p-shadow:  #212413;
   --p-deep:    #122311;
 
-  /* Surfaces — 4K UHD Luminous Alabaster Glass & Authentic MIST Atmospheric Depth */
+  /* Surfaces â€” 4K UHD Luminous Alabaster Glass & Authentic MIST Atmospheric Depth */
   --bg:          #B6BBD9;
   --bg-elevated: #C4C8DF;
   --surface:     #FFFFFF;
@@ -3738,7 +4109,7 @@ svg {
   --border:        rgba(33, 36, 19, 0.16);
   --border-strong: rgba(33, 36, 19, 0.30);
 
-  /* Text — SHADOW & DEEP anchors (10:1 to 16:1 contrast on luminous surfaces) */
+  /* Text â€” SHADOW & DEEP anchors (10:1 to 16:1 contrast on luminous surfaces) */
   --text:   #122311;
   --text-1: #122311;
   --text-2: rgba(18, 35, 17, 0.82);
@@ -3820,10 +4191,11 @@ svg {
   color: #122311;
 }
 [data-theme="light"] .navlink[aria-current="page"] {
-  background: rgba(173, 136, 32, 0.14);
-  color: #122311;
-  font-weight: 600;
-  border-left: 2px solid #AD8820;
+  background: #ffffff !important;
+  color: #122311 !important;
+  font-weight: 600 !important;
+  border: 1px solid rgba(33, 36, 19, 0.16) !important;
+  box-shadow: 0 2px 8px rgba(18, 35, 17, 0.05), inset 0 1px 0 #ffffff !important;
 }
 [data-theme="light"] .navlink[aria-current="page"] .navlink__icon {
   color: #7D5A00;
@@ -3918,27 +4290,33 @@ svg {
     inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
 }
 [data-theme="light"] .btn--secondary {
-  background: #FFFFFF !important;
-  border: 1px solid rgba(33, 36, 19, 0.20) !important;
-  color: #122311 !important;
-  box-shadow:
-    0 1px 3px rgba(18, 35, 17, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+  background: var(--glass-bg) !important;
+  backdrop-filter: var(--glass-blur) !important;
+  -webkit-backdrop-filter: var(--glass-blur) !important;
+  border: 1px solid var(--glass-border) !important;
+  color: var(--text) !important;
+  box-shadow: var(--glass-shadow) !important;
 }
 [data-theme="light"] .btn--secondary:hover:not(:disabled) {
-  background: #F4F6FC !important;
-  border-color: rgba(33, 36, 19, 0.32) !important;
+  background: var(--glass-bg-hover) !important;
+  border-color: var(--glass-border-hover) !important;
+  box-shadow: var(--glass-shadow-hover) !important;
+  transform: translateY(-1px);
 }
 [data-theme="light"] .btn--ghost {
-  background: rgba(255, 255, 255, 0.40);
-  border: 1px solid rgba(33, 36, 19, 0.22);
-  color: #122311;
-  backdrop-filter: blur(8px);
+  background: var(--glass-bg) !important;
+  backdrop-filter: var(--glass-blur) !important;
+  -webkit-backdrop-filter: var(--glass-blur) !important;
+  border: 1px solid var(--glass-border) !important;
+  color: var(--text-2) !important;
+  box-shadow: var(--glass-shadow) !important;
 }
 [data-theme="light"] .btn--ghost:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.85);
-  border-color: rgba(33, 36, 19, 0.38);
-  color: #122311;
+  background: var(--glass-bg-hover) !important;
+  border-color: var(--glass-border-hover) !important;
+  color: var(--text) !important;
+  box-shadow: var(--glass-shadow-hover) !important;
+  transform: translateY(-1px);
 }
 [data-theme="light"] .btn--danger {
   background: rgba(122, 46, 30, 0.10);
@@ -4633,10 +5011,21 @@ svg {
 }
 
 /* ---- RISK STATE BANNERS ---- */
-[data-theme="light"] .risk-banner--safe       { background: rgba(42, 54, 20, 0.12);  border-color: rgba(42, 54, 20, 0.35);  color: #2A3614; }
-[data-theme="light"] .risk-banner--restricted { background: rgba(173, 136, 32, 0.14); border-color: rgba(173, 136, 32, 0.36); color: #7D5A00; }
-[data-theme="light"] .risk-banner--defensive  { background: rgba(144, 132, 74, 0.14); border-color: rgba(144, 132, 74, 0.36); color: #3B441F; }
-[data-theme="light"] .risk-banner--emergency  { background: rgba(122, 46, 30, 0.12);   border-color: rgba(122, 46, 30, 0.40);   color: #7A2E1E; }
+[data-theme="light"] .risk-banner {
+  background: rgba(255, 255, 255, 0.90) !important;
+  backdrop-filter: blur(16px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(140%) !important;
+  border-radius: 16px !important;
+  border: 1px solid rgba(33, 36, 19, 0.16) !important;
+  box-shadow: 0 4px 16px rgba(18, 35, 17, 0.05), inset 0 1px 0 rgba(255, 255, 255, 1) !important;
+}
+[data-theme="light"] .risk-banner p {
+  color: var(--text-2) !important;
+}
+[data-theme="light"] .risk-banner--safe       { border-color: rgba(42, 54, 20, 0.35) !important; }
+[data-theme="light"] .risk-banner--restricted { border-color: rgba(173, 136, 32, 0.45) !important; }
+[data-theme="light"] .risk-banner--defensive  { border-color: rgba(144, 132, 74, 0.45) !important; }
+[data-theme="light"] .risk-banner--emergency  { border-color: rgba(122, 46, 30, 0.50) !important; }
 
 /* ---- TRANSACTION STEP BAR ---- */
 [data-theme="light"] .txstep         { background: var(--surface-2); border-color: rgba(33, 36, 19, 0.18); }
@@ -4992,4 +5381,579 @@ svg {
 
 .ag-workspace {
   transition: all var(--t);
+}
+
+/* ==========================================================================
+   (Loading) Ink Bar - In-App & Product Page Loading Progress
+   ========================================================================== */
+
+.ink-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 3px;
+  z-index: 999999;
+  pointer-events: none;
+  background: linear-gradient(90deg, #14f195 0%, #38bdf8 30%, #6366f1 65%, #a855f7 100%);
+  box-shadow: 0 0 10px rgba(99, 102, 241, 0.7), 0 0 20px rgba(20, 241, 149, 0.5);
+  transition: width 0.28s cubic-bezier(0.1, 0.85, 0.25, 1), opacity 0.35s ease;
+  will-change: width, opacity;
+  border-radius: 0 9999px 9999px 0;
+  overflow: visible;
+}
+
+[data-theme="light"] .ink-bar {
+  background: linear-gradient(90deg, #059669 0%, #0284c7 30%, #4f46e5 65%, #7c3aed 100%);
+  box-shadow: 0 0 8px rgba(79, 70, 229, 0.5), 0 0 16px rgba(2, 132, 199, 0.35);
+}
+
+.ink-bar--finishing {
+  transition: width 0.18s ease-out, opacity 0.35s ease 0.12s;
+  opacity: 0;
+}
+
+/* Ambient liquid ink glow trailing beneath */
+.ink-bar__glow {
+  position: absolute;
+  inset: 0;
+  filter: blur(4px);
+  opacity: 0.85;
+  background: inherit;
+  border-radius: inherit;
+}
+
+/* Shimmer wave surging across the ink line */
+.ink-bar__shimmer {
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.7) 50%,
+    transparent 100%
+  );
+  animation: inkShimmer 1.4s infinite ease-in-out;
+  mix-blend-mode: overlay;
+}
+
+/* Leading edge liquid ink droplet */
+.ink-bar__head {
+  position: absolute;
+  right: -3px;
+  top: -2.5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 0 8px #ffffff, 0 0 16px rgba(20, 241, 149, 0.9), 0 0 24px rgba(99, 102, 241, 0.8);
+  animation: inkHeadPulse 1s infinite alternate ease-in-out;
+}
+
+[data-theme="light"] .ink-bar__head {
+  background: #ffffff;
+  box-shadow: 0 0 8px #ffffff, 0 0 14px rgba(2, 132, 199, 0.9), 0 0 20px rgba(79, 70, 229, 0.7);
+}
+
+@keyframes inkShimmer {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(200%); }
+}
+
+@keyframes inkHeadPulse {
+  0% { transform: scale(0.85); opacity: 0.85; }
+  100% { transform: scale(1.25); opacity: 1; }
+}
+
+   INK MICRO-INTERACTIONS â€” format-kit-3 Â· Full depth Â· Global
+   ===================================================================== */
+
+/* â”€â”€ 1. FILL FROM POINTER ENTRY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+   Circle expands from exact pointer-entry point; retracts to pointer-leave.
+   JS sets --ptr-x / --ptr-y on pointerenter AND pointerleave so the
+   retract animation also originates from the right place.
+   ---------------------------------------------------------------------- */
+
+/* Base fill layer â€” all ink-fill elements */
+.ink-fill {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.ink-fill::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+  /* Default neutral overlay */
+  background: rgba(127, 127, 127, 0.12);
+  clip-path: circle(0px at var(--ptr-x, 50%) var(--ptr-y, 50%));
+  transition: clip-path 0.52s cubic-bezier(0.7, 0, 0.2, 1);
+  will-change: clip-path;
+}
+
+.ink-fill:hover::before,
+.ink-fill:focus-visible::before {
+  clip-path: circle(200% at var(--ptr-x, 50%) var(--ptr-y, 50%));
+}
+
+/* Lift button content above the fill layer */
+.ink-fill > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Primary â€” dark bg, light fill */
+.btn--primary.ink-fill::before {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Accent â€” similar dark bg */
+.btn--accent.ink-fill::before {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+/* Secondary â€” border-only pill, fill with accent tint */
+.btn--secondary.ink-fill::before {
+  background: rgba(61, 90, 254, 0.1);
+}
+
+/* Ghost â€” transparent bg, very subtle fill */
+.btn--ghost.ink-fill::before {
+  background: rgba(61, 90, 254, 0.08);
+}
+
+/* Danger */
+.btn--danger.ink-fill::before {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* Glass capsule bar buttons â€” lighter glass sheen */
+.appbar__capsule-btn.ink-fill::before {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+[data-theme="dark"] .appbar__capsule-btn.ink-fill::before {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+/* Mode buttons â€” light fill when inactive, skip on active (already has bg) */
+.appbar__mode-btn.ink-fill:not(.appbar__mode-btn--active)::before {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.appbar__mode-btn--active.ink-fill::before {
+  display: none; /* active tab is already highlighted */
+}
+
+/* Navlink pill â€” soft surface fill, also uses fill from entry */
+.navlink.ink-fill {
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.navlink.ink-fill::before {
+  background: rgba(61, 90, 254, 0.07);
+}
+
+[data-theme="dark"] .navlink.ink-fill::before {
+  background: rgba(143, 162, 255, 0.08);
+}
+
+/* Active navlink gets no extra fill â€” it has its own glass bg */
+.navlink[aria-current="page"].ink-fill::before {
+  display: none;
+}
+
+/* Landing page pills */
+.lf-pill-btn.ink-fill::before,
+.lf-bar-menu-btn.ink-fill::before {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+/* â”€â”€ 2. MAGNETIC PULL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+   Element softly follows the cursor within ~90px. JS animates
+   --mag-x / --mag-y with an exponential spring; CSS just reads them.
+   Degrades gracefully on touch (pointer: coarse) â€” hook checks.
+   ---------------------------------------------------------------------- */
+.ink-magnetic {
+  transform: translate(var(--mag-x, 0px), var(--mag-y, 0px));
+  will-change: transform;
+  /* Fast follow during active orbit */
+  transition: none;
+}
+
+/* Smooth glide back to centre when pointer leaves orbit */
+.ink-magnetic[data-mag-idle="true"] {
+  transform: translate(0px, 0px);
+  transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* â”€â”€ 3. UNDERLINE DRAW-IN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+   Applies to text links and footer anchors via .ink-underline utility.
+   Navlinks (pill-shape) use the fill effect instead (see Â§1 above).
+   ---------------------------------------------------------------------- */
+.ink-underline {
+  text-decoration: none;
+  background-image: linear-gradient(currentColor, currentColor);
+  background-position: 100% 100%;
+  background-size: 0% 1.5px;
+  background-repeat: no-repeat;
+  transition:
+    background-size 0.48s cubic-bezier(0.7, 0, 0.2, 1),
+    background-position 0s 0.48s;
+  display: inline;
+}
+
+.ink-underline:hover,
+.ink-underline:focus-visible {
+  background-position: 0% 100%;
+  background-size: 100% 1.5px;
+  transition: background-size 0.48s cubic-bezier(0.7, 0, 0.2, 1);
+}
+
+/* Footer links in landing page get draw-in */
+.lf-footer a,
+.lf-footer-link {
+  text-decoration: none;
+  background-image: linear-gradient(currentColor, currentColor);
+  background-position: 100% 100%;
+  background-size: 0% 1px;
+  background-repeat: no-repeat;
+  transition:
+    background-size 0.48s cubic-bezier(0.7, 0, 0.2, 1),
+    background-position 0s 0.48s;
+}
+
+.lf-footer a:hover,
+.lf-footer-link:hover {
+  background-position: 0% 100%;
+  background-size: 100% 1px;
+  transition: background-size 0.48s cubic-bezier(0.7, 0, 0.2, 1);
+}
+
+/* â”€â”€ 4. SQUASH ON PRESS â€” Spring physics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+   Press: fast compress. Release: overshoot spring-snap back.
+   cubic-bezier(0.34, 1.7, 0.64, 1) = natural overshoot spring.
+   ---------------------------------------------------------------------- */
+
+/* All .btn â€” gentle Y-press already existed; add spring on release */
+.btn {
+  transition:
+    background var(--t-fast),
+    border-color var(--t-fast),
+    box-shadow var(--t-fast),
+    color var(--t-fast),
+    transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity var(--t-fast);
+}
+
+.btn:active:not(:disabled) {
+  transform: scaleX(0.94) scaleY(0.91) translateY(1px);
+  transition: transform 0.1s cubic-bezier(0.3, 0, 0.5, 1);
+}
+
+/* Mode switcher â€” squash within segmented control */
+.appbar__mode-btn {
+  transition:
+    background var(--t-fast),
+    color var(--t-fast),
+    transform 0.52s cubic-bezier(0.34, 1.7, 0.64, 1);
+}
+
+.appbar__mode-btn:active {
+  transform: scaleX(0.88) scaleY(0.86);
+  transition: transform 0.1s cubic-bezier(0.3, 0, 0.5, 1);
+}
+
+/* Header capsule buttons â€” X-axis squash + Y return */
+.appbar__capsule-btn {
+  transition:
+    background var(--t-fast),
+    border-color var(--t-fast),
+    box-shadow var(--t-fast),
+    color var(--t-fast),
+    transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.appbar__capsule-btn:active {
+  transform: scaleX(0.92) scaleY(0.89) !important;
+  transition: transform 0.1s cubic-bezier(0.3, 0, 0.5, 1) !important;
+}
+
+/* Actual toggle switches */
+[role="switch"] {
+  transition:
+    background var(--t-fast),
+    border-color var(--t-fast),
+    transform 0.52s cubic-bezier(0.34, 1.8, 0.64, 1);
+}
+
+[role="switch"]:active {
+  transform: scaleX(0.86) scaleY(0.90);
+  transition: transform 0.1s cubic-bezier(0.3, 0, 0.5, 1);
+}
+
+/* Navlinks: mild squash for satisfying click feel */
+.navlink {
+  transition:
+    background var(--t-fast),
+    color var(--t-fast),
+    transform 0.48s cubic-bezier(0.34, 1.6, 0.64, 1);
+}
+
+.navlink:active {
+  transform: scaleX(0.95) scaleY(0.92);
+  transition: transform 0.1s cubic-bezier(0.3, 0, 0.5, 1);
+}
+
+/* â”€â”€ Accessibility: respect prefers-reduced-motion â”€â”€ */
+@media (prefers-reduced-motion: reduce) {
+  .ink-fill::before {
+    transition: none;
+  }
+  .ink-magnetic {
+    transform: none !important;
+    transition: none !important;
+  }
+  .ink-underline,
+  .lf-footer a {
+    transition: none;
+  }
+  .btn,
+  .appbar__mode-btn,
+  .appbar__capsule-btn,
+  [role="switch"],
+  .navlink {
+    transition: background var(--t-fast), color var(--t-fast), opacity var(--t-fast);
+  }
+  .btn:active:not(:disabled),
+  .appbar__mode-btn:active,
+  .appbar__capsule-btn:active,
+  [role="switch"]:active,
+  .navlink:active {
+    transform: none;
+  }
+}
+
+/* =====================================================================
+   MOBILE / TOUCH COMPATIBILITY
+   ===================================================================== */
+
+/* ── Remove native tap highlights — ink fill replaces them ── */
+.ink-fill,
+.btn,
+.appbar__capsule-btn,
+.appbar__mode-btn,
+.navlink,
+.bottomnav__item,
+.lf-pill-btn {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation; /* faster 300ms-delay-free taps */
+}
+
+/* ── Touch retract: .ink-fill--retracting forces fill to collapse ──
+   Applied by JS on pointerup for touch so the circle retracts
+   back to the lift point. ─────────────────────────────────────── */
+.ink-fill--retracting::before {
+  clip-path: circle(0px at var(--ptr-x, 50%) var(--ptr-y, 50%)) !important;
+  transition: clip-path 0.38s cubic-bezier(0.7, 0, 0.2, 1) !important;
+}
+
+/* ── Bottom nav — ink fill + squash for touch ── */
+.bottomnav__item {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  /* Bigger touch target */
+  padding: 8px 4px;
+  min-height: 52px;
+}
+
+.bottomnav__item.ink-fill::before {
+  background: rgba(61, 90, 254, 0.09);
+  border-radius: 14px;
+  /* Pill shape centred under the icon */
+  inset: 6px 12px;
+}
+
+[data-theme="dark"] .bottomnav__item.ink-fill::before {
+  background: rgba(143, 162, 255, 0.1);
+}
+
+.bottomnav__item:active {
+  transform: scale(0.91);
+  transition: transform 0.1s cubic-bezier(0.3, 0, 0.5, 1);
+}
+
+.bottomnav__item {
+  transition:
+    color var(--t-fast),
+    transform 0.48s cubic-bezier(0.34, 1.6, 0.64, 1);
+}
+
+/* ── App bar — tighter on small screens ── */
+@media (max-width: 640px) {
+  .appbar {
+    padding: 0 10px;
+    gap: 6px;
+  }
+
+  /* Shrink mode switcher text */
+  .appbar__mode-btn {
+    padding: 0 9px;
+    font-size: 10.5px;
+  }
+
+  /* Slim capsule buttons */
+  .appbar__capsule-btn {
+    padding: 0 10px;
+    gap: 5px;
+    font-size: 11px;
+    height: 32px;
+    min-height: 32px;
+  }
+}
+
+/* ── Appbar mode segmented — tighter on very small screens ── */
+@media (max-width: 380px) {
+  .appbar__mode-segmented {
+    height: 30px;
+  }
+  .appbar__mode-btn {
+    height: 22px;
+    padding: 0 7px;
+    font-size: 10px;
+  }
+}
+
+/* ── Safe-area insets for iPhone notch / home bar ── */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .bottomnav {
+    padding-bottom: max(env(safe-area-inset-bottom), 4px);
+  }
+
+  /* Main content scrollable area clears the bottom nav */
+  .shell__content {
+    padding-bottom: calc(var(--bottomnav-h, 64px) + env(safe-area-inset-bottom));
+  }
+}
+
+/* ── Landing page mobile ── */
+@media (max-width: 600px) {
+  /* Header bar */
+  .lf-bar {
+    padding: 0 14px;
+    height: 52px;
+    gap: 8px;
+  }
+
+  .lf-bar-slot {
+    display: none; /* hide devnet slot text on small phones */
+  }
+
+  .lf-bar-brand {
+    font-size: 14px;
+  }
+
+  /* Theme dial — slightly larger touch target */
+  .lf-theme-dial {
+    width: 36px;
+    height: 36px;
+  }
+
+  .lf-theme-dial i {
+    width: 8px;
+    height: 8px;
+    margin: -4px;
+    transform: rotate(0deg) translateY(-10px);
+  }
+
+  .lf-theme-dial[aria-pressed="true"] i {
+    transform: rotate(180deg) translateY(-10px);
+  }
+
+  /* CTA button */
+  .lf-bar-cta {
+    padding: 0 12px;
+    font-size: 12px;
+    height: 34px;
+  }
+
+  .lf-pill-full {
+    display: none;
+  }
+
+  .lf-pill-short {
+    display: inline;
+  }
+
+  /* Lab / section headings */
+  .lab-head h2,
+  .lf-lab-head h2 {
+    font-size: clamp(22px, 7vw, 36px);
+  }
+
+  .lab-head p,
+  .lf-lab-head p {
+    font-size: 13px;
+  }
+}
+
+/* ── Ink fill on touch: expand on press, retract on release ──
+   On hover-incapable devices, :hover never fires so the ::before
+   stays collapsed. We override :active to show the fill during press. */
+@media (hover: none) and (pointer: coarse) {
+  /* Show fill on active press for touch devices */
+  .ink-fill:active::before {
+    clip-path: circle(200% at var(--ptr-x, 50%) var(--ptr-y, 50%));
+    transition: clip-path 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* After release, the JS adds .ink-fill--retracting to collapse */
+  .ink-fill:not(:active):not(.ink-fill--retracting)::before {
+    clip-path: circle(0px at var(--ptr-x, 50%) var(--ptr-y, 50%));
+    transition: clip-path 0.38s cubic-bezier(0.7, 0, 0.2, 1);
+  }
+
+  /* No magnetic on touch — already disabled in JS too */
+  .ink-magnetic {
+    transform: none !important;
+  }
+
+  /* Squash feels stronger on touch (more feedback) */
+  .btn:active:not(:disabled) {
+    transform: scaleX(0.92) scaleY(0.88);
+  }
+
+  .navlink:active {
+    transform: scaleX(0.93) scaleY(0.90);
+  }
+
+  .appbar__capsule-btn:active {
+    transform: scaleX(0.90) scaleY(0.87) !important;
+  }
+
+  .appbar__mode-btn:active {
+    transform: scaleX(0.86) scaleY(0.84);
+  }
+
+  /* Underline draw-in: show on active state for touch */
+  .ink-underline:active {
+    background-position: 0% 100%;
+    background-size: 100% 1.5px;
+  }
+}
+
+/* ── Hybrid devices (Surface, iPad with pencil) ── */
+@media (hover: none) and (pointer: fine) {
+  /* Stylus: keep fill but no magnetic */
+  .ink-magnetic {
+    transform: none !important;
+  }
 }

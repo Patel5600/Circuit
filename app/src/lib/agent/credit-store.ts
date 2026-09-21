@@ -24,11 +24,11 @@ type CreditListener = (state: ClientCreditState) => void;
 class AgentCreditStore {
   private state: ClientCreditState = {
     owner: null,
-    available: 0,
+    available: 100,
     reserved: 0,
-    totalGranted: 0,
+    totalGranted: 100,
     totalConsumed: 0,
-    regime: "BLOCKED",
+    regime: "FULL_CAPABILITY",
     warning: null,
     loading: false,
     firstConnectClaimed: false,

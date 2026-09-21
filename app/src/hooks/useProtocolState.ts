@@ -11,20 +11,31 @@ import {
 } from "../config";
 import { DeployedMarket } from "../data/markets";
 import { useMarket } from "../context/MarketContext";
-import { OracleSnapshot, fetchOracle } from "../lib/pyth";
+import {
+  DEFAULT_FEED_ID,
+  OracleSnapshot,
+  PYTH_PRICE_ACCOUNT,
+  decodeOracleInfo,
+  derivePriceAccount,
+  fetchOracle,
+} from "../lib/pyth";
 import {
   AssetConfigView,
   MarketGuardView,
   PositionView,
   ProtocolConfigView,
+  assetConfigPda,
   collateralValue,
-  fetchAssetConfig,
-  fetchMarketGuard,
-  fetchPosition,
-  fetchProtocolConfig,
-  fetchTokenAmount,
+  decodeAssetConfigView,
+  decodeMarketGuardView,
+  decodePositionView,
+  decodeProtocolConfigView,
+  decodeTokenAmount,
   healthFactorBps,
+  marketGuardPda,
   maxBorrow,
+  positionPda,
+  protocolConfigPda,
   readOnlyProgram,
   vaultFor,
 } from "../lib/protocol";
@@ -162,11 +173,20 @@ export function useProtocolState(overrideMarket?: DeployedMarket): ProtocolState
       try {
         const program = readOnlyProgram(conn);
 
-        // Fetch cluster clock in parallel with initial preparations
-        const slotPromise = conn.getSlot().then(async (slot) => {
-          const blockTime = await conn.getBlockTime(slot).catch(() => null);
-          return { slot, chainUnixTime: blockTime ?? Math.floor(Date.now() / 1000) };
-        });
+        // Fetch cluster clock in parallel with account queries; resilient to rate limits
+        const slotPromise = conn
+          .getSlot()
+          .then(async (slot) => {
+            const blockTime = await conn.getBlockTime(slot).catch(() => null);
+            return {
+              slot,
+              chainUnixTime: blockTime ?? Math.floor(Date.now() / 1000),
+            };
+          })
+          .catch(() => ({
+            slot: null,
+            chainUnixTime: Math.floor(Date.now() / 1000),
+          }));
 
         const equityMint = activeMarket
           ? new PublicKey(activeMarket.mint)
@@ -182,34 +202,91 @@ export function useProtocolState(overrideMarket?: DeployedMarket): ProtocolState
           ? new PublicKey(activeMarket.liquidityVault)
           : (quoteMint ? vaultFor(quoteMint) : null);
 
-        const { slot, chainUnixTime } = await slotPromise;
+        const oraclePubkey =
+          PYTH_PRICE_ACCOUNT && feedId === PYTH_FEED_ID
+            ? PYTH_PRICE_ACCOUNT
+            : derivePriceAccount(feedId, 0);
 
-        // Execute all independent on-chain account queries in a single parallel batch
-        const [
-          protocol,
-          oracle,
-          asset,
-          guard,
-          vaultCollateral,
-          vaultLiquidity,
-          position,
-          walletEquity,
-          walletQuote,
-        ] = await Promise.all([
-          fetchProtocolConfig(program, conn),
-          fetchOracle(conn, chainUnixTime, feedId),
-          equityMint ? fetchAssetConfig(program, conn, equityMint) : Promise.resolve(null),
-          equityMint ? fetchMarketGuard(program, conn, feedId) : Promise.resolve(null),
-          collateralVault ? fetchTokenAmount(conn, collateralVault) : Promise.resolve(0n),
-          liquidityVault ? fetchTokenAmount(conn, liquidityVault) : Promise.resolve(0n),
-          publicKey && equityMint ? fetchPosition(program, conn, publicKey, equityMint) : Promise.resolve(null),
+        const protocolKey = protocolConfigPda();
+        const assetKey = equityMint ? assetConfigPda(equityMint) : null;
+        const guardKey = equityMint ? marketGuardPda(feedId) : null;
+        const positionKey =
+          publicKey && equityMint ? positionPda(publicKey, equityMint) : null;
+        const userCollateralKey =
           publicKey && equityMint
-            ? fetchTokenAmount(conn, getAssociatedTokenAddressSync(equityMint, publicKey))
-            : Promise.resolve(0n),
+            ? getAssociatedTokenAddressSync(equityMint, publicKey)
+            : null;
+        const userQuoteKey =
           publicKey && quoteMint
-            ? fetchTokenAmount(conn, getAssociatedTokenAddressSync(quoteMint, publicKey))
-            : Promise.resolve(0n),
+            ? getAssociatedTokenAddressSync(quoteMint, publicKey)
+            : null;
+
+        // Assembly of all on-chain keys into a single batched array
+        const keyList: (PublicKey | null)[] = [
+          protocolKey,       // 0
+          oraclePubkey,      // 1
+          assetKey,          // 2
+          guardKey,          // 3
+          collateralVault,   // 4
+          liquidityVault,    // 5
+          positionKey,       // 6
+          userCollateralKey, // 7
+          userQuoteKey,      // 8
+        ];
+
+        const queryKeys: PublicKey[] = [];
+        const indexMap: number[] = [];
+        keyList.forEach((k, idx) => {
+          if (k) {
+            queryKeys.push(k);
+            indexMap.push(idx);
+          }
+        });
+
+        // Execute clock check and account batch query in parallel (only 2 RPC calls total)
+        const [clock, accountInfos] = await Promise.all([
+          slotPromise,
+          conn.getMultipleAccountsInfo(queryKeys).catch((err) => {
+            console.warn("[useProtocolState] getMultipleAccountsInfo batch fetch error:", err);
+            return null;
+          }),
         ]);
+
+        const { slot, chainUnixTime } = clock;
+
+        if (!accountInfos) {
+          // If RPC batch was rate-limited or failed, retain cached state seamlessly
+          const cachedState = marketStateCache.get(marketKey);
+          if (cachedState) {
+            if (cancelled) return;
+            setState((s) => ({
+              ...cachedState,
+              loading: false,
+              error: null,
+            }));
+            return;
+          }
+          throw new Error("Unable to reach Solana cluster or rate limit exceeded.");
+        }
+
+        const rawResults: (any | null)[] = new Array(keyList.length).fill(null);
+        indexMap.forEach((origIdx, i) => {
+          rawResults[origIdx] = accountInfos[i] ?? null;
+        });
+
+        const protocol = decodeProtocolConfigView(program, rawResults[0]);
+        let oracle = decodeOracleInfo(oraclePubkey, rawResults[1], chainUnixTime);
+        if (!oracle) {
+          // Graceful fallback to shard scan / in-memory cache
+          oracle = await fetchOracle(conn, chainUnixTime, feedId).catch(() => null);
+        }
+        const asset = decodeAssetConfigView(program, rawResults[2]);
+        const guard = decodeMarketGuardView(program, rawResults[3]);
+        const vaultCollateral = decodeTokenAmount(rawResults[4]);
+        const vaultLiquidity = decodeTokenAmount(rawResults[5]);
+        const position = decodePositionView(program, rawResults[6]);
+        const walletEquity = decodeTokenAmount(rawResults[7]);
+        const walletQuote = decodeTokenAmount(rawResults[8]);
 
         if (cancelled) return;
         const nextState = {
@@ -234,10 +311,31 @@ export function useProtocolState(overrideMarket?: DeployedMarket): ProtocolState
         setState(nextState);
       } catch (e: any) {
         if (cancelled) return;
+        const errMsg = e?.message ?? String(e);
+        const isRateLimit =
+          errMsg.includes("429") ||
+          errMsg.includes("Connection rate limits exceeded") ||
+          errMsg.includes("rate limit");
+
+        const cached = marketStateCache.get(marketKey);
+        if (cached) {
+          console.warn(
+            `[useProtocolState] RPC rate-limited or transient failure, retaining cached state for ${marketKey}`
+          );
+          setState((s) => ({
+            ...cached,
+            loading: false,
+            error: null,
+          }));
+          return;
+        }
+
         setState((s) => ({
           ...s,
           loading: false,
-          error: e?.message ?? String(e),
+          error: isRateLimit
+            ? "Solana RPC rate limit reached. Reconnecting automatically..."
+            : errMsg,
         }));
       } finally {
         inFlight.current = false;

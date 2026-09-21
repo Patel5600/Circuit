@@ -575,10 +575,10 @@ export function ProposalCardBlock({
           }}
           style={{
             padding: "8px 16px",
-            background: isAllowed ? (isApproved ? "rgba(121,194,164,0.2)" : "var(--p-deep, #122311)") : "var(--surface-2)",
+            background: isAllowed ? (isApproved ? "rgba(16,185,129,0.2)" : "var(--accent, #3D5AFE)") : "var(--surface-2)",
             border: "none",
             borderRadius: 6,
-            color: isApproved ? "var(--mint, #79c2a4)" : "#ffffff",
+            color: isApproved ? "var(--success, #10B981)" : "#ffffff",
             fontSize: 11,
             fontFamily: "var(--mono)",
             fontWeight: 700,

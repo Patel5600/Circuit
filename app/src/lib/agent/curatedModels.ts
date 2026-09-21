@@ -44,8 +44,6 @@ export const FALLBACK_MODEL_ID = "circuit-lite";
 
 export const CURATED_MODELS: AgentModelOption[] = [
   ...CANONICAL_AGENT_TIERS,
-  { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash", badge: "LITE", desc: "Fast agentic reasoning & live telemetry", tier: "LITE", creditCost: 1 },
-  { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", badge: "PRO", desc: "Complex multi-step portfolio analysis", tier: "PRO", creditCost: 4 },
 ];
 
 export function filterCuratedModels(rawCatalog: Array<{ name?: string }>): AgentModelOption[] {

@@ -267,10 +267,23 @@ describe("Devnet Faucet Limits & Multi-Wallet Isolation Tests", () => {
         setHeader: (k: string, v: string) => { headers[k] = v; },
         status: (code: number) => { statusCode = code; return mockRes; },
         write: (chunk: string) => { responseContent += chunk; },
+        send: (body: any) => { responseContent += typeof body === "string" ? body : JSON.stringify(body); return mockRes; },
+        json: (body: any) => { responseContent += JSON.stringify(body); return mockRes; },
         end: () => {},
       };
 
-      await chatHandler(mockReq, mockRes);
+      process.env.CIRCUIT_OFFLINE_TEST = "1";
+      const origKey = process.env.GEMINI_AI_KEY;
+      delete process.env.GEMINI_AI_KEY;
+      delete process.env.GEMINI_API_KEY;
+      delete process.env.GOOGLE_API_KEY;
+      delete process.env.AI_GATEWAY_API_KEY;
+      try {
+        await chatHandler(mockReq, mockRes);
+      } finally {
+        delete process.env.CIRCUIT_OFFLINE_TEST;
+        if (origKey) process.env.GEMINI_AI_KEY = origKey;
+      }
 
       expect(statusCode).to.equal(200);
       expect(responseContent).to.be.a("string");

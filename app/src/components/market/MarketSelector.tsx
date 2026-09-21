@@ -97,20 +97,6 @@ export function MarketSelector({ compact = false, onSelect }: MarketSelectorProp
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label="Select collateral market"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 8,
-          padding: compact ? "5px 10px" : "8px 14px",
-          background: "var(--surface-2)",
-          border: "1px solid var(--border-strong)",
-          borderRadius: 10,
-          color: "var(--text)",
-          cursor: "pointer",
-          fontSize: compact ? 13 : 14,
-          fontWeight: 600,
-          transition: "all 0.15s ease",
-        }}
       >
         <span
           style={{

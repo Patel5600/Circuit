@@ -135,7 +135,7 @@ export function ProtocolBoundaryInspector() {
               fontFamily: "var(--mono)",
               fontSize: 10,
               fontWeight: 700,
-              color: "var(--p-harvest, #AD8820)",
+              color: "var(--accent, #8FA2FF)",
               letterSpacing: "0.08em",
               textTransform: "uppercase",
             }}
@@ -387,7 +387,7 @@ export function ProtocolBoundaryInspector() {
               <strong>CORE INVARIANT:</strong> The agent can propose any strategy, but Circuit sovereignly enforces
               permitted capital boundaries onchain.
             </span>
-            <span style={{ color: "var(--p-harvest, #AD8820)", fontWeight: 700 }}>
+            <span style={{ color: "var(--accent, #8FA2FF)", fontWeight: 700 }}>
               CIRCUIT GOVERNS CAPITAL
             </span>
           </div>

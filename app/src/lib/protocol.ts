@@ -182,7 +182,99 @@ export function readOnlyProgram(conn: Connection): Program {
   return new Program(idl as any, provider);
 }
 
-// -- reads -----------------------------------------------------------------
+// -- reads & decoders --------------------------------------------------------
+
+export function decodeAccountData<T>(
+  program: Program,
+  name: string,
+  info: { data: Uint8Array | Buffer } | null | undefined,
+  map: (raw: any) => T
+): T | null {
+  if (!info) return null;
+  try {
+    const buf = Buffer.isBuffer(info.data) ? info.data : Buffer.from(info.data);
+    const raw = program.coder.accounts.decode(name, buf);
+    return map(raw);
+  } catch (e) {
+    console.warn(`failed to decode ${name}`, e);
+    return null;
+  }
+}
+
+export function decodeProtocolConfigView(
+  program: Program,
+  info: { data: Uint8Array | Buffer } | null | undefined
+): ProtocolConfigView | null {
+  return decodeAccountData(program, "protocolConfig", info, (r) => ({
+    authority: r.authority,
+    paused: Boolean(r.paused),
+    version: Number(r.version),
+    minHealthFactorBps: Number(r.minHealthFactorBps),
+    liquidationBonusBps: Number(r.liquidationBonusBps),
+    feeRecipient: r.feeRecipient ? new PublicKey(r.feeRecipient) : undefined,
+    borrowFeeBps: r.borrowFeeBps ? Number(r.borrowFeeBps) : 25,
+    feeEnabled: r.feeEnabled !== undefined ? Boolean(r.feeEnabled) : true,
+  }));
+}
+
+export function decodeAssetConfigView(
+  program: Program,
+  info: { data: Uint8Array | Buffer } | null | undefined
+): AssetConfigView | null {
+  return decodeAccountData(program, "assetConfig", info, (r) => ({
+    mint: r.mint,
+    quoteMint: r.quoteMint,
+    feedIdHex: Buffer.from(r.pythFeedId).toString("hex"),
+    baseLtvBps: Number(r.baseLtvBps),
+    liquidationThresholdBps: Number(r.liquidationThresholdBps),
+    liquidationBonusBps: Number(r.liquidationBonusBps),
+    maxOracleAge: Number(r.maxOracleAge),
+    maxConfBps: Number(r.maxConfBps),
+    custodyState: enumKey<CustodyState>(r.custodyState, "healthy"),
+    liquidityState: enumKey<LiquidityState>(r.liquidityState, "deep"),
+    enabled: Boolean(r.enabled),
+  }));
+}
+
+export function decodeMarketGuardView(
+  program: Program,
+  info: { data: Uint8Array | Buffer } | null | undefined
+): MarketGuardView | null {
+  return decodeAccountData(program, "marketGuard", info, (r) => ({
+    marketState: enumKey<MarketState>(r.marketState, "emergency"),
+    reason: enumKey(r.reason, "ok"),
+    lastValidPrice: BigInt(r.lastValidPrice.toString()),
+    lastValidExpo: Number(r.lastValidExpo),
+    lastPublishTime: BigInt(r.lastPublishTime.toString()),
+    lastCheckedSlot: BigInt(r.lastCheckedSlot.toString()),
+  }));
+}
+
+export function decodePositionView(
+  program: Program,
+  info: { data: Uint8Array | Buffer } | null | undefined
+): PositionView | null {
+  return decodeAccountData(program, "position", info, (r) => ({
+    owner: r.owner,
+    collateralAmount: BigInt(r.collateralAmount.toString()),
+    debtAmount: BigInt(r.debtAmount.toString()),
+    lastValidPrice: BigInt(r.lastValidPrice.toString()),
+    lastValidExpo: Number(r.lastValidExpo),
+    state: enumKey<PositionState>(r.state, "healthy"),
+  }));
+}
+
+export function decodeTokenAmount(
+  info: { data: Uint8Array | Buffer } | null | undefined
+): bigint {
+  if (!info || info.data.length < 72) return 0n;
+  const view = new DataView(
+    info.data.buffer,
+    info.data.byteOffset,
+    info.data.byteLength
+  );
+  return view.getBigUint64(64, true); // SPL token amount
+}
 
 async function decodeMaybe<T>(
   program: Program,
@@ -191,11 +283,12 @@ async function decodeMaybe<T>(
   address: PublicKey,
   map: (raw: any) => T
 ): Promise<T | null> {
-  const info = await conn.getAccountInfo(address);
-  if (!info) return null;
   try {
-    const raw = program.coder.accounts.decode(name, Buffer.from(info.data));
-    return map(raw);
+    const info = await conn.getAccountInfo(address).catch((err) => {
+      console.warn(`failed to fetch account ${name} at ${address.toBase58()}:`, err?.message || err);
+      return null;
+    });
+    return decodeAccountData(program, name, info, map);
   } catch (e) {
     console.warn(`failed to decode ${name} at ${address.toBase58()}`, e);
     return null;
@@ -273,14 +366,15 @@ export async function fetchTokenAmount(
   conn: Connection,
   address: PublicKey
 ): Promise<bigint> {
-  const info = await conn.getAccountInfo(address);
-  if (!info || info.data.length < 72) return 0n;
-  const view = new DataView(
-    info.data.buffer,
-    info.data.byteOffset,
-    info.data.byteLength
-  );
-  return view.getBigUint64(64, true); // SPL token amount
+  try {
+    const info = await conn.getAccountInfo(address).catch((err) => {
+      console.warn(`failed to fetch token account at ${address.toBase58()}:`, err?.message || err);
+      return null;
+    });
+    return decodeTokenAmount(info);
+  } catch {
+    return 0n;
+  }
 }
 
 export async function fetchAgentAuthority(

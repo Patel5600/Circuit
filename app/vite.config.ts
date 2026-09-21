@@ -1,7 +1,36 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { nodePolyfills } from "vite-plugin-node-polyfills";
+import fs from "node:fs";
 import path from "node:path";
+
+function loadEnvFiles() {
+  const candidates = [
+    path.resolve(__dirname, "../.env.local"),
+    path.resolve(__dirname, ".env.local"),
+    path.resolve(__dirname, "../.env"),
+    path.resolve(__dirname, ".env"),
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) {
+      const content = fs.readFileSync(c, "utf8");
+      for (const line of content.split("\n")) {
+        const m = line.trim().match(/^([A-Za-z0-9_]+)\s*=\s*(.*)$/);
+        if (m) {
+          const k = m[1];
+          let v = m[2].trim();
+          if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+            v = v.slice(1, -1);
+          }
+          if (!process.env[k] && v) {
+            process.env[k] = v;
+          }
+        }
+      }
+    }
+  }
+}
+loadEnvFiles();
 
 export default defineConfig({
   server: {
@@ -172,7 +201,7 @@ export default defineConfig({
     },
   ],
   ssr: {
-    external: ["node:crypto", "crypto", "node:buffer", "buffer"],
+    external: ["node:crypto", "crypto", "node:buffer", "buffer", "node:fs", "fs", "node:path", "path"],
   },
   build: {
     target: "esnext",

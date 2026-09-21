@@ -4,7 +4,7 @@ import { Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import { AppShell } from "./components/layout/AppShell";
 import { ErrorBoundary } from "./components/layout/ErrorBoundary";
 import { IconKeyframes } from "./components/ui/Icon";
-import { Skeleton } from "./components/ui";
+import { Skeleton, InkBarProvider, useInkBar, InkRouteTracker } from "./components/ui";
 import { MarketProvider } from "./context/MarketContext";
 import { ActionProvider } from "./context/ActionContext";
 import { CircuitProtocolProvider, useCircuitDomain } from "./lib/domain/context";
@@ -70,6 +70,14 @@ function TitleSync() {
 
 /** Skeleton shown while a lazy page chunk loads. Content-area only. */
 function PageFallback() {
+  const { start, finish } = useInkBar();
+  React.useEffect(() => {
+    start();
+    return () => {
+      finish();
+    };
+  }, [start, finish]);
+
   return (
     <div className="container stack g-16" aria-busy="true">
       <span role="status" aria-live="polite" className="sr-only">
@@ -139,69 +147,72 @@ export default function App() {
       <IconKeyframes />
       <TitleSync />
       <ThemeProvider>
-        <Routes>
-          {/* Public landing page — always dark */}
-          <Route
-            path="/"
-            element={
-              <Suspense fallback={<PageFallback />}>
-                <Landing />
-              </Suspense>
-            }
-          />
+        <InkBarProvider>
+          <InkRouteTracker />
+          <Routes>
+            {/* Public landing page — Ultra-lightweight, 60fps Format presentation */}
+            <Route
+              path="/"
+              element={
+                <Suspense fallback={<PageFallback />}>
+                  <Landing />
+                </Suspense>
+              }
+            />
 
-          {/* Standalone /learn */}
-          <Route
-            path="/learn"
-            element={
-              <Suspense fallback={<ShellFallback />}>
-                <SolanaProviders>
-                  <CircuitProtocolProvider>
-                    <MarketProvider>
-                      <ActionProvider>
-                        <AppShell>
-                          <Suspense fallback={<PageFallback />}>
-                            <Learn />
-                          </Suspense>
-                        </AppShell>
-                      </ActionProvider>
-                    </MarketProvider>
-                  </CircuitProtocolProvider>
-                </SolanaProviders>
-              </Suspense>
-            }
-          />
+            {/* Standalone /learn */}
+            <Route
+              path="/learn"
+              element={
+                <Suspense fallback={<ShellFallback />}>
+                  <SolanaProviders>
+                    <CircuitProtocolProvider>
+                      <MarketProvider>
+                        <ActionProvider>
+                          <AppShell>
+                            <Suspense fallback={<PageFallback />}>
+                              <Learn />
+                            </Suspense>
+                          </AppShell>
+                        </ActionProvider>
+                      </MarketProvider>
+                    </CircuitProtocolProvider>
+                  </SolanaProviders>
+                </Suspense>
+              }
+            />
 
-          {/*
-           * App routes — all wrapped in AppLayout.
-           * AppShell automatically hides sidebar on /app/autonomous for full-screen agent workspace,
-           * while keeping the top Header for seamless switching between MANUAL and AUTONOMOUS modes.
-           */}
-          <Route element={<AppLayout />}>
-            <Route path="/app"               element={<Dashboard />} />
-            <Route path="/app/markets"        element={<Markets />} />
-            <Route path="/app/position"       element={<Position />} />
-            <Route path="/app/borrow"         element={<Borrow />} />
-            <Route path="/app/profile"        element={<Profile />} />
-            <Route path="/app/portfolio-risk" element={<Profile />} />
-            <Route path="/app/faucet"         element={<Faucet />} />
-            <Route path="/app/activity"       element={<Activity />} />
-            <Route path="/app/learn"          element={<Learn />} />
-            <Route path="/app/verify"         element={<Verify />} />
-            <Route path="/app/demo"           element={<Demo />} />
-            <Route path="/app/autonomous"     element={<Autonomous />} />
-            <Route path="/app/economics"      element={<Navigate to="/app/verify" replace />} />
-          </Route>
+            {/*
+             * App routes — all wrapped in AppLayout.
+             * AppShell automatically hides sidebar on /app/autonomous for full-screen agent workspace,
+             * while keeping the top Header for seamless switching between MANUAL and AUTONOMOUS modes.
+             */}
+            <Route element={<AppLayout />}>
+              <Route path="/app"               element={<Dashboard />} />
+              <Route path="/app/markets"        element={<Markets />} />
+              <Route path="/app/position"       element={<Position />} />
+              <Route path="/app/borrow"         element={<Borrow />} />
+              <Route path="/app/profile"        element={<Profile />} />
+              <Route path="/app/portfolio-risk" element={<Profile />} />
+              <Route path="/app/faucet"         element={<Faucet />} />
+              <Route path="/app/activity"       element={<Activity />} />
+              <Route path="/app/learn"          element={<Learn />} />
+              <Route path="/app/verify"         element={<Verify />} />
+              <Route path="/app/demo"           element={<Demo />} />
+              <Route path="/app/autonomous"     element={<Autonomous />} />
+              <Route path="/app/economics"      element={<Navigate to="/app/verify" replace />} />
+            </Route>
 
-          <Route
-            path="*"
-            element={
-              <Suspense fallback={<PageFallback />}>
-                <NotFound />
-              </Suspense>
-            }
-          />
-        </Routes>
+            <Route
+              path="*"
+              element={
+                <Suspense fallback={<PageFallback />}>
+                  <NotFound />
+                </Suspense>
+              }
+            />
+          </Routes>
+        </InkBarProvider>
       </ThemeProvider>
     </>
   );

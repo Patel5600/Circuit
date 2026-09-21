@@ -124,41 +124,97 @@ function toSnapshot(
   };
 }
 
+export interface CachedOracle {
+  snapshot: OracleSnapshot;
+  fetchedAt: number;
+}
+
+export const oracleCache = new Map<string, CachedOracle>();
+
+/**
+ * Pure decoder: translates raw account info into an OracleSnapshot without RPC calls.
+ * Caches successfully decoded snapshots for instant zero-roundtrip retrieval.
+ */
+export function decodeOracleInfo(
+  address: PublicKey,
+  info: { data: Uint8Array | Buffer; owner?: PublicKey } | null | undefined,
+  referenceUnixSeconds: number
+): OracleSnapshot | null {
+  if (!info) return null;
+  if (info.owner && !info.owner.equals(PYTH_RECEIVER_ID)) return null;
+  const data = info.data instanceof Uint8Array ? info.data : new Uint8Array(info.data);
+  const update = decodePriceUpdateV2(data);
+  if (!update) return null;
+  const snap = toSnapshot(address, update, referenceUnixSeconds);
+  oracleCache.set(address.toBase58(), { snapshot: snap, fetchedAt: Date.now() });
+  return snap;
+}
+
 /**
  * Loads the freshest usable price account for the configured feed.
  *
  * Scanning shards and choosing the freshest matters: devnet retains stale
  * accounts on higher shards (ages of days and years) alongside a live shard 0,
  * so "first account found" would display a badly wrong price.
+ *
+ * Fully protected against RPC 429 rate limits: returns the most recent cached
+ * price snapshot with an updated age offset if RPC requests are rejected.
  */
 export async function fetchOracle(
   conn: Connection,
   referenceUnixSeconds: number,
   feedHex = PYTH_FEED_ID
 ): Promise<OracleSnapshot | null> {
-  if (PYTH_PRICE_ACCOUNT && feedHex === PYTH_FEED_ID) {
-    const info = await conn.getAccountInfo(PYTH_PRICE_ACCOUNT);
-    if (!info || !info.owner.equals(PYTH_RECEIVER_ID)) return null;
-    const update = decodePriceUpdateV2(new Uint8Array(info.data));
-    return update
-      ? toSnapshot(PYTH_PRICE_ACCOUNT, update, referenceUnixSeconds)
-      : null;
-  }
+  const cacheKey =
+    PYTH_PRICE_ACCOUNT && feedHex === PYTH_FEED_ID
+      ? PYTH_PRICE_ACCOUNT.toBase58()
+      : feedHex;
 
-  const candidates = [0, 1, 2, 3].map((s) => derivePriceAccount(feedHex, s));
-  const infos = await conn.getMultipleAccountsInfo(candidates).catch(() => null);
-  const list = infos ?? [];
+  const getCachedFallback = (): OracleSnapshot | null => {
+    const entry = oracleCache.get(cacheKey);
+    if (!entry) return null;
+    return {
+      ...entry.snapshot,
+      ageSeconds: referenceUnixSeconds - Number(entry.snapshot.update.publishTime),
+    };
+  };
 
-  let best: OracleSnapshot | null = null;
-  for (let i = 0; i < candidates.length; i++) {
-    const info = list[i];
-    if (!info || !info.owner.equals(PYTH_RECEIVER_ID)) continue;
-    const update = decodePriceUpdateV2(new Uint8Array(info.data));
-    if (!update || !update.isFull) continue;
-    const snap = toSnapshot(candidates[i], update, referenceUnixSeconds);
-    if (!best || snap.ageSeconds < best.ageSeconds) best = snap;
+  try {
+    if (PYTH_PRICE_ACCOUNT && feedHex === PYTH_FEED_ID) {
+      const info = await conn.getAccountInfo(PYTH_PRICE_ACCOUNT).catch((err) => {
+        console.warn(`[fetchOracle] Rate limited or failed to get price account: ${err?.message || err}`);
+        return null;
+      });
+      if (!info) return getCachedFallback();
+      const decoded = decodeOracleInfo(PYTH_PRICE_ACCOUNT, info, referenceUnixSeconds);
+      return decoded ?? getCachedFallback();
+    }
+
+    const candidates = [0, 1, 2, 3].map((s) => derivePriceAccount(feedHex, s));
+    const infos = await conn.getMultipleAccountsInfo(candidates).catch((err) => {
+      console.warn(`[fetchOracle] Shard lookup rate limited or failed: ${err?.message || err}`);
+      return null;
+    });
+    const list = infos ?? [];
+
+    let best: OracleSnapshot | null = null;
+    for (let i = 0; i < candidates.length; i++) {
+      const info = list[i];
+      if (!info || !info.owner.equals(PYTH_RECEIVER_ID)) continue;
+      const update = decodePriceUpdateV2(new Uint8Array(info.data));
+      if (!update || !update.isFull) continue;
+      const snap = toSnapshot(candidates[i], update, referenceUnixSeconds);
+      if (!best || snap.ageSeconds < best.ageSeconds) best = snap;
+    }
+    if (best) {
+      oracleCache.set(cacheKey, { snapshot: best, fetchedAt: Date.now() });
+      return best;
+    }
+    return getCachedFallback();
+  } catch (err) {
+    console.warn("[fetchOracle] Unhandled error during oracle fetch:", err);
+    return getCachedFallback();
   }
-  return best;
 }
 
 export function formatUsd(value: number, digits = 2): string {

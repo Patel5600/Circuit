@@ -181,7 +181,7 @@ export function MarketCard({
         </div>
 
         {row.live ? (
-          <Pill tone={isSol ? "accent" : "success"} withDot>
+          <Pill tone="neutral" withDot>
             {isSol ? "BORROW SOL" : "COLLATERAL"}
           </Pill>
         ) : (
@@ -253,9 +253,9 @@ export function MarketCard({
         style={{
           display: "grid",
           gridTemplateColumns: "1fr 1fr",
-          gap: 6,
+          gap: "8px 12px",
           background: "var(--surface-2, #12151d)",
-          padding: "8px 10px",
+          padding: "10px 12px",
           borderRadius: "var(--r-sm)",
           border: "1px solid var(--border)",
           fontSize: 11,
@@ -264,32 +264,32 @@ export function MarketCard({
       >
         {/* Oracle */}
         <div>
-          <div style={{ color: "var(--text-3)", fontSize: 9.5, textTransform: "uppercase" }}>Oracle</div>
-          <div style={{ fontWeight: 600, color: "var(--text)" }}>
+          <div style={{ color: "var(--text-3)", fontSize: 10, fontFamily: "var(--mono)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Oracle</div>
+          <div style={{ fontWeight: 600, color: "var(--text)", fontFamily: "var(--mono)", fontSize: 11.5, marginTop: 2 }}>
             {row.freshness ?? "LIVE"}
           </div>
         </div>
 
         {/* Underlying Session */}
         <div>
-          <div style={{ color: "var(--text-3)", fontSize: 9.5, textTransform: "uppercase" }}>Underlying</div>
-          <div style={{ fontWeight: 600, color: row.underlyingSession === "REGULAR" ? "var(--mint, #7fc39a)" : "var(--text-2)" }}>
+          <div style={{ color: "var(--text-3)", fontSize: 10, fontFamily: "var(--mono)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Underlying</div>
+          <div style={{ fontWeight: 600, color: row.underlyingSession === "REGULAR" ? "var(--text)" : "var(--text-2)", fontFamily: "var(--mono)", fontSize: 11.5, marginTop: 2 }}>
             {row.underlyingSession ?? "CLOSED"}
           </div>
         </div>
 
         {/* On-chain Market */}
         <div>
-          <div style={{ color: "var(--text-3)", fontSize: 9.5, textTransform: "uppercase" }}>Onchain</div>
-          <div style={{ fontWeight: 600, color: "var(--accent)" }}>
+          <div style={{ color: "var(--text-3)", fontSize: 10, fontFamily: "var(--mono)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Onchain</div>
+          <div style={{ fontWeight: 600, color: "var(--text)", fontFamily: "var(--mono)", fontSize: 11.5, marginTop: 2 }}>
             24/7 TRADEABLE
           </div>
         </div>
 
         {/* Collateral Limit */}
         <div>
-          <div style={{ color: "var(--text-3)", fontSize: 9.5, textTransform: "uppercase" }}>Borrow Limit</div>
-          <div style={{ fontWeight: 600, color: "var(--text)" }}>
+          <div style={{ color: "var(--text-3)", fontSize: 10, fontFamily: "var(--mono)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Borrow Limit</div>
+          <div style={{ fontWeight: 600, color: "var(--text)", fontFamily: "var(--mono)", fontSize: 11.5, marginTop: 2 }}>
             {row.ltvBps !== null ? formatPercent(row.ltvBps) : "60%"} LTV
           </div>
         </div>
@@ -299,9 +299,10 @@ export function MarketCard({
       <div className="row g-8">
         <button
           type="button"
-          className="btn btn--accent btn--sm grow"
+          className="btn btn--primary btn--sm grow"
           onClick={onSelect}
           disabled={!row.live}
+          style={{ fontWeight: 600, fontSize: 12.5 }}
         >
           Borrow {isSol ? "SOL" : (row.quoteSymbol || "USDC")}
         </button>
@@ -315,6 +316,7 @@ export function MarketCard({
             }
           }}
           className="btn btn--secondary btn--sm"
+          style={{ fontWeight: 600, fontSize: 12.5, minWidth: 74 }}
         >
           Deposit
         </button>

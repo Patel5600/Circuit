@@ -40,10 +40,10 @@ export interface ModelRoutingDecision {
   intent: StructuredIntent;
 }
 
-// Canonical underlying models for each tier
+// Canonical institutional tiers
 export const TIER_MODELS = {
-  LITE: "gemini-3.8-flash",
-  PRO: "gemini-2.5-pro",
+  LITE: "circuit-lite",
+  PRO: "circuit-pro",
 };
 
 /**

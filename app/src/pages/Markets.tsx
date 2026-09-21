@@ -202,94 +202,90 @@ export default function Markets() {
         )}
 
         {/* 3. Terminal Summary Stats Bar */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-            gap: 12,
-            padding: "12px 16px",
-            background: "var(--surface-1, #0c0e14)",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--r)",
-          }}
-        >
-          <div>
-            <div style={{ color: "var(--text-3)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-              Total Equities
-            </div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text)" }}>
-              {summaryCounts.total} ASSETS
-            </div>
+        <div className="markets-summary-bar">
+          <div className="markets-summary-item">
+            <div className="markets-summary-label">Total Equities</div>
+            <div className="markets-summary-value">{summaryCounts.total} ASSETS</div>
           </div>
 
-          <div>
-            <div style={{ color: "var(--text-3)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-              Collateral Deployed
-            </div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "var(--mint, #7fc39a)" }}>
-              {summaryCounts.live} MARKETS
-            </div>
+          <div className="markets-summary-item">
+            <div className="markets-summary-label">Collateral Deployed</div>
+            <div className="markets-summary-value">{summaryCounts.live} MARKETS</div>
           </div>
 
-          <div>
-            <div style={{ color: "var(--text-3)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-              Recent Updates
-            </div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "var(--accent)" }}>
-              {summaryCounts.recent} ACTIVE
-            </div>
+          <div className="markets-summary-item">
+            <div className="markets-summary-label">Recent Updates</div>
+            <div className="markets-summary-value">{summaryCounts.recent} ACTIVE</div>
           </div>
 
-          <div>
-            <div style={{ color: "var(--text-3)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-              Discovery Pipeline
-            </div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text-2)" }}>
-              {summaryCounts.soon} EQUITIES
-            </div>
+          <div className="markets-summary-item">
+            <div className="markets-summary-label">Discovery Pipeline</div>
+            <div className="markets-summary-value">{summaryCounts.soon} EQUITIES</div>
           </div>
 
-          <div>
-            <div style={{ color: "var(--text-3)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-              Meteora DBC
-            </div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "#818cf8" }}>
-              {summaryCounts.dbc} POOLS
-            </div>
+          <div className="markets-summary-item">
+            <div className="markets-summary-label">Meteora DBC</div>
+            <div className="markets-summary-value">{summaryCounts.dbc} POOLS</div>
           </div>
         </div>
 
         {/* 4. Controls Toolbar: Search, Filters, Sorting */}
-        <div className="row between g-12 wrap" style={{ alignItems: "center" }}>
-          {/* Search */}
-          <div style={{ flex: "1 1 260px", minWidth: 220 }}>
-            <div style={{ position: "relative" }}>
-              <input
-                id="market-search"
-                className="input input--text"
-                type="search"
-                placeholder="Search ticker, company, quote (e.g. NVDA, AAPL, SOL, USDC)..."
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                style={{ width: "100%", paddingLeft: 32 }}
-              />
-              <span
+        <div className="markets-controls-wrap">
+          <div className="markets-controls-top">
+            {/* Search */}
+            <div style={{ flex: "1 1 280px", minWidth: 220 }}>
+              <div style={{ position: "relative" }}>
+                <input
+                  id="market-search"
+                  className="input input--text"
+                  type="search"
+                  placeholder="Search ticker, company, quote (e.g. NVDA, AAPL, SOL, USDC)..."
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  style={{ width: "100%", paddingLeft: 32 }}
+                />
+                <span
+                  style={{
+                    position: "absolute",
+                    left: 10,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    color: "var(--text-3)",
+                    pointerEvents: "none",
+                  }}
+                >
+                  <Icon name="search" size={14} />
+                </span>
+              </div>
+            </div>
+
+            {/* Sorting Dropdown */}
+            <div style={{ flex: "0 0 auto" }}>
+              <select
+                value={sortOption}
+                onChange={(e) => setSortOption(e.target.value as SortOption)}
                 style={{
-                  position: "absolute",
-                  left: 10,
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  color: "var(--text-3)",
-                  pointerEvents: "none",
+                  background: "var(--surface-2, #12151d)",
+                  color: "var(--text)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "var(--r-sm)",
+                  padding: "7px 12px",
+                  fontSize: 12,
+                  fontFamily: "var(--mono)",
                 }}
               >
-                <Icon name="search" size={14} />
-              </span>
+                <option value="default">Sort: Default Order</option>
+                <option value="gainers">Sort: Top 24h %</option>
+                <option value="losers">Sort: Worst 24h %</option>
+                <option value="price_high">Sort: Price (High to Low)</option>
+                <option value="price_low">Sort: Price (Low to High)</option>
+                <option value="ltv">Sort: Highest LTV</option>
+              </select>
             </div>
           </div>
 
-          {/* Filter Tabs */}
-          <div className="row g-6 wrap" style={{ flex: "2 1 auto" }}>
+          {/* Filter Tabs Strip */}
+          <div className="markets-filters-strip">
             {(
               [
                 { key: "all", label: `All (${summaryCounts.total})` },
@@ -308,38 +304,16 @@ export default function Markets() {
                 onClick={() => setFilter(t.key)}
                 style={{
                   background: filter === t.key ? "var(--surface-3, #1e222d)" : "transparent",
-                  borderColor: filter === t.key ? "var(--accent)" : "var(--border)",
+                  borderColor: filter === t.key ? "var(--text)" : "var(--border)",
                   color: filter === t.key ? "var(--text)" : "var(--text-2)",
                   fontSize: 12,
+                  fontWeight: filter === t.key ? 700 : 500,
+                  whiteSpace: "nowrap",
                 }}
               >
                 {t.label}
               </button>
             ))}
-          </div>
-
-          {/* Sorting Dropdown */}
-          <div style={{ flex: "0 0 auto" }}>
-            <select
-              value={sortOption}
-              onChange={(e) => setSortOption(e.target.value as SortOption)}
-              style={{
-                background: "var(--surface-2, #12151d)",
-                color: "var(--text)",
-                border: "1px solid var(--border)",
-                borderRadius: "var(--r-sm)",
-                padding: "7px 12px",
-                fontSize: 12,
-                fontFamily: "var(--mono)",
-              }}
-            >
-              <option value="default">Sort: Default Order</option>
-              <option value="gainers">Sort: Top 24h %</option>
-              <option value="losers">Sort: Worst 24h %</option>
-              <option value="price_high">Sort: Price (High to Low)</option>
-              <option value="price_low">Sort: Price (Low to High)</option>
-              <option value="ltv">Sort: Highest LTV</option>
-            </select>
           </div>
         </div>
 

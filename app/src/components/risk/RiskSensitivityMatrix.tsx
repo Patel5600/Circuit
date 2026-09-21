@@ -118,7 +118,7 @@ export function RiskSensitivityMatrix({
                 width: 7,
                 height: 7,
                 borderRadius: "50%",
-                background: "var(--forest, #444F24)",
+                background: "var(--accent, #8FA2FF)",
                 display: "inline-block",
               }}
             />

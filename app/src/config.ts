@@ -51,7 +51,7 @@ export const PYTH_PRICE_ACCOUNT = maybeKey(
   envVar("VITE_PYTH_PRICE_ACCOUNT", "7UVimffxr9ow1uXYxsr4LHAcV58mLzhmwaeKvJ1pjLiE")
 );
 
-export const POLL_INTERVAL_MS = Number(envVar("VITE_POLL_INTERVAL_MS", "10000"));
+export const POLL_INTERVAL_MS = Number(envVar("VITE_POLL_INTERVAL_MS", "15000"));
 
 function maybeKey(v: string): PublicKey | null {
   if (!v) return null;
