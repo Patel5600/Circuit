@@ -165,17 +165,28 @@ export class CircuitSentinelEngine {
       });
     }
 
-    // 6. DBC_SENTINEL: Meteora Dynamic Bonding Curve progress
-    if (params.dbcQuoteReserveUsd && params.dbcThresholdUsd) {
+    // 6. DBC_SENTINEL: Meteora Dynamic Bonding Curve progress & regime monitoring
+    if (params.dbcQuoteReserveUsd !== undefined && params.dbcThresholdUsd) {
       const pct = (params.dbcQuoteReserveUsd / params.dbcThresholdUsd) * 100;
       if (pct >= 90 && params.dbcLifecycle !== "DAMM_V2") {
         findings.push({
           sentinel: "DBC_SENTINEL",
           triggered: true,
           severity: "INFO",
-          headline: `Meteora DBC pool at ${pct.toFixed(1)}% of migration threshold`,
-          detail: `$${params.dbcQuoteReserveUsd.toLocaleString()} / $${params.dbcThresholdUsd.toLocaleString()} USDC accumulated toward DAMM v2 graduation.`,
+          headline: `Meteora DBC pool at ${pct.toFixed(1)}% of graduation threshold`,
+          detail: `$${params.dbcQuoteReserveUsd.toLocaleString()} / $${params.dbcThresholdUsd.toLocaleString()} accumulated toward DAMM v2 graduation.`,
           metricValue: pct,
+          threshold: 100,
+          timestamp: now,
+        });
+      } else if (params.dbcLifecycle === "ACTIVE_TRADING") {
+        findings.push({
+          sentinel: "DBC_SENTINEL",
+          triggered: true,
+          severity: "INFO",
+          headline: "Meteora DBC pool active on Devnet",
+          detail: "Live on-chain virtual curve verified. Swaps and liquidity operations active.",
+          metricValue: `${pct.toFixed(2)}%`,
           threshold: 100,
           timestamp: now,
         });

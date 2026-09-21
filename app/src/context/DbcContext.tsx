@@ -1,8 +1,8 @@
-﻿/**
+/**
  * Circuit Protocol — Centralized DBC State Observer
  *
  * Single React Context providing DBC pool state and availability to all consumers.
- * One polling loop (30s), deduplicated requests, no per-component RPC calls.
+ * Real-time WebSocket streaming via DbcStateStream + periodic heartbeat polling.
  *
  * CIRCUIT SURVIVAL INVARIANT:
  * DBC availability state drives ONLY DBC execution paths.
@@ -28,11 +28,17 @@ import {
   getPoolBySymbol,
   getRegisteredDbcSymbols,
 } from "../lib/meteora/registry";
-import { METEORA_DBC_PROGRAM_ID } from "../lib/meteora/dbc";
+import {
+  METEORA_DBC_PROGRAM_ID,
+  DbcPoolInfo,
+  computeRealDbcSwapQuote,
+  DbcSwapQuote,
+} from "../lib/meteora/dbc";
+import { DbcStateStream } from "../lib/meteora/stream";
 
 /** DBC integration availability — 5-state machine */
 export type DbcAvailability =
-  | "AVAILABLE"       // At least one pool is observable on-chain
+  | "AVAILABLE"       // At least one pool is observable on-chain and operational
   | "DEGRADED"        // Partial fetch failure — some pools unobservable
   | "UNAVAILABLE"     // Sustained RPC failures — all DBC paths blocked
   | "NOT_CONFIGURED"  // No pools registered for this network
@@ -40,11 +46,13 @@ export type DbcAvailability =
 
 export interface DbcPoolState {
   entry: DbcPoolRegistryEntry;
+  /** Decoded on-chain state from Meteora DBC program (null if not yet fetched) */
+  info: DbcPoolInfo | null;
   /** Whether the pool account exists on-chain (null = unknown) */
   existsOnChain: boolean | null;
   /** Whether the program ID was verified against METEORA_DBC_PROGRAM_ID */
   programIdVerified: boolean;
-  /** Current lifecycle state (from registry; on-chain reading is future work) */
+  /** Current lifecycle state */
   lifecycleState: DbcPoolLifecycle;
   /** Slot at which this state was last observed (null = never) */
   observedAtSlot: number | null;
@@ -59,6 +67,13 @@ export interface DbcContextValue {
   poolStates: Map<string, DbcPoolState>;
   /** Look up pool state by market symbol */
   getPoolState(symbol: string): DbcPoolState | null;
+  /** Compute real on-chain swap quote using Meteora DBC math */
+  getSwapQuote(params: {
+    symbol: string;
+    amountIn: bigint;
+    swapBaseForQuote: boolean;
+    slippageBps?: number;
+  }): Promise<DbcSwapQuote | null>;
   /** Manually trigger a refresh */
   refresh(): void;
   /** Unix timestamp (ms) of last successful fetch */
@@ -71,6 +86,7 @@ const DbcContext = createContext<DbcContextValue>({
   availability: "NOT_CONFIGURED",
   poolStates: new Map(),
   getPoolState: () => null,
+  getSwapQuote: async () => null,
   refresh: () => {},
   lastRefreshedAt: null,
   consecutiveFailures: 0,
@@ -91,43 +107,106 @@ export function DbcProvider({ children }: { children: React.ReactNode }) {
   const [consecutiveFailures, setConsecutiveFailures] = useState(0);
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
+  const streamRef = useRef<DbcStateStream | null>(null);
 
-  const fetchPoolStates = useCallback(async () => {
-    if (DBC_POOL_REGISTRY.length === 0) return;
+  // Initialize or update DbcStateStream on connection change
+  useEffect(() => {
+    const stream = new DbcStateStream(connection);
+    streamRef.current = stream;
 
-    try {
-      const poolAddresses = DBC_POOL_REGISTRY.map((e) => new PublicKey(e.poolAddress));
-      const accounts = await connection.getMultipleAccountsInfo(poolAddresses, "confirmed");
+    return () => {
+      stream.destroy();
+      streamRef.current = null;
+    };
+  }, [connection]);
 
-      if (!mountedRef.current) return;
+  // Handle on-chain pool update from WebSocket stream
+  const handlePoolUpdate = useCallback((info: DbcPoolInfo) => {
+    if (!mountedRef.current) return;
+    const now = Date.now();
 
-      const now = Date.now();
-      const slot = await connection.getSlot("confirmed").catch(() => null);
+    setPoolStates((prev) => {
+      const next = new Map(prev);
+      const addr = info.poolAddress.toBase58();
+      const existing = next.get(addr);
+      const entry = existing?.entry || DBC_POOL_REGISTRY.find((e) => e.poolAddress === addr);
+      if (!entry) return prev;
 
-      const newStates = new Map<string, DbcPoolState>();
-      let fetchedCount = 0;
-
-      for (let i = 0; i < DBC_POOL_REGISTRY.length; i++) {
-        const entry = DBC_POOL_REGISTRY[i];
-        const acc = accounts[i];
-        const existsOnChain = acc !== null;
-        const programIdVerified = existsOnChain
-          ? acc!.owner.equals(METEORA_DBC_PROGRAM_ID)
-          : false;
-
-        if (existsOnChain) fetchedCount++;
-
-        newStates.set(entry.poolAddress, {
-          entry,
-          existsOnChain,
-          programIdVerified,
-          lifecycleState: entry.lifecycleState,
-          observedAtSlot: slot,
-          freshnessSec: 0,
-        });
+      let lifecycleState: DbcPoolLifecycle = "ACTIVE_TRADING";
+      if (info.isMigrated) {
+        lifecycleState = "DAMM_V2";
+      } else if (info.quoteReserve >= info.migrationQuoteThreshold && info.migrationQuoteThreshold > BigInt(0)) {
+        lifecycleState = "THRESHOLD_REACHED";
+      } else if (info.quoteReserve === BigInt(0)) {
+        lifecycleState = "VIRTUAL_POOL";
       }
 
-      setPoolStates(newStates);
+      next.set(addr, {
+        entry,
+        info,
+        existsOnChain: true,
+        programIdVerified: true,
+        lifecycleState,
+        observedAtSlot: Number(info.activationPoint),
+        freshnessSec: 0,
+      });
+
+      return next;
+    });
+
+    setLastRefreshedAt(now);
+    setConsecutiveFailures(0);
+  }, []);
+
+  // Fetch initial states and set up WebSocket streams for all registered pools
+  const fetchPoolStates = useCallback(async () => {
+    if (DBC_POOL_REGISTRY.length === 0 || !streamRef.current) return;
+
+    try {
+      const stream = streamRef.current;
+      const slot = await connection.getSlot("confirmed").catch(() => null);
+      const now = Date.now();
+
+      const fetchPromises = DBC_POOL_REGISTRY.map(async (entry) => {
+        const poolPk = new PublicKey(entry.poolAddress);
+        const info = await stream.fetchPool(poolPk, entry.baseDecimals, entry.quoteDecimals);
+        return { entry, info };
+      });
+
+      const results = await Promise.all(fetchPromises);
+      if (!mountedRef.current) return;
+
+      setPoolStates((prev) => {
+        const next = new Map(prev);
+        for (const { entry, info } of results) {
+          const existsOnChain = info !== null;
+          let lifecycleState = entry.lifecycleState;
+
+          if (info) {
+            if (info.isMigrated) {
+              lifecycleState = "DAMM_V2";
+            } else if (info.quoteReserve >= info.migrationQuoteThreshold && info.migrationQuoteThreshold > BigInt(0)) {
+              lifecycleState = "THRESHOLD_REACHED";
+            } else if (info.quoteReserve === BigInt(0)) {
+              lifecycleState = "VIRTUAL_POOL";
+            } else {
+              lifecycleState = "ACTIVE_TRADING";
+            }
+          }
+
+          next.set(entry.poolAddress, {
+            entry,
+            info,
+            existsOnChain,
+            programIdVerified: existsOnChain,
+            lifecycleState,
+            observedAtSlot: slot,
+            freshnessSec: 0,
+          });
+        }
+        return next;
+      });
+
       setLastRefreshedAt(now);
       setConsecutiveFailures(0);
     } catch (err) {
@@ -137,9 +216,17 @@ export function DbcProvider({ children }: { children: React.ReactNode }) {
     }
   }, [connection]);
 
-  // Start polling loop
+  // Subscribe to real-time WebSockets
   useEffect(() => {
     mountedRef.current = true;
+    const stream = streamRef.current;
+    if (!stream) return;
+
+    const unsubscribers = DBC_POOL_REGISTRY.map((entry) => {
+      const poolPk = new PublicKey(entry.poolAddress);
+      return stream.subscribe(poolPk, handlePoolUpdate, entry.baseDecimals, entry.quoteDecimals);
+    });
+
     fetchPoolStates();
 
     const schedule = () => {
@@ -154,8 +241,9 @@ export function DbcProvider({ children }: { children: React.ReactNode }) {
     return () => {
       mountedRef.current = false;
       if (pollRef.current) clearTimeout(pollRef.current);
+      unsubscribers.forEach((unsub) => unsub());
     };
-  }, [fetchPoolStates]);
+  }, [fetchPoolStates, handlePoolUpdate]);
 
   // Compute availability from pool states + failure count
   const availability = useMemo<DbcAvailability>(() => {
@@ -172,11 +260,11 @@ export function DbcProvider({ children }: { children: React.ReactNode }) {
 
     if (consecutiveFailures > 0) return "DEGRADED";
     if (allExists) return "AVAILABLE";
-    if (anyExists) return "DEGRADED";
+    if (anyExists) return "AVAILABLE";
     return "NOT_CONFIGURED";
   }, [poolStates, consecutiveFailures, lastRefreshedAt]);
 
-  // Update freshnessSec on each re-render (but only if we have last refresh time)
+  // Update freshnessSec on each re-render
   const computedPoolStates = useMemo(() => {
     if (!lastRefreshedAt) return poolStates;
     const now = Date.now();
@@ -199,16 +287,40 @@ export function DbcProvider({ children }: { children: React.ReactNode }) {
     [computedPoolStates]
   );
 
+  const getSwapQuote = useCallback(
+    async (params: {
+      symbol: string;
+      amountIn: bigint;
+      swapBaseForQuote: boolean;
+      slippageBps?: number;
+    }): Promise<DbcSwapQuote | null> => {
+      const entry = getPoolBySymbol(params.symbol);
+      if (!entry) return null;
+
+      return computeRealDbcSwapQuote({
+        connection,
+        poolAddress: new PublicKey(entry.poolAddress),
+        amountIn: params.amountIn,
+        swapBaseForQuote: params.swapBaseForQuote,
+        baseDecimals: entry.baseDecimals,
+        quoteDecimals: entry.quoteDecimals,
+        slippageBps: params.slippageBps,
+      });
+    },
+    [connection]
+  );
+
   const value = useMemo<DbcContextValue>(
     () => ({
       availability,
       poolStates: computedPoolStates,
       getPoolState,
+      getSwapQuote,
       refresh: fetchPoolStates,
       lastRefreshedAt,
       consecutiveFailures,
     }),
-    [availability, computedPoolStates, getPoolState, fetchPoolStates, lastRefreshedAt, consecutiveFailures]
+    [availability, computedPoolStates, getPoolState, getSwapQuote, fetchPoolStates, lastRefreshedAt, consecutiveFailures]
   );
 
   return <DbcContext.Provider value={value}>{children}</DbcContext.Provider>;

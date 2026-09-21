@@ -33,10 +33,16 @@ export type DbcPoolLifecycle =
 export interface DbcPoolRegistryEntry {
   /** Canonical pool address (PDA) on Solana */
   poolAddress: string;
-  /** Base token mint (the synthetic equity token, e.g. NVDAx) */
+  /** Authoritative pool config PDA */
+  configAddress: string;
+  /** Base token mint */
   baseMint: string;
-  /** Quote token mint (e.g. USDC) */
+  /** Quote token mint */
   quoteMint: string;
+  /** Base token decimals */
+  baseDecimals: number;
+  /** Quote token decimals */
+  quoteDecimals: number;
   /** Must equal METEORA_DBC_PROGRAM_ID at validation time */
   programId: string;
   /** Network environment */
@@ -50,68 +56,76 @@ export interface DbcPoolRegistryEntry {
 }
 
 // ── PDA Derivation Helper ─────────────────────────────────────────────────────
-// Used ONLY at module initialization time — not at runtime from user input.
-function deriveDbcPoolAddressFromMints(
+// Uses official Meteora DBC PDA seed specification:
+// [b"pool", config.toBuffer(), max(quote, base), min(quote, base)]
+export function deriveDbcPoolAddressFromConfig(
+  quoteMintB58: string,
   baseMintB58: string,
-  quoteMintB58: string
+  configB58: string
 ): string {
   try {
-    const baseMint = new PublicKey(baseMintB58);
     const quoteMint = new PublicKey(quoteMintB58);
+    const baseMint = new PublicKey(baseMintB58);
+    const config = new PublicKey(configB58);
+    const isQuoteBigger = quoteMint.toBuffer().compare(new Uint8Array(baseMint.toBuffer())) > 0;
     const [pda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("pool"), baseMint.toBuffer(), quoteMint.toBuffer()],
+      [
+        Buffer.from("pool"),
+        config.toBuffer(),
+        isQuoteBigger ? quoteMint.toBuffer() : baseMint.toBuffer(),
+        isQuoteBigger ? baseMint.toBuffer() : quoteMint.toBuffer(),
+      ],
       METEORA_DBC_PROGRAM_ID
     );
     return pda.toBase58();
   } catch (err) {
     throw new Error(
-      `[DbcRegistry] Failed to derive pool address for ${baseMintB58}/${quoteMintB58}: ${err}`
+      `[DbcRegistry] Failed to derive pool address for ${baseMintB58}/${quoteMintB58} with config ${configB58}: ${err}`
     );
   }
 }
 
 // ── Canonical Registry ────────────────────────────────────────────────────────
-// Lifecycle "VIRTUAL_POOL" + availability "NOT_CONFIGURED" until Devnet pools are
-// created and their addresses verified on-chain.
+// Verified on-chain on Solana Devnet (Program: dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN)
 export const DBC_POOL_REGISTRY: ReadonlyArray<DbcPoolRegistryEntry> = Object.freeze([
   {
-    poolAddress: deriveDbcPoolAddressFromMints(
-      "CARqKy5GTCxz5G1tFiYA96A3Q8jaUE9Vppk7cjGJxRqq", // NVDAx
-      "23hpSsK3h4na3pwSUf1YzaDF9nzX3t2PppJJf16Qpkxc"  // USDC
-    ),
-    baseMint: "CARqKy5GTCxz5G1tFiYA96A3Q8jaUE9Vppk7cjGJxRqq",
-    quoteMint: "23hpSsK3h4na3pwSUf1YzaDF9nzX3t2PppJJf16Qpkxc",
+    poolAddress: "DoB7NjeFMy8fW4Ah6QktZAeT4fBLnBebkhVKDxWphW3j",
+    configAddress: "18BLLVHnmv39ykATnxicYFkv4p1emHrpKh2mS1XiuYz",
+    baseMint: "5S61p3XQVTTcWhxweWFVn7XfMh352PMn3N7KwnBhE6aG",
+    quoteMint: "So11111111111111111111111111111111111111112",
+    baseDecimals: 9,
+    quoteDecimals: 9,
     programId: METEORA_DBC_PROGRAM_ID.toBase58(),
     environment: "devnet",
-    lifecycleState: "VIRTUAL_POOL",
+    lifecycleState: "ACTIVE_TRADING",
     symbol: "NVDA",
-    configuredAt: "2026-09-19T00:00:00.000Z",
+    configuredAt: "2026-09-21T15:25:00.000Z",
   },
   {
-    poolAddress: deriveDbcPoolAddressFromMints(
-      "4zs2vg7MXYms9gwQxA6VYTZCfGy4NVyp1pca8TqdMmnS", // AAPLx
-      "23hpSsK3h4na3pwSUf1YzaDF9nzX3t2PppJJf16Qpkxc"  // USDC
-    ),
-    baseMint: "4zs2vg7MXYms9gwQxA6VYTZCfGy4NVyp1pca8TqdMmnS",
-    quoteMint: "23hpSsK3h4na3pwSUf1YzaDF9nzX3t2PppJJf16Qpkxc",
+    poolAddress: "2DW3bpqT6QMpM7vKbYDKJM8wrJsXhw9eQPRd1WZJjfdM",
+    configAddress: "18EqcYefWc2czMGEVRbfEs1URCAuAUmQu9jW3fWehd5",
+    baseMint: "BYDjS68F4f7eXdFtZmAPKKgTDqUGyjAbakVpaE47tGuM",
+    quoteMint: "So11111111111111111111111111111111111111112",
+    baseDecimals: 9,
+    quoteDecimals: 9,
     programId: METEORA_DBC_PROGRAM_ID.toBase58(),
     environment: "devnet",
     lifecycleState: "VIRTUAL_POOL",
     symbol: "AAPL",
-    configuredAt: "2026-09-19T00:00:00.000Z",
+    configuredAt: "2026-09-21T15:25:00.000Z",
   },
   {
-    poolAddress: deriveDbcPoolAddressFromMints(
-      "gLjzboHgbevzEedufXfWyrgaFk7ePNLBKzRnpGbWpF2", // MSFTx
-      "23hpSsK3h4na3pwSUf1YzaDF9nzX3t2PppJJf16Qpkxc"  // USDC
-    ),
-    baseMint: "gLjzboHgbevzEedufXfWyrgaFk7ePNLBKzRnpGbWpF2",
-    quoteMint: "23hpSsK3h4na3pwSUf1YzaDF9nzX3t2PppJJf16Qpkxc",
+    poolAddress: "2jXET9NNt3Zoc6vafZm5UutbFTxHs2rTKTVzP4FmuK5R",
+    configAddress: "19KSS5xVFiW6C3JqRiGa6JGmMbNEoU6jS4stmsJuScF",
+    baseMint: "3qGtEupUfckWHcTHjKUaRwEkXz4qJKWcz1PZ3ShVp9Tz",
+    quoteMint: "So11111111111111111111111111111111111111112",
+    baseDecimals: 6,
+    quoteDecimals: 9,
     programId: METEORA_DBC_PROGRAM_ID.toBase58(),
     environment: "devnet",
     lifecycleState: "VIRTUAL_POOL",
     symbol: "MSFT",
-    configuredAt: "2026-09-19T00:00:00.000Z",
+    configuredAt: "2026-09-21T15:25:00.000Z",
   },
 ]) as ReadonlyArray<DbcPoolRegistryEntry>;
 

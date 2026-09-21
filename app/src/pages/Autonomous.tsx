@@ -28,6 +28,7 @@ import type { ParsedTaskProposal } from "../lib/automation/types";
 import { DbcExecutionPanel } from "../components/dbc/DbcExecutionPanel";
 import { DbcCurveVisualizer } from "../components/dbc/DbcCurveVisualizer";
 import { DbcPoolStatusPill } from "../components/dbc/DbcPoolStatusPill";
+import { useDbcContext } from "../context/DbcContext";
 import { AgentMessageRenderer } from "../components/autonomous/AgentMessageRenderer";
 import { LiveAgentStatePanel } from "../components/autonomous/LiveAgentStatePanel";
 import { CommandPalette, CommandItem } from "../components/autonomous/CommandPalette";
@@ -1508,6 +1509,7 @@ export default function Autonomous() {
     portfolio, risk, credit, markets, wallet,
   } = useCircuitDomain();
   const { snapshots: marketSnapshots } = useMarketData();
+  const { getPoolState } = useDbcContext();
 
   // Read ?tab= from URL and use it as the initial tab (case-insensitive).
   const tabFromUrl = searchParams.get("tab")?.toUpperCase() as TabId | null;
@@ -3045,7 +3047,7 @@ export default function Autonomous() {
                     Bonding Curve Dynamics
                   </div>
                   <DbcCurveVisualizer
-                    poolState={null}
+                    poolState={getPoolState(activeContextAsset.symbol)}
                     riskState={risk.ratchetState}
                     oraclePrice={marketSnapshots[activeContextAsset.symbol]?.priceUsd ?? null}
                     symbol={activeContextAsset.symbol}

@@ -10,27 +10,36 @@
   "dbcPools": [
     {
       "symbol": "NVDA",
-      "poolAddress": "7hwYoFNM1D1ST52bX4UqA97aXt4Ukppww65WoDcARUk3",
-      "baseMint": "CARqKy5GTCxz5G1tFiYA96A3Q8jaUE9Vppk7cjGJxRqq",
-      "quoteMint": "23hpSsK3h4na3pwSUf1YzaDF9nzX3t2PppJJf16Qpkxc",
+      "poolAddress": "DoB7NjeFMy8fW4Ah6QktZAeT4fBLnBebkhVKDxWphW3j",
+      "configAddress": "18BLLVHnmv39ykATnxicYFkv4p1emHrpKh2mS1XiuYz",
+      "baseMint": "5S61p3XQVTTcWhxweWFVn7XfMh352PMn3N7KwnBhE6aG",
+      "quoteMint": "So11111111111111111111111111111111111111112",
+      "baseDecimals": 9,
+      "quoteDecimals": 9,
       "programId": "dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN",
       "environment": "devnet",
-      "lifecycleState": "VIRTUAL_POOL"
+      "lifecycleState": "ACTIVE_TRADING"
     },
     {
       "symbol": "AAPL",
-      "poolAddress": "AZoWjEHiCNpjW4NPHKUpvnbqK8raSL6criLkKtJqk9hz",
-      "baseMint": "4zs2vg7MXYms9gwQxA6VYTZCfGy4NVyp1pca8TqdMmnS",
-      "quoteMint": "23hpSsK3h4na3pwSUf1YzaDF9nzX3t2PppJJf16Qpkxc",
+      "poolAddress": "2DW3bpqT6QMpM7vKbYDKJM8wrJsXhw9eQPRd1WZJjfdM",
+      "configAddress": "18EqcYefWc2czMGEVRbfEs1URCAuAUmQu9jW3fWehd5",
+      "baseMint": "BYDjS68F4f7eXdFtZmAPKKgTDqUGyjAbakVpaE47tGuM",
+      "quoteMint": "So11111111111111111111111111111111111111112",
+      "baseDecimals": 9,
+      "quoteDecimals": 9,
       "programId": "dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN",
       "environment": "devnet",
       "lifecycleState": "VIRTUAL_POOL"
     },
     {
       "symbol": "MSFT",
-      "poolAddress": "5mBHmYmNt6rvYcvFXcMZbUtefgegZjt5RM2izhHY6itW",
-      "baseMint": "gLjzboHgbevzEedufXfWyrgaFk7ePNLBKzRnpGbWpF2",
-      "quoteMint": "23hpSsK3h4na3pwSUf1YzaDF9nzX3t2PppJJf16Qpkxc",
+      "poolAddress": "2jXET9NNt3Zoc6vafZm5UutbFTxHs2rTKTVzP4FmuK5R",
+      "configAddress": "19KSS5xVFiW6C3JqRiGa6JGmMbNEoU6jS4stmsJuScF",
+      "baseMint": "3qGtEupUfckWHcTHjKUaRwEkXz4qJKWcz1PZ3ShVp9Tz",
+      "quoteMint": "So11111111111111111111111111111111111111112",
+      "baseDecimals": 6,
+      "quoteDecimals": 9,
       "programId": "dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN",
       "environment": "devnet",
       "lifecycleState": "VIRTUAL_POOL"
