@@ -2,7 +2,7 @@
 
 <div align="center">
 
-> **Programmable Collateral & Autonomous Risk Engine for Tokenized Equities on Solana.**
+> **Circuit is a realtime programmable capital-permission layer for tokenized equities on Solana. It converts verified market conditions into enforceable rules for credit, liquidity, autonomous execution, and recovery, so capital authority adapts as conditions change.**
 
 [![Solana Devnet](https://img.shields.io/badge/Solana-Devnet%20Live-14F195?style=for-the-badge&logo=solana&logoColor=000)](https://explorer.solana.com/address/Cq4Lvd6Kgr3a2aP6ENPVGQ8tUpbkGmoWr9ZDBdXGiTs2?cluster=devnet)
 [![Anchor Version](https://img.shields.io/badge/Anchor-v1.2.0-blueviolet?style=for-the-badge&logo=anchor)](https://www.anchor-lang.com/)
@@ -16,14 +16,14 @@
 
 ---
 
-### 📊 Live Protocol Telemetry Widget
+### Live Protocol Telemetry Widget
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  CIRCUIT PROTOCOL TELEMETRY • SOLANA DEVNET                                 │
 ├──────────────────────────────┬──────────────────────────────┬───────────────┤
 │  NETWORK                     │  PROGRAM ID                  │  STATUS       │
-│  Solana Devnet (1.18+)       │  Cq4Lvd6Kgr3a...XGiTs2       │  ● NOMINAL    │
+│  Solana Devnet (1.18+)       │  Cq4Lvd6Kgr3a...XGiTs2       │  NOMINAL      │
 ├──────────────────────────────┼──────────────────────────────┼───────────────┤
 │  ORACLE SOURCE               │  FEED VALIDATION             │  BASE LTV     │
 │  Pyth Network Pull Oracle    │  P_eff = max(0, P - Conf)    │  70.0% Base   │
@@ -35,7 +35,7 @@
 
 ---
 
-### 📚 Documentation & Hackathon Evaluation
+### Documentation & Hackathon Evaluation
 
 | Guide | Description | Target Audience |
 |---|---|---|
@@ -48,28 +48,45 @@
 
 ---
 
-## 🏛️ What is Circuit?
+## The Principle
 
-Circuit is institutional credit infrastructure designed specifically for tokenized real-world assets (RWAs) and equities on Solana. 
+> Tokenized assets make capital programmable.  
+> Circuit makes programmable capital governable.  
+>  
+> Humans define authority. Agents operate within it. Market conditions continuously change what authority permits. Circuit enforces the boundary. Solana records the result.
 
-Traditional DeFi lending protocols assume collateral trades continuously 24/7/365 with constant liquidity. Real equities do not. Circuit brings verifiable financial reality on-chain by coupling oracle confidence bands, NYSE session calendars, autonomous AI risk sentinels, and Meteora Dynamic Bonding Curves into a single deterministic credit engine.
+---
+
+## The Problem
+
+Tokenized equities make assets programmable, but programmable capital needs programmable boundaries: who may act, what may they do, how much may they control, and does that authority remain valid as state changes? An AI agent may reason about an action, but reasoning must never become financial authority.
+
+---
+
+## The Circuit
+
+```
+Market → Observation → Risk → Capital Policy → Permission → Execution → Solana
+```
+
+Each supported equity has a canonical configuration for token identity, oracle feed, session rules, and risk parameters.
 
 ```
                   ┌─────────────────────────────────────────┐
                   │             USER / CLIENT               │
-                  │   Format 2.0 Precision Instruments UI   │
+                  │        Circuit Terminal Interface       │
                   └────────────────────┬────────────────────┘
                                        │ Wallet Signed
                     ┌──────────────────┴──────────────────┐
                     ▼                                     ▼
-      ┌───────────────────────────┐         ┌───────────────────────────┐
-      │   MANUAL USER BORROW/LEND │         │   AUTONOMOUS RISK AGENT   │
-      │   Interactive Transaction │         │   Bounded PDA Delegation  │
-      └─────────────┬─────────────┘         └─────────────┬─────────────┘
-                    │                                     │
-                    └──────────────────┬──────────────────┘
-                                       │ RPC Instruction
-                                       ▼
+       ┌───────────────────────────┐         ┌───────────────────────────┐
+       │   MANUAL USER BORROW/LEND │         │   AUTONOMOUS RISK AGENT   │
+       │   Interactive Transaction │         │   Bounded PDA Delegation  │
+       └─────────────┬─────────────┘         └─────────────┬─────────────┘
+                     │                                     │
+                     └──────────────────┬──────────────────┘
+                                        │ RPC Instruction
+                                        ▼
  ┌─────────────────────────────────────────────────────────────────────────────┐
  │                         CIRCUIT ANCHOR PROGRAM                              │
  │                 Cq4Lvd6Kgr3a2aP6ENPVGQ8tUpbkGmoWr9ZDBdXGiTs2                │
@@ -99,58 +116,122 @@ Traditional DeFi lending protocols assume collateral trades continuously 24/7/36
 
 ---
 
-## ⚡ Core Protocol Pillars
+## MarketGuard
 
-### 1. 🕒 Verifiable NYSE Market State Gating
+Before risk-sensitive actions, Circuit validates Pyth price, confidence, publish time, feed identity, and market-session conditions. Stale, uncertain, invalid, or unusable observations cannot authorize additional risk.
+
 Tokenized equity markets (NVDAx, AAPLx, TSLAx) close when traditional stock exchanges close. Allowing unhedged borrows while underlying equity custody is frozen invites toxic arbitrage and oracle gaps. Circuit natively verifies equity market hours:
 - **Open Session**: Full borrow, collateral substitution, and rebalancing enabled.
 - **Closed / Pre / Post Market**: Risk-increasing borrows are mathematically gated on-chain, eliminating weekend flash-loan exploits.
 
-### 2. 🛡️ Autonomous Risk Ratchet Hysteresis
-Instead of binary liquidations that trigger cascade sell-offs, Circuit uses a monotonic 4-regime finite state machine:
-- **Nominal (L0)**: Normal operations, 70% Base LTV.
-- **Defensive (L1)**: Elevated volatility, borrow capped at 50% LTV, debt additions restricted.
-- **Stale (L2)**: Oracle delay or liquidity dry-up, zero borrows, partial collateral withdrawals gated.
-- **Emergency (L3)**: Protocol circuit breaker active. Zero new debt. Only risk-reducing repayments allowed.
+---
+
+## Risk Ratchet
+
+```
+SAFE → RESTRICTED → DEFENSIVE → EMERGENCY
+```
+
+As conditions deteriorate, risk-increasing authority contracts first. Borrowing, withdrawals, and new exposure can become constrained or blocked, while repayment, deposits, and supported recovery remain available according to policy. Recovery is staged.
+
+- **SAFE (Nominal L0)**: Normal operations, 70% Base LTV.
+- **RESTRICTED / DEFENSIVE (L1/L2)**: Elevated volatility, borrow capped at reduced LTV, debt additions restricted, unhedged withdrawals gated.
+- **EMERGENCY (L3)**: Protocol circuit breaker active. Zero new debt. Only risk-reducing repayments allowed.
 - **Monotonic Staged Recovery**: Recovery requires consecutive healthy epochs—the protocol cannot jump straight from Emergency to Nominal in a single tick.
 
-### 3. 🎯 Conservative Pyth Pull Oracle Validation
-Circuit integrates Pyth Network's `PriceUpdateV2` pull oracle architecture with strict localized validation:
+---
+
+## Capital Policy + Credit
+
+Risk becomes concrete limits: effective LTV, borrow capacity, exposure ceilings, risk budget, and action-specific limits. Circuit values collateral from validated oracle prices and evaluates debt, LTV, liquidity, authority, and policy before credit is available. Credit is the last step, never the first.
+
+Circuit integrates Pyth Network's `PriceUpdateV2` pull oracle architecture with conservative localized validation:
 $$\text{Effective Price} = \max\Big(0, P - \text{Confidence Interval}\Big)$$
 - If Pyth reports $\$100.00 \pm \$1.50$, Circuit values collateral at $\$98.50$ for borrow capacity calculations.
 - Prevents oracle poisoning, wide-spread spoofing, and stale feed manipulation.
 
-### 4. 🌊 Trading Venue Isolation & Meteora DBC
-Meteora Dynamic Bonding Curves (DBC) serve as the primary on-chain fair launch and secondary liquidity venue:
-- Isolated from credit risk calculations.
-- Allows programmatic collateral acquisition and orderly liquidation auctions with deterministic price decay and zero MEV frontrunning.
+---
 
-### 5. 🤖 Bounded Autonomous AI Agents
-Circuit features native autonomous agents capable of rebalancing portfolios, managing collateral ratios, and defending health factors:
+## Permission Engine
+
+One canonical permission layer governs humans and agents. Effective authority combines owner authority, delegated agent authority, asset/action scope, position state, risk state, policy limits, expiry, and execution constraints. Frontend previews are informational; permission is re-evaluated at execution, with the Solana program authoritative.
+
+---
+
+## Autonomous Agents
+
+Humans operate directly; agents can observe, analyze, plan, monitor, schedule, and execute supported actions inside explicit boundaries. Agent authority is limited by asset, action, amount, risk budget, expiry, and revocation. AI reasoning is untrusted and cannot bypass Circuit.
+
+Circuit Agent provides Lite and Pro modes, resource-governed agentic usage, background workflows, watches, schedules, and autonomous management. Agent credits are compute entitlement only, separate from SOL, collateral, debt, and trading capital.
+
 - **PDA Boundary Envelopes**: Agents operate under strict on-chain `AgentAuthority` PDAs.
 - **Pre-Authorized Drawdown Limits**: Agents can never draw more capital than explicitly authorized by the user.
 - **Instant Revocation**: Users retain master authority to revoke agent delegation in a single atomic transaction.
 
 ---
 
-## 🎨 Interactive Precision Instruments (Format 2.0 Engine)
+## Realtime Control Plane
 
-Circuit's landing interface is engineered as an interactive design system running at 60fps without lag:
-
-| Instrument | Component | Mechanical Behavior |
-|---|---|---|
-| **01 Metaball Ink Trail** | `HeroInkTrail.tsx` | 60fps fluid displacement canvas responding to mouse velocity vectors |
-| **02 24-Dial Field** | `DialFieldHero.tsx` | 24 dynamic rotating SVG dials tracking cursor angle and distance |
-| **03 Colour Reveal** | `ColourRevealSection.tsx` | Multi-layer RGB gradient mask revealing high-contrast typographic layouts |
-| **04 Inertia Ribbon** | `InertiaRibbonSection.tsx` | Continuous draggable momentum strip with elastic wrap physics |
-| **05 Scroll Morph** | `ScrollMorphSection.tsx` | 5-stage pinned morph: Horizontal ➔ Card ➔ Arch ➔ Circle ➔ Safe State Full-Frame |
-| **06 Dynamic Risk Matrix** | `ManifestoAndRing.tsx` | Counter-rotating concentric typographic rings listing protocol invariants |
-| **07 Adaptive Instruments** | `ManifestoAndRing.tsx` | Magnetic cursor morphing into words, cards, badges, pills, and Pyth triangle |
-| **08 Slot Clock & Stack** | `ClockAndTiltedStack.tsx` | Real-time Solana block slot clock paired with -8° skewed velocity word loop |
+Circuit is an operational system, not a static explainer. Market, oracle, position, debt, risk, permission, agent, transaction, and liquidity state are continuously refreshed. The interface distinguishes LIVE, STALE, SYNCING, DISCONNECTED, and UNAVAILABLE.
 
 ---
 
-## 🔒 15 Protocol Security Invariants
+## Recovery + Dutch Auction
+
+When a position becomes unsafe, Circuit can enforce deterministic recovery. Where configured, partial liquidation and Dutch auction recovery can sell only the collateral required to restore the active safety policy:
+
+```
+UNHEALTHY → RECOVERY CALCULATION → AUCTION → COLLATERAL REDUCTION → RESTORED SAFETY
+```
+
+---
+
+## Meteora DBC
+
+Meteora Dynamic Bonding Curves provide an execution/liquidity surface governed by Circuit permissions. DBC actions are evaluated against current market state, risk, capital policy, authority, exposure limits, and pool state before execution. Circuit can observe pool/configuration, reserves, curve state, migration progress, and execution state, with supported operations routed through the permission boundary. DBC can progress from virtual-curve trading toward DAMM graduation.
+
+- Trading venue isolation: execution occurs on Meteora while risk remains governed by Circuit.
+- Fair launch and orderly liquidation auctions with deterministic price decay and zero MEV frontrunning.
+
+---
+
+## Human + Agent Parity
+
+Manual and autonomous operations use the same permission boundary; neither gets a hidden bypass.
+
+---
+
+## Auditability
+
+Important actions can be traced across market observation, oracle state, risk state, policy, authority, permission, and transaction outcome.
+
+---
+
+## Security
+
+Frontend, AI/model, API, and RPC responses are untrusted. Validated oracle data is an input; wallet signatures represent owner authority; the Circuit program is the authorization layer; Solana is final state. The architecture addresses stale oracle data, authority escalation, scope violations, replay/expiry, transaction races, and bypass attempts.
+
+---
+
+## Protocol Economics
+
+Circuit can charge configurable fees on successful protocol execution; blocked unsafe actions generate no fee. Recovery primarily protects solvency. Devnet economic values have no real monetary value.
+
+---
+
+## Technical Foundation
+
+Solana smart contracts in Rust/Anchor, Pyth, realtime state, autonomous-agent workflows, Circuit risk/permission primitives, credit and recovery logic, and Meteora DBC.
+
+---
+
+## Status
+
+Solana Devnet MVP/protocol prototype.
+
+---
+
+## 15 Protocol Security Invariants
 
 All 15 security invariants are enforced by Anchor program constraints, Rust checked arithmetic, and audited unit tests:
 
@@ -174,7 +255,7 @@ All 15 security invariants are enforced by Anchor program constraints, Rust chec
 
 ---
 
-## 🗺️ Devnet Deployment Matrix
+## Devnet Deployment Matrix
 
 | Parameter / Account | Devnet Address / Identifier | Type |
 |---|---|---|
@@ -192,7 +273,7 @@ All 15 security invariants are enforced by Anchor program constraints, Rust chec
 
 ---
 
-## 🚀 Quickstart & Verification
+## Quickstart & Verification
 
 ### Prerequisites
 - Node.js `v20+` or `v24+`
@@ -224,12 +305,12 @@ cd app && npm run typecheck
 ```bash
 cd app
 npm run dev
-# Open http://localhost:5173 to access the Format 2.0 Terminal & Landing Page
+# Open http://localhost:5173 to access the Circuit Terminal & Landing Page
 ```
 
 ---
 
-## 🛠️ Toolchain
+## Toolchain
 
 ```
 ┌──────────────────────────────┬──────────────────────────────┐
@@ -245,6 +326,6 @@ npm run dev
 
 ---
 
-## ⚖️ License
+## License
 
 Distributed under the MIT License. See [LICENSE](LICENSE) for details.
