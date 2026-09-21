@@ -2079,13 +2079,7 @@
   font-size: clamp(13px, 1.5vw, 16px);
   line-height: 1.6;
 }
-/* GPU optimization: remove heavy turbulence filter during full-screen Safe State to eliminate scroll lag */
-.sm-shape[data-shape="full"] .ink,
-.sm-shape[data-shape="full"] .sm-w,
-.lf-sm-shape[data-shape="full"] .ink,
-.lf-sm-shape[data-shape="full"] .sm-w {
-  filter: none !important;
-}
+
 
 /* ── Interactive Rail Navigation ── */
 .sm-rail,
