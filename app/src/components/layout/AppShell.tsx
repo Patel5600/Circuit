@@ -342,12 +342,15 @@ function NetworkStatusBarWrapper() {
 
   return (
     <div
+      className="shell__network-bar"
       style={{
         display: "flex",
         justifyContent: "center",
         padding: "2px 16px",
         borderBottom: "1px solid var(--border)",
         background: "var(--surface-0)",
+        flex: "none",
+        zIndex: 55,
       }}
     >
       <NetworkStatusBar
@@ -368,6 +371,7 @@ function NetworkStatusBarWrapper() {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const isAutonomous = location.pathname.startsWith("/app/autonomous");
+  const mainRef = React.useRef<HTMLElement>(null);
 
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
@@ -381,6 +385,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   // ── Ink micro-interactions: fill, magnetic, underline, squash ──
   useInkButtons();
+
+  // Reset main view scroll to top on route change
+  useEffect(() => {
+    if (mainRef.current) {
+      mainRef.current.scrollTo({ top: 0, behavior: "instant" });
+    }
+  }, [location.pathname]);
 
   // Global shortcut for Command Palette (⌘K, Ctrl+K, or /)
   useEffect(() => {
@@ -423,9 +434,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         />
         {/* Real-state network health bar */}
         <NetworkStatusBarWrapper />
-        <div className="shell__body">
+        <div className={`shell__body ${collapsed ? "shell__body--collapsed" : ""}`}>
           {!isAutonomous && <Sidebar collapsed={collapsed} onToggleCollapse={toggleCollapse} />}
           <main
+            ref={mainRef}
             className="main"
             id="main"
             style={
@@ -435,7 +447,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     margin: 0,
                     maxWidth: "100%",
                     width: "100%",
-                    height: "calc(100vh - var(--header-h, 57px))",
+                    height: "100%",
                     overflow: "hidden",
                     display: "flex",
                     flexDirection: "column",
