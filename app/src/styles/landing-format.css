@@ -2485,6 +2485,48 @@
   font-size: 14px;
 }
 
+.lf-footer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-top: 18px;
+}
+.lf-footer-github-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--lf-line);
+  background: var(--lf-bg);
+  color: var(--lf-fg);
+  font-size: 13.5px;
+  text-decoration: none !important;
+  transition: all 180ms ease;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+.lf-footer-github-btn:hover {
+  background: var(--lf-fg);
+  color: var(--lf-bg);
+  border-color: var(--lf-fg);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+.lf-footer-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--lf-line);
+  font-size: 12px;
+  font-family: var(--lf-mono);
+  color: var(--lf-mute);
+  background: rgba(125, 125, 125, 0.04);
+}
+
 /* ── Notes Mode Annotations ── */
 .lf-notes-on [data-note] {
   position: relative;
