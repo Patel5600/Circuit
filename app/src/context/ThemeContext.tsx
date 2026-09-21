@@ -26,10 +26,7 @@ function getInitialTheme(): Theme {
         return q;
       }
       const stored = localStorage.getItem("circuit-theme") as Theme | null;
-      if (stored === "light" || stored === "dark") {
-        return stored;
-      }
-      if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) {
+      if (stored === "light") {
         return "light";
       }
     }

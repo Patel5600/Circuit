@@ -1508,7 +1508,9 @@ export function PortfolioRiskGraph({
           borderBottom: isDark ? "1px solid rgba(255, 255, 255, 0.12)" : "1px solid var(--border)",
           borderBottomLeftRadius: 12,
           borderBottomRightRadius: 12,
-          overflow: "hidden",
+          overflowX: "auto",
+          overflowY: "hidden",
+          WebkitOverflowScrolling: "touch",
           minHeight: 480,
           boxShadow: isDark ? "0 12px 40px rgba(0, 0, 0, 0.5)" : "0 4px 16px rgba(0, 0, 0, 0.05)",
         }}
@@ -1595,6 +1597,7 @@ export function PortfolioRiskGraph({
           </div>
         ) : (
           <div
+            className="risk-graph-inner"
             style={{
               transform: `scale(${zoom})`,
               transformOrigin: "center top",

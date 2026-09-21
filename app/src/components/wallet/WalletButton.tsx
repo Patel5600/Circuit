@@ -7,6 +7,7 @@ import { Button, Icon, Modal, Pill } from "../ui";
 import { shortenAddress } from "../../lib/format";
 import { useCircuitDomain } from "../../lib/domain/context";
 import { formatSol } from "../../lib/domain/wallet";
+import { MobileWalletModal, isMobileDevice, detectInAppWallet } from "./MobileWalletModal";
 
 /**
  * Institutional Wallet Control & Network Safety Popover
@@ -15,23 +16,39 @@ export function WalletButton({ compact = false }: { compact?: boolean }) {
   const { publicKey, connected, connecting, disconnect, wallet } = useWallet();
   const { setVisible } = useWalletModal();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [mobileModalOpen, setMobileModalOpen] = useState(false);
   const { wallet: walletDomain, refreshAll } = useCircuitDomain();
 
   const address = useMemo(() => publicKey?.toBase58() ?? "", [publicKey]);
   const isWrongNetwork = walletDomain.status === "WRONG_NETWORK";
   const solText = formatSol(walletDomain.solBalanceLamports);
 
+  const handleConnectClick = () => {
+    if (isMobileDevice() && !detectInAppWallet()) {
+      setMobileModalOpen(true);
+    } else {
+      setVisible(true);
+    }
+  };
+
   if (!connected) {
     return (
-      <Button
-        variant="primary"
-        size={compact ? "sm" : undefined}
-        icon="wallet"
-        loading={connecting}
-        onClick={() => setVisible(true)}
-      >
-        {connecting ? "Connecting" : compact ? "Connect" : "Connect Wallet"}
-      </Button>
+      <>
+        <Button
+          variant="primary"
+          size={compact ? "sm" : undefined}
+          icon="wallet"
+          loading={connecting}
+          onClick={handleConnectClick}
+        >
+          {connecting ? "Connecting" : compact ? "Connect" : "Connect Wallet"}
+        </Button>
+        <MobileWalletModal
+          open={mobileModalOpen}
+          onClose={() => setMobileModalOpen(false)}
+          onOpenStandardModal={() => setVisible(true)}
+        />
+      </>
     );
   }
 

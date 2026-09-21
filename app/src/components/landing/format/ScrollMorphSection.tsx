@@ -81,7 +81,7 @@ export const ScrollMorphSection: React.FC<ScrollMorphSectionProps> = ({ simpleMo
       { p: 0.22, w0: 540, h0: 180, r: 90, rot: 4, ts: 1, name: "Autonomous Agents", w: 0, h: 0 },
       { p: 0.45, w0: 280, h0: 410, r: 16, rot: -4, ts: 1, name: "Risk Ratchet", w: 0, h: 0 },
       { p: 0.68, w0: 480, h0: 300, r: 16, rot: 2, ts: 1, name: "Pyth Confidence", w: 0, h: 0 },
-      { p: 0.92, w0: 0, h0: 0, r: 0, rot: 0, ts: 3, name: "Safe State", w: 0, h: 0 },
+      { p: 0.92, w0: 0, h0: 0, r: 0, rot: 0, ts: 1.15, name: "Safe State", w: 0, h: 0 },
     ];
 
     const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -94,7 +94,6 @@ export const ScrollMorphSection: React.FC<ScrollMorphSectionProps> = ({ simpleMo
     let W = 0;
     let H = 0;
     let shown = 0;
-    let whiteTimeout: number | undefined;
 
     const measure = () => {
       W = pin.clientWidth;
@@ -132,8 +131,8 @@ export const ScrollMorphSection: React.FC<ScrollMorphSectionProps> = ({ simpleMo
       const a = KF[i];
       const b = KF[i + 1];
       const rawT = clamp((p - a.p) / (b.p - a.p), 0, 1);
-      // Gentle sinusoidal curve for the expansion into Safe State
-      const t = i === 3 ? (0.5 - 0.5 * Math.cos(rawT * Math.PI)) : ease(rawT);
+      // Continuous smooth hermite/cosine interpolation between Pyth Confidence and Safe State
+      const t = i === 3 ? (1 - Math.cos(rawT * Math.PI)) * 0.5 : ease(rawT);
       const L = (k: "w" | "h" | "r" | "rot" | "ts") => a[k] + (b[k] - a[k]) * t;
 
       shape.style.width = L("w") + "px";
@@ -142,14 +141,14 @@ export const ScrollMorphSection: React.FC<ScrollMorphSectionProps> = ({ simpleMo
       shape.style.setProperty("--rot", L("rot") + "deg");
       shape.style.setProperty("--ts", String(L("ts")));
 
-      // Synchronize dark inversion smoothly with format-kit-2 exact timing
-      const kVal = smooth(0.78, 0.95, p);
+      // Seamlessly synchronize dark inversion across the entire expansion window [0.68..0.92]
+      const kVal = smooth(0.68, 0.92, p);
       shape.style.setProperty("--k", String(kVal));
       shape.style.setProperty("--ox", p * 40 - 20 + "%");
       stage.style.setProperty("--p", String(p));
       stage.style.setProperty("--k", String(kVal));
 
-      const idx = i + (t > 0.5 ? 1 : 0);
+      const idx = i + (t > 0.55 ? 1 : 0);
       if (idx !== shown) {
         shown = idx;
         updateContent(idx);

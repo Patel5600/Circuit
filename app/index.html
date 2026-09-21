@@ -1,11 +1,10 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="color-scheme" content="dark light" />
-    <meta name="theme-color" content="#0a0b0d" media="(prefers-color-scheme: dark)" />
-    <meta name="theme-color" content="#CAD0E4" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0a0b0d" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta
@@ -19,7 +18,8 @@
           var p = new URLSearchParams(window.location.search);
           var q = p.get("theme");
           var s = q || localStorage.getItem("circuit-theme");
-          var t = (s === "light" || s === "dark") ? s : (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+          // Strict default to DARK MODE
+          var t = (s === "light") ? "light" : "dark";
           document.documentElement.setAttribute("data-theme", t);
           if (q) localStorage.setItem("circuit-theme", q);
         } catch (e) {}
