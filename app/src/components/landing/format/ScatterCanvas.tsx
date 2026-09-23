@@ -40,11 +40,147 @@ export const ScatterCanvas: React.FC<ScatterCanvasProps> = ({ simpleMode }) => {
     let maxZ = 30;
     const cards: PhysicsCard[] = [];
 
-    // ── THE 10 REAL WORKING COMPONENTS DEFINITIONS ──
+    // ── THE 5 CIRCUIT PIPELINE COMPONENT CARDS ──
     const COMPONENT_TYPES = [
-      // 1. Draw with ink
+      // CARD 1: MARKET STATE (Pyth)
       {
-        key: "draw",
+        key: "market-state",
+        className: "card-dial",
+        w: 260,
+        h: 210,
+        create: (container: HTMLElement) => {
+          let dialsHtml = "";
+          for (let i = 0; i < 9; i++) {
+            dialsHtml += `
+              <div class="dial-mini-item">
+                <div class="dial-mini-hand" style="transform: rotate(${i * 40}deg);"></div>
+                <div class="dial-mini-dot" style="top:15%;transform:rotate(${i * 40}deg);"></div>
+              </div>
+            `;
+          }
+          container.innerHTML = `
+            <div class="face">
+              <div class="real-card-head">
+                <div class="real-card-meta">
+                  (Pyth)<b>MARKET STATE</b>
+                  <span class="real-card-sub">Price · Confidence · Freshness</span>
+                </div>
+                <span class="real-card-tag">Market State</span>
+              </div>
+              <div class="real-stage">
+                <div class="dial-grid-mini">${dialsHtml}</div>
+              </div>
+              <div style="font-size:7px;opacity:0.5;font-family:var(--lf-mono);text-align:right;">Pyth · Price · Confidence · Freshness</div>
+            </div>
+          `;
+
+          const hands = Array.from(container.querySelectorAll(".dial-mini-hand")) as HTMLElement[];
+          let deg = 0;
+          const timer = setInterval(() => {
+            deg = (deg + 12) % 360;
+            hands.forEach((h, idx) => {
+              h.style.transform = `rotate(${deg + idx * 35}deg)`;
+            });
+          }, 80);
+
+          return () => clearInterval(timer);
+        },
+      },
+
+      // CARD 2: RISK KERNEL (Risk Ratchet)
+      {
+        key: "risk-kernel",
+        className: "card-ring",
+        w: 260,
+        h: 210,
+        create: (container: HTMLElement) => {
+          container.innerHTML = `
+            <div class="face">
+              <div class="real-card-head">
+                <div class="real-card-meta">
+                  (Risk Ratchet)<b>RISK KERNEL</b>
+                  <span class="real-card-sub">SAFE → RESTRICTED → DEFENSIVE → EMERGENCY</span>
+                </div>
+                <span class="real-card-tag">Risk Kernel</span>
+              </div>
+              <div class="real-stage">
+                <svg class="ring-svg-mini" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+                  <defs>
+                    <path id="mini-p1-${nextId}" d="M 60,60 m -44,0 a 44,44 0 1,1 88,0 a 44,44 0 1,1 -88,0" />
+                    <path id="mini-p2-${nextId}" d="M 60,60 m -26,0 a 26,26 0 1,1 52,0 a 26,26 0 1,1 -52,0" />
+                  </defs>
+                  <circle cx="60" cy="60" r="44" fill="none" stroke="currentColor" stroke-dasharray="2 3" opacity="0.25" />
+                  <circle cx="60" cy="60" r="26" fill="none" stroke="currentColor" stroke-dasharray="2 3" opacity="0.25" />
+                  <g class="ring-g-mini-1">
+                    <text font-size="6.5" font-family="var(--lf-font)" font-weight="600" fill="currentColor">
+                      <textPath href="#mini-p1-${nextId}">CIRCUIT · RISK KERNEL · SOLANA ·</textPath>
+                    </text>
+                  </g>
+                  <g class="ring-g-mini-2">
+                    <text font-size="5.5" font-family="var(--lf-font)" font-weight="500" fill="currentColor">
+                      <textPath href="#mini-p2-${nextId}">SAFE · RESTRICTED · DEFENSIVE · EMERGENCY ·</textPath>
+                    </text>
+                  </g>
+                </svg>
+              </div>
+              <div style="font-size:7px;opacity:0.5;font-family:var(--lf-mono);">SAFE → RESTRICTED → DEFENSIVE → EMERGENCY</div>
+            </div>
+          `;
+          return undefined;
+        },
+      },
+
+      // CARD 3: CAPITAL POLICY (Dynamic Limits)
+      {
+        key: "capital-policy",
+        className: "card-colour",
+        w: 280,
+        h: 180,
+        create: (container: HTMLElement) => {
+          container.innerHTML = `
+            <div class="face">
+              <div class="real-card-head">
+                <div class="real-card-meta">
+                  (Dynamic Limits)<b>CAPITAL POLICY</b>
+                  <span class="real-card-sub">LTV · Exposure · Action Gates</span>
+                </div>
+                <span class="real-card-tag">Capital Policy</span>
+              </div>
+              <div class="real-stage">
+                <div class="colour-stage-mini">
+                  <div class="colour-art-mini"></div>
+                  <div class="colour-mask-mini"></div>
+                </div>
+              </div>
+              <div style="font-size:7px;opacity:0.5;font-family:var(--lf-mono);">LTV · Exposure · Action Gates</div>
+            </div>
+          `;
+
+          const mask = container.querySelector(".colour-mask-mini") as HTMLElement | null;
+          let t = 0;
+          let active = true;
+
+          const anim = () => {
+            if (!active || !mask) return;
+            t += 0.03;
+            const mx = 50 + Math.sin(t * 1.3) * 30;
+            const my = 50 + Math.cos(t * 1.1) * 25;
+            const rad = 32 + Math.sin(t * 2) * 16;
+            mask.style.setProperty("--mx", `${mx.toFixed(1)}%`);
+            mask.style.setProperty("--my", `${my.toFixed(1)}%`);
+            mask.style.setProperty("--rad", `${rad.toFixed(1)}px`);
+            requestAnimationFrame(anim);
+          };
+          anim();
+          return () => {
+            active = false;
+          };
+        },
+      },
+
+      // CARD 4: PERMISSION (RiskEnvelope)
+      {
+        key: "permission",
         className: "card-draw",
         w: 280,
         h: 190,
@@ -53,15 +189,15 @@ export const ScatterCanvas: React.FC<ScatterCanvasProps> = ({ simpleMode }) => {
             <div class="face">
               <div class="real-card-head">
                 <div class="real-card-meta">
-                  (Capability)<b>RiskEnvelope</b>
-                  <span class="real-card-sub">Single-use Authorization</span>
+                  (RiskEnvelope)<b>PERMISSION</b>
+                  <span class="real-card-sub">Action · Venue · Amount · Expiry</span>
                 </div>
-                <span class="real-card-tag">Authorize</span>
+                <span class="real-card-tag">Permission</span>
               </div>
               <div class="real-stage">
                 <canvas width="252" height="110" style="border-radius:4px;background:#f4f4f0;"></canvas>
               </div>
-              <div style="font-size:7px;opacity:0.5;font-family:var(--lf-mono);">Action & Venue PDA · Slot TTL</div>
+              <div style="font-size:7px;opacity:0.5;font-family:var(--lf-mono);">Action · Venue · Amount · Expiry</div>
             </div>
           `;
           const cvs = container.querySelector("canvas") as HTMLCanvasElement | null;
@@ -79,7 +215,6 @@ export const ScatterCanvas: React.FC<ScatterCanvasProps> = ({ simpleMode }) => {
             ctx.fillStyle = "rgba(244, 244, 240, 0.25)";
             ctx.fillRect(0, 0, cvs.width, cvs.height);
 
-            // Autonomous undulating metaballs
             const cx1 = cvs.width * 0.5 + Math.sin(t * 1.2) * (cvs.width * 0.35);
             const cy1 = cvs.height * 0.5 + Math.cos(t * 1.5) * (cvs.height * 0.3);
             const cx2 = cvs.width * 0.5 + Math.cos(t * 0.9) * (cvs.width * 0.3);
@@ -110,154 +245,9 @@ export const ScatterCanvas: React.FC<ScatterCanvasProps> = ({ simpleMode }) => {
         },
       },
 
-      // 2. Dial Field
+      // CARD 5: EXECUTION (Authorization Check)
       {
-        key: "dial",
-        className: "card-dial",
-        w: 260,
-        h: 210,
-        create: (container: HTMLElement) => {
-          let dialsHtml = "";
-          for (let i = 0; i < 9; i++) {
-            dialsHtml += `
-              <div class="dial-mini-item">
-                <div class="dial-mini-hand" style="transform: rotate(${i * 40}deg);"></div>
-                <div class="dial-mini-dot" style="top:15%;transform:rotate(${i * 40}deg);"></div>
-              </div>
-            `;
-          }
-          container.innerHTML = `
-            <div class="face">
-              <div class="real-card-head">
-                <div class="real-card-meta">
-                  (Observation)<b>Market State</b>
-                  <span class="real-card-sub">Pyth Price & Confidence</span>
-                </div>
-                <span class="real-card-tag">02 Observe</span>
-              </div>
-              <div class="real-stage">
-                <div class="dial-grid-mini">${dialsHtml}</div>
-              </div>
-              <div style="font-size:7px;opacity:0.5;font-family:var(--lf-mono);text-align:right;">Validated Telemetry</div>
-            </div>
-          `;
-
-          const hands = Array.from(container.querySelectorAll(".dial-mini-hand")) as HTMLElement[];
-          let deg = 0;
-          const timer = setInterval(() => {
-            deg = (deg + 12) % 360;
-            hands.forEach((h, idx) => {
-              h.style.transform = `rotate(${deg + idx * 35}deg)`;
-            });
-          }, 80);
-
-          return () => clearInterval(timer);
-        },
-      },
-
-      // 3. Colour reveal
-      {
-        key: "colour",
-        className: "card-colour",
-        w: 280,
-        h: 180,
-        create: (container: HTMLElement) => {
-          container.innerHTML = `
-            <div class="face">
-              <div class="real-card-head">
-                <div class="real-card-meta">
-                  (Pipeline)<b>The Risk Kernel</b>
-                  <span class="real-card-sub">Deterministic Policy Gating</span>
-                </div>
-                <span class="real-card-tag">03 Pipeline</span>
-              </div>
-              <div class="real-stage">
-                <div class="colour-stage-mini">
-                  <div class="colour-art-mini"></div>
-                  <div class="colour-mask-mini"></div>
-                </div>
-              </div>
-              <div style="font-size:7px;opacity:0.5;font-family:var(--lf-mono);">Market → Risk → Permission</div>
-            </div>
-          `;
-
-          const mask = container.querySelector(".colour-mask-mini") as HTMLElement | null;
-          let t = 0;
-          let active = true;
-
-          const anim = () => {
-            if (!active || !mask) return;
-            t += 0.03;
-            const mx = 50 + Math.sin(t * 1.3) * 30;
-            const my = 50 + Math.cos(t * 1.1) * 25;
-            const rad = 32 + Math.sin(t * 2) * 16;
-            mask.style.setProperty("--mx", `${mx.toFixed(1)}%`);
-            mask.style.setProperty("--my", `${my.toFixed(1)}%`);
-            mask.style.setProperty("--rad", `${rad.toFixed(1)}px`);
-            requestAnimationFrame(anim);
-          };
-          anim();
-          return () => {
-            active = false;
-          };
-        },
-      },
-
-      // 4. Inertia ribbon
-      {
-        key: "ribbon",
-        className: "card-ribbon",
-        w: 310,
-        h: 180,
-        create: (container: HTMLElement) => {
-          const shapes = ["Credit", "Agents", "Meteora", "Envelope", "Pyth", "Ratchet", "Solana", "Policy"];
-          const itemsHtml = shapes
-            .map(
-              (s, i) => `
-            <div class="ribbon-item-mini ${i % 2 === 0 ? "light" : ""}">
-              <span>0${i + 1}</span>
-              <strong>${s}</strong>
-            </div>
-          `
-            )
-            .join("");
-
-          container.innerHTML = `
-            <div class="face" style="background:#111;color:#fff;">
-              <div class="real-card-head">
-                <div class="real-card-meta">
-                  <span style="color:#aaa;">(Surfaces)</span><b style="color:#fff;">Execution Surfaces</b>
-                  <span class="real-card-sub" style="color:#888;">Credit · Agents · Meteora DBC</span>
-                </div>
-                <span class="real-card-tag" style="border-color:rgba(255,255,255,0.4);">04 Surfaces</span>
-              </div>
-              <div class="real-stage" style="justify-content:flex-start;overflow:hidden;">
-                <div class="ribbon-track-mini">${itemsHtml}${itemsHtml}</div>
-              </div>
-              <div style="font-size:7px;opacity:0.5;font-family:var(--lf-mono);color:#aaa;">Modular execution · Enforced authority</div>
-            </div>
-          `;
-
-          const track = container.querySelector(".ribbon-track-mini") as HTMLElement | null;
-          let x = 0;
-          let active = true;
-
-          const anim = () => {
-            if (!active || !track) return;
-            x = (x - 0.7) % 432;
-            track.style.transform = `translate3d(${x}px, 0, 0)`;
-            requestAnimationFrame(anim);
-          };
-          anim();
-          return () => {
-            active = false;
-          };
-        },
-      },
-
-      // 5. Scroll morph
-      {
-        key: "morph",
+        key: "execution",
         className: "card-morph",
         w: 260,
         h: 200,
@@ -266,28 +256,26 @@ export const ScatterCanvas: React.FC<ScatterCanvasProps> = ({ simpleMode }) => {
             <div class="face">
               <div class="real-card-head">
                 <div class="real-card-meta">
-                  (Stages)<b>5-Stage Pipeline</b>
-                  <span class="real-card-sub" id="morph-label">Observe</span>
+                  (Authorization Check)<b>EXECUTION</b>
+                  <span class="real-card-sub" id="morph-label">ALLOW / BLOCK / RECOVER</span>
                 </div>
-                <span class="real-card-tag">5 Stages</span>
+                <span class="real-card-tag">Execution</span>
               </div>
               <div class="real-stage">
-                <div class="morph-shape-mini" style="width:84px;height:74px;border-radius:50%;">
-                  <strong>Observe</strong>
+                <div class="morph-shape-mini" style="width:130px;height:65px;border-radius:32px;">
+                  <strong>ALLOW</strong>
                 </div>
               </div>
-              <div style="font-size:7px;opacity:0.5;font-family:var(--lf-mono);">Market observation to enforced action</div>
+              <div style="font-size:7px;opacity:0.5;font-family:var(--lf-mono);">ALLOW / BLOCK / RECOVER</div>
             </div>
           `;
 
           const shape = container.querySelector(".morph-shape-mini") as HTMLElement | null;
           const label = container.querySelector("#morph-label") as HTMLElement | null;
           const stages = [
-            { name: "Observe", w: "84px", h: "74px", rad: "50%" },
-            { name: "Evaluate", w: "135px", h: "65px", rad: "32px" },
-            { name: "Authorize", w: "75px", h: "115px", rad: "4px" },
-            { name: "Execute", w: "145px", h: "75px", rad: "4px" },
-            { name: "Recover", w: "210px", h: "115px", rad: "0px" },
+            { name: "ALLOW", w: "130px", h: "65px", rad: "32px" },
+            { name: "BLOCK", w: "90px", h: "80px", rad: "4px" },
+            { name: "RECOVER", w: "155px", h: "70px", rad: "16px" },
           ];
 
           let idx = 0;
@@ -300,213 +288,8 @@ export const ScatterCanvas: React.FC<ScatterCanvasProps> = ({ simpleMode }) => {
               shape.style.borderRadius = st.rad;
               shape.innerHTML = `<strong>${st.name}</strong>`;
             }
-            if (label) label.textContent = st.name;
+            if (label) label.textContent = `${st.name} · Authorization Check`;
           }, 1400);
-
-          return () => clearInterval(timer);
-        },
-      },
-
-      // 6. Melting headline
-      {
-        key: "melt",
-        className: "card-melt",
-        w: 290,
-        h: 180,
-        create: (container: HTMLElement) => {
-          container.innerHTML = `
-            <div class="face" style="background:#000;color:#fff;">
-              <div class="real-card-head">
-                <div class="real-card-meta">
-                  <span style="color:#aaa;">(Authority)</span><b style="color:#fff;">Bounded Agents</b>
-                  <span class="real-card-sub" style="color:#888;">Intent → Circuit → Solana</span>
-                </div>
-                <span class="real-card-tag" style="border-color:rgba(255,255,255,0.4);">06 Bounded</span>
-              </div>
-              <div class="real-stage">
-                <div class="melt-stage-mini">
-                  <div class="melt-headline-mini">Bounded</div>
-                </div>
-              </div>
-              <div style="font-size:7px;opacity:0.5;font-family:var(--lf-mono);color:#aaa;">Agents propose · Solana enforces</div>
-            </div>
-          `;
-          return undefined;
-        },
-      },
-
-      // 7. Kinetic ring
-      {
-        key: "ring",
-        className: "card-ring",
-        w: 260,
-        h: 210,
-        create: (container: HTMLElement) => {
-          container.innerHTML = `
-            <div class="face">
-              <div class="real-card-head">
-                <div class="real-card-meta">
-                  (Verification)<b>Continuous Verification</b>
-                  <span class="real-card-sub">Epoch Synchronization</span>
-                </div>
-                <span class="real-card-tag">07 Verify</span>
-              </div>
-              <div class="real-stage">
-                <svg class="ring-svg-mini" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
-                  <defs>
-                    <path id="mini-p1-${nextId}" d="M 60,60 m -44,0 a 44,44 0 1,1 88,0 a 44,44 0 1,1 -88,0" />
-                    <path id="mini-p2-${nextId}" d="M 60,60 m -26,0 a 26,26 0 1,1 52,0 a 26,26 0 1,1 -52,0" />
-                  </defs>
-                  <circle cx="60" cy="60" r="44" fill="none" stroke="currentColor" stroke-dasharray="2 3" opacity="0.25" />
-                  <circle cx="60" cy="60" r="26" fill="none" stroke="currentColor" stroke-dasharray="2 3" opacity="0.25" />
-                  <g class="ring-g-mini-1">
-                    <text font-size="6.5" font-family="var(--lf-font)" font-weight="600" fill="currentColor">
-                      <textPath href="#mini-p1-${nextId}">CIRCUIT · RISK KERNEL · SOLANA ·</textPath>
-                    </text>
-                  </g>
-                  <g class="ring-g-mini-2">
-                    <text font-size="5.5" font-family="var(--lf-font)" font-weight="500" fill="currentColor">
-                      <textPath href="#mini-p2-${nextId}">SAFE · RESTRICTED · DEFENSIVE · EMERGENCY ·</textPath>
-                    </text>
-                  </g>
-                </svg>
-              </div>
-              <div style="font-size:7px;opacity:0.5;font-family:var(--lf-mono);">Counter-rotating orbital paths</div>
-            </div>
-          `;
-          return undefined;
-        },
-      },
-
-      // 8. Format cursor
-      {
-        key: "cursor",
-        className: "card-cursor",
-        w: 280,
-        h: 180,
-        create: (container: HTMLElement) => {
-          container.innerHTML = `
-            <div class="face">
-              <div class="real-card-head">
-                <div class="real-card-meta">
-                  (Evaluator)<b>Permission Evaluator</b>
-                  <span class="real-card-sub">State & Limit Gating</span>
-                </div>
-                <span class="real-card-tag">08 Gate</span>
-              </div>
-              <div class="real-stage">
-                <div class="cursor-stage-mini">
-                  <div class="cursor-dot-mini" style="left:50%;top:50%;"></div>
-                  <div style="position:absolute;left:14px;top:14px;font-size:16px;font-weight:700;color:#000;">Gated / Boundary</div>
-                </div>
-              </div>
-              <div style="font-size:7px;opacity:0.5;font-family:var(--lf-mono);">Mix-blend difference tracking</div>
-            </div>
-          `;
-
-          const stage = container.querySelector(".cursor-stage-mini") as HTMLElement | null;
-          const dot = container.querySelector(".cursor-dot-mini") as HTMLElement | null;
-          if (!stage || !dot) return undefined;
-
-          let tracking = false;
-          let t = 0;
-          let active = true;
-
-          const onMove = (e: MouseEvent) => {
-            tracking = true;
-            const r = stage.getBoundingClientRect();
-            dot.style.left = `${e.clientX - r.left}px`;
-            dot.style.top = `${e.clientY - r.top}px`;
-          };
-          const onLeave = () => {
-            tracking = false;
-          };
-
-          stage.addEventListener("mousemove", onMove);
-          stage.addEventListener("mouseleave", onLeave);
-
-          const anim = () => {
-            if (!active) return;
-            if (!tracking) {
-              t += 0.04;
-              const w = stage.clientWidth || 240;
-              const h = stage.clientHeight || 90;
-              dot.style.left = `${w * 0.5 + Math.sin(t * 1.5) * (w * 0.35)}px`;
-              dot.style.top = `${h * 0.5 + Math.cos(t * 1.2) * (h * 0.3)}px`;
-            }
-            requestAnimationFrame(anim);
-          };
-          anim();
-
-          return () => {
-            active = false;
-            stage.removeEventListener("mousemove", onMove);
-            stage.removeEventListener("mouseleave", onLeave);
-          };
-        },
-      },
-
-      // 9. Ink lab
-      {
-        key: "lab",
-        className: "card-lab",
-        w: 280,
-        h: 190,
-        create: (container: HTMLElement) => {
-          container.innerHTML = `
-            <div class="face" style="background:#000;color:#fff;">
-              <div class="real-card-head">
-                <div class="real-card-meta">
-                  <span style="color:#aaa;">(Policy)</span><b style="color:#fff;">Risk Ratchet</b>
-                  <span class="real-card-sub" style="color:#888;">Asymmetric Policy Taper</span>
-                </div>
-                <span class="real-card-tag" style="border-color:rgba(255,255,255,0.4);">09 Ratchet</span>
-              </div>
-              <div class="real-stage">
-                <div class="lab-stage-mini">
-                  <div class="lab-noise-mini"></div>
-                  <span style="position:relative;z-index:2;font-size:20px;font-weight:700;letter-spacing:-0.03em;">Policy</span>
-                </div>
-              </div>
-              <div style="font-size:7px;opacity:0.5;font-family:var(--lf-mono);color:#aaa;">Fractal turbulence frequency</div>
-            </div>
-          `;
-          return undefined;
-        },
-      },
-
-      // 10. Monumental footer
-      {
-        key: "footer",
-        className: "card-footer",
-        w: 310,
-        h: 180,
-        create: (container: HTMLElement) => {
-          container.innerHTML = `
-            <div class="face" style="background:#0c0e17;color:#eceaf7;">
-              <div class="real-card-head">
-                <div class="real-card-meta">
-                  <span style="color:#888;">(Enforcement)</span><b style="color:#fff;">Solana Devnet</b>
-                  <span class="real-card-sub" style="color:#aaa;">Devnet Slot Ticker</span>
-                </div>
-                <span class="real-card-tag" style="border-color:rgba(255,255,255,0.3);color:#8fa2ff;">10 Solana</span>
-              </div>
-              <div class="real-stage">
-                <div class="footer-stage-mini">
-                  <div class="footer-wm-mini">CIRCUIT</div>
-                  <div class="footer-slot-mini" id="mini-footer-slot">[DEVNET SLOT: 324189000]</div>
-                </div>
-              </div>
-              <div style="font-size:7px;opacity:0.5;font-family:var(--lf-mono);color:#888;">Anchor onchain execution</div>
-            </div>
-          `;
-
-          const slotEl = container.querySelector("#mini-footer-slot") as HTMLElement | null;
-          let currentSlot = 324189010;
-          const timer = setInterval(() => {
-            currentSlot++;
-            if (slotEl) slotEl.textContent = `[DEVNET SLOT: ${currentSlot}]`;
-          }, 400);
 
           return () => clearInterval(timer);
         },
@@ -563,7 +346,7 @@ export const ScatterCanvas: React.FC<ScatterCanvasProps> = ({ simpleMode }) => {
     let boundsW = root.clientWidth || 1400;
     let boundsH = root.clientHeight || 700;
 
-    // ── INITIAL SEED: ALL 10 REAL WORKING COMPONENTS ──
+    // ── INITIAL SEED: THE 5 PIPELINE COMPONENTS ──
     const seedAll10Components = () => {
       cards.forEach(c => {
         c.cleanup?.();
@@ -574,19 +357,15 @@ export const ScatterCanvas: React.FC<ScatterCanvasProps> = ({ simpleMode }) => {
       const cw = boundsW;
       const ch = boundsH;
 
-      // Spread initial 10 cards across the canvas space
+      // Spread initial 5 pipeline cards across the canvas space
       const gridCols = 5;
-      const gridRows = 2;
 
       COMPONENT_TYPES.forEach((comp, idx) => {
         const col = idx % gridCols;
-        const row = Math.floor(idx / gridCols);
-
         const slotW = cw / gridCols;
-        const slotH = ch / gridRows;
 
         const x = clamp(col * slotW + rnd(10, Math.max(12, slotW - comp.w - 10)), 0, Math.max(0, cw - comp.w));
-        const y = clamp(row * slotH + rnd(10, Math.max(12, slotH - comp.h - 10)), 0, Math.max(0, ch - comp.h));
+        const y = clamp(rnd(25, Math.max(30, ch - comp.h - 35)), 25, Math.max(25, ch - comp.h - 25));
 
         // Lively ping-pong velocity
         const angle = rnd(0, Math.PI * 2);
@@ -900,7 +679,17 @@ export const ScatterCanvas: React.FC<ScatterCanvasProps> = ({ simpleMode }) => {
       <div className="lab-head">
         <h2>Risk does not merely signal. It gates.</h2>
         <p>
-          A risk state becomes meaningful when it changes what the protocol can execute. SAFE: Normal permitted activity under current policy. RESTRICTED: Exposure and action limits tighten. DEFENSIVE: Risk-increasing actions are blocked or materially constrained according to policy. EMERGENCY: Recovery and permitted exit actions remain available while new risk is restricted.
+          Circuit turns live market and position conditions into enforceable capital permissions.
+          <br /><br />
+          SAFE permits normal activity.
+          <br />
+          RESTRICTED tightens exposure.
+          <br />
+          DEFENSIVE blocks risk-increasing actions.
+          <br />
+          EMERGENCY preserves permitted recovery and exit.
+          <br /><br />
+          The result is not a frontend warning. It is protocol state.
         </p>
       </div>
       <div
@@ -909,11 +698,15 @@ export const ScatterCanvas: React.FC<ScatterCanvasProps> = ({ simpleMode }) => {
         style={{ height: "min(92vh, 780px)", position: "relative", cursor: "pointer" }}
       >
         <div className="scatter" id="scatter" ref={rootRef} />
+        <span className="hint">A changing risk state changes the capital boundary.</span>
       </div>
-      <div className="tools" style={{ display: "flex", gap: 12, marginTop: 14 }}>
+      <div className="tools" style={{ display: "flex", gap: 12, marginTop: 14, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
         <button className="lf-pill" id="scatter-shuffle" ref={shuffleBtnRef}>
           Re-scatter Instruments
         </button>
+        <span style={{ fontFamily: "var(--lf-mono)", fontSize: 11, letterSpacing: "0.04em", opacity: 0.7 }}>
+          MARKET STATE → POLICY → PERMISSION → EXECUTION
+        </span>
       </div>
     </section>
   );
