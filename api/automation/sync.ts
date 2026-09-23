@@ -2,7 +2,7 @@
  * POST /api/automation/sync
  * Client pushes active task list so the Cron tick handler has current state.
  */
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { VercelRequest, VercelResponse } from "../_types";
 import { syncTasks } from "./_store";
 import type { AutomationTask } from "../../app/src/lib/automation/types";
 

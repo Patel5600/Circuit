@@ -2,9 +2,9 @@
  * POST /api/automation/sync
  * Client pushes active task list so the Cron tick handler has current state.
  */
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { VercelRequest, VercelResponse } from "../_types";
 import { syncTasks } from "./_store";
-import type { AutomationTask } from "../../app/src/lib/automation/types";
+import type { AutomationTask } from "../../src/lib/automation/types";
 
 export default function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Access-Control-Allow-Origin", "*");

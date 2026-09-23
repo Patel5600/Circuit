@@ -6,7 +6,7 @@
  * and ledger audit trail inspection.
  */
 
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { VercelRequest, VercelResponse } from "../_types";
 import {
   claimFirstConnectGrant,
   getAccount,

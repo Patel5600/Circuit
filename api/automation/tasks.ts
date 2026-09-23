@@ -13,7 +13,7 @@
  *   - Validates Solana PublicKey format on addresses.
  *   - Restricts CORS to authorized origins.
  */
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { VercelRequest, VercelResponse } from "../_types";
 import { PublicKey } from "@solana/web3.js";
 import { getTasksByOwner, getTask, createTask, updateTask, deleteTask } from "./_store";
 import type { AutomationTask } from "../../app/src/lib/automation/types";

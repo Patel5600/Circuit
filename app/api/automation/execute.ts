@@ -3,7 +3,7 @@
  * Manual trigger for a single task from the UI "Run Now" button.
  * Accepts full task object in body (client-side source of truth).
  */
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { VercelRequest, VercelResponse } from "../_types";
 import { PublicKey } from "@solana/web3.js";
 import { runTaskPipeline } from "./_engine";
 import { syncTasks, logExecution } from "./_store";

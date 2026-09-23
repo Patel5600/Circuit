@@ -12,7 +12,7 @@
  *   5. Verify on-chain result
  *   6. Record full execution record
  */
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { VercelRequest, VercelResponse } from "../_types";
 import { getAllActiveTasks, updateTask, logExecution } from "./_store";
 import { runTaskPipeline } from "./_engine";
 

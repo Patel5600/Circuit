@@ -9,7 +9,7 @@
  * fully durable persistence without code changes.
  */
 
-import type { AutomationTask } from "../../app/src/lib/automation/types";
+import type { AutomationTask } from "../../src/lib/automation/types";
 
 // Global in-memory store shared between handlers in same process
 const taskStore = new Map<string, AutomationTask>();
