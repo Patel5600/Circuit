@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { loadExecutions, subscribeTasks } from "../../lib/automation/store";
 import type { ExecutionRecord } from "../../lib/automation/types";
+import { humanizeReasonCode } from "../../lib/format";
 
 function outcomeColor(o: string): string {
   if (o === "CONFIRMED" || o === "OBSERVED") return "var(--mint,#79c2a4)";
@@ -61,19 +62,19 @@ export function ExecutionFeed({ owner }: { owner: string }) {
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
               <span style={{ fontWeight: 700, fontSize: 12, color: "var(--text)" }}>{r.taskName}</span>
-              <span style={{ fontSize: 9, fontFamily: "var(--mono)", color: outcomeColor(r.outcome), fontWeight: 700 }}>{r.outcome}</span>
+              <span style={{ fontSize: 9, fontFamily: "var(--mono)", color: outcomeColor(r.outcome), fontWeight: 700 }}>{r.outcome ? r.outcome.replace(/_/g, " ") : ""}</span>
               <span style={{ fontSize: 9, fontFamily: "var(--mono)", color: "var(--text-3)" }}>{fmtDuration(r.durationMs)}</span>
             </div>
 
             {r.actionProposed && (
               <div style={{ fontSize: 11, color: "var(--text-2)" }}>
-                Action: <span style={{ fontFamily: "var(--mono)" }}>{r.actionProposed}</span>
+                Action: <span style={{ fontFamily: "var(--mono)" }}>{r.actionProposed.replace(/_/g, " ")}</span>
               </div>
             )}
 
             {r.reasonCode && r.reasonCode !== "ALLOWED" && r.reasonCode !== "CONDITION_NOT_MET" && (
               <div style={{ fontSize: 11, color: "var(--danger,#cf8b8b)", fontFamily: "var(--mono)" }}>
-                [{r.reasonCode}]
+                ({humanizeReasonCode(r.reasonCode)})
               </div>
             )}
 

@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { loadTasks, triggerNow, subscribeTasks } from "../../lib/automation/store";
 import type { AutomationTask } from "../../lib/automation/types";
+import { humanizeReasonCode } from "../../lib/format";
 
 const WATCH_TYPES = ["WATCH", "OBSERVE", "ANALYZE", "REPORT"] as const;
 
@@ -112,8 +113,8 @@ export function WatchesPanel({ owner, onAddWatch }: { owner: string; onAddWatch:
                 </div>
 
                 {result?.outcome === "PERMISSION_DENIED" && result.reasonCode && (
-                  <div style={{ marginTop: 5, fontSize: 11, color: "var(--danger,#cf8b8b)", fontFamily: "var(--mono)" }}>
-                    BLOCKED [{result.reasonCode}]
+                  <div style={{ marginTop: 5, fontSize: 11, color: "var(--danger,#cf8b8b)" }}>
+                    Blocked: {humanizeReasonCode(result.reasonCode)}
                   </div>
                 )}
               </div>

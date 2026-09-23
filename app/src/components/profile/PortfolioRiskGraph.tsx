@@ -2,7 +2,7 @@ import React, { useMemo, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { Pill, Tone, Icon } from "../ui";
 import { LOGOS, type LogoMark } from "../../data/logos";
-import { formatMoney } from "../../lib/format";
+import { formatMoney, humanizeReasonCode } from "../../lib/format";
 import { useAction } from "../../context/ActionContext";
 import { getDeployedMarket, getDeployedMarketByMint } from "../../data/markets";
 import { useTheme } from "../../context/ThemeContext";
@@ -945,9 +945,10 @@ function HardOverrideLine({ y, reason, isDark }: { y: number; reason?: string; i
   const bg = isDark ? "#1f1013" : "#fff1f2";
   const subText = isDark ? "#fca5a5" : "#991b1b";
 
-  const title = "⚠️ HARD RISK OVERRIDE ACTIVE: ALL BORROWS BLOCKED";
-  const hasReason = Boolean(reason && reason.trim().length > 0);
-  const maxLen = Math.max(title.length, reason ? reason.length : 0);
+  const title = "Protocol Safety Containment: Borrowing Paused";
+  const cleanReason = reason ? humanizeReasonCode(reason) : "";
+  const hasReason = Boolean(cleanReason && cleanReason.trim().length > 0);
+  const maxLen = Math.max(title.length, cleanReason ? cleanReason.length : 0);
   const boxW = Math.min(W - 80, Math.max(480, maxLen * 7.5 + 40));
   const boxH = hasReason ? 50 : 28;
   const boxX = (W - boxW) / 2;
@@ -1018,7 +1019,7 @@ function HardOverrideLine({ y, reason, isDark }: { y: number; reason?: string; i
           fontFamily="var(--mono)"
           fill={subText}
         >
-          {reason}
+          {cleanReason}
         </text>
       )}
     </g>

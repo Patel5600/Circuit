@@ -50,7 +50,7 @@ import {
   vaultFor,
 } from "../lib/protocol";
 import { derivePriceAccount } from "../lib/pyth";
-import { formatMoney } from "../lib/format";
+import { formatMoney, humanizeReasonCode, stripUnderscores } from "../lib/format";
 import { useCircuitDomain } from "../lib/domain/context";
 import { METEORA_DBC_PROGRAM_ID } from "../lib/meteora/dbc";
 
@@ -863,8 +863,8 @@ export default function Verify() {
         <Card title="Market guard state">
           {s.guard ? (
             <>
-              <DataRow label="Market state" value={s.guard.marketState} />
-              <DataRow label="Reason" value={s.guard.reason} mono />
+              <DataRow label="Market state" value={stripUnderscores(s.guard.marketState)} />
+              <DataRow label="Reason" value={humanizeReasonCode(s.guard.reason)} mono />
               <DataRow
                 label="Last checked slot"
                 value={

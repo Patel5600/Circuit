@@ -69,3 +69,79 @@ export function greeting(date = new Date()): string {
   if (h < 18) return "Good afternoon";
   return "Good evening";
 }
+
+/** Humanize protocol reason codes and error enums for user-facing surfaces */
+export function humanizeReasonCode(code: string | null | undefined): string {
+  if (!code) return "Unknown";
+  const normalized = code.trim();
+  switch (normalized.toUpperCase()) {
+    case "ALLOWED":
+    case "ALLOW":
+      return "Approved";
+    case "INSUFFICIENT_COLLATERAL":
+      return "Requires collateral";
+    case "BORROW_LIMIT_EXCEEDED":
+    case "LTV_EXCEEDED":
+      return "Credit limit reached";
+    case "NO_PROTOCOL_LIQUIDITY":
+      return "Vault liquidity limit reached";
+    case "MARKET_CLOSED":
+      return "Market session closed";
+    case "ORACLE_UNAVAILABLE":
+      return "Price feed updating";
+    case "STALE_ORACLE":
+      return "Price feed updating";
+    case "CONFIDENCE_TOO_WIDE":
+      return "High market volatility";
+    case "SECURITY_HALT_INFERRED":
+    case "HALTED_INFERRED":
+      return "Trading paused";
+    case "RISK_STATE_RESTRICTED":
+      return "Restricted by risk limits";
+    case "BORROW_DISABLED":
+    case "BORROW_DISABLED_BY_RISK_STATE":
+    case "CAPITAL_POLICY_VIOLATION":
+    case "CAPITAL_POLICY_BLOCKED":
+      return "Paused by risk limits";
+    case "WITHDRAW_DISABLED":
+      return "Withdrawals restricted";
+    case "PROTOCOL_PAUSED":
+      return "Protocol paused";
+    case "ASSET_DISABLED":
+      return "Asset inactive";
+    case "AGENT_UNAUTHORIZED":
+      return "Agent not authorized";
+    case "AGENT_EXPIRED":
+      return "Agent access expired";
+    case "AGENT_BORROW_LIMIT_EXCEEDED":
+      return "Agent limit reached";
+    case "AGENT_WITHDRAW_LIMIT_EXCEEDED":
+      return "Agent withdraw limit reached";
+    case "RISK_BUDGET_EXCEEDED":
+      return "Risk budget exhausted";
+    case "HEALTH_FACTOR_TOO_LOW":
+      return "Health factor low";
+    case "POSITION_NOT_FOUND":
+      return "No open position";
+    case "OPEN_NORMAL":
+    case "NORMAL":
+      return "Normal";
+    case "UNKNOWN":
+      return "Syncing";
+    default: {
+      const stripped = normalized.replace(/_/g, " ");
+      if (/[a-z]/.test(normalized) && normalized.includes(" ")) {
+        return stripped;
+      }
+      return stripped
+        .toLowerCase()
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+    }
+  }
+}
+
+/** Utility to ensure no raw underscores appear in user-facing labels or values */
+export function stripUnderscores(text: string | null | undefined): string {
+  if (!text) return "";
+  return String(text).replace(/_/g, " ");
+}

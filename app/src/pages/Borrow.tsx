@@ -28,7 +28,7 @@ import { useCircuitDomain } from "../lib/domain/context";
 import { PolicyVisualizationCard } from "../components/authority/PolicyVisualizationCard";
 import { PermissionPreviewCard } from "../components/authority/PermissionPreviewCard";
 import { activeAssetDisplay } from "../lib/asset";
-import { formatMoney, formatPercent, formatTokens } from "../lib/format";
+import { formatMoney, formatPercent, formatTokens, humanizeReasonCode } from "../lib/format";
 import {
   buildBorrow,
   calculateProtocolFee,
@@ -284,7 +284,7 @@ export default function Borrow() {
               color: permResult.allowed ? "var(--success)" : "var(--danger)",
             }}
           >
-            {permResult.reasonCode}
+            {permResult.allowed ? "Approved" : humanizeReasonCode(permResult.reasonCode)}
           </span>
         </div>
 
@@ -381,14 +381,14 @@ export default function Borrow() {
               </Pill>
             </div>
             <div style={{ fontSize: 12.5, color: "var(--text-2)", lineHeight: 1.5 }}>
-              Circuit Permission Engine: <strong>{permResult.message}</strong>
+              Circuit Permission Engine: <strong>{permResult.message ? permResult.message.replace(/_/g, " ") : ""}</strong>
             </div>
             <div className="grid grid--2 g-8" style={{ marginTop: 4 }}>
               <div style={{ fontSize: 11, color: "var(--text-3)" }}>
                 Risk State: <span style={{ color: "var(--danger)", fontWeight: 650 }}>{risk.ratchetState}</span>
               </div>
               <div style={{ fontSize: 11, color: "var(--text-3)" }}>
-                Reason Code: <span style={{ color: "var(--text-2)", fontWeight: 600 }}>{permResult.reasonCode}</span>
+                Policy Check: <span style={{ color: "var(--text-2)", fontWeight: 600 }}>{humanizeReasonCode(permResult.reasonCode)}</span>
               </div>
               <div style={{ fontSize: 11, color: "var(--text-3)" }}>
                 Oracle Freshness: <span style={{ color: s.oracle?.ageSeconds && s.oracle.ageSeconds < 30 ? "var(--success)" : "var(--warning)", fontWeight: 650 }}>{s.oracle?.ageSeconds && s.oracle.ageSeconds < 30 ? "LIVE" : "STALE"}</span>

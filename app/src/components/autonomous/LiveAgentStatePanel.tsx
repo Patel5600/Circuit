@@ -278,7 +278,7 @@ export function LiveAgentStatePanel({
             }}
           >
             <span style={{ fontSize: 11, color: "var(--warning, #cfad74)", fontWeight: 700 }}>
-              ⚠ {pendingApprovalsCount} Approval Required
+              {pendingApprovalsCount} Approval Required
             </span>
             <span style={{ fontSize: 10, color: "var(--text-3)" }}>Review →</span>
           </div>
@@ -308,7 +308,6 @@ export function LiveAgentStatePanel({
           onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text)")}
           onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-3)")}
         >
-          <span>⚙</span>
           <span>System Diagnostics &amp; Telemetry</span>
         </button>
       </div>

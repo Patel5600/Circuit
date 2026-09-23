@@ -18,7 +18,7 @@ import { PolicyVisualizationCard } from "../components/authority/PolicyVisualiza
 import { useMarket } from "../context/MarketContext";
 import { useAction } from "../context/ActionContext";
 import { activeAssetDisplay } from "../lib/asset";
-import { greeting, formatMoney, formatPercent } from "../lib/format";
+import { greeting, formatMoney, formatPercent, humanizeReasonCode } from "../lib/format";
 import { toUi } from "../lib/protocol";
 
 export default function Dashboard() {
@@ -127,19 +127,36 @@ export default function Dashboard() {
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "4px", flexWrap: "wrap" }}>
                   <span style={{ fontSize: "12px", color: "var(--text-2)" }}>
-                    Borrow: <strong style={{ color: domain.decision.capitalPolicy.borrowAllowed ? "var(--success)" : "var(--danger)" }}>
-                      {domain.decision.capitalPolicy.borrowAllowed ? "ALLOWED" : "BLOCKED"}
+                    Borrow: <strong style={{
+                      color:
+                        domain.portfolio.borrowCapacityUsd > 0 && domain.credit.permissions.borrow.status !== "BLOCKED"
+                          ? "var(--success)"
+                          : domain.credit.permissions.borrow.status === "RESTRICTED"
+                          ? "var(--warning)"
+                          : "var(--danger)",
+                    }}>
+                      {domain.portfolio.borrowCapacityUsd > 0 && domain.credit.permissions.borrow.status !== "BLOCKED"
+                        ? "ALLOWED"
+                        : domain.credit.permissions.borrow.status === "RESTRICTED"
+                        ? "RESTRICTED"
+                        : "UNAVAILABLE"}
                     </strong>
-                    {!domain.decision.capitalPolicy.borrowAllowed && (
-                      <span className="mono" style={{ fontSize: 11, marginLeft: 4, color: "var(--text-3)" }}>
-                        ({domain.decision.permission.reasonCode})
+                    {!(domain.portfolio.borrowCapacityUsd > 0 && domain.credit.permissions.borrow.status !== "BLOCKED") && (
+                      <span style={{ fontSize: 11.5, marginLeft: 4, color: "var(--text-3)" }}>
+                        ({humanizeReasonCode(
+                          domain.portfolio.totalCollateralUsd <= 0
+                            ? "INSUFFICIENT_COLLATERAL"
+                            : domain.risk.hardOverrideReason
+                            ? domain.risk.hardOverrideReason
+                            : domain.decision.permission.reasonCode
+                        )})
                       </span>
                     )}
                   </span>
                   <span style={{ color: "var(--text-3)" }}>·</span>
                   <span style={{ fontSize: "12px", color: "var(--text-2)" }}>
-                    Withdraw: <strong style={{ color: domain.decision.capitalPolicy.withdrawAllowed ? "var(--success)" : "var(--danger)" }}>
-                      {domain.decision.capitalPolicy.withdrawAllowed ? "ALLOWED" : "BLOCKED"}
+                    Withdraw: <strong style={{ color: domain.credit.permissions.withdraw.status !== "BLOCKED" ? "var(--success)" : "var(--danger)" }}>
+                      {domain.credit.permissions.withdraw.status !== "BLOCKED" ? "ALLOWED" : "UNAVAILABLE"}
                     </strong>
                   </span>
                   <span style={{ color: "var(--text-3)" }}>·</span>

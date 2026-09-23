@@ -9,7 +9,7 @@
 import React from "react";
 import { Card, Pill, Icon } from "../ui";
 import { ProtocolAction, ActorType, RiskRatchetState, PermissionResult } from "../../lib/permission-engine";
-import { formatMoney } from "../../lib/format";
+import { formatMoney, humanizeReasonCode } from "../../lib/format";
 
 export function PermissionPreviewCard({
   action,
@@ -161,8 +161,8 @@ export function PermissionPreviewCard({
             lineHeight: 1.4,
           }}
         >
-          <strong>Reason Code:</strong> <code style={{ color: "var(--danger)", fontWeight: 700 }}>{result.reasonCode}</code>
-          {result.message && <div style={{ marginTop: 2, color: "var(--text-2)" }}>{result.message}</div>}
+          <strong>Policy:</strong> <span style={{ color: "var(--danger)", fontWeight: 600 }}>{humanizeReasonCode(result.reasonCode)}</span>
+          {result.message && <div style={{ marginTop: 2, color: "var(--text-2)" }}>{result.message.replace(/_/g, " ")}</div>}
         </div>
       )}
     </div>

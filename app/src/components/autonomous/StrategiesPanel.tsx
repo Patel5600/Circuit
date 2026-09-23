@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { loadTasks, pauseTask, resumeTask, deleteTask, subscribeTasks } from "../../lib/automation/store";
 import type { AutomationTask } from "../../lib/automation/types";
+import { humanizeReasonCode } from "../../lib/format";
 
 const STRATEGY_TYPES = [
   "REPAY", "BORROW", "DEPOSIT", "WITHDRAW", "RECOVER",
@@ -115,7 +116,7 @@ export function StrategiesPanel({ owner, onAddStrategy }: { owner: string; onAdd
                       {result.outcome}
                     </span>
                     {result.reasonCode && result.reasonCode !== "ALLOWED" && (
-                      <span style={{ color: "var(--text-3)", fontSize: 10 }}>[{result.reasonCode}]</span>
+                      <span style={{ color: "var(--text-3)", fontSize: 10 }}>({humanizeReasonCode(result.reasonCode)})</span>
                     )}
                   </div>
                 )}

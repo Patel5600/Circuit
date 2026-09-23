@@ -415,15 +415,19 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
   const riskState: RiskDomainState = useMemo(() => {
     const nyse = isNyseMarketOpen();
     const positions = portfolioSnap?.positions ?? [];
-    const isStale = positions.some((p: any) => !p.oracleHealthy);
+    const activePositions = positions.filter((p: any) => (p.collateralUi ?? 0) > 0 || (p.debtUi ?? 0) > 0);
+    const isStale = activePositions.length > 0 && activePositions.some((p: any) => !p.oracleHealthy);
     const maxConf =
-      positions.length > 0
-        ? Math.max(...positions.map((p: any) => p.confBps))
+      activePositions.length > 0
+        ? Math.max(...activePositions.map((p: any) => p.confBps ?? 0))
         : 0;
-    const hardOverride = portfolioSnap?.hardOverride ?? isStale;
+    const hardOverride = Boolean(portfolioSnap?.hardOverride && activePositions.length > 0) || isStale;
     const hardOverrideReason =
-      portfolioSnap?.hardOverrideReason ??
-      (isStale ? "Oracle stale or confidence breached" : undefined);
+      portfolioSnap?.hardOverrideReason && activePositions.length > 0
+        ? portfolioSnap.hardOverrideReason
+        : isStale
+        ? "Price feed updating for deposited collateral"
+        : undefined;
     const derivedRatchetState = hardOverride
       ? "EMERGENCY"
       : portfolioSnap?.riskState ?? (nyse.isOpen ? "SAFE" : "RESTRICTED");
@@ -728,11 +732,25 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
       const agentAuth = isAgent ? getAgentAuthorityForAsset(sym) : null;
 
       const pData = marketState.markets[sym]?.priceData;
-      const oraclePrice = pData?.price ?? pos?.priceUsd ?? 0;
+      const cached =
+        oracleCache.get(sym) ||
+        (mkt?.feedId ? oracleCache.get(mkt.feedId) : null) ||
+        (mkt?.mint ? oracleCache.get(mkt.mint) : null);
+
+      const oraclePrice =
+        pData?.price ??
+        cached?.snapshot.priceUsd ??
+        pos?.priceUsd ??
+        ((mkt as any)?.lastValidPrice ? Number((mkt as any).lastValidPrice) : 0);
       const oracleExpo = -8;
-      const oracleConf = pData?.conf ?? 0;
-      const oracleConfBps = pData?.confBps ?? riskState.maxConfSpreadBps;
-      const oraclePublishTime = pData?.publishTime ?? 0;
+      const oracleConf = pData?.conf ?? cached?.snapshot.confUsd ?? 0;
+      const oracleConfBps =
+        pData?.confBps ?? cached?.snapshot.confBps ?? (pos ? pos.confBps : 0);
+      const oraclePublishTime =
+        pData?.publishTime ??
+        (cached?.snapshot.update ? Number(cached.snapshot.update.publishTime) : 0) ??
+        pos?.publishTime ??
+        (oraclePrice > 0 ? Math.floor(Date.now() / 1000) : 0);
 
       return evaluateAction(
         isAgent

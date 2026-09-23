@@ -776,16 +776,16 @@ function DemoView() {
           </p>
           <div className="row g-10 wrap">
             <Button variant="secondary" size="sm" onClick={triggerConfidenceShock}>
-              ⚠️ Pyth Confidence Spike (285 bps)
+              Pyth Confidence Spike (285 bps)
             </Button>
             <Button variant="secondary" size="sm" onClick={triggerMarketClose}>
-              🌙 NYSE Session Close
+              NYSE Session Close
             </Button>
             <Button variant="secondary" size="sm" onClick={triggerCustodyImpairment}>
-              💥 Custody Impairment
+              Custody Impairment
             </Button>
             <Button variant="ghost" size="sm" onClick={resetDemo}>
-              🔄 Reset to Safe
+              Reset to Safe
             </Button>
           </div>
         </Card>

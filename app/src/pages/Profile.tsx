@@ -428,9 +428,9 @@ export default function Profile() {
           effectiveLtvBps={snapshot?.effectiveLtvBps ?? 0}
           borrowPowerUsd={snapshot?.borrowCapacityUsd ?? 0}
           totalCollateralUsd={snapshot?.totalCollateralUsd ?? 0}
-          borrowAllowed={domain.decision.capitalPolicy.borrowAllowed}
-          verdictStatus={domain.decision.verdict.status}
-          verdictReason={domain.decision.verdict.reason}
+          borrowAllowed={snapshot ? snapshot.borrowAllowed : domain.decision.capitalPolicy.borrowAllowed}
+          verdictStatus={snapshot?.hardOverride ? "BLOCK" : (snapshot?.borrowAllowed ? "ALLOW" : domain.decision.verdict.status)}
+          verdictReason={snapshot?.hardOverrideReason ?? (snapshot?.borrowAllowed ? "Borrowing capacity active under on-chain Risk Ratchet." : domain.decision.verdict.reason)}
           hardOverride={Boolean(snapshot?.hardOverride)}
           hardOverrideReason={snapshot?.hardOverrideReason}
           uneditable={true}
@@ -642,14 +642,14 @@ export default function Profile() {
                     if (firstMarket) openAction({ type: "repay", market: firstMarket });
                   }}
                 >
-                  ↩ Repay Debt
+                  Repay Debt
                 </button>
                 <Link
                   to="/app/faucet"
                   className="btn btn--secondary btn--sm"
                   style={{ fontSize: 11.5, height: 28, padding: "0 12px" }}
                 >
-                  ⚡ Faucet
+                  Faucet
                 </Link>
               </div>
             </div>

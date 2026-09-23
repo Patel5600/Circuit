@@ -14,6 +14,7 @@ import { decisionLogStore, DecisionLogEntry } from "../../lib/realtime/decision-
 import { useCircuitDomain } from "../../lib/domain/context";
 import { DEPLOYED_MARKETS } from "../../data/markets-registry";
 import { CANONICAL_POLICY_VERSION } from "../../lib/permission-engine";
+import { humanizeReasonCode } from "../../lib/format";
 
 export function ProtocolBoundaryInspector() {
   const [activeTab, setActiveTab] = useState<"proof" | "decision_log">("proof");
@@ -337,7 +338,7 @@ export function ProtocolBoundaryInspector() {
                     PERMISSION: {stateBBorrowResult.allowed ? "ALLOWED" : "BLOCKED"}
                   </span>
                   <span style={{ fontFamily: "var(--mono)", fontSize: 9.5, color: "var(--danger, #CF8B8B)" }}>
-                    {stateBBorrowResult.reasonCode}
+                    {humanizeReasonCode(stateBBorrowResult.reasonCode)}
                   </span>
                 </div>
               </div>
@@ -503,10 +504,10 @@ export function ProtocolBoundaryInspector() {
                       textOverflow: "ellipsis",
                       whiteSpace: "nowrap",
                     }}
-                    title={entry.message}
+                    title={entry.message ? entry.message.replace(/_/g, " ") : ""}
                   >
-                    {entry.reasonCode !== "ALLOWED" ? `[${entry.reasonCode}] ` : ""}
-                    {entry.message}
+                    {entry.reasonCode !== "ALLOWED" ? `(${humanizeReasonCode(entry.reasonCode)}) ` : ""}
+                    {entry.message ? entry.message.replace(/_/g, " ") : ""}
                   </span>
 
                   {entry.txSignature && (

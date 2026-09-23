@@ -7,7 +7,7 @@
 
 import React, { useState } from "react";
 import { useCircuitDomain } from "../../lib/domain/context";
-import { formatMoney } from "../../lib/format";
+import { formatMoney, humanizeReasonCode } from "../../lib/format";
 
 export function DecisionInspector() {
   const [isOpen, setIsOpen] = useState(false);
@@ -128,10 +128,10 @@ export function DecisionInspector() {
           }}
         >
           <div style={{ fontWeight: 700, color: snap.verdict.status === "ALLOW" ? "var(--success)" : "var(--warning)" }}>
-            VERDICT: {snap.verdict.status} · {snap.verdict.code}
+            VERDICT: {snap.verdict.status} · {humanizeReasonCode(snap.verdict.code)}
           </div>
           <div style={{ color: "var(--text-2)", marginTop: 4, lineHeight: 1.4 }}>
-            {snap.verdict.reason}
+            {snap.verdict.reason ? snap.verdict.reason.replace(/_/g, " ") : ""}
           </div>
         </div>
 
@@ -205,7 +205,7 @@ export function DecisionInspector() {
             <div>Requested Amount: <strong>$0.00 (Probe)</strong></div>
             <div>Permission Action: <strong>{snap.permission.action.toUpperCase()}</strong></div>
             <div>Permission Status: <strong style={{ color: snap.permission.allowed ? "var(--success)" : "var(--warning)" }}>{snap.permission.allowed ? "ALLOWED" : "BLOCKED"}</strong></div>
-            <div>Reason Code: <strong>{snap.permission.reasonCode}</strong></div>
+            <div>Reason: <strong>{humanizeReasonCode(snap.permission.reasonCode)}</strong></div>
           </div>
         </div>
       </div>

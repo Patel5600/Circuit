@@ -88,8 +88,11 @@ export function evaluateAction(
 
   // 1. Measured Oracle Freshness
   let freshness: OracleFreshness = "UNAVAILABLE";
-  if (state.oraclePrice <= 0 || state.oraclePublishTime <= 0) {
+  if (state.oraclePrice <= 0) {
     freshness = "UNAVAILABLE";
+  } else if (state.oraclePublishTime <= 0) {
+    // Verified on-chain fallback price recorded in Position/Guard
+    freshness = "RECENT";
   } else if (ageSeconds < 30) {
     freshness = "LIVE";
   } else if (ageSeconds <= 120) {
@@ -113,9 +116,9 @@ export function evaluateAction(
     haltInference = "ORACLE_UNAVAILABLE";
   } else if (!state.isMarketOpen) {
     haltInference = "CLOSED";
-  } else if (state.oraclePublishTime <= 0 || freshness === "UNAVAILABLE") {
+  } else if (state.oraclePrice <= 0 || freshness === "UNAVAILABLE") {
     haltInference = "ORACLE_UNAVAILABLE";
-  } else if (state.isMarketOpen && ageSeconds > 60) {
+  } else if (state.isMarketOpen && ageSeconds > 60 && state.oraclePublishTime > 0) {
     haltInference = "HALTED_INFERRED";
   } else {
     haltInference = "OPEN_NORMAL";
@@ -226,6 +229,11 @@ export function evaluateAction(
       verdictCode = "ASSET_DISABLED";
       verdictReason = `Market asset ${state.assetSymbol} is currently disabled.`;
       source = "PROTOCOL";
+    } else if (action === "borrow" && state.collateralUsd <= 0) {
+      verdictStatus = "BLOCK";
+      verdictCode = "INSUFFICIENT_COLLATERAL";
+      verdictReason = "Deposit collateral to activate borrowing power.";
+      source = "POSITION";
     } else if (!globalOracleHealthy) {
       verdictStatus = "BLOCK";
       verdictCode = "ORACLE_UNAVAILABLE";
@@ -271,11 +279,6 @@ export function evaluateAction(
       verdictCode = "WITHDRAW_DISABLED";
       verdictReason = `Collateral withdrawal blocked during ${state.ratchetState} state while holding debt.`;
       source = "RATCHET";
-    } else if (action === "borrow" && state.collateralUsd <= 0) {
-      verdictStatus = "BLOCK";
-      verdictCode = "INSUFFICIENT_COLLATERAL";
-      verdictReason = "Deposit collateral to activate borrowing power.";
-      source = "POSITION";
     } else if (action === "borrow" && availableCreditUsd <= 0) {
       verdictStatus = "BLOCK";
       verdictCode = "BORROW_LIMIT_EXCEEDED";

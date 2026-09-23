@@ -11,7 +11,7 @@
 import React, { useMemo } from "react";
 import { Card, Pill, Icon, DataRow } from "../ui";
 import { useCircuitDomain } from "../../lib/domain/context";
-import { formatMoney, shortenAddress } from "../../lib/format";
+import { formatMoney, humanizeReasonCode, shortenAddress } from "../../lib/format";
 import { DEPLOYED_MARKETS } from "../../data/markets";
 
 export function PolicyVisualizationCard({ assetSymbol }: { assetSymbol?: string }) {
@@ -177,7 +177,7 @@ export function PolicyVisualizationCard({ assetSymbol }: { assetSymbol?: string 
                   ) : (
                     <span
                       style={{ color: "var(--danger)", fontWeight: 700, fontFamily: "var(--mono)" }}
-                      title={`Code: ${borrowPerm.reasonCode} · ${borrowPerm.message}`}
+                      title={`${humanizeReasonCode(borrowPerm.reasonCode)}: ${borrowPerm.message ? borrowPerm.message.replace(/_/g, " ") : ""}`}
                     >
                       ✕ BLOCKED (Risk Limits)
                     </span>
@@ -224,7 +224,7 @@ export function PolicyVisualizationCard({ assetSymbol }: { assetSymbol?: string 
                   ) : (
                     <span
                       style={{ color: "var(--danger)", fontWeight: 700, fontFamily: "var(--mono)" }}
-                      title={`Code: ${withdrawPerm.reasonCode} · ${withdrawPerm.message}`}
+                      title={`${humanizeReasonCode(withdrawPerm.reasonCode)}: ${withdrawPerm.message ? withdrawPerm.message.replace(/_/g, " ") : ""}`}
                     >
                       ✕ BLOCKED (Risk Limits)
                     </span>

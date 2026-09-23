@@ -591,13 +591,13 @@ function RiskRatchetNarrative() {
         </p>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", fontSize: 11.5, fontFamily: "var(--mono)", color: "var(--text-3)" }}>
           <span style={{ padding: "4px 8px", background: "rgba(255,255,255,0.03)", borderRadius: 4 }}>
-            ⚡ Fast Tightening: 1 observation
+            Fast Tightening: 1 observation
           </span>
           <span style={{ padding: "4px 8px", background: "rgba(255,255,255,0.03)", borderRadius: 4 }}>
-            🔒 Staged Recovery: 5 healthy epochs
+            Staged Recovery: 5 healthy epochs
           </span>
           <span style={{ padding: "4px 8px", background: "rgba(255,255,255,0.03)", borderRadius: 4 }}>
-            🚫 Direct Emergency → Safe: Forbidden
+            Direct Emergency → Safe: Forbidden
           </span>
         </div>
       </div>

@@ -16,7 +16,7 @@ import {
 import { ExplorerLink } from "../components/technical/AddressCard";
 import { ActivityItem, ActivityKind, useActivity } from "../hooks/useActivity";
 import { activeAssetDisplay, QUOTE_SYMBOL } from "../lib/asset";
-import { formatRelativeTime, formatTokens, shortenAddress } from "../lib/format";
+import { formatRelativeTime, formatTokens, humanizeReasonCode, shortenAddress } from "../lib/format";
 import { toUi } from "../lib/protocol";
 import { detectActivityPatterns } from "../lib/activity/pattern-engine";
 import { ActivityEvent, DetectedPattern } from "../lib/domain/types";
@@ -33,39 +33,6 @@ const KIND_META: Record<
   liquidation: { label: "Liquidation", icon: "alert", color: "var(--danger)" },
   other: { label: "Position update", icon: "activity", color: "var(--text-3)" },
 };
-
-function humanizeReasonCode(code: string): string {
-  switch (code) {
-    case "BORROW_DISABLED_BY_RISK_STATE":
-    case "CAPITAL_POLICY_VIOLATION":
-    case "CAPITAL_POLICY_BLOCKED":
-      return "Blocked by your current risk limits";
-    case "CONFIDENCE_TOO_WIDE":
-      return "Oracle uncertainty is too high";
-    case "AGENT_UNAUTHORIZED":
-      return "Agent access unauthorized";
-    case "AGENT_EXPIRED":
-      return "Agent access expired";
-    case "AGENT_BORROW_LIMIT_EXCEEDED":
-      return "Agent borrow limit reached";
-    case "RISK_BUDGET_EXCEEDED":
-      return "Risk budget exceeded";
-    case "STALE_ORACLE":
-      return "Stale oracle feed";
-    case "MARKET_CLOSED":
-      return "Market session closed";
-    case "LTV_EXCEEDED":
-      return "Borrow limit exceeded";
-    case "HEALTH_FACTOR_TOO_LOW":
-      return "Health factor too low";
-    case "INSUFFICIENT_COLLATERAL":
-      return "Insufficient collateral";
-    case "ALLOWED":
-      return "Approved";
-    default:
-      return code.replace(/_/g, " ").toLowerCase().replace(/^\w/, (c) => c.toUpperCase());
-  }
-}
 
 function ActivityRow({
   item,
@@ -146,7 +113,7 @@ function ActivityRow({
           <span style={{ color: "var(--text-3)" }}>·</span>
           <span
             className="mono"
-            title={`Machine Reason Code: ${reasonCode}`}
+            title={`Policy: ${humanizeReasonCode(reasonCode)}`}
             style={{
               fontSize: 11,
               padding: "1px 6px",

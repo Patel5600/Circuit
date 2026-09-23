@@ -354,7 +354,7 @@ export function MarketCard({
           }}
         >
           <div style={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 2 }}>
-            ⚠️ Trading Halt Inferred · Reference feed inactive
+            Trading Halt Inferred · Reference feed inactive
           </div>
           Inferred from feed freshness and session expectations; exchange halt confirmation is not available.
         </div>

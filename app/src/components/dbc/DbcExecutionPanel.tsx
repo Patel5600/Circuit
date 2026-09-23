@@ -36,6 +36,7 @@ import {
   DBC_TRACE_STEP_ORDER,
   DbcExecutionTrace,
 } from "../../lib/meteora/execution-trace";
+import { humanizeReasonCode } from "../../lib/format";
 
 const DBC_ACTION_LABELS: Record<DbcActionType, string> = {
   [DbcActionType.SWAP]: "Swap",
@@ -319,7 +320,7 @@ export function DbcExecutionPanel({
         "DbcExecutionPanel",
         permissionResult.allowed
           ? `Meteora DBC ${DBC_ACTION_LABELS[selectedAction]} simulated: $${amt} on ${selectedSymbol}/USDC`
-          : `Meteora DBC ${DBC_ACTION_LABELS[selectedAction]} BLOCKED: ${permissionResult.reasonCode}`,
+          : `Meteora DBC ${DBC_ACTION_LABELS[selectedAction]} blocked: ${humanizeReasonCode(permissionResult.reasonCode)}`,
         {
           assetSymbol: selectedSymbol,
           detail: permissionResult.message,
@@ -1006,15 +1007,15 @@ export function DbcExecutionPanel({
             }}
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontWeight: 600, fontFamily: "monospace" }}>
-                {permissionResult.allowed ? "ALLOWED" : permissionResult.reasonCode}
+              <span style={{ fontWeight: 600 }}>
+                {permissionResult.allowed ? "APPROVED" : humanizeReasonCode(permissionResult.reasonCode)}
               </span>
               <span style={{ fontSize: 10, fontFamily: "monospace", color: "#71717a" }}>
-                VENUE: METEORA_DBC
+                VENUE: METEORA DBC
               </span>
             </div>
             {!permissionResult.allowed && (
-              <div style={{ color: "#a1a1aa", marginTop: 4 }}>{permissionResult.message}</div>
+              <div style={{ color: "#a1a1aa", marginTop: 4 }}>{permissionResult.message ? permissionResult.message.replace(/_/g, " ") : ""}</div>
             )}
           </div>
 
@@ -1060,7 +1061,7 @@ export function DbcExecutionPanel({
                 }}
               >
                 {!permissionResult.allowed
-                  ? `Blocked: ${permissionResult.reasonCode}`
+                  ? humanizeReasonCode(permissionResult.reasonCode)
                   : !quote
                   ? "Enter amount to preview"
                   : trace?.step === "CONFIRM"

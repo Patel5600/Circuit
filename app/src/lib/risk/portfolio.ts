@@ -236,14 +236,15 @@ export function analyzePortfolioRisk(
   let hardOverrideReason: string | undefined = undefined;
 
   for (const a of assets) {
+    if (a.collateralUi <= 0) continue;
     if (!a.oracleHealthy) {
       hardOverride = true;
-      hardOverrideReason = `${a.symbol} oracle confidence or freshness breached (Stale Oracle)`;
+      hardOverrideReason = `${a.symbol} price feed updating`;
       break;
     }
     if (a.confBps > 300) {
       hardOverride = true;
-      hardOverrideReason = `${a.symbol} oracle confidence blown (${a.confBps} bps > 300 bps)`;
+      hardOverrideReason = `${a.symbol} market volatility high (${a.confBps} bps)`;
       break;
     }
   }

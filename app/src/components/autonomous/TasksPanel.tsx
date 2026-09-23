@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { loadTasks, pauseTask, resumeTask, deleteTask, triggerNow, subscribeTasks } from "../../lib/automation/store";
 import type { AutomationTask, ExecutionRecord } from "../../lib/automation/types";
+import { humanizeReasonCode } from "../../lib/format";
 
 function statusColor(s: string): string {
   if (s === "ACTIVE") return "var(--mint, #79c2a4)";
@@ -111,7 +112,7 @@ export function TasksPanel({ owner, onAddTask }: { owner: string; onAddTask: () 
                   <div style={{ marginTop: 5, display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
                     <span style={{ fontFamily: "var(--mono)", fontSize: 10, color: outcomeColor(result.outcome) }}>{result.outcome}</span>
                     {result.reasonCode && result.reasonCode !== "ALLOWED" && result.reasonCode !== "CONDITION_NOT_MET" && (
-                      <span style={{ fontSize: 10, color: "var(--text-3)" }}>[{result.reasonCode}]</span>
+                      <span style={{ fontSize: 10, color: "var(--text-3)" }}>({humanizeReasonCode(result.reasonCode)})</span>
                     )}
                     {result.txSignature && (
                       <a href={`https://explorer.solana.com/tx/${result.txSignature}?cluster=devnet`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, fontFamily: "var(--mono)", color: "var(--accent)", opacity: 0.8 }}>
