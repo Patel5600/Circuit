@@ -84,7 +84,7 @@ pub fn handler(ctx: Context<RefreshGuard>) -> Result<()> {
     } else if global_oracle_healthy {
         HaltState::HaltedInferred
     } else {
-        HaltState::Closed
+        HaltState::OracleUnavailable
     };
 
     if ratchet.feed_id == [0u8; 32] && ratchet.last_updated_slot == 0 {
@@ -106,8 +106,8 @@ pub fn handler(ctx: Context<RefreshGuard>) -> Result<()> {
         clock.unix_timestamp,
     )?;
 
-    // 5. Integrate HALTED_INFERRED into RiskRatchet
-    if halt_state == HaltState::HaltedInferred {
+    // 5. Integrate HALTED_INFERRED and ORACLE_UNAVAILABLE into RiskRatchet
+    if halt_state == HaltState::HaltedInferred || halt_state == HaltState::OracleUnavailable {
         // Enforce fast tightening to at least Defensive
         let previous_state = ratchet.state;
         let target_state = match ratchet.state {
@@ -126,11 +126,13 @@ pub fn handler(ctx: Context<RefreshGuard>) -> Result<()> {
             engine_res.previous_state = previous_state;
             engine_res.new_state = target_state;
         }
-        ratchet.reason = GuardReason::SecurityHaltInferred;
-        engine_res.reason = GuardReason::SecurityHaltInferred;
-    } else if !global_oracle_healthy && session_expected_open {
-        ratchet.reason = GuardReason::OracleUnavailable;
-        engine_res.reason = GuardReason::OracleUnavailable;
+        let reason = if halt_state == HaltState::OracleUnavailable {
+            GuardReason::OracleUnavailable
+        } else {
+            GuardReason::SecurityHaltInferred
+        };
+        ratchet.reason = reason;
+        engine_res.reason = reason;
     }
 
     if engine_res.state_changed {

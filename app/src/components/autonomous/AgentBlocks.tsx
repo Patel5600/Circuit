@@ -342,15 +342,13 @@ export function ChartCardBlock({ block }: { block: ChartCardBlockData }) {
   const [tf, setTf] = useState<"24h" | "7d">(block.timeframe);
   const { symbol, name, currentPrice, priceChange, dataPoints, isAvailable, reason } = block;
 
-  const points = dataPoints && dataPoints.length > 1 ? dataPoints : [
-    { t: 1, p: currentPrice || 100 },
-    { t: 2, p: (currentPrice || 100) * 0.99 },
-    { t: 3, p: (currentPrice || 100) * 1.01 },
-    { t: 4, p: currentPrice || 100 },
-  ];
+  const points = dataPoints && dataPoints.length > 1 ? dataPoints : currentPrice > 0 ? [
+    { t: 1, p: currentPrice },
+    { t: 2, p: currentPrice },
+  ] : [];
 
-  const minP = Math.min(...points.map(p => p.p));
-  const maxP = Math.max(...points.map(p => p.p));
+  const minP = points.length > 0 ? Math.min(...points.map(p => p.p)) : 0;
+  const maxP = points.length > 0 ? Math.max(...points.map(p => p.p)) : 0;
   const range = maxP - minP || 1;
 
   // Simple SVG polyline

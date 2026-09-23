@@ -43,29 +43,7 @@ pub fn handler(ctx: Context<Borrow>, amount: u64) -> Result<()> {
     let market_open = market::is_market_open(clock.unix_timestamp)?;
     require!(market_open, CircuitError::MarketClosed);
 
-    // -- Step 10: Derive dynamic market state and authoritative Capital Policy --
-    let conf_ratio_bps = math::calculate_confidence_ratio_bps(validated_price.price, validated_price.conf)?;
-    let oracle_age = clock.unix_timestamp.saturating_sub(validated_price.publish_time) as u64;
-
-    let breakdown = crate::risk::RiskScoreBreakdown::compute(
-        market_open,
-        conf_ratio_bps,
-        oracle_age,
-        asset.max_oracle_age,
-        asset.custody_state,
-        asset.liquidity_state,
-    );
-    let derived_risk_state = crate::risk::RatchetHysteresisConfig::candidate_state_from_score(breakdown.composite_score);
-
-    let policy = crate::risk::CapitalPolicyEngine::derive_policy(
-        derived_risk_state,
-        asset.base_ltv_bps,
-        position.has_debt(),
-        0,
-        clock.unix_timestamp,
-    );
-
-    // -- Step 11: Calculate collateral value (Conservative Pyth Valuation: p_conservative = max(0, p - conf)) --
+    // -- Step 10: Collateral Valuation (Conservative Pyth: p_conservative = max(0, p - conf)) --
     let conservative_price = math::calculate_conservative_pyth_price(
         validated_price.price,
         validated_price.conf,
@@ -79,32 +57,64 @@ pub fn handler(ctx: Context<Borrow>, amount: u64) -> Result<()> {
         ctx.accounts.quote_mint.decimals,
     )?;
 
-    // -- Step 12: Evaluate Canonical Permission Engine (Human Owner Path) --
-    let perm = crate::permissions::evaluate_permission(
-        &ctx.accounts.owner.key(),
-        crate::permissions::CircuitAction::Borrow,
-        &asset.mint,
-        amount,
-        &position.owner,
-        position.has_debt(),
-        collateral_value,
-        position.debt_amount,
-        &policy,
-        None,
-        clock.unix_timestamp,
-    )?;
+    // -- Step 11: Resolve live Risk Ratchet and risk epoch from remaining accounts if present --
+    let (expected_ratchet_pda, _) = Pubkey::find_program_address(
+        &[RiskRatchet::SEEDS_PREFIX, asset.mint.as_ref()],
+        &crate::ID,
+    );
+    let (ratchet_state, risk_epoch) = if let Some(ratchet_info) = ctx.remaining_accounts.iter().find(|a| a.key == &expected_ratchet_pda) {
+        if let Ok(ratchet) = RiskRatchet::try_deserialize(&mut &ratchet_info.data.borrow()[..]) {
+            (ratchet.state, ratchet.risk_epoch.max(1))
+        } else {
+            (MarketState::Safe, 1)
+        }
+    } else {
+        (MarketState::Safe, 1)
+    };
 
-    if !perm.allowed {
+    // -- Step 12: Evaluate Canonical On-Chain Decision Kernel --
+    let oracle_age = clock.unix_timestamp.saturating_sub(validated_price.publish_time) as u64;
+    let decision_ctx = crate::risk::DecisionContext {
+        actor: &ctx.accounts.owner.key(),
+        owner: &position.owner,
+        asset_mint: &asset.mint,
+        action: crate::permissions::CircuitAction::Borrow,
+        requested_amount: amount,
+        protocol_paused: protocol.paused,
+        asset_enabled: asset.enabled,
+        base_ltv_bps: asset.base_ltv_bps,
+        market_open,
+        halt_state: HaltState::OpenNormal,
+        oracle_price: validated_price.price,
+        oracle_expo: validated_price.expo,
+        oracle_conf: validated_price.conf,
+        oracle_age,
+        max_oracle_age: asset.max_oracle_age,
+        oracle_healthy: true,
+        custody_state: asset.custody_state,
+        liquidity_state: asset.liquidity_state,
+        ratchet_state,
+        risk_epoch,
+        position_has_debt: position.has_debt(),
+        collateral_value,
+        current_debt: position.debt_amount,
+        agent_authority: None,
+        current_timestamp: clock.unix_timestamp,
+    };
+
+    let decision = crate::risk::evaluate_decision(&decision_ctx)?;
+
+    if !decision.allowed {
         emit!(crate::events::BorrowBlocked {
             position: position.key(),
             requested_amount: amount,
             current_ltv: ((position.debt_amount as u128) * 10_000 / collateral_value.max(1)) as u64,
-            effective_ltv: policy.effective_ltv_bps,
-            risk_state: derived_risk_state,
-            reason: format!("Permission denied: {:?}", perm.denial_reason),
+            effective_ltv: decision.effective_ltv_bps,
+            risk_state: decision.risk_state,
+            reason: format!("Permission denied: {:?}", decision.denial_reason),
         });
 
-        match perm.denial_reason {
+        match decision.denial_reason {
             crate::state::enums::PermissionDenialReason::RiskEmergency => return err!(CircuitError::RiskEmergency),
             crate::state::enums::PermissionDenialReason::RiskDefensive => return err!(CircuitError::RiskDefensive),
             crate::state::enums::PermissionDenialReason::RiskRestricted => return err!(CircuitError::RiskRestricted),
@@ -137,7 +147,7 @@ pub fn handler(ctx: Context<Borrow>, amount: u64) -> Result<()> {
         position: position.key(),
         amount,
         resulting_ltv: (new_debt * 10_000 / collateral_value.max(1)) as u64,
-        risk_state: derived_risk_state,
+        risk_state: decision.risk_state,
     });
 
     // -- Step 15: Check vault has sufficient liquidity --
@@ -217,7 +227,7 @@ pub fn handler(ctx: Context<Borrow>, amount: u64) -> Result<()> {
         fee_amount,
         resulting_ltv_bps,
         resulting_health_factor_bps: hf,
-        risk_state: crate::state::MarketState::Safe,
+        risk_state: decision.risk_state,
         timestamp: clock.unix_timestamp,
     });
 

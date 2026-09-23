@@ -13,6 +13,8 @@ pub enum HaltState {
     /// Reference market session is expected active, but this security's feed is stale while broader oracle is healthy
     #[default]
     HaltedInferred,
+    /// Global oracle failure or broader data-service degradation detected
+    OracleUnavailable,
 }
 
 // --------------------------------------------------------------

@@ -48,7 +48,12 @@ pub fn handler(
     require!(position.asset == asset.mint, CircuitError::InvalidAsset);
 
     // -- Step 1b: Canonical Risk Envelope Capability Token Verification & Consumption --
-    // If an envelope PDA is provided in remaining_accounts, verify and mark consumed.
+    // Risk-increasing operations (Borrow, Withdraw) REQUIRE an explicit RiskEnvelope PDA
+    let is_risk_increasing = action == AgentAction::Borrow || action == AgentAction::Withdraw;
+    if is_risk_increasing && ctx.remaining_accounts.is_empty() {
+        return err!(CircuitError::EnvelopeRequired);
+    }
+
     if let Some(envelope_info) = ctx.remaining_accounts.first() {
         require!(envelope_info.owner == &crate::ID, CircuitError::InvalidEnvelopePda);
 
@@ -126,34 +131,7 @@ pub fn handler(
     )?;
 
     let market_open = market::is_market_open(clock.unix_timestamp)?;
-    let conf_ratio_bps = math::calculate_confidence_ratio_bps(validated_price.price, validated_price.conf)?;
-
     let oracle_age = clock.unix_timestamp.saturating_sub(validated_price.publish_time) as u64;
-
-    // -- Step 5: Derive Real-Time Risk State & Authoritative Capital Policy --
-    let breakdown = crate::risk::RiskScoreBreakdown::compute(
-        market_open,
-        conf_ratio_bps,
-        oracle_age,
-        asset.max_oracle_age,
-        asset.custody_state,
-        asset.liquidity_state,
-    );
-    let instant_risk_state = crate::risk::RatchetHysteresisConfig::candidate_state_from_score(breakdown.composite_score);
-
-    let effective_risk_state = if RiskRatchet::severity(instant_risk_state) > RiskRatchet::severity(ratchet.state) {
-        instant_risk_state
-    } else {
-        ratchet.state
-    };
-
-    let policy = crate::risk::CapitalPolicyEngine::derive_policy(
-        effective_risk_state,
-        asset.base_ltv_bps,
-        position.has_debt(),
-        ratchet.risk_epoch,
-        clock.unix_timestamp,
-    );
 
     // Collateral valuation (Conservative Pyth Valuation: p_conservative = max(0, p - conf))
     let conservative_price = math::calculate_conservative_pyth_price(
@@ -169,33 +147,53 @@ pub fn handler(
         ctx.accounts.quote_mint.decimals,
     )?;
 
-    // -- Step 6: Evaluate Canonical Permission Engine (Agent Delegated Path) --
-    let perm = crate::permissions::evaluate_permission(
-        &ctx.accounts.agent.key(),
-        action.into(),
-        &asset.mint,
-        amount,
-        &position.owner,
-        position.has_debt(),
+    // -- Step 5: Evaluate Canonical Decision Kernel --
+    let circuit_action: crate::permissions::CircuitAction = action.into();
+    let decision_ctx = crate::risk::DecisionContext {
+        actor: &ctx.accounts.agent.key(),
+        owner: &position.owner,
+        asset_mint: &asset.mint,
+        action: circuit_action,
+        requested_amount: amount,
+        protocol_paused: protocol.paused,
+        asset_enabled: asset.enabled,
+        base_ltv_bps: asset.base_ltv_bps,
+        market_open,
+        halt_state: HaltState::OpenNormal,
+        oracle_price: validated_price.price,
+        oracle_expo: validated_price.expo,
+        oracle_conf: validated_price.conf,
+        oracle_age,
+        max_oracle_age: asset.max_oracle_age,
+        oracle_healthy: true,
+        custody_state: asset.custody_state,
+        liquidity_state: asset.liquidity_state,
+        ratchet_state: ratchet.state,
+        risk_epoch: ratchet.risk_epoch,
+        position_has_debt: position.has_debt(),
         collateral_value,
-        position.debt_amount,
-        &policy,
-        Some(auth),
-        clock.unix_timestamp,
-    )?;
+        current_debt: position.debt_amount,
+        agent_authority: Some(auth),
+        current_timestamp: clock.unix_timestamp,
+    };
 
-    if !perm.allowed {
+    let decision = crate::risk::evaluate_decision(&decision_ctx)?;
+    let policy = decision.capital_policy;
+    let effective_risk_state = decision.risk_state;
+    let conf_ratio_bps = decision.confidence_bps;
+
+    if !decision.allowed {
         emit!(crate::events::ActionDenied {
             position: position.key(),
             action,
             amount,
             risk_state: effective_risk_state,
-            denial_reason: perm.denial_reason,
+            denial_reason: decision.denial_reason,
             epoch: ratchet.risk_epoch,
             timestamp: clock.unix_timestamp,
         });
 
-        match perm.denial_reason {
+        match decision.denial_reason {
             PermissionDenialReason::RiskEmergency => return err!(CircuitError::RiskEmergency),
             PermissionDenialReason::RiskDefensive => return err!(CircuitError::RiskDefensive),
             PermissionDenialReason::RiskRestricted => return err!(CircuitError::RiskRestricted),

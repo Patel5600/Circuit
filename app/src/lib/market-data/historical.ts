@@ -230,7 +230,8 @@ export function buildIntradayCurve(
   count = 20
 ): number[] {
   if (previousClose <= 0 || currentPrice <= 0) {
-    const p = Math.max(1, currentPrice || previousClose || 100);
+    const p = currentPrice > 0 ? currentPrice : previousClose > 0 ? previousClose : 0;
+    if (p <= 0) return [];
     return Array(count).fill(Number(p.toFixed(2)));
   }
 

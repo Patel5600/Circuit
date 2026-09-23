@@ -49,15 +49,15 @@ export function MarketDetailDrawer({
   const baseLtv = snapshot?.baseLtvBps ?? (market as any)?.baseLtvBps ?? (market as any)?.ltvBps ?? 7000;
   const liqThreshold = snapshot?.liqThresholdBps ?? (market as any)?.liqThresholdBps ?? 8000;
   const liqBonus = snapshot?.liqBonusBps ?? (market as any)?.liqBonusBps ?? 500;
-  const oracleStatus = snapshot?.oracleStatus ?? (market as any)?.freshness ?? "LIVE";
+  const oracleStatus = snapshot?.oracleStatus ?? (market as any)?.freshness ?? "UNAVAILABLE";
   const underlyingSession = snapshot?.underlyingSession ?? (market as any)?.underlyingSession ?? "CLOSED";
-  const confBps = snapshot?.oracleConfBps ?? (market as any)?.confBps ?? 18;
-  const confUsd = snapshot?.oracleConfidenceUsd ?? ((priceUsd ?? 100) * (confBps / 10000));
-  const ageSeconds = snapshot ? Math.max(0, Math.floor(Date.now() / 1000) - snapshot.oracleTimestamp) : 12;
+  const confBps: number | null = snapshot?.oracleConfBps ?? (market as any)?.confBps ?? null;
+  const confUsd: number | null = snapshot?.oracleConfidenceUsd ?? (priceUsd != null && confBps != null ? (priceUsd * (confBps / 10000)) : null);
+  const ageSeconds: number | null = snapshot?.oracleTimestamp ? Math.max(0, Math.floor(Date.now() / 1000) - snapshot.oracleTimestamp) : null;
   const isSessionOpen = underlyingSession === "REGULAR";
-  const isFeedStale = oracleStatus === "STALE" || ageSeconds > 60;
-  const derivedHaltState: "open_normal" | "closed" | "halted_inferred" =
-    (market as any)?.haltState ?? "halted_inferred";
+  const isFeedStale = oracleStatus === "STALE" || (ageSeconds != null && ageSeconds > 60);
+  const derivedHaltState: "open_normal" | "closed" | "halted_inferred" | "oracle_unavailable" =
+    (market as any)?.haltState ?? "open_normal";
 
   const deployed = getDeployedMarket(activeSymbol, quoteSymbol);
   const baseMintStr = deployed?.mint ?? (market as any)?.mint;
@@ -218,11 +218,11 @@ export function MarketDetailDrawer({
           <div className="row between g-8" style={{ alignItems: "center" }}>
             <span className="t-label">Oracle Quality & Freshness</span>
             <div className="row g-6" style={{ alignItems: "center" }}>
-              <Pill tone={oracleStatus === "LIVE" ? "success" : "warning"} withDot>
+              <Pill tone={oracleStatus === "LIVE" ? "success" : oracleStatus === "RECENT" ? "accent" : "warning"} withDot>
                 {oracleStatus}
               </Pill>
               <span className="mono" style={{ fontSize: 11, color: "var(--text-3)" }}>
-                {formatAge(ageSeconds)}
+                {ageSeconds != null ? formatAge(ageSeconds) : "Unavailable"}
               </span>
             </div>
           </div>
@@ -230,7 +230,9 @@ export function MarketDetailDrawer({
           <div className="row between g-8" style={{ alignItems: "center" }}>
             <span className="t-label">Confidence Uncertainty</span>
             <span className="mono" style={{ fontSize: 12 }}>
-              ±${formatMoney(confUsd)} ({(confBps / 100).toFixed(2)}%)
+              {confUsd != null && confBps != null
+                ? `±$${formatMoney(confUsd)} (${(confBps / 100).toFixed(2)}%)`
+                : "Unavailable"}
             </span>
           </div>
         </div>
@@ -271,7 +273,7 @@ export function MarketDetailDrawer({
           <div className="row between g-8" style={{ alignItems: "center" }}>
             <span className="t-label">Observed Feed Staleness</span>
             <span className="mono" style={{ fontSize: 12, color: isFeedStale ? "var(--warning, #cfad74)" : "var(--text)" }}>
-              {formatAge(ageSeconds)} {isFeedStale ? "(Stale)" : "(Fresh)"}
+              {ageSeconds != null ? `${formatAge(ageSeconds)} ${isFeedStale ? "(Stale)" : "(Fresh)"}` : "Unavailable"}
             </span>
           </div>
 

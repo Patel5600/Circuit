@@ -651,11 +651,11 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
       const agentAuth = isAgent ? getAgentAuthorityForAsset(sym) : null;
 
       const pData = marketState.markets[sym]?.priceData;
-      const oraclePrice = pData?.price ?? (pos?.priceUsd || 100);
+      const oraclePrice = pData?.price ?? pos?.priceUsd ?? 0;
       const oracleExpo = -8;
       const oracleConf = pData?.conf ?? 0;
       const oracleConfBps = pData?.confBps ?? riskState.maxConfSpreadBps;
-      const oraclePublishTime = pData?.publishTime ?? Math.floor(Date.now() / 1000);
+      const oraclePublishTime = pData?.publishTime ?? 0;
 
       return evaluateAction(
         isAgent

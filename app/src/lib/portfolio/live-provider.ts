@@ -31,6 +31,7 @@ import {
   DecodedPositionDirect,
 } from "./provider";
 import { protocolEventBus } from "../realtime/event-bus";
+import { circuitLiveStore } from "../realtime/live-store";
 
 export { decodePositionDirect };
 
@@ -404,6 +405,38 @@ export async function fetchLivePortfolioSnapshot(
       (!hardOverride && riskState !== "DEFENSIVE" && riskState !== "EMERGENCY"));
   const repayAllowed = totalDebtUsd > 0;
   const liquidationActive = healthFactorBps !== null && healthFactorBps < BPS;
+
+  // Synchronize canonical CircuitLiveStore
+  for (const pos of enrichedPositions) {
+    circuitLiveStore.updateMarket(pos.mint, {
+      symbol: pos.symbol,
+      price: pos.priceUsd,
+      confBps: pos.confBps,
+      status: pos.oracleHealthy ? "LIVE" : "STALE",
+      sessionOpen: session.isOpen,
+    });
+    circuitLiveStore.updatePosition(pos.mint, {
+      symbol: pos.symbol,
+      collateralAmount: pos.collateralRaw,
+      debtAmount: pos.debtRaw,
+      collateralUsd: pos.collateralValueUsd,
+      debtUsd: pos.debtUi,
+      healthFactor: healthFactorBps != null ? healthFactorBps / 10000 : null,
+      currentLtvBps: pos.collateralValueUsd > 0 ? Math.round((pos.debtUi / pos.collateralValueUsd) * 10000) : 0,
+    });
+  }
+  circuitLiveStore.updatePortfolioSummary({
+    totalCollateralUsd,
+    totalDebtUsd,
+    borrowCapacityUsd,
+    availableCreditUsd: borrowCapacityUsd,
+    weightedHealthFactor: healthFactorBps != null ? healthFactorBps / 10000 : null,
+    currentLtvBps: totalCollateralUsd > 0 ? Math.round((totalDebtUsd / totalCollateralUsd) * 10000) : 0,
+    maxLtvBps: effectiveLtvBps,
+    status: hardOverride ? "STALE" : "LIVE",
+  });
+  circuitLiveStore.setInitialLoading(false);
+  circuitLiveStore.setBackgroundUpdating(false);
 
   return {
     isSimulated: false,

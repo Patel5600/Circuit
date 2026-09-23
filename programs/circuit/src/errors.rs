@@ -339,6 +339,10 @@ pub enum CircuitError {
     /// Oracle service unavailable across multiple feeds
     #[msg("Oracle service unavailable: multiple feeds failing or degraded")]
     OracleUnavailable,
+
+    /// Risk envelope capability token is required for autonomous action
+    #[msg("Risk envelope capability token is required for autonomous action")]
+    EnvelopeRequired,
 }
 
 

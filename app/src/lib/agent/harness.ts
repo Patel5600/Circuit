@@ -113,9 +113,9 @@ export class AgentHarnessCoordinator {
     // Find position for active asset
     const pos = snapshot.positions.find(p => p.symbol.toUpperCase() === activeSymbol);
     const mktData = snapshot.markets[activeSymbol] || {
-      price: activeMeta?.price || 100,
+      price: activeMeta?.price ?? 0,
       change24h: activeMeta?.change24h || 0,
-      oracleFreshness: "VALID",
+      oracleFreshness: activeMeta?.price ? "VALID" : "UNAVAILABLE",
     };
 
     const blocks: StructuredMessageBlock[] = [];
@@ -264,11 +264,12 @@ export class AgentHarnessCoordinator {
           const mkt = resolved?.market || DEPLOYED_MARKETS.find(m => m.symbol.toUpperCase() === upperSym);
           if (mkt) {
             const mData = snapshot.markets[mkt.symbol.toUpperCase()] || {
-              price: resolved?.metadata?.price || 100,
+              price: resolved?.metadata?.price ?? 0,
               change24h: resolved?.metadata?.change24h || 0,
-              oracleFreshness: "VALID",
+              oracleFreshness: resolved?.metadata?.price ? "VALID" : "UNAVAILABLE",
             };
-            quotes.push(`• **${mkt.tokenSymbol}** (${mkt.name}): **$${mData.price.toFixed(2)} USD** (${mData.change24h >= 0 ? "+" : ""}${mData.change24h.toFixed(2)}% 24h) · Pyth · ${mData.oracleFreshness || "Fresh"}.`);
+            const priceText = mData.price > 0 ? `$${mData.price.toFixed(2)} USD` : "Price Unavailable";
+            quotes.push(`• **${mkt.tokenSymbol}** (${mkt.name}): **${priceText}** (${mData.change24h >= 0 ? "+" : ""}${mData.change24h.toFixed(2)}% 24h) · Pyth · ${mData.oracleFreshness || "Fresh"}.`);
           } else {
             quotes.push(`• **${upperSym}**: Unrecognized asset symbol.`);
           }
@@ -435,9 +436,9 @@ export class AgentHarnessCoordinator {
       }
 
       case "ACTION_UPDATE": {
-        const newAmt = intent.amount ?? 100;
+        const newAmt = intent.amount ?? this.context.pendingProposal?.amountUsd ?? 0;
         if (!this.context.pendingProposal && !this.context.lastAction) {
-          replyText = `No pending action to update. Please specify what you'd like to do (e.g. "borrow ${newAmt} against NVDA").`;
+          replyText = `No pending action to update. Please specify what you'd like to do (e.g. "borrow $50 against NVDA").`;
           break;
         }
 

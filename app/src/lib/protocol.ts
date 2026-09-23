@@ -182,6 +182,12 @@ export const riskRatchetPda = (feedHex = PYTH_FEED_ID): PublicKey =>
     PROGRAM_ID
   )[0];
 
+export const assetRiskRatchetPda = (mint: PublicKey): PublicKey =>
+  PublicKey.findProgramAddressSync(
+    [utf8("ratchet"), mint.toBuffer()],
+    PROGRAM_ID
+  )[0];
+
 export const positionPda = (owner: PublicKey, mint: PublicKey): PublicKey =>
   PublicKey.findProgramAddressSync(
     [utf8("position"), owner.toBuffer(), mint.toBuffer()],
@@ -622,6 +628,13 @@ export async function buildBorrow(
       treasuryQuoteAta,
       tokenProgram: TOKEN_PROGRAM_ID,
     })
+    .remainingAccounts([
+      {
+        pubkey: assetRiskRatchetPda(ctx.equityMint),
+        isWritable: false,
+        isSigner: false,
+      },
+    ])
     .instruction();
 
   // The borrower may not hold the quote mint yet; create the ATA idempotently.
@@ -684,6 +697,13 @@ export async function buildWithdraw(
       collateralVault: vaultFor(ctx.equityMint),
       tokenProgram: TOKEN_PROGRAM_ID,
     })
+    .remainingAccounts([
+      {
+        pubkey: assetRiskRatchetPda(ctx.equityMint),
+        isWritable: false,
+        isSigner: false,
+      },
+    ])
     .instruction();
   return [ix];
 }

@@ -78,34 +78,9 @@ pub fn handler<'info>(
     )?;
 
     let market_open = market::is_market_open(clock.unix_timestamp)?;
-    let conf_ratio_bps = math::calculate_confidence_ratio_bps(validated_price.price, validated_price.conf)?;
     let oracle_age = clock.unix_timestamp.saturating_sub(validated_price.publish_time) as u64;
 
-    // -- Step 3: Derive Dynamic Risk State & Capital Policy --
-    let breakdown = crate::risk::RiskScoreBreakdown::compute(
-        market_open,
-        conf_ratio_bps,
-        oracle_age,
-        asset.max_oracle_age,
-        asset.custody_state,
-        asset.liquidity_state,
-    );
-    let instant_risk_state = crate::risk::RatchetHysteresisConfig::candidate_state_from_score(breakdown.composite_score);
-    let effective_risk_state = if RiskRatchet::severity(instant_risk_state) > RiskRatchet::severity(ratchet.state) {
-        instant_risk_state
-    } else {
-        ratchet.state
-    };
-
-    let policy = crate::risk::CapitalPolicyEngine::derive_policy(
-        effective_risk_state,
-        asset.base_ltv_bps,
-        false,
-        ratchet.risk_epoch,
-        clock.unix_timestamp,
-    );
-
-    // -- Step 4: Map Action Type to CircuitAction --
+    // -- Step 3: Map Action Type to CircuitAction --
     let action = match action_type {
         0 => CircuitAction::Swap,
         1 => CircuitAction::EnterLiquidity,
@@ -128,92 +103,80 @@ pub fn handler<'info>(
         ctx.accounts.quote_mint.decimals,
     )?;
 
-    // -- Step 5: Authority & Permission Engine Gate --
+    // -- Step 4: Authority & Canonical Decision Kernel Evaluation --
     let is_owner = ctx.accounts.actor.key() == ctx.accounts.owner.key();
     let mut risk_cost = 0u64;
 
-    if is_owner {
-        // Sovereign human path: evaluated against protocol policy and capacity
-        let perm = crate::permissions::evaluate_permission(
-            &ctx.accounts.actor.key(),
-            action,
-            &asset.mint,
-            amount_in,
-            &ctx.accounts.owner.key(),
-            false,
-            collateral_value,
-            0,
-            &policy,
-            None,
-            clock.unix_timestamp,
-        )?;
-
-        if !perm.allowed {
-            emit!(crate::events::DbcActionDenied {
-                actor: ctx.accounts.actor.key(),
-                owner: ctx.accounts.owner.key(),
-                asset_mint: asset.mint,
-                dbc_pool: ctx.accounts.dbc_pool.key(),
-                action_type,
-                amount_in,
-                risk_state: effective_risk_state,
-                denial_reason: perm.denial_reason,
-                timestamp: clock.unix_timestamp,
-            });
-            match perm.denial_reason {
-                crate::state::enums::PermissionDenialReason::RiskEmergency => return err!(CircuitError::RiskEmergency),
-                crate::state::enums::PermissionDenialReason::RiskDefensive => return err!(CircuitError::RiskDefensive),
-                crate::state::enums::PermissionDenialReason::RiskRestricted => return err!(CircuitError::RiskRestricted),
-                _ => return err!(CircuitError::DbcActionBlocked),
-            }
-        }
+    let auth_ref = if is_owner {
+        None
     } else {
-        // Delegated agent path: requires valid AgentAuthority PDA
-        let auth = ctx.accounts.agent_authority.as_mut()
+        let auth = ctx.accounts.agent_authority.as_ref()
             .ok_or(CircuitError::AgentAuthorityUnauthorized)?;
-
         require!(auth.agent == ctx.accounts.actor.key(), CircuitError::AgentAuthorityUnauthorized);
         require!(auth.owner == ctx.accounts.owner.key(), CircuitError::InvalidAgentOwner);
         require!(auth.asset_mint == asset.mint, CircuitError::AssetScopeViolation);
         require!(auth.nonce == intent_nonce, CircuitError::ActionNonceInvalid);
         require!(auth.is_active(clock.unix_timestamp), CircuitError::AgentAuthorityExpired);
+        Some(auth.as_ref())
+    };
 
-        let perm = crate::permissions::evaluate_permission(
-            &ctx.accounts.actor.key(),
-            action,
-            &asset.mint,
+    let decision_ctx = crate::risk::DecisionContext {
+        actor: &ctx.accounts.actor.key(),
+        owner: &ctx.accounts.owner.key(),
+        asset_mint: &asset.mint,
+        action,
+        requested_amount: amount_in,
+        protocol_paused: protocol.paused,
+        asset_enabled: asset.enabled,
+        base_ltv_bps: asset.base_ltv_bps,
+        market_open,
+        halt_state: HaltState::OpenNormal,
+        oracle_price: validated_price.price,
+        oracle_expo: validated_price.expo,
+        oracle_conf: validated_price.conf,
+        oracle_age,
+        max_oracle_age: asset.max_oracle_age,
+        oracle_healthy: true,
+        custody_state: asset.custody_state,
+        liquidity_state: asset.liquidity_state,
+        ratchet_state: ratchet.state,
+        risk_epoch: ratchet.risk_epoch,
+        position_has_debt: false,
+        collateral_value,
+        current_debt: 0,
+        agent_authority: auth_ref.map(|v| &**v),
+        current_timestamp: clock.unix_timestamp,
+    };
+
+    let decision = crate::risk::evaluate_decision(&decision_ctx)?;
+    let effective_risk_state = decision.risk_state;
+    let conf_ratio_bps = decision.confidence_bps;
+
+    if !decision.allowed {
+        emit!(crate::events::DbcActionDenied {
+            actor: ctx.accounts.actor.key(),
+            owner: ctx.accounts.owner.key(),
+            asset_mint: asset.mint,
+            dbc_pool: ctx.accounts.dbc_pool.key(),
+            action_type,
             amount_in,
-            &ctx.accounts.owner.key(),
-            false,
-            collateral_value,
-            0,
-            &policy,
-            Some(auth),
-            clock.unix_timestamp,
-        )?;
-
-        if !perm.allowed {
-            emit!(crate::events::DbcActionDenied {
-                actor: ctx.accounts.actor.key(),
-                owner: ctx.accounts.owner.key(),
-                asset_mint: asset.mint,
-                dbc_pool: ctx.accounts.dbc_pool.key(),
-                action_type,
-                amount_in,
-                risk_state: effective_risk_state,
-                denial_reason: perm.denial_reason,
-                timestamp: clock.unix_timestamp,
-            });
-            match perm.denial_reason {
-                crate::state::enums::PermissionDenialReason::RiskEmergency => return err!(CircuitError::RiskEmergency),
-                crate::state::enums::PermissionDenialReason::RiskDefensive => return err!(CircuitError::RiskDefensive),
-                crate::state::enums::PermissionDenialReason::RiskRestricted => return err!(CircuitError::RiskRestricted),
-                crate::state::enums::PermissionDenialReason::AgentAuthorityExpired => return err!(CircuitError::AgentAuthorityExpired),
-                crate::state::enums::PermissionDenialReason::AgentActionNotPermitted => return err!(CircuitError::AgentActionNotPermitted),
-                crate::state::enums::PermissionDenialReason::InsufficientRiskBudget => return err!(CircuitError::InsufficientRiskBudget),
-                _ => return err!(CircuitError::DbcActionBlocked),
-            }
+            risk_state: effective_risk_state,
+            denial_reason: decision.denial_reason,
+            timestamp: clock.unix_timestamp,
+        });
+        match decision.denial_reason {
+            crate::state::enums::PermissionDenialReason::RiskEmergency => return err!(CircuitError::RiskEmergency),
+            crate::state::enums::PermissionDenialReason::RiskDefensive => return err!(CircuitError::RiskDefensive),
+            crate::state::enums::PermissionDenialReason::RiskRestricted => return err!(CircuitError::RiskRestricted),
+            crate::state::enums::PermissionDenialReason::AgentAuthorityExpired => return err!(CircuitError::AgentAuthorityExpired),
+            crate::state::enums::PermissionDenialReason::AgentActionNotPermitted => return err!(CircuitError::AgentActionNotPermitted),
+            crate::state::enums::PermissionDenialReason::InsufficientRiskBudget => return err!(CircuitError::InsufficientRiskBudget),
+            _ => return err!(CircuitError::DbcActionBlocked),
         }
+    }
+
+    if !is_owner {
+        let auth = ctx.accounts.agent_authority.as_mut().unwrap();
 
         // Consume dynamic risk budget for risk-increasing actions
         if action.is_risk_increasing() {

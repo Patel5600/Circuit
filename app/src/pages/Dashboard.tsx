@@ -125,15 +125,28 @@ export default function Dashboard() {
                     {domain.risk.riskState}
                   </span>
                 </div>
-                <p style={{ margin: "2px 0 0", fontSize: "12.5px", color: "var(--text-2)" }}>
-                  {domain.risk.hardOverride && domain.risk.hardOverrideReason
-                    ? `Hard Safety Gate: ${domain.risk.hardOverrideReason}`
-                    : domain.risk.riskState === "SAFE"
-                    ? "Normal market condition. Borrowing and withdrawals permitted."
-                    : domain.risk.riskState === "RESTRICTED"
-                    ? "Reference equity market closed or elevated uncertainty. Borrowing constrained."
-                    : "High market stress. New borrowing blocked to protect solvency."}
-                </p>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "4px", flexWrap: "wrap" }}>
+                  <span style={{ fontSize: "12px", color: "var(--text-2)" }}>
+                    Borrow: <strong style={{ color: domain.decision.capitalPolicy.borrowAllowed ? "var(--success)" : "var(--danger)" }}>
+                      {domain.decision.capitalPolicy.borrowAllowed ? "ALLOWED" : "BLOCKED"}
+                    </strong>
+                    {!domain.decision.capitalPolicy.borrowAllowed && (
+                      <span className="mono" style={{ fontSize: 11, marginLeft: 4, color: "var(--text-3)" }}>
+                        ({domain.decision.permission.reasonCode})
+                      </span>
+                    )}
+                  </span>
+                  <span style={{ color: "var(--text-3)" }}>·</span>
+                  <span style={{ fontSize: "12px", color: "var(--text-2)" }}>
+                    Withdraw: <strong style={{ color: domain.decision.capitalPolicy.withdrawAllowed ? "var(--success)" : "var(--danger)" }}>
+                      {domain.decision.capitalPolicy.withdrawAllowed ? "ALLOWED" : "BLOCKED"}
+                    </strong>
+                  </span>
+                  <span style={{ color: "var(--text-3)" }}>·</span>
+                  <span className="mono" style={{ fontSize: "11px", color: "var(--text-3)" }}>
+                    Epoch {domain.decision.risk.riskEpoch}
+                  </span>
+                </div>
               </div>
             </div>
 

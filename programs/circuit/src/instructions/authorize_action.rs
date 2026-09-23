@@ -5,11 +5,10 @@ use crate::events::{EnvelopeAuthorized, EnvelopeAuthorizationDenied};
 use crate::market;
 use crate::math;
 use crate::oracle;
-use crate::permissions::{self, CircuitAction};
-use crate::risk::{CapitalPolicyEngine, RatchetHysteresisConfig, RiskScoreBreakdown};
+use crate::permissions::CircuitAction;
 use crate::state::agent_authority::AgentAuthority;
 use crate::state::asset_config::AssetConfig;
-use crate::state::enums::PermissionDenialReason;
+use crate::state::enums::{HaltState, PermissionDenialReason};
 use crate::state::position::Position;
 use crate::state::protocol_config::ProtocolConfig;
 use crate::state::risk_envelope::{
@@ -74,29 +73,48 @@ pub fn handler(
         .unix_timestamp
         .saturating_sub(validated_price.publish_time) as u64;
 
-    // 6. Dynamic Risk Score Breakdown & Instant Risk State
-    let breakdown = RiskScoreBreakdown::compute(
-        market_open,
-        conf_ratio_bps,
-        oracle_age,
-        asset.max_oracle_age,
-        asset.custody_state,
-        asset.liquidity_state,
-    );
-    let instant_risk_state = RatchetHysteresisConfig::candidate_state_from_score(
-        breakdown.composite_score,
-    );
-
-    // 7. Effective Risk State (Maximum severity of instant vs ratchet.state)
-    let effective_risk_state = if RiskRatchet::severity(instant_risk_state)
-        > RiskRatchet::severity(ctx.accounts.risk_ratchet.state)
-    {
-        instant_risk_state
-    } else {
-        ctx.accounts.risk_ratchet.state
+    // 6. Map Action & Venue to Canonical Types
+    let circuit_action = match action {
+        ENVELOPE_ACTION_BORROW => CircuitAction::Borrow,
+        ENVELOPE_ACTION_WITHDRAW => CircuitAction::Withdraw,
+        ENVELOPE_ACTION_SWAP => CircuitAction::Swap,
+        ENVELOPE_ACTION_ENTER_LIQUIDITY => CircuitAction::EnterLiquidity,
+        ENVELOPE_ACTION_EXIT_LIQUIDITY => CircuitAction::ExitLiquidity,
+        ENVELOPE_ACTION_REBALANCE => CircuitAction::Rebalance,
+        ENVELOPE_ACTION_REPAY => CircuitAction::Repay,
+        ENVELOPE_ACTION_DEPOSIT => CircuitAction::Deposit,
+        _ => {
+            emit!(EnvelopeAuthorizationDenied {
+                owner: ctx.accounts.owner.key(),
+                actor: ctx.accounts.actor.key(),
+                asset_mint: asset.mint,
+                action,
+                venue,
+                requested_amount,
+                risk_state: ctx.accounts.risk_ratchet.state,
+                denial_reason: PermissionDenialReason::AgentActionNotPermitted,
+                timestamp: clock.unix_timestamp,
+            });
+            return err!(CircuitError::EnvelopeActionMismatch);
+        }
     };
 
-    // 8. Position Validation & Conservative Collateral Valuation
+    if venue != VENUE_CREDIT && venue != VENUE_METEORA_DBC && venue != VENUE_TRADING {
+        emit!(EnvelopeAuthorizationDenied {
+            owner: ctx.accounts.owner.key(),
+            actor: ctx.accounts.actor.key(),
+            asset_mint: asset.mint,
+            action,
+            venue,
+            requested_amount,
+            risk_state: ctx.accounts.risk_ratchet.state,
+            denial_reason: PermissionDenialReason::AgentActionNotPermitted,
+            timestamp: clock.unix_timestamp,
+        });
+        return err!(CircuitError::EnvelopeVenueMismatch);
+    }
+
+    // 7. Position Validation & Conservative Collateral Valuation
     let conservative_price = math::calculate_conservative_pyth_price(
         validated_price.price,
         validated_price.conf,
@@ -147,57 +165,7 @@ pub fn handler(
         )?;
     }
 
-    // 9. Derive Authoritative CapitalPolicy
-    let policy = CapitalPolicyEngine::derive_policy(
-        effective_risk_state,
-        asset.base_ltv_bps,
-        position_has_debt,
-        ctx.accounts.risk_ratchet.risk_epoch,
-        clock.unix_timestamp,
-    );
-
-    // 10. Map Action & Venue to Canonical Types
-    let circuit_action = match action {
-        ENVELOPE_ACTION_BORROW => CircuitAction::Borrow,
-        ENVELOPE_ACTION_WITHDRAW => CircuitAction::Withdraw,
-        ENVELOPE_ACTION_SWAP => CircuitAction::Swap,
-        ENVELOPE_ACTION_ENTER_LIQUIDITY => CircuitAction::EnterLiquidity,
-        ENVELOPE_ACTION_EXIT_LIQUIDITY => CircuitAction::ExitLiquidity,
-        ENVELOPE_ACTION_REBALANCE => CircuitAction::Rebalance,
-        ENVELOPE_ACTION_REPAY => CircuitAction::Repay,
-        ENVELOPE_ACTION_DEPOSIT => CircuitAction::Deposit,
-        _ => {
-            emit!(EnvelopeAuthorizationDenied {
-                owner: ctx.accounts.owner.key(),
-                actor: ctx.accounts.actor.key(),
-                asset_mint: asset.mint,
-                action,
-                venue,
-                requested_amount,
-                risk_state: effective_risk_state,
-                denial_reason: PermissionDenialReason::AgentActionNotPermitted,
-                timestamp: clock.unix_timestamp,
-            });
-            return err!(CircuitError::EnvelopeActionMismatch);
-        }
-    };
-
-    if venue != VENUE_CREDIT && venue != VENUE_METEORA_DBC && venue != VENUE_TRADING {
-        emit!(EnvelopeAuthorizationDenied {
-            owner: ctx.accounts.owner.key(),
-            actor: ctx.accounts.actor.key(),
-            asset_mint: asset.mint,
-            action,
-            venue,
-            requested_amount,
-            risk_state: effective_risk_state,
-            denial_reason: PermissionDenialReason::AgentActionNotPermitted,
-            timestamp: clock.unix_timestamp,
-        });
-        return err!(CircuitError::EnvelopeVenueMismatch);
-    }
-
-    // 11. Deserialize Agent Authority if actor is delegated agent
+    // 8. Deserialize Agent Authority if actor is delegated agent
     let is_owner = ctx.accounts.actor.key() == ctx.accounts.owner.key();
 
     let agent_auth_holder: Option<AgentAuthority> = if !is_owner {
@@ -223,22 +191,40 @@ pub fn handler(
         None
     };
 
-    // 12. Evaluate Canonical Permission Engine
-    let perm = permissions::evaluate_permission(
-        &ctx.accounts.actor.key(),
-        circuit_action,
-        &asset.mint,
+    // 9. Evaluate Canonical Decision Kernel
+    let decision_ctx = crate::risk::DecisionContext {
+        actor: &ctx.accounts.actor.key(),
+        owner: &ctx.accounts.owner.key(),
+        asset_mint: &asset.mint,
+        action: circuit_action,
         requested_amount,
-        &ctx.accounts.owner.key(),
+        protocol_paused: protocol.paused,
+        asset_enabled: asset.enabled,
+        base_ltv_bps: asset.base_ltv_bps,
+        market_open,
+        halt_state: HaltState::OpenNormal,
+        oracle_price: validated_price.price,
+        oracle_expo: validated_price.expo,
+        oracle_conf: validated_price.conf,
+        oracle_age,
+        max_oracle_age: asset.max_oracle_age,
+        oracle_healthy: true,
+        custody_state: asset.custody_state,
+        liquidity_state: asset.liquidity_state,
+        ratchet_state: ctx.accounts.risk_ratchet.state,
+        risk_epoch: ctx.accounts.risk_ratchet.risk_epoch,
         position_has_debt,
         collateral_value,
         current_debt,
-        &policy,
-        agent_auth_holder.as_ref(),
-        clock.unix_timestamp,
-    )?;
+        agent_authority: agent_auth_holder.as_ref(),
+        current_timestamp: clock.unix_timestamp,
+    };
 
-    if !perm.allowed {
+    let decision = crate::risk::evaluate_decision(&decision_ctx)?;
+    let effective_risk_state = decision.risk_state;
+    let policy = decision.capital_policy;
+
+    if !decision.allowed {
         emit!(EnvelopeAuthorizationDenied {
             owner: ctx.accounts.owner.key(),
             actor: ctx.accounts.actor.key(),
@@ -247,11 +233,11 @@ pub fn handler(
             venue,
             requested_amount,
             risk_state: effective_risk_state,
-            denial_reason: perm.denial_reason,
+            denial_reason: decision.denial_reason,
             timestamp: clock.unix_timestamp,
         });
 
-        match perm.denial_reason {
+        match decision.denial_reason {
             PermissionDenialReason::SecurityHaltInferred => return err!(CircuitError::SecurityHaltInferred),
             PermissionDenialReason::OracleUnavailable => return err!(CircuitError::OracleUnavailable),
             PermissionDenialReason::RiskEmergency => return err!(CircuitError::RiskEmergency),
@@ -293,7 +279,7 @@ pub fn handler(
     envelope.confidence_limit_bps = conf_ratio_bps;
     envelope.oracle_price = validated_price.price;
     envelope.oracle_expo = validated_price.expo;
-    envelope.policy_version = perm.policy_version;
+    envelope.policy_version = decision.policy_version;
     envelope.risk_epoch = ctx.accounts.risk_ratchet.risk_epoch;
     envelope.authorized_at_slot = clock.slot;
     envelope.expires_at_slot = expires_at_slot;

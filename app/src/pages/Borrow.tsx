@@ -113,6 +113,8 @@ export default function Borrow() {
     getAgentAuthorityForAsset,
     controlMode,
     evaluatePermissionForAction,
+    evaluateDecision,
+    decision,
   } = useCircuitDomain();
   const tx = useTransaction(activeMarket);
 
@@ -137,7 +139,7 @@ export default function Borrow() {
     if (s.oracle?.update) {
       return Number(s.oracle.update.price) * Math.pow(10, s.oracle.update.exponent);
     }
-    return 100;
+    return null;
   }, [s.oracle]);
 
   const priceAccount = useMemo(
@@ -155,8 +157,12 @@ export default function Borrow() {
   const newDebt = debt + amountNative;
 
   const permResult = useMemo(() => {
-    return evaluatePermissionForAction("borrow", parsed || 0, activeMarket.symbol);
-  }, [evaluatePermissionForAction, parsed, activeMarket.symbol]);
+    return evaluatePermissionForAction("borrow", valid ? parsed : 0, activeMarket.symbol);
+  }, [evaluatePermissionForAction, valid, parsed, activeMarket.symbol]);
+
+  const decisionResult = useMemo(() => {
+    return evaluateDecision("borrow", valid ? parsed : 0, activeMarket.symbol);
+  }, [evaluateDecision, valid, parsed, activeMarket.symbol]);
 
   const projectedHf = useMemo<number | null>(() => {
     if (!s.asset || !s.oracle || !valid) return null;
@@ -181,24 +187,26 @@ export default function Borrow() {
   const objections = useMemo<string[]>(() => {
     const out: string[] = [];
     if (!valid) return out;
-    if (!permResult.allowed) {
-      out.push(permResult.message);
+    if (decisionResult.verdict.status !== "ALLOW") {
+      out.push(decisionResult.verdict.reason);
     }
     if (amountNative > max) {
       out.push(
         `Above your current limit of ${isSolBorrow ? "" : "$"}${formatMoney(toUi(max))} ${quoteSymbol}`
       );
     }
-    if (s.protocol?.paused) out.push("Borrowing is paused right now");
+    if (s.protocol?.paused || !decisionResult.capitalPolicy.borrowAllowed) {
+      out.push("Borrowing is paused right now by protocol policy");
+    }
     if (projectedHf !== null && projectedHf < minBps) {
       out.push(
         `This would leave a health factor of ${(projectedHf / 10_000).toFixed(2)}, below the ${(minBps / 10_000).toFixed(2)} minimum`
       );
     }
     return Array.from(new Set(out));
-  }, [valid, permResult, amountNative, max, isSolBorrow, quoteSymbol, s.protocol, projectedHf, minBps]);
+  }, [valid, decisionResult, amountNative, max, isSolBorrow, quoteSymbol, s.protocol, projectedHf, minBps]);
 
-  const canSubmit = valid && objections.length === 0 && tx.ready && !tx.busy;
+  const canSubmit = valid && decisionResult.verdict.status === "ALLOW" && objections.length === 0 && tx.ready && !tx.busy;
 
   const submit = async () => {
     setTxOpen(true);
@@ -281,15 +289,19 @@ export default function Borrow() {
           style={{
             padding: "12px 16px",
             background:
-              risk.ratchetState === "SAFE"
+              s.protocol?.paused || !decisionResult.capitalPolicy.borrowAllowed
+                ? "rgba(207, 139, 139, 0.12)"
+                : decisionResult.risk.state === "SAFE"
                 ? "rgba(127, 195, 154, 0.08)"
-                : risk.ratchetState === "RESTRICTED"
+                : decisionResult.risk.state === "RESTRICTED"
                 ? "rgba(207, 173, 116, 0.08)"
                 : "rgba(207, 139, 139, 0.12)",
             border: `1px solid ${
-              risk.ratchetState === "SAFE"
+              s.protocol?.paused || !decisionResult.capitalPolicy.borrowAllowed
+                ? "rgba(207, 139, 139, 0.4)"
+                : decisionResult.risk.state === "SAFE"
                 ? "rgba(127, 195, 154, 0.3)"
-                : risk.ratchetState === "RESTRICTED"
+                : decisionResult.risk.state === "RESTRICTED"
                 ? "rgba(207, 173, 116, 0.3)"
                 : "rgba(207, 139, 139, 0.4)"
             }`,
@@ -300,22 +312,28 @@ export default function Borrow() {
             <div className="row g-10" style={{ alignItems: "center" }}>
               <Pill
                 tone={
-                  risk.ratchetState === "SAFE"
+                  s.protocol?.paused || !decisionResult.capitalPolicy.borrowAllowed
+                    ? "danger"
+                    : decisionResult.risk.state === "SAFE"
                     ? "success"
-                    : risk.ratchetState === "RESTRICTED"
+                    : decisionResult.risk.state === "RESTRICTED"
                     ? "warning"
                     : "danger"
                 }
                 withDot
               >
-                RATCHET: {risk.ratchetState}
+                {s.protocol?.paused || !decisionResult.capitalPolicy.borrowAllowed
+                  ? "POLICY: PAUSED"
+                  : `RATCHET: ${decisionResult.risk.state}`}
               </Pill>
               <span style={{ fontSize: 13, color: "var(--text-2)" }}>
-                {risk.ratchetState === "SAFE"
+                {s.protocol?.paused || !decisionResult.capitalPolicy.borrowAllowed
+                  ? "New borrowing is paused by protocol capital policy."
+                  : decisionResult.verdict.status !== "ALLOW"
+                  ? decisionResult.verdict.reason
+                  : decisionResult.risk.state === "SAFE"
                   ? "Market & oracle nominal. Full credit permissions active."
-                  : permResult.message ||
-                    credit.permissions.borrow.reason ||
-                    `Credit constrained under ${risk.ratchetState} protocol policy.`}
+                  : `Credit constrained under ${decisionResult.risk.state} protocol policy.`}
               </span>
             </div>
             <Link
@@ -799,7 +817,7 @@ export default function Borrow() {
 
         {/* Step 4 - Live market safety check */}
         {hasCollateral && (
-          <Step n={4} title="Market check" done={gatesPass}>
+          <Step n={4} title="Market check" done={gatesPass && decisionResult.capitalPolicy.borrowAllowed && !s.protocol?.paused}>
             {s.loading ? (
               <div className="stack g-10">
                 {[0, 1, 2, 3].map((i) => (
@@ -810,14 +828,24 @@ export default function Borrow() {
               <>
                 <RiskCheckList checks={checks} />
                 <div style={{ marginTop: 14 }}>
-                  {gatesPass ? (
-                    <Notice tone="success" title="Borrowing allowed">
-                      All risk conditions the protocol requires are currently satisfied.
-                    </Notice>
-                  ) : (
+                  {!gatesPass ? (
                     <BlockedAction
                       reasons={checks.filter((c) => !c.ok).map((c) => `${c.name}: ${c.status.toLowerCase()}`)}
                     />
+                  ) : s.protocol?.paused || !decisionResult.capitalPolicy.borrowAllowed ? (
+                    <BlockedAction
+                      title="Borrowing paused"
+                      reasons={["New borrowing is currently disabled by protocol capital policy."]}
+                    />
+                  ) : decisionResult.verdict.status !== "ALLOW" ? (
+                    <BlockedAction
+                      title="Borrowing restricted"
+                      reasons={[decisionResult.verdict.reason]}
+                    />
+                  ) : (
+                    <Notice tone="success" title="Borrowing allowed">
+                      All risk conditions and capital policies the protocol requires are currently satisfied.
+                    </Notice>
                   )}
                 </div>
               </>
