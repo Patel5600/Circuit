@@ -69,10 +69,35 @@ async function main() {
         requestSol * LAMPORTS_PER_SOL
       );
       await conn.confirmTransaction(sig, "confirmed");
-      console.log(`    ok  ${explorer("tx", sig)}`);
+      console.log(`    ok (solana rpc)  ${explorer("tx", sig)}`);
     } catch (e: any) {
       const msg = String(e?.message ?? e);
-      console.log(`    failed: ${msg.split("\n")[0]}`);
+      console.log(`    solana rpc: ${msg.split("\n")[0]}`);
+
+      // Try Circuit Protocol Faucet API
+      try {
+        console.log(`    claiming from Circuit Protocol Devnet Faucet...`);
+        const faucetRes = await fetch("https://circuit-on-solana.vercel.app/api/faucet", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            recipient: address.toBase58(),
+            mint: "11111111111111111111111111111111",
+            amount: requestSol,
+          }),
+        });
+        const data = (await faucetRes.json()) as any;
+        if (faucetRes.ok && data?.success && data?.signature) {
+          console.log(`    ok (circuit faucet)  ${explorer("tx", data.signature)}`);
+          balance = await conn.getBalance(address);
+          console.log(`    balance now ${sol(balance)} SOL`);
+          continue;
+        } else if (data?.error) {
+          console.log(`    circuit faucet: ${data.error}`);
+        }
+      } catch (fErr: any) {
+        console.log(`    circuit faucet unreachable: ${fErr?.message || fErr}`);
+      }
 
       if (/429|rate|limit|faucet/i.test(msg)) {
         const backoff = Math.min(30_000, 5_000 * attempt);

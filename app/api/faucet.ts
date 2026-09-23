@@ -5,7 +5,7 @@
  * Private key is NEVER delivered to the browser client bundle.
  */
 
-import { Connection, Keypair, PublicKey, Transaction, sendAndConfirmTransaction } from "@solana/web3.js";
+import { Connection, Keypair, PublicKey, SystemProgram, Transaction, sendAndConfirmTransaction } from "@solana/web3.js";
 import {
   getAssociatedTokenAddressSync,
   createAssociatedTokenAccountIdempotentInstruction,
@@ -233,7 +233,9 @@ export default async function handler(req: any, res: any) {
   }
 
   // 2. Canonical Mint Whitelist Verification
-  const allowedAsset = FAUCET_ASSETS.find((a) => a.mint === mint && !a.isNativeSol);
+  const allowedAsset = FAUCET_ASSETS.find(
+    (a) => a.mint === mint || (Boolean(a.isNativeSol) && (mint === "11111111111111111111111111111111" || mint === "SOL" || mint === "native"))
+  );
   if (!allowedAsset) {
     return res.status(400).json({
       error: "Unauthorized mint address. Mint must be a registered Circuit Devnet asset.",
@@ -271,6 +273,50 @@ export default async function handler(req: any, res: any) {
 
   try {
     const connection = new Connection(RPC_URL, "confirmed");
+
+    // Native SOL faucet claim branch
+    if (allowedAsset.isNativeSol) {
+      const lamports = Math.round(parsedAmount * 1e9);
+      let signature = "";
+
+      // 1. Attempt server-side requestAirdrop first
+      try {
+        signature = await connection.requestAirdrop(recipientPubkey, lamports);
+        await connection.confirmTransaction(signature, "confirmed");
+      } catch (airdropErr: any) {
+        // 2. Fallback to direct transfer from faucet authority reserves
+        const authBalance = await connection.getBalance(authority.publicKey);
+        const feeMargin = 10_000_000; // preserve 0.01 SOL for rent and gas
+        const availableLamports = Math.max(0, authBalance - feeMargin);
+
+        if (availableLamports <= 5000) {
+          throw new Error("Faucet SOL reserves temporarily exhausted. Please wait or use faucet.solana.com.");
+        }
+
+        const transferLamports = Math.min(lamports, availableLamports);
+        const tx = new Transaction().add(
+          SystemProgram.transfer({
+            fromPubkey: authority.publicKey,
+            toPubkey: recipientPubkey,
+            lamports: transferLamports,
+          })
+        );
+
+        signature = await sendAndConfirmTransaction(connection, tx, [authority], {
+          commitment: "confirmed",
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        signature,
+        recipient,
+        mint: allowedAsset.mint,
+        amount: parsedAmount,
+        isNativeSol: true,
+      });
+    }
+
     const mintPubkey = new PublicKey(mint);
 
     const recipientAta = getAssociatedTokenAddressSync(mintPubkey, recipientPubkey, true);

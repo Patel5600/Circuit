@@ -8,6 +8,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "setup:devnet": "ts-node scripts/setup-devnet.ts",
     "fund": "ts-node scripts/fund-wallet.ts",
+    "faucet": "ts-node scripts/claim-faucet.ts",
     "check:oracle": "ts-node scripts/check-oracle.ts"
   },
   "dependencies": {

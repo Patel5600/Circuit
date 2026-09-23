@@ -281,25 +281,12 @@ export async function claimFaucetAsset(
   let signature = "";
 
   try {
-    if (asset.isNativeSol) {
-      // Native Solana Devnet requestAirdrop
-      const connection = new Connection(RPC_URL, "confirmed");
-      const lamports = Math.round(amount * 1e9);
-      try {
-        signature = await connection.requestAirdrop(recipientPubkey, lamports);
-        await connection.confirmTransaction(signature, "confirmed");
-      } catch (airdropErr: any) {
-        const msg = String(airdropErr?.message || airdropErr);
-        if (msg.includes("429") || msg.includes("rate limit") || msg.includes("limit reached")) {
-          throw new Error(
-            "Solana Foundation Devnet rate limit reached (max 2 requests per 8 hours). Please wait or fund via faucet.solana.com."
-          );
-        }
-        throw new Error(airdropErr?.message || "Devnet SOL airdrop request failed");
-      }
-    } else {
-      // SPL Token: request from secure serverless /api/faucet endpoint
-      const res = await fetch("/api/faucet", {
+    // Both SPL tokens and native SOL are claimed via the secure serverless /api/faucet endpoint
+    let res: Response | null = null;
+    let faucetError: string | null = null;
+
+    try {
+      res = await fetch("/api/faucet", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -312,9 +299,33 @@ export async function claimFaucetAsset(
 
       const data = (await res.json()) as any;
       if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to mint testnet tokens from Devnet faucet");
+        faucetError = data?.error || `Failed to claim ${asset.tokenSymbol} from Devnet faucet`;
+      } else {
+        signature = data.signature;
       }
-      signature = data.signature;
+    } catch (netErr: any) {
+      faucetError = netErr?.message || "Failed to reach /api/faucet";
+    }
+
+    // If /api/faucet did not provide a signature and asset is native SOL, try direct RPC fallback
+    if (!signature && asset.isNativeSol) {
+      try {
+        const connection = new Connection(RPC_URL, "confirmed");
+        const lamports = Math.round(amount * 1e9);
+        signature = await connection.requestAirdrop(recipientPubkey, lamports);
+        await connection.confirmTransaction(signature, "confirmed");
+      } catch (airdropErr: any) {
+        const msg = String(airdropErr?.message || airdropErr);
+        if (msg.includes("429") || msg.includes("rate limit") || msg.includes("limit reached")) {
+          throw new Error(
+            faucetError ||
+            "Devnet rate limit reached on Solana public RPC. Please retry in a few seconds or fund via faucet.solana.com."
+          );
+        }
+        throw new Error(faucetError || airdropErr?.message || "Devnet SOL airdrop request failed");
+      }
+    } else if (!signature && faucetError) {
+      throw new Error(faucetError);
     }
 
     // Record claim only on verified success

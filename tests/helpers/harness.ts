@@ -17,7 +17,12 @@ import {
   getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
 
-const idl = require("../../target/idl/circuit.json");
+let idl: any;
+try {
+  idl = require("../../target/idl/circuit.json");
+} catch {
+  idl = require("../../app/src/idl/circuit.json");
+}
 import { Svm, SvmResult, isFailure, logsOf, errOf } from "./svm";
 import {
   PYTH_RECEIVER_ID,
