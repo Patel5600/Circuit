@@ -297,112 +297,130 @@ export default function Profile() {
           </div>
         </div>
 
-        {/* ── Section 1: Circuit Profile Overview & Instant Action Terminal ── */}
+        {/* ── Section 1: Circuit Risk Profile ── */}
         <Card>
-          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            {/* Header: Title, Network, Wallet, Risk State */}
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 16,
-                alignItems: "center",
-                justifyContent: "space-between",
-                paddingBottom: 16,
-                borderBottom: "1px solid var(--border)",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                <div
-                  style={{
-                    width: 46,
-                    height: 46,
-                    borderRadius: 12,
-                    background: `linear-gradient(135deg, ${
-                      snapshot?.riskState === "SAFE" ? "rgba(127, 195, 154, 0.15)" : "rgba(224, 108, 108, 0.15)"
-                    }, var(--surface-2))`,
-                    border: `1.5px solid ${
-                      snapshot?.riskState === "SAFE" ? "rgba(127, 195, 154, 0.4)" : "rgba(224, 108, 108, 0.4)"
-                    }`,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                    color: snapshot?.riskState === "SAFE" ? "var(--success)" : "var(--danger)",
-                  }}
-                >
-                  <Icon name="user" size={22} />
-                </div>
-                <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <h2
-                      style={{
-                        margin: 0,
-                        fontSize: 16.5,
-                        fontWeight: 800,
-                        letterSpacing: "0.06em",
-                        fontFamily: "var(--mono)",
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      CIRCUIT RISK PROFILE
-                    </h2>
-                    <span
-                      style={{
-                        fontSize: 10.5,
-                        fontFamily: "var(--mono)",
-                        fontWeight: 750,
-                        padding: "2px 7px",
-                        borderRadius: 4,
-                        background: "rgba(153, 69, 255, 0.15)",
-                        border: "1px solid rgba(153, 69, 255, 0.35)",
-                        color: "#c4a0ff",
-                        letterSpacing: "0.05em",
-                      }}
-                    >
-                      DEVNET
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11.5, color: "var(--text-3)", marginTop: 4 }}>
-                    {isInitialLoading
-                      ? "Querying on-chain position accounts on Devnet..."
-                      : hasLiveCollateral
-                      ? `${snapshot?.positions.length} active tokenized equity position${
-                          snapshot?.positions.length !== 1 ? "s" : ""
-                        } evaluated under on-chain Risk Ratchet.`
-                      : "Fresh wallet detected with $0.00 collateral. Borrow capacity is strictly $0.00."}
-                  </div>
-                </div>
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 16,
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div
+                style={{
+                  width: 46,
+                  height: 46,
+                  borderRadius: 12,
+                  background: `linear-gradient(135deg, ${
+                    snapshot?.riskState === "SAFE" ? "rgba(127, 195, 154, 0.15)" : "rgba(224, 108, 108, 0.15)"
+                  }, var(--surface-2))`,
+                  border: `1.5px solid ${
+                    snapshot?.riskState === "SAFE" ? "rgba(127, 195, 154, 0.4)" : "rgba(224, 108, 108, 0.4)"
+                  }`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                  color: snapshot?.riskState === "SAFE" ? "var(--success)" : "var(--danger)",
+                }}
+              >
+                <Icon name="user" size={22} />
               </div>
-
-              {/* Right: Risk State Badge & Risk Profile */}
-              <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: 10, fontFamily: "var(--mono)", color: "var(--text-3)", marginBottom: 2 }}>
-                    PROTOCOL RISK STATE
-                  </div>
-                  <Pill
-                    tone={
-                      snapshot?.riskState === "SAFE"
-                        ? "success"
-                        : snapshot?.riskState === "EMERGENCY"
-                        ? "danger"
-                        : "warning"
-                    }
-                    withDot
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <h2
+                    style={{
+                      margin: 0,
+                      fontSize: 16.5,
+                      fontWeight: 800,
+                      letterSpacing: "0.06em",
+                      fontFamily: "var(--mono)",
+                      textTransform: "uppercase",
+                    }}
                   >
-                    {snapshot?.riskState ?? "SAFE"}
-                  </Pill>
+                    CIRCUIT RISK PROFILE
+                  </h2>
+                  <span
+                    style={{
+                      fontSize: 10.5,
+                      fontFamily: "var(--mono)",
+                      fontWeight: 750,
+                      padding: "2px 7px",
+                      borderRadius: 4,
+                      background: "rgba(153, 69, 255, 0.15)",
+                      border: "1px solid rgba(153, 69, 255, 0.35)",
+                      color: "#c4a0ff",
+                      letterSpacing: "0.05em",
+                    }}
+                  >
+                    DEVNET
+                  </span>
                 </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: 10, fontFamily: "var(--mono)", color: "var(--text-3)", marginBottom: 2 }}>
-                    RISK PROFILE
-                  </div>
-                  <Pill tone={riskProfileTone(profileLabel)}>{profileLabel}</Pill>
+                <div style={{ fontSize: 11.5, color: "var(--text-3)", marginTop: 4 }}>
+                  {isInitialLoading
+                    ? "Querying on-chain position accounts on Devnet..."
+                    : hasLiveCollateral
+                    ? `${snapshot?.positions.length} active tokenized equity position${
+                        snapshot?.positions.length !== 1 ? "s" : ""
+                      } evaluated under on-chain Risk Ratchet.`
+                    : "Fresh wallet detected with $0.00 collateral. Borrow capacity is strictly $0.00."}
                 </div>
               </div>
             </div>
 
+            {/* Right: Risk State Badge & Risk Profile */}
+            <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 10, fontFamily: "var(--mono)", color: "var(--text-3)", marginBottom: 2 }}>
+                  PROTOCOL RISK STATE
+                </div>
+                <Pill
+                  tone={
+                    snapshot?.riskState === "SAFE"
+                      ? "success"
+                      : snapshot?.riskState === "EMERGENCY"
+                      ? "danger"
+                      : "warning"
+                  }
+                  withDot
+                >
+                  {snapshot?.riskState ?? "SAFE"}
+                </Pill>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 10, fontFamily: "var(--mono)", color: "var(--text-3)", marginBottom: 2 }}>
+                  RISK PROFILE
+                </div>
+                <Pill tone={riskProfileTone(profileLabel)}>{profileLabel}</Pill>
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        {/* ── Section 2: Portfolio Risk Graph ── */}
+        <PortfolioRiskGraph
+          assets={graphAssets}
+          riskState={snapshot?.riskState ?? domain.decision.risk.state ?? "SAFE"}
+          baseLtvBps={snapshot?.weightedBaseLtvBps ?? 7000}
+          effectiveLtvBps={snapshot?.effectiveLtvBps ?? 0}
+          borrowPowerUsd={snapshot?.borrowCapacityUsd ?? 0}
+          totalCollateralUsd={snapshot?.totalCollateralUsd ?? 0}
+          borrowAllowed={domain.decision.capitalPolicy.borrowAllowed}
+          verdictStatus={domain.decision.verdict.status}
+          verdictReason={domain.decision.verdict.reason}
+          hardOverride={Boolean(snapshot?.hardOverride)}
+          hardOverrideReason={snapshot?.hardOverrideReason}
+          uneditable={true}
+          loading={isInitialLoading}
+          onSelectNodeDriver={(nodeId) => setSelectedDriverNode(nodeId)}
+        />
+
+        {/* ── Section 3: Live Metrics & Action Dock ── */}
+        <Card title="Live Portfolio Metrics & Terminal">
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             {/* Metrics Grid (Expanded 6 LiveMetric blocks) */}
             {isInitialLoading ? (
               <div className="row g-16">
@@ -525,26 +543,94 @@ export default function Profile() {
                 />
               </div>
             )}
+
+            {/* Instant Actions Dock */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                flexWrap: "wrap",
+                gap: 12,
+                borderTop: "1px solid var(--border)",
+                paddingTop: 16,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: "50%",
+                    background: "var(--accent)",
+                  }}
+                />
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 750,
+                    fontFamily: "var(--mono)",
+                    letterSpacing: "0.08em",
+                    color: "var(--text)",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  INSTANT ACTIONS
+                </span>
+              </div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  className="btn btn--accent btn--sm"
+                  style={{ fontSize: 11.5, height: 28, padding: "0 12px" }}
+                  onClick={() => {
+                    const firstMarket = snapshot?.positions[0]?.mint
+                      ? getDeployedMarketByMint(snapshot.positions[0].mint)
+                      : getDeployedMarket("NVDA");
+                    if (firstMarket) openAction({ type: "deposit", market: firstMarket });
+                  }}
+                >
+                  + Deposit Collateral
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--secondary btn--sm"
+                  style={{ fontSize: 11.5, height: 28, padding: "0 12px" }}
+                  disabled={!domain.decision.capitalPolicy.borrowAllowed || (snapshot?.borrowCapacityUsd ?? 0) <= 0}
+                  onClick={() => {
+                    const firstMarket = snapshot?.positions[0]?.mint
+                      ? getDeployedMarketByMint(snapshot.positions[0].mint)
+                      : getDeployedMarket("NVDA");
+                    if (firstMarket) openAction({ type: "borrow", market: firstMarket });
+                  }}
+                >
+                  $ Borrow USDC
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--secondary btn--sm"
+                  style={{ fontSize: 11.5, height: 28, padding: "0 12px" }}
+                  disabled={!snapshot || snapshot.totalDebtUsd <= 0}
+                  onClick={() => {
+                    const firstMarket = snapshot?.positions[0]?.mint
+                      ? getDeployedMarketByMint(snapshot.positions[0].mint)
+                      : getDeployedMarket("NVDA");
+                    if (firstMarket) openAction({ type: "repay", market: firstMarket });
+                  }}
+                >
+                  ↩ Repay Debt
+                </button>
+                <Link
+                  to="/app/faucet"
+                  className="btn btn--secondary btn--sm"
+                  style={{ fontSize: 11.5, height: 28, padding: "0 12px" }}
+                >
+                  ⚡ Faucet
+                </Link>
+              </div>
+            </div>
           </div>
         </Card>
-
-        {/* ── Section 2: High-Definition Causal Risk Graph Canvas ── */}
-        <PortfolioRiskGraph
-          assets={graphAssets}
-          riskState={snapshot?.riskState ?? domain.decision.risk.state ?? "SAFE"}
-          baseLtvBps={snapshot?.weightedBaseLtvBps ?? 7000}
-          effectiveLtvBps={snapshot?.effectiveLtvBps ?? 0}
-          borrowPowerUsd={snapshot?.borrowCapacityUsd ?? 0}
-          totalCollateralUsd={snapshot?.totalCollateralUsd ?? 0}
-          borrowAllowed={domain.decision.capitalPolicy.borrowAllowed}
-          verdictStatus={domain.decision.verdict.status}
-          verdictReason={domain.decision.verdict.reason}
-          hardOverride={Boolean(snapshot?.hardOverride)}
-          hardOverrideReason={snapshot?.hardOverrideReason}
-          uneditable={true}
-          loading={isInitialLoading}
-          onSelectNodeDriver={(nodeId) => setSelectedDriverNode(nodeId)}
-        />
 
         {/* ── Section 3: On-Chain Deposited Holdings Breakdown Table ── */}
         {snapshot && snapshot.positions.length > 0 && (
@@ -718,96 +804,29 @@ export default function Profile() {
           </Card>
         )}
 
-        {/* ── Section 4: Instant Actions Dock ── */}
-        <Card>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              flexWrap: "wrap",
-              gap: 12,
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span
-                style={{
-                  width: 7,
-                  height: 7,
-                  borderRadius: "50%",
-                  background: "var(--accent)",
-                }}
-              />
-              <span
-                style={{
-                  fontSize: 11,
-                  fontWeight: 750,
-                  fontFamily: "var(--mono)",
-                  letterSpacing: "0.08em",
-                  color: "var(--text)",
-                  textTransform: "uppercase",
-                }}
-              >
-                INSTANT ACTIONS
-              </span>
-            </div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-              <button
-                type="button"
-                className="btn btn--accent btn--sm"
-                style={{ fontSize: 11.5, height: 28, padding: "0 12px" }}
-                onClick={() => {
-                  const firstMarket = snapshot?.positions[0]?.mint
-                    ? getDeployedMarketByMint(snapshot.positions[0].mint)
-                    : getDeployedMarket("NVDA");
-                  if (firstMarket) openAction({ type: "deposit", market: firstMarket });
-                }}
-              >
-                + Deposit Collateral
-              </button>
-              <button
-                type="button"
-                className="btn btn--secondary btn--sm"
-                style={{ fontSize: 11.5, height: 28, padding: "0 12px" }}
-                disabled={!domain.decision.capitalPolicy.borrowAllowed || (snapshot?.borrowCapacityUsd ?? 0) <= 0}
-                onClick={() => {
-                  const firstMarket = snapshot?.positions[0]?.mint
-                    ? getDeployedMarketByMint(snapshot.positions[0].mint)
-                    : getDeployedMarket("NVDA");
-                  if (firstMarket) openAction({ type: "borrow", market: firstMarket });
-                }}
-              >
-                $ Borrow USDC
-              </button>
-              <button
-                type="button"
-                className="btn btn--secondary btn--sm"
-                style={{ fontSize: 11.5, height: 28, padding: "0 12px" }}
-                disabled={!snapshot || snapshot.totalDebtUsd <= 0}
-                onClick={() => {
-                  const firstMarket = snapshot?.positions[0]?.mint
-                    ? getDeployedMarketByMint(snapshot.positions[0].mint)
-                    : getDeployedMarket("NVDA");
-                  if (firstMarket) openAction({ type: "repay", market: firstMarket });
-                }}
-              >
-                ↩ Repay Debt
-              </button>
-              <Link
-                to="/app/faucet"
-                className="btn btn--secondary btn--sm"
-                style={{ fontSize: 11.5, height: 28, padding: "0 12px" }}
-              >
-                ⚡ Faucet
-              </Link>
-            </div>
-          </div>
-        </Card>
+        {/* ── Section 5: Protocol Permissions & Risk Posture ── */}
+        <RiskPermissions
+          borrowAllowed={domain.decision.capitalPolicy.borrowAllowed}
+          borrowBlockers={
+            !domain.decision.capitalPolicy.borrowAllowed
+              ? [domain.decision.verdict.reason]
+              : []
+          }
+          withdrawAllowed={withdrawAllowed}
+          withdrawReason={
+            !withdrawAllowed
+              ? !hasLiveCollateral
+                ? "No collateral deposited"
+                : snapshot?.riskState === "EMERGENCY"
+                ? "Risk-increasing withdrawals blocked in Emergency state"
+                : "Protocol paused"
+              : undefined
+          }
+          liquidationActive={liquidationActive}
+          healthFactorBps={snapshot?.healthFactorBps ?? null}
+          riskState={snapshot?.riskState ?? "SAFE"}
+        />
 
-        {/* ── Section 5: Autonomous Strategy Authority Control Center ── */}
-        <AutonomousAuthorityCard />
-
-        {/* ── Section 6: Multi-Asset Risk Posture ── */}
         <RiskPosture
           concentrationPct={snapshot?.maxWeightPct ?? 0}
           oracleConfBps={
@@ -831,37 +850,16 @@ export default function Profile() {
           riskState={snapshot?.riskState ?? "SAFE"}
         />
 
-        {/* ── Section 7: Protocol Permissions ── */}
-        <RiskPermissions
-          borrowAllowed={domain.decision.capitalPolicy.borrowAllowed}
-          borrowBlockers={
-            !domain.decision.capitalPolicy.borrowAllowed
-              ? [domain.decision.verdict.reason]
-              : []
-          }
-          withdrawAllowed={withdrawAllowed}
-          withdrawReason={
-            !withdrawAllowed
-              ? !hasLiveCollateral
-                ? "No collateral deposited"
-                : snapshot?.riskState === "EMERGENCY"
-                ? "Risk-increasing withdrawals blocked in Emergency state"
-                : "Protocol paused"
-              : undefined
-          }
-          liquidationActive={liquidationActive}
-          healthFactorBps={snapshot?.healthFactorBps ?? null}
-          riskState={snapshot?.riskState ?? "SAFE"}
-        />
+        {/* ── Section 6: Autonomous Strategy Authority Control Center ── */}
+        <AutonomousAuthorityCard />
 
-        {/* ── Section 8: Causal Explainability Engine ── */}
+        {/* ── Section 7: Live Devnet Risk History & Audit Trail ── */}
         <WhyBorrowPowerChanged
           borrowPowerDiffUsd={riskAnalysis.borrowPowerDiffUsd}
           causalExplanations={riskAnalysis.causalExplanations}
           onSelectDriver={(targetNode) => setSelectedDriverNode(targetNode)}
         />
 
-        {/* ── Section 9: Portfolio Stress Simulation Matrix ── */}
         <StressScenarioPanel
           totalCollateralUsd={snapshot?.totalCollateralUsd ?? 0}
           totalDebtUsd={snapshot?.totalDebtUsd ?? 0}
@@ -869,7 +867,6 @@ export default function Profile() {
           liqThresholdBps={weightedLiqThresholdBps}
         />
 
-        {/* ── Section 10: Live Devnet Risk History ── */}
         <RiskHistory activeState={snapshot?.riskState ?? "SAFE"} allowDemo={false} />
 
         {/* ── Footer ── */}

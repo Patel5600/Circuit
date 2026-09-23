@@ -193,9 +193,15 @@ export default function Borrow() {
       out.push(decisionResult.verdict.reason);
     }
     if (amountNative > max) {
-      out.push(
-        `Above your current limit of ${isSolBorrow ? "" : "$"}${formatMoney(toUi(max))} ${quoteSymbol}`
-      );
+      if (amountNative > s.vaultLiquidity) {
+        out.push(
+          `NO_PROTOCOL_LIQUIDITY: Requested amount exceeds available protocol vault liquidity (${isSolBorrow ? "" : "$"}${formatMoney(toUi(s.vaultLiquidity))} ${quoteSymbol})`
+        );
+      } else {
+        out.push(
+          `Above your current limit of ${isSolBorrow ? "" : "$"}${formatMoney(toUi(max))} ${quoteSymbol}`
+        );
+      }
     }
     if (s.protocol?.paused || !decisionResult.capitalPolicy.borrowAllowed) {
       out.push("Borrowing is paused right now by protocol policy");

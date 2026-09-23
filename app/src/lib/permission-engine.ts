@@ -73,6 +73,7 @@ export type PermissionReasonCode =
   | "ASSET_DISABLED"
   | "SECURITY_HALT_INFERRED"
   | "ORACLE_UNAVAILABLE"
+  | "NO_PROTOCOL_LIQUIDITY"
   // DBC-specific reason codes
   | "DBC_UNAVAILABLE"
   | "DBC_ACTION_BLOCKED_RISK_STATE"

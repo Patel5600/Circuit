@@ -326,8 +326,8 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
       totalDebtUsd: portfolioSnap?.totalDebtUsd ?? 0,
       borrowCapacityUsd: portfolioSnap?.borrowCapacityUsd ?? 0,
       healthFactor,
-      effectiveLtvBps: portfolioSnap?.effectiveLtvBps ?? 7000,
-      weightedBaseLtvBps: portfolioSnap?.weightedBaseLtvBps ?? 7000,
+      effectiveLtvBps: portfolioSnap?.effectiveLtvBps ?? 0,
+      weightedBaseLtvBps: portfolioSnap?.weightedBaseLtvBps ?? 0,
       cMax,
       cMaxPenaltyBps,
       hasPositions,
@@ -342,7 +342,7 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
     const maxConf =
       positions.length > 0
         ? Math.max(...positions.map((p: any) => p.confBps))
-        : 18;
+        : 0;
     const hardOverride = portfolioSnap?.hardOverride ?? isStale;
     const hardOverrideReason =
       portfolioSnap?.hardOverrideReason ??

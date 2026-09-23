@@ -56,9 +56,10 @@ export interface LiveStateInput {
   liquidationThresholdBps?: number; // e.g. 8000 (80%)
   minHealthFactorBps?: number; // e.g. 10000 (1.0)
 
-  // Position state
+  // Position & Vault state
   collateralUsd: number;
   debtUsd: number;
+  vaultLiquidityUsd?: number;
 
   // Agent Authority (only evaluated when executionMode.mode === "AGENT")
   agentAuthority?: {
@@ -283,6 +284,11 @@ export function evaluateAction(
       verdictCode = "BORROW_LIMIT_EXCEEDED";
       verdictReason = `Requested amount exceeds available borrowing capacity ($${availableCreditUsd.toFixed(2)} USDC).`;
       source = "POSITION";
+    } else if (action === "borrow" && state.vaultLiquidityUsd !== undefined && amountUsd > state.vaultLiquidityUsd) {
+      verdictStatus = "BLOCK";
+      verdictCode = "NO_PROTOCOL_LIQUIDITY";
+      verdictReason = `Requested amount exceeds available protocol vault liquidity ($${state.vaultLiquidityUsd.toFixed(2)} USDC).`;
+      source = "PROTOCOL";
     } else if (isAgent) {
       // Agent-specific authority constraints
       if (!authorityAllowed) {

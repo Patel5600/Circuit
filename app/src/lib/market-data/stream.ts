@@ -215,8 +215,8 @@ export function useMarketDataService() {
         // 3. Check if on-chain Pyth feed exists for this asset
         let onchainPriceUsd: number | null = null;
         let onchainConfUsd = 0;
-        let onchainConfBps = 18;
-        let onchainPublishTime = nowSeconds;
+        let onchainConfBps = 0;
+        let onchainPublishTime = 0;
         let onchainAgeSeconds = 0;
         let onchainFreshness: OracleStatus = "UNAVAILABLE";
 
@@ -247,19 +247,19 @@ export function useMarketDataService() {
         if (activePriceUsd === null || activePriceUsd <= 0) {
           if (serverItem && typeof serverItem.price === "number" && serverItem.price > 0) {
             activePriceUsd = serverItem.price;
-            activeConfidenceUsd = serverItem.price * 0.0018;
-            activeConfBps = 18;
+            activeConfidenceUsd = (serverItem as any).confidence ?? ((serverItem as any).confidenceBps ? (serverItem.price * (serverItem as any).confidenceBps) / 10000 : 0);
+            activeConfBps = (serverItem as any).confidenceBps ?? (activePriceUsd > 0 && activeConfidenceUsd > 0 ? Math.round((activeConfidenceUsd * 10_000) / activePriceUsd) : 0);
             activePublishTime = serverItem.timestamp ? Math.floor(serverItem.timestamp / 1000) : nowSeconds;
             const age = Math.max(0, nowSeconds - activePublishTime);
             activeOracleStatus = classifyOracleStatus(age, true);
             dataSource = "Pyth Reference Index";
           } else {
             activePriceUsd = asset.initialPriceUsd;
-            activeConfidenceUsd = asset.initialPriceUsd * 0.002;
-            activeConfBps = 20;
-            activePublishTime = nowSeconds - 120;
-            activeOracleStatus = "RECENT";
-            dataSource = "Circuit Canonical Baseline";
+            activeConfidenceUsd = 0;
+            activeConfBps = 0;
+            activePublishTime = 0;
+            activeOracleStatus = "UNAVAILABLE";
+            dataSource = "Circuit Canonical Baseline (Offline)";
           }
         }
 

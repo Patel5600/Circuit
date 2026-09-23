@@ -14,6 +14,10 @@ export function DecisionInspector() {
   const domain = useCircuitDomain();
   const snap = domain.decision;
 
+  const walletAddr = domain.wallet.address
+    ? `${domain.wallet.address.slice(0, 4)}...${domain.wallet.address.slice(-4)}`
+    : "Disconnected";
+
   if (!isOpen) {
     return (
       <button
@@ -58,8 +62,8 @@ export function DecisionInspector() {
         position: "fixed",
         bottom: 16,
         right: 16,
-        width: 380,
-        maxHeight: "80vh",
+        width: 400,
+        maxHeight: "85vh",
         background: "var(--surface-1, #0e111a)",
         border: "1px solid var(--border)",
         borderRadius: "var(--r, 10px)",
@@ -131,20 +135,22 @@ export function DecisionInspector() {
           </div>
         </div>
 
-        {/* Section: Context & Asset */}
+        {/* Section: Wallet & Environment */}
         <div>
           <div style={{ color: "var(--text-3)", fontWeight: 700, marginBottom: 4, textTransform: "uppercase" }}>
-            Asset &amp; Runtime Scope
+            Wallet &amp; System Scope
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
+            <div>Wallet: <strong>{walletAddr}</strong></div>
             <div>Asset: <strong style={{ color: "var(--text-1)" }}>{snap.assetSymbol}</strong></div>
             <div>Slot: <strong>{snap.slot ?? "Pending"}</strong></div>
-            <div>Execution Mode: <strong>{snap.executionMode.mode}</strong></div>
-            <div>Authority Status: <strong>{snap.authority.status}</strong></div>
+            <div>Paused: <strong style={{ color: domain.protocol.isFrozen ? "var(--danger)" : "var(--success)" }}>{domain.protocol.isFrozen ? "YES" : "NO"}</strong></div>
+            <div>Enabled: <strong>{domain.markets.markets[snap.assetSymbol] ? "YES" : "NO"}</strong></div>
+            <div>Vault Liquidity: <strong>$1.20M USDC</strong></div>
           </div>
         </div>
 
-        {/* Section: Oracle & Market */}
+        {/* Section: Oracle & Market State */}
         <div>
           <div style={{ color: "var(--text-3)", fontWeight: 700, marginBottom: 4, textTransform: "uppercase" }}>
             Oracle &amp; Market State
@@ -155,20 +161,23 @@ export function DecisionInspector() {
             <div>Age: <strong>{snap.oracle.ageSeconds}s ({snap.oracle.ageSlots} slots)</strong></div>
             <div>Confidence: <strong>{snap.oracle.confBps} bps</strong></div>
             <div>Session: <strong>{snap.market.sessionOpen ? "OPEN" : "CLOSED"}</strong></div>
-            <div>Halt Inference: <strong style={{ color: snap.market.haltInference === "OPEN_NORMAL" ? "var(--success)" : "var(--danger)" }}>{snap.market.haltInference}</strong></div>
+            <div>Security State: <strong style={{ color: snap.market.securityState === "NORMAL" ? "var(--success)" : "var(--warning)" }}>{snap.market.securityState}</strong></div>
+            <div>Halt Inference: <strong>{snap.market.haltInference}</strong></div>
           </div>
         </div>
 
         {/* Section: Risk & Ratchet */}
         <div>
           <div style={{ color: "var(--text-3)", fontWeight: 700, marginBottom: 4, textTransform: "uppercase" }}>
-            Risk Ratchet &amp; Policy
+            Risk Ratchet &amp; Capital Policy
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
-            <div>Ratchet: <strong style={{ color: snap.risk.state === "SAFE" ? "var(--success)" : "var(--warning)" }}>{snap.risk.state}</strong></div>
+            <div>Risk State: <strong style={{ color: snap.risk.state === "SAFE" ? "var(--success)" : "var(--warning)" }}>{snap.risk.state}</strong></div>
+            <div>Risk Score: <strong>{snap.risk.score}</strong></div>
             <div>Risk Epoch: <strong>{snap.risk.riskEpoch}</strong></div>
             <div>Effective LTV: <strong>{(snap.capitalPolicy.maxLtv * 100).toFixed(0)}%</strong></div>
             <div>Borrow Allowed: <strong>{snap.capitalPolicy.borrowAllowed ? "YES" : "NO"}</strong></div>
+            <div>Envelope State: <strong style={{ color: "var(--accent)" }}>DYNAMIC (Devnet)</strong></div>
           </div>
         </div>
 
@@ -180,8 +189,23 @@ export function DecisionInspector() {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
             <div>Collateral: <strong>${formatMoney(snap.position.collateralUsd)}</strong></div>
             <div>Debt: <strong>${formatMoney(snap.position.debtUsd)}</strong></div>
-            <div>Available Credit: <strong style={{ color: "var(--accent)" }}>${formatMoney(snap.position.availableCreditUsd)}</strong></div>
+            <div>Borrow Capacity: <strong style={{ color: "var(--accent)" }}>${formatMoney(snap.position.availableCreditUsd)}</strong></div>
             <div>Health Factor: <strong>{snap.position.health !== null ? snap.position.health.toFixed(2) : "∞"}</strong></div>
+          </div>
+        </div>
+
+        {/* Section: Execution Mode & Authority */}
+        <div>
+          <div style={{ color: "var(--text-3)", fontWeight: 700, marginBottom: 4, textTransform: "uppercase" }}>
+            Execution Mode &amp; Authority
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
+            <div>Authority Mode: <strong>{snap.authority.mode}</strong></div>
+            <div>Agent Authority: <strong>{snap.authority.status}</strong></div>
+            <div>Requested Amount: <strong>$0.00 (Probe)</strong></div>
+            <div>Permission Action: <strong>{snap.permission.action.toUpperCase()}</strong></div>
+            <div>Permission Status: <strong style={{ color: snap.permission.allowed ? "var(--success)" : "var(--warning)" }}>{snap.permission.allowed ? "ALLOWED" : "BLOCKED"}</strong></div>
+            <div>Reason Code: <strong>{snap.permission.reasonCode}</strong></div>
           </div>
         </div>
       </div>
