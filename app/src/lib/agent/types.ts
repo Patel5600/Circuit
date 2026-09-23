@@ -20,6 +20,11 @@ export interface ResolvedEntity {
 }
 
 export type IntentType =
+  | "EXPLANATION_MODE"    // "how does Circuit work?", "how do I borrow?", "how does deposit work?", "how to get lend"
+  | "PORTFOLIO_QUERY"     // "portfolio?", "my balance", "show portfolio"
+  | "MARKET_QUERY"        // "what is the current price of btc and nvda", "market status"
+  | "POLICY_QUERY"        // "what is the policy?", "risk policy"
+  | "STATUS_QUERY"        // "status", "health of circuit"
   | "ASSET_LOOKUP"        // "nvda", "show nvda"
   | "PRICE_QUERY"         // "price?", "what is the price"
   | "CHART_REQUEST"       // "chart", "chart 24h", "chart 7d"
@@ -45,13 +50,15 @@ export interface StructuredIntent {
   type: IntentType;
   rawText: string;
   action?: ProtocolAction;
-  asset?: DeployedMarket;
+  asset?: DeployedMarket | null;
   amount?: number;
   timeframe?: "24h" | "7d";
   secondaryAsset?: DeployedMarket;
   condition?: string;
   subIntents?: StructuredIntent[];
   confidence: EntityConfidence;
+  explanationTopics?: string[];
+  requestedSymbols?: string[];
 }
 
 export type MessageBlockType =

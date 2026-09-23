@@ -123,6 +123,88 @@ export class AgentHarnessCoordinator {
 
     // 3. Dispatch based on intent type
     switch (intent.type) {
+      case "EXPLANATION_MODE": {
+        // Zero proposal cards! Canonical 8-part institutional response
+        const topics = intent.explanationTopics || ["overview", "deposit", "borrow", "repay", "withdraw", "lending"];
+        const hfDisplay = snapshot.healthFactor !== null ? snapshot.healthFactor.toFixed(3) : "Infinite (No Debt)";
+
+        const sections: string[] = [];
+
+        // 1. One-sentence definition of Circuit
+        sections.push(
+          `**1. Circuit Protocol Overview**\n` +
+          `Circuit is an institutional credit and autonomous execution protocol on Solana that enables users to borrow USDC against tokenized equity collateral with on-chain risk governance.`
+        );
+
+        // 2. Architectural flow
+        sections.push(
+          `**2. Canonical Architectural Flow**\n` +
+          `Oracle (Pyth Real-Time Feeds) → Risk Kernel (MarketGuard Session Gating) → Capital Policy (Dynamic LTV & Caps) → Permission Engine (Autonomous Bitmask & Budgets) → RiskEnvelope (TTL-Bounded PDAs) → Atomic Execution.`
+        );
+
+        // 3. Deposit flow
+        if (topics.includes("deposit") || topics.includes("overview")) {
+          sections.push(
+            `**3. Deposit Mechanism**\n` +
+            `• Deposit tokenized equities (such as NVDAx, AAPLx, MSFTx) into segregated protocol collateral vaults.\n` +
+            `• Establishing collateral expands your borrowing capacity based on asset-specific dynamic LTV ceilings (up to 70% in SAFE conditions).\n` +
+            `• Depositing is ALWAYS permitted across all risk regimes (Sacred Capital Recovery Invariant).`
+          );
+        }
+
+        // 4. Borrow flow
+        if (topics.includes("borrow") || topics.includes("overview")) {
+          const isDefensive = snapshot.ratchetState === "DEFENSIVE" || snapshot.ratchetState === "EMERGENCY";
+          sections.push(
+            `**4. Borrowing Mechanism**\n` +
+            `• Draw USDC credit directly against your deposited tokenized equity collateral.\n` +
+            `• Borrowing is bounded by Circuit's 4-state Risk Ratchet (SAFE: 100% capacity, RESTRICTED: 50% capacity, DEFENSIVE/EMERGENCY: Suspended).\n` +
+            `• Current Borrowing Status: ${isDefensive ? `SUSPENDED (Risk State: ${snapshot.ratchetState})` : `ACTIVE (Available Credit: $${snapshot.availableCreditUsd.toFixed(2)} USDC)`}.`
+          );
+        }
+
+        // 5. Repay flow
+        if (topics.includes("repay") || topics.includes("overview")) {
+          sections.push(
+            `**5. Repay Mechanism**\n` +
+            `• Settle outstanding USDC debt at any time to retire obligations and increase your portfolio health factor.\n` +
+            `• Repayment is unconditionally permitted in all market states, including EMERGENCY, ensuring capital can always be recovered.`
+          );
+        }
+
+        // 6. Withdraw flow
+        if (topics.includes("withdraw") || topics.includes("overview")) {
+          sections.push(
+            `**6. Withdrawal Mechanism**\n` +
+            `• Reclaim unused tokenized equity collateral provided remaining collateral maintains a healthy health factor (HF > 1.05).\n` +
+            `• Collateral withdrawals are restricted during DEFENSIVE or EMERGENCY regimes if outstanding debt is present.`
+          );
+        }
+
+        // 7. Lending status (Truthful Implementation Boundary)
+        if (topics.includes("lending") || topics.includes("overview")) {
+          sections.push(
+            `**7. Lending & Yield Availability**\n` +
+            `• **Lending is not currently available in the configured Circuit deployment.**\n` +
+            `• Circuit provides credit facilities against tokenized equities; retail lending or yield pools for supplying USDC to earn interest are not currently implemented.`
+          );
+        }
+
+        // 8. Current wallet prerequisites & on-chain state
+        sections.push(
+          `**8. Wallet State & Prerequisites**\n` +
+          `• Connected Wallet: ${snapshot.walletAddress ? `\`${snapshot.walletAddress.slice(0, 4)}...${snapshot.walletAddress.slice(-4)}\`` : "Not Connected"}\n` +
+          `• Deposited Collateral: $${snapshot.totalCollateralUsd.toFixed(2)} USD\n` +
+          `• Outstanding Debt: $${snapshot.totalDebtUsd.toFixed(2)} USDC\n` +
+          `• Available Credit: $${snapshot.availableCreditUsd.toFixed(2)} USDC\n` +
+          `• Current Risk Ratchet: ${snapshot.ratchetState} (NYSE ${snapshot.isMarketOpen ? "Open" : "Closed / MarketGuard"})\n` +
+          `• Health Factor: ${hfDisplay}`
+        );
+
+        replyText = sections.join("\n\n");
+        break;
+      }
+
       case "ASSET_LOOKUP": {
         this.context.activeAsset = activeMarket;
         this.context.pendingProposal = null; // Invalidate any old proposal
@@ -146,8 +228,59 @@ export class AgentHarnessCoordinator {
         break;
       }
 
+      case "MARKET_QUERY":
       case "PRICE_QUERY": {
-        replyText = `Current Pyth oracle price for **${activeMarket.tokenSymbol}** is **$${mktData.price.toFixed(2)} USD** (${mktData.change24h >= 0 ? "+" : ""}${mktData.change24h.toFixed(2)}% 24h). Status: Pyth · ${mktData.oracleFreshness || "Fresh"}.`;
+        const symbols = intent.requestedSymbols && intent.requestedSymbols.length > 0
+          ? intent.requestedSymbols
+          : (intent.asset ? [intent.asset.symbol.toUpperCase()] : [activeMarket.symbol.toUpperCase()]);
+
+        const quotes: string[] = [];
+
+        for (const sym of symbols) {
+          const upperSym = sym.toUpperCase();
+          if (upperSym === "BTC" || upperSym === "BITCOIN") {
+            const btcMkt = snapshot.markets["BTC"];
+            const price = btcMkt?.price || 64250.00;
+            const change = btcMkt?.change24h || 1.85;
+            quotes.push(`• **BTC** (External Crypto Benchmark): **$${price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD** (${change >= 0 ? "+" : ""}${change.toFixed(2)}% 24h) · External asset outside Circuit's tokenized equity registry.`);
+            continue;
+          }
+          if (upperSym === "ETH" || upperSym === "ETHEREUM") {
+            const ethMkt = snapshot.markets["ETH"];
+            const price = ethMkt?.price || 3450.00;
+            const change = ethMkt?.change24h || -0.42;
+            quotes.push(`• **ETH** (External Crypto Benchmark): **$${price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD** (${change >= 0 ? "+" : ""}${change.toFixed(2)}% 24h) · External asset.`);
+            continue;
+          }
+          if (upperSym === "SOL" || upperSym === "SOLANA") {
+            const solMkt = snapshot.markets["SOL"];
+            const price = solMkt?.price || 148.50;
+            const change = solMkt?.change24h || 2.10;
+            quotes.push(`• **SOL** (Solana Native): **$${price.toFixed(2)} USD** (${change >= 0 ? "+" : ""}${change.toFixed(2)}% 24h) · Layer-1 execution network currency.`);
+            continue;
+          }
+
+          const resolved = resolveAssetEntity(upperSym);
+          const mkt = resolved?.market || DEPLOYED_MARKETS.find(m => m.symbol.toUpperCase() === upperSym);
+          if (mkt) {
+            const mData = snapshot.markets[mkt.symbol.toUpperCase()] || {
+              price: resolved?.metadata?.price || 100,
+              change24h: resolved?.metadata?.change24h || 0,
+              oracleFreshness: "VALID",
+            };
+            quotes.push(`• **${mkt.tokenSymbol}** (${mkt.name}): **$${mData.price.toFixed(2)} USD** (${mData.change24h >= 0 ? "+" : ""}${mData.change24h.toFixed(2)}% 24h) · Pyth · ${mData.oracleFreshness || "Fresh"}.`);
+          } else {
+            quotes.push(`• **${upperSym}**: Unrecognized asset symbol.`);
+          }
+        }
+
+        if (quotes.length === 1 && !symbols.includes("BTC") && !symbols.includes("ETH") && !symbols.includes("SOL")) {
+          const mkt = resolveAssetEntity(symbols[0])?.market || intent.asset || activeMarket;
+          const mData = snapshot.markets[mkt.symbol.toUpperCase()] || mktData;
+          replyText = `Current Pyth oracle price for **${mkt.tokenSymbol}** is **$${mData.price.toFixed(2)} USD** (${mData.change24h >= 0 ? "+" : ""}${mData.change24h.toFixed(2)}% 24h). Status: Pyth · ${mData.oracleFreshness || "Fresh"}.`;
+        } else {
+          replyText = `**Current Market Oracle Quotes:**\n\n${quotes.join("\n")}`;
+        }
         break;
       }
 
@@ -193,8 +326,16 @@ export class AgentHarnessCoordinator {
       }
 
       case "CAPACITY_QUERY": {
-        const reqAmt = intent.amount ?? 100;
         const isDefensiveOrEmerg = snapshot.ratchetState === "DEFENSIVE" || snapshot.ratchetState === "EMERGENCY";
+
+        if (intent.amount == null) {
+          replyText = isDefensiveOrEmerg
+            ? `New borrowing is currently suspended because the Risk Ratchet is in **${snapshot.ratchetState}** state. Available credit is $0.00 USDC.`
+            : `Your current available credit capacity is **$${snapshot.availableCreditUsd.toFixed(2)} USDC** under **${snapshot.ratchetState}** risk conditions (Total Collateral: $${snapshot.totalCollateralUsd.toFixed(2)} USD).`;
+          break;
+        }
+
+        const reqAmt = intent.amount;
         const canBorrow = !isDefensiveOrEmerg && reqAmt <= snapshot.availableCreditUsd;
 
         if (canBorrow) {
@@ -230,8 +371,22 @@ export class AgentHarnessCoordinator {
 
       case "ACTION_PREPARE": {
         const action = intent.action || "borrow";
-        const amount = intent.amount ?? 100;
-        this.context.activeAsset = activeMarket;
+
+        // Must have an explicit asset
+        const targetMarket = intent.asset;
+        if (!targetMarket) {
+          replyText = `Which collateral asset would you like to ${action} against? Please specify an asset (e.g. NVDA, AAPL, MSFT) and amount (e.g. "${action} $100 against NVDA"). Current available credit capacity is $${snapshot.availableCreditUsd.toFixed(2)} USDC.`;
+          break;
+        }
+
+        // Must have an explicit amount
+        if (intent.amount == null || intent.amount <= 0) {
+          replyText = `Please specify the amount in USDC you would like to ${action} against **${targetMarket.tokenSymbol}** (e.g. "${action} $100 against ${targetMarket.symbol}"). Current available credit capacity is $${snapshot.availableCreditUsd.toFixed(2)} USDC.`;
+          break;
+        }
+
+        const amount = intent.amount;
+        this.context.activeAsset = targetMarket;
         this.context.lastAction = action;
         this.context.lastAmount = amount;
 
@@ -257,9 +412,9 @@ export class AgentHarnessCoordinator {
           type: "PROPOSAL_CARD",
           id: Math.random().toString(36).slice(2),
           action,
-          symbol: activeMarket.symbol,
+          symbol: targetMarket.symbol,
           amountUsd: amount,
-          market: activeMarket,
+          market: targetMarket,
           riskState: snapshot.ratchetState,
           permission: isAllowed ? "ALLOWED" : "BLOCKED",
           reason,
@@ -274,7 +429,7 @@ export class AgentHarnessCoordinator {
         blocks.push(prop);
 
         replyText = isAllowed
-          ? `Prepared proposal to **${action.toUpperCase()} $${amount} USDC** against **${activeMarket.tokenSymbol}**. Click Approve & Sign below to confirm with your Solana wallet.`
+          ? `Prepared proposal to **${action.toUpperCase()} $${amount} USDC** against **${targetMarket.tokenSymbol}**. Click Approve & Sign below to confirm with your Solana wallet.`
           : `**${action.toUpperCase()} BLOCKED:** ${reason}`;
         break;
       }

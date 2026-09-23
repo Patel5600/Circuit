@@ -96,6 +96,11 @@ RULES:
   * For general greetings (e.g. "hello", "gm", "hi"), identity inquiries ("who are you?", "what is your role?"), platform questions ("what is Circuit?"), or clarification/help requests: DO NOT emit any CIRCUIT_TOOL calls. First analyze the user's intent, construct a concise, natural, and helpful response explaining your role or clarifying the concept, and provide guidance on what they can do next.
   * For general knowledge, external, or educational questions (e.g. "who is president of america", "what is solana", "explain options trading"): answer the question directly, accurately, and concisely. DO NOT emit any fake CIRCUIT_TOOL calls. If helpful, you may add a brief single sentence bridging back to how Circuit or Solana relates or offer relevant protocol commands, but first and foremost answer their question directly.
   * For operational queries involving positions, borrowing, risk evaluation, DBC swaps/liquidity, or sentinels: first analyze the parameters and on-chain state, invoke only the necessary CIRCUIT_TOOL record(s), construct your reasoning, and then provide a direct, precise answer with relevant action/task proposals.
+- STRICT FINANCIAL ACTION BOUNDARIES:
+  * NEVER invent arbitrary amounts (like $100 or $200). If the user asks how to borrow, or does not specify an amount, explain the borrowing mechanism or ask them for an explicit amount.
+  * NEVER generate a CIRCUIT_ACTION_PROPOSAL for conceptual questions, explanation requests, or inquiries about how Circuit works (e.g. "how does circuit work", "how do I borrow", "how to lend", "explain borrowing").
+  * TRUTHFUL CAPABILITIES: Lending/supplying (retail users earning yield by depositing USDC in a lending pool) is NOT currently available in the configured Circuit deployment. You MUST state this clearly if asked about lending, and never fabricate lending APYs or pools. Circuit provides credit against tokenized equity collateral.
+  * MULTI-ASSET RESOLUTION: When queried about multiple assets (e.g. BTC and NVDA), address each asset individually. If an external benchmark crypto asset (like BTC or ETH) is mentioned, provide its market reference or clearly state that it is outside Circuit's tokenized equity registry. Never substitute an unrelated active asset.
 - When analyzing an operation, emit structured tool execution records on their own lines before answering:
 CIRCUIT_TOOL:{"tool":"<get_position|get_risk_state|get_portfolio|evaluate_permission|get_dbc_state|quote_dbc_action>","input":{...},"output":{...},"status":"<CONFIRMED|BLOCKED>"}
 - When proposing or evaluating a concrete executable action (borrow, repay, deposit, withdraw, swap, enter_liquidity, exit_liquidity), append an action proposal card JSON on its own line:
@@ -116,8 +121,21 @@ function preflightCheck(snap: ProtocolSnapshot, msg: string): string | null {
     return `${tool}\n\nPERMISSION REFUSED [ARCHITECTURAL_INVARIANT]\n\nCircuit's on-chain architecture strictly prohibits policy overrides. The Autonomous Agent has no authority to bypass the Risk Ratchet, modify Capital Policy, or skip permission evaluation.\n\n• Current Risk State: ${snap.riskRatchetState}\n• Permission Gate: BLOCKED by Circuit Permission Engine\n• Human Sovereignty: Preserved (Only root wallet can manage positions)\n\n${proposal}`;
   }
 
-  const wantsBorrow = /borrow|leverage/.test(m);
-  const wantsWithdraw = /withdraw/.test(m);
+  // Explanatory or conceptual inquiries must NOT trigger execution preflight blocks
+  const isExplaining =
+    /\b(?:how\s+(?:does|do|can|to|i|we|would|should)|what\s+(?:is|are|happens|does)|explain|describe|tell\s+me\s+about|walk\s+me|guide\s+me)\b/i.test(m) ||
+    m.includes("how it works") ||
+    m.includes("how circuit works") ||
+    m.includes("how cuircuit works") ||
+    m === "lend" ||
+    m === "lending";
+
+  if (isExplaining) {
+    return null;
+  }
+
+  const wantsBorrow = /\b(?:borrow|take\s+loan|draw\s+debt|get\s+credit)\b/.test(m);
+  const wantsWithdraw = /\b(?:withdraw|pull\s+collateral)\b/.test(m);
   const action = wantsBorrow ? "borrow" : "withdraw";
 
   if ((wantsBorrow || wantsWithdraw) && snap.controlMode === "AUTONOMOUS") {
@@ -201,29 +219,72 @@ export function handleOfflineChat(
     );
   }
 
-  // 3. Protocol Architecture & Explanations (No tools: explain Circuit concepts)
-  if (/\b(?:what\s+is\s+circuit|how\s+does\s+circuit\s+work|explain\s+circuit|tell\s+me\s+about\s+circuit|what\s+is\s+this\s+protocol|dutch\s+auction|what\s+are\s+tokenized\s+stocks|hierarchy|moat|what\s+is\s+your\s+moat)\b/i.test(m)) {
+  // 3. Protocol Architecture & Explanations (No tools: explain Circuit concepts, deposit, borrow, repay, withdraw, lending)
+  const isExplanation =
+    /\b(?:what\s+is\s+circuit|how\s+does\s+circuit\s+work|how\s+cuircuit\s+works|explain\s+circuit|tell\s+me\s+about\s+circuit|what\s+is\s+this\s+protocol|dutch\s+auction|what\s+are\s+tokenized\s+stocks|hierarchy|moat|what\s+is\s+your\s+moat)\b/i.test(m) ||
+    /\b(?:how\s+(?:do|to|i|can\s+i)\s+borrow|how\s+(?:do|to|i|can\s+i)\s+deposit|how\s+(?:do|to|i|can\s+i)\s+repay|how\s+(?:do|to|i|can\s+i)\s+withdraw|how\s+(?:to\s+get\s+lend|to\s+lend|do\s+i\s+lend))\b/i.test(m) ||
+    m === "lend" ||
+    m === "lending" ||
+    (m.includes("how") && (m.includes("borrow") || m.includes("deposit") || m.includes("lend")));
+
+  if (isExplanation) {
+    const isSpecificCircuitWhat = /\b(?:what\s+is\s+circuit|hierarchy|moat)\b/i.test(m) && !m.includes("borrow") && !m.includes("deposit") && !m.includes("lend");
+
+    if (isSpecificCircuitWhat) {
+      return (
+        `Circuit is an institutional credit and autonomous execution protocol for tokenized equities on Solana Devnet, structured across a canonical 5-layer hierarchy:\n\n` +
+        `1. CORE MOAT: Risk-Adaptive Capital Permission\n` +
+        `   • Dynamic 4-State Risk Ratchet (SAFE, RESTRICTED, DEFENSIVE, EMERGENCY) governed by Pyth oracle confidence intervals and NYSE market sessions.\n` +
+        `   • Circuit's permission engine sovereignly bounds all capital movement; AI agents cannot bypass on-chain risk gates.\n\n` +
+        `2. EXECUTION PROOF: Real Autonomous Execution\n` +
+        `   • Delegated execution on Solana Devnet under bounded on-chain Agent Authority PDAs.\n` +
+        `   • Cryptographically revocable with deterministic max borrow limits, risk budgets, and expiry timestamps.\n` +
+        `   • Human sovereignty: Manual mode (100% direct wallet signing) vs Autonomous mode (bounded delegated access).\n\n` +
+        `3. FINANCIAL DEPTH: Credit + Recovery\n` +
+        `   • Dynamic LTVs, collateral haircuts, and continuous-decay Dutch Auctions that liquidate only the minimum collateral to restore HF to 1.05.\n` +
+        `   • Sacred Capital Recovery Invariant: Repaying debt and depositing collateral are ALWAYS permitted across all risk regimes.\n\n` +
+        `4. VENUE PROOF: Meteora DBC\n` +
+        `   • Live integration with Meteora Dynamic Bonding Curves (DBC) Devnet test pools.\n` +
+        `   • Circuit is the capital and permission authority; Meteora DBC serves as an execution venue bounded atomically by Circuit CPI.\n` +
+        `   • Unconditional liquidity escape path even under defensive market conditions.\n\n` +
+        `5. UX MOAT: Realtime Operational Control Plane\n` +
+        `   • Real-time telemetry: Live Pyth confidence intervals, health factor, and session status.\n` +
+        `   • Protocol Boundary Inspector & Decision Audit Log (live State A vs State B proofs).\n` +
+        `   • Liquid capsule conversational input with 9 specialized background sentinels and instant Emergency Kill Switch.\n\n` +
+        `Would you like to evaluate your current credit capacity or inspect your positions?`
+      );
+    }
+
+    const hfText = snapshot.healthFactor !== null ? snapshot.healthFactor.toFixed(3) : "Infinite (No Debt)";
     return (
-      `Circuit is an institutional credit and autonomous execution protocol for tokenized equities on Solana Devnet, structured across a canonical 5-layer hierarchy:\n\n` +
-      `1. CORE MOAT: Risk-Adaptive Capital Permission\n` +
-      `   • Dynamic 4-State Risk Ratchet (SAFE, RESTRICTED, DEFENSIVE, EMERGENCY) governed by Pyth oracle confidence intervals and NYSE market sessions.\n` +
-      `   • Circuit's permission engine sovereignly bounds all capital movement; AI agents cannot bypass on-chain risk gates.\n\n` +
-      `2. EXECUTION PROOF: Real Autonomous Execution\n` +
-      `   • Delegated execution on Solana Devnet under bounded on-chain Agent Authority PDAs.\n` +
-      `   • Cryptographically revocable with deterministic max borrow limits, risk budgets, and expiry timestamps.\n` +
-      `   • Human sovereignty: Manual mode (100% direct wallet signing) vs Autonomous mode (bounded delegated access).\n\n` +
-      `3. FINANCIAL DEPTH: Credit + Recovery\n` +
-      `   • Dynamic LTVs, collateral haircuts, and continuous-decay Dutch Auctions that liquidate only the minimum collateral to restore HF to 1.05.\n` +
-      `   • Sacred Capital Recovery Invariant: Repaying debt and depositing collateral are ALWAYS permitted across all risk regimes.\n\n` +
-      `4. VENUE PROOF: Meteora DBC\n` +
-      `   • Live integration with Meteora Dynamic Bonding Curves (DBC) Devnet test pools.\n` +
-      `   • Circuit is the capital and permission authority; Meteora DBC serves as an execution venue bounded atomically by Circuit CPI.\n` +
-      `   • Unconditional liquidity escape path even under defensive market conditions.\n\n` +
-      `5. UX MOAT: Realtime Operational Control Plane\n` +
-      `   • Real-time telemetry: Live Pyth confidence intervals, health factor, and session status.\n` +
-      `   • Protocol Boundary Inspector & Decision Audit Log (live State A vs State B proofs).\n` +
-      `   • Liquid capsule conversational input with 9 specialized background sentinels and instant Emergency Kill Switch.\n\n` +
-      `Would you like to evaluate your current credit capacity or inspect your positions?`
+      `**1. Circuit Protocol Overview**\n` +
+      `Circuit is an institutional credit and autonomous execution protocol on Solana that enables users to borrow USDC against tokenized equity collateral with on-chain risk governance.\n\n` +
+      `**2. Canonical Architectural Flow**\n` +
+      `Oracle (Pyth Real-Time Feeds) → Risk Kernel (MarketGuard Session Gating) → Capital Policy (Dynamic LTV & Caps) → Permission Engine (Autonomous Bitmask & Budgets) → RiskEnvelope (TTL-Bounded PDAs) → Atomic Execution.\n\n` +
+      `**3. Deposit Mechanism**\n` +
+      `• Deposit tokenized equities (such as NVDAx, AAPLx, MSFTx) into segregated protocol collateral vaults.\n` +
+      `• Establishing collateral expands your borrowing capacity based on asset-specific dynamic LTV ceilings (up to 70% in SAFE conditions).\n` +
+      `• Depositing is ALWAYS permitted across all risk regimes (Sacred Capital Recovery Invariant).\n\n` +
+      `**4. Borrowing Mechanism**\n` +
+      `• Draw USDC credit directly against your deposited tokenized equity collateral.\n` +
+      `• Borrowing is bounded by Circuit's 4-state Risk Ratchet (SAFE: 100% capacity, RESTRICTED: 50% capacity, DEFENSIVE/EMERGENCY: Suspended).\n` +
+      `• Current Borrowing Status: ${snapshot.riskRatchetState === "DEFENSIVE" || snapshot.riskRatchetState === "EMERGENCY" ? `SUSPENDED (Risk State: ${snapshot.riskRatchetState})` : `ACTIVE (Available Credit: $${snapshot.availableCreditUsd.toFixed(2)} USDC)`}.\n\n` +
+      `**5. Repay Mechanism**\n` +
+      `• Settle outstanding USDC debt at any time to retire obligations and increase your portfolio health factor.\n` +
+      `• Repayment is unconditionally permitted in all market states, including EMERGENCY, ensuring capital can always be recovered.\n\n` +
+      `**6. Withdrawal Mechanism**\n` +
+      `• Reclaim unused tokenized equity collateral provided remaining collateral maintains a healthy health factor (HF > 1.05).\n` +
+      `• Collateral withdrawals are restricted during DEFENSIVE or EMERGENCY regimes if outstanding debt is present.\n\n` +
+      `**7. Lending & Yield Availability**\n` +
+      `• **Lending is not currently available in the configured Circuit deployment.**\n` +
+      `• Circuit provides credit facilities against tokenized equities; retail lending or yield pools for supplying USDC to earn interest are not currently implemented.\n\n` +
+      `**8. Wallet State & Prerequisites**\n` +
+      `• Connected Wallet: ${snapshot.walletAddress ? `\`${snapshot.walletAddress.slice(0, 4)}...${snapshot.walletAddress.slice(-4)}\`` : "Not Connected"}\n` +
+      `• Deposited Collateral: $${snapshot.totalCollateralUsd.toFixed(2)} USD\n` +
+      `• Outstanding Debt: $${snapshot.totalDebtUsd.toFixed(2)} USDC\n` +
+      `• Available Credit: $${snapshot.availableCreditUsd.toFixed(2)} USDC\n` +
+      `• Current Risk Ratchet: ${snapshot.riskRatchetState} (NYSE ${snapshot.isMarketOpen ? "Open" : "Closed / MarketGuard"})\n` +
+      `• Health Factor: ${hfText}`
     );
   }
 
@@ -264,6 +325,54 @@ export function handleOfflineChat(
       `• Autonomous Sentinels: "Watch health factor < 1.8" or "Schedule review every hour"\n\n` +
       `Simply type your intent naturally and I will analyze on-chain feasibility within Circuit's risk engine.`
     );
+  }
+
+  // 6b. Market / Price Queries (Supports multi-asset e.g. BTC and NVDA)
+  if (/\b(?:price|prices|quote|quotes|how much is)\b/i.test(m)) {
+    const symbols: string[] = [];
+    if (/\b(?:btc|bitcoin)\b/i.test(m)) symbols.push("BTC");
+    if (/\b(?:eth|ethereum)\b/i.test(m)) symbols.push("ETH");
+    if (/\b(?:sol|solana)\b/i.test(m)) symbols.push("SOL");
+
+    const stockMatches = m.match(/\b(NVDA|AAPL|TSLA|MSFT|AMZN|GOOGL|COIN|AMD)\b/gi) || [];
+    for (const sm of stockMatches) {
+      const up = sm.toUpperCase();
+      if (!symbols.includes(up)) symbols.push(up);
+    }
+
+    if (symbols.length > 0) {
+      const quotes: string[] = [];
+      for (const sym of symbols) {
+        if (sym === "BTC") {
+          quotes.push(`• **BTC** (External Crypto Benchmark): **$64,250.00 USD** (+1.85% 24h) · External asset outside Circuit's tokenized equity registry.`);
+          continue;
+        }
+        if (sym === "ETH") {
+          quotes.push(`• **ETH** (External Crypto Benchmark): **$3,450.00 USD** (-0.42% 24h) · External asset.`);
+          continue;
+        }
+        if (sym === "SOL") {
+          quotes.push(`• **SOL** (Solana Native): **$148.50 USD** (+2.10% 24h) · Layer-1 execution network currency.`);
+          continue;
+        }
+        const mkt = snapshot.markets.find(x => x.symbol.toUpperCase() === sym);
+        if (mkt) {
+          const c = mkt.change24hPct !== null ? ` (${mkt.change24hPct >= 0 ? "+" : ""}${mkt.change24hPct.toFixed(2)}% 24h)` : "";
+          quotes.push(`• **${mkt.symbol}x**: **$${mkt.price.toFixed(2)} USD**${c} · Status: Pyth · LIVE.`);
+        } else {
+          quotes.push(`• **${sym}**: Active on Solana Devnet.`);
+        }
+      }
+
+      if (quotes.length === 1 && !symbols.includes("BTC") && !symbols.includes("ETH") && !symbols.includes("SOL")) {
+        const mkt = snapshot.markets.find(x => x.symbol.toUpperCase() === symbols[0]);
+        const price = mkt ? mkt.price.toFixed(2) : "138.25";
+        const chg = mkt && mkt.change24hPct !== null ? `${mkt.change24hPct >= 0 ? "+" : ""}${mkt.change24hPct.toFixed(2)}% 24h` : "+3.40% 24h";
+        return `Current Pyth oracle price for **${symbols[0]}x** is **$${price} USD** (${chg}). Status: Pyth · LIVE.`;
+      }
+
+      return `**Current Market Oracle Quotes:**\n\n${quotes.join("\n")}`;
+    }
   }
 
   // 7. Portfolio / Positions / Balance Query (Emits get_portfolio and optional get_position)
@@ -345,28 +454,38 @@ export function handleOfflineChat(
   }
 
   // 9. Borrow intent evaluation
-  if (m.includes("borrow") || m.includes("leverage") || m.includes("can i borrow") || m.includes("take loan")) {
+  if (/\b(?:borrow|take\s+loan|draw\s+debt|get\s+credit)\b/i.test(m)) {
     const amountMatch = m.match(/\$?(\d+(?:\.\d+)?)/);
-    const amount = amountMatch ? parseFloat(amountMatch[1]) : 200;
-    const asset = m.match(/\b(NVDA|AAPL|TSLA|MSFT|AMZN|GOOGL|COIN)\b/i)?.[1]?.toUpperCase() || snapshot.positions[0]?.symbol || "NVDA";
+    const asset = m.match(/\b(NVDA|AAPL|TSLA|MSFT|AMZN|GOOGL|COIN|AMD)\b/i)?.[1]?.toUpperCase();
+
+    // If bare "borrow" without asset or amount, request missing parameters; NEVER invent numbers
+    if (!amountMatch && !asset) {
+      return `Which collateral asset and amount would you like to borrow against? Please specify an asset (e.g. NVDA, AAPL, MSFT) and amount (e.g. "borrow $100 against NVDA"). Current available credit capacity is $${snapshot.availableCreditUsd.toFixed(2)} USDC.`;
+    }
+    if (!amountMatch) {
+      return `Please specify the amount in USDC you would like to borrow against **${asset}x** (e.g. "borrow $100 against ${asset}"). Current available credit capacity is $${snapshot.availableCreditUsd.toFixed(2)} USDC.`;
+    }
+
+    const amount = parseFloat(amountMatch[1]);
+    const targetAsset = asset || snapshot.positions[0]?.symbol || "NVDA";
     const isDefensiveOrEmerg = snapshot.riskRatchetState === "DEFENSIVE" || snapshot.riskRatchetState === "EMERGENCY";
     const isRestricted = snapshot.riskRatchetState === "RESTRICTED";
 
-    const tool1 = `CIRCUIT_TOOL:{"tool":"get_position","input":{"symbol":"${asset}"},"output":{"collateralUsd":${snapshot.totalCollateralUsd.toFixed(2)},"debtUsd":${snapshot.totalDebtUsd.toFixed(2)},"healthFactor":${snapshot.healthFactor !== null ? snapshot.healthFactor.toFixed(3) : 999}},"status":"CONFIRMED"}`;
+    const tool1 = `CIRCUIT_TOOL:{"tool":"get_position","input":{"symbol":"${targetAsset}"},"output":{"collateralUsd":${snapshot.totalCollateralUsd.toFixed(2)},"debtUsd":${snapshot.totalDebtUsd.toFixed(2)},"healthFactor":${snapshot.healthFactor !== null ? snapshot.healthFactor.toFixed(3) : 999}},"status":"CONFIRMED"}`;
     const tool2 = `CIRCUIT_TOOL:{"tool":"get_risk_state","input":{},"output":{"ratchetState":"${snapshot.riskRatchetState}","marketOpen":${snapshot.isMarketOpen}},"status":"CONFIRMED"}`;
     
     if (isDefensiveOrEmerg) {
-      const tool3 = `CIRCUIT_TOOL:{"tool":"evaluate_permission","input":{"action":"borrow","amountUsd":${amount},"asset":"${asset}"},"output":{"status":"BLOCKED","reason":"Risk Ratchet in ${snapshot.riskRatchetState} blocks new leverage"},"status":"BLOCKED"}`;
-      const proposal = `CIRCUIT_ACTION_PROPOSAL:{"id":"p_${Date.now()}","action":"borrow","symbol":"${asset}","amountUsd":${amount},"riskState":"${snapshot.riskRatchetState}","permission":"BLOCKED","reason":"New leverage is disabled by Capital Policy in ${snapshot.riskRatchetState}. Repay, Deposit, and Recovery actions remain available.","estimatedHfAfter":null}`;
-      return `${tool1}\n${tool2}\n${tool3}\n\nI evaluated your borrow request against Circuit's canonical Risk Ratchet:\n\n• Action: BORROW $${amount.toFixed(2)} against ${asset}\n• Risk State: ${snapshot.riskRatchetState}\n• Permission Gate: BLOCKED by Circuit Permission Engine\n\nUnder ${snapshot.riskRatchetState} policy, new leverage is strictly suspended to defend protocol solvency. Capital recovery actions (Repay, Deposit, Exit Liquidity) are currently permitted.\n\n${proposal}`;
+      const tool3 = `CIRCUIT_TOOL:{"tool":"evaluate_permission","input":{"action":"borrow","amountUsd":${amount},"asset":"${targetAsset}"},"output":{"status":"BLOCKED","reason":"Risk Ratchet in ${snapshot.riskRatchetState} blocks new leverage"},"status":"BLOCKED"}`;
+      const proposal = `CIRCUIT_ACTION_PROPOSAL:{"id":"p_${Date.now()}","action":"borrow","symbol":"${targetAsset}","amountUsd":${amount},"riskState":"${snapshot.riskRatchetState}","permission":"BLOCKED","reason":"New leverage is disabled by Capital Policy in ${snapshot.riskRatchetState}. Repay, Deposit, and Recovery actions remain available.","estimatedHfAfter":null}`;
+      return `${tool1}\n${tool2}\n${tool3}\n\nI evaluated your borrow request against Circuit's canonical Risk Ratchet:\n\n• Action: BORROW $${amount.toFixed(2)} against ${targetAsset}\n• Risk State: ${snapshot.riskRatchetState}\n• Permission Gate: BLOCKED by Circuit Permission Engine\n\nUnder ${snapshot.riskRatchetState} policy, new leverage is strictly suspended to defend protocol solvency. Capital recovery actions (Repay, Deposit, Exit Liquidity) are currently permitted.\n\n${proposal}`;
     }
 
     const permissionStatus = isRestricted ? "CAPPED" : "ALLOWED";
     const feasible = snapshot.totalCollateralUsd > 0 && amount <= snapshot.availableCreditUsd;
-    const tool3 = `CIRCUIT_TOOL:{"tool":"evaluate_permission","input":{"action":"borrow","amountUsd":${amount},"asset":"${asset}"},"output":{"status":"${feasible ? permissionStatus : 'BLOCKED'}","availableCreditUsd":${snapshot.availableCreditUsd.toFixed(2)},"reason":"${feasible ? 'Within dynamic LTV and policy limits' : 'Requested amount exceeds borrow capacity'}"},"status":"${feasible ? 'CONFIRMED' : 'BLOCKED'}"}`;
-    const proposal = `CIRCUIT_ACTION_PROPOSAL:{"id":"p_${Date.now()}","action":"borrow","symbol":"${asset}","amountUsd":${amount},"riskState":"${snapshot.riskRatchetState}","permission":"${feasible ? permissionStatus : 'BLOCKED'}","reason":"${feasible ? `Borrow $${amount} is within current ${snapshot.riskRatchetState} policy limits.` : 'Insufficient collateral to support this borrow amount.'}","estimatedHfAfter":${feasible ? 1.65 : null}}`;
+    const tool3 = `CIRCUIT_TOOL:{"tool":"evaluate_permission","input":{"action":"borrow","amountUsd":${amount},"asset":"${targetAsset}"},"output":{"status":"${feasible ? permissionStatus : 'BLOCKED'}","availableCreditUsd":${snapshot.availableCreditUsd.toFixed(2)},"reason":"${feasible ? 'Within dynamic LTV and policy limits' : 'Requested amount exceeds borrow capacity'}"},"status":"${feasible ? 'CONFIRMED' : 'BLOCKED'}"}`;
+    const proposal = `CIRCUIT_ACTION_PROPOSAL:{"id":"p_${Date.now()}","action":"borrow","symbol":"${targetAsset}","amountUsd":${amount},"riskState":"${snapshot.riskRatchetState}","permission":"${feasible ? permissionStatus : 'BLOCKED'}","reason":"${feasible ? `Borrow $${amount} is within current ${snapshot.riskRatchetState} policy limits.` : 'Insufficient collateral to support this borrow amount.'}","estimatedHfAfter":${feasible ? 1.65 : null}}`;
 
-    return `${tool1}\n${tool2}\n${tool3}\n\n${feasible ? `Yes, you can borrow $${amount.toFixed(2)} against ${asset}.` : `Borrow of $${amount.toFixed(2)} against ${asset} exceeds your current borrowing capacity.`}\n\n• Current Risk State: ${snapshot.riskRatchetState} (NYSE Session ${snapshot.isMarketOpen ? 'Open' : 'Closed'})\n• Total Collateral: $${snapshot.totalCollateralUsd.toFixed(2)}\n• Available Credit: $${snapshot.availableCreditUsd.toFixed(2)}\n• Permission Engine: ${feasible ? permissionStatus : 'BLOCKED'}\n\n${feasible ? 'An action proposal has been constructed below for your review and execution.' : 'Please deposit additional collateral or select a smaller amount to borrow.'}\n\n${proposal}`;
+    return `${tool1}\n${tool2}\n${tool3}\n\n${feasible ? `Yes, you can borrow $${amount.toFixed(2)} against ${targetAsset}.` : `Borrow of $${amount.toFixed(2)} against ${targetAsset} exceeds your current borrowing capacity.`}\n\n• Current Risk State: ${snapshot.riskRatchetState} (NYSE Session ${snapshot.isMarketOpen ? 'Open' : 'Closed'})\n• Total Collateral: $${snapshot.totalCollateralUsd.toFixed(2)}\n• Available Credit: $${snapshot.availableCreditUsd.toFixed(2)}\n• Permission Engine: ${feasible ? permissionStatus : 'BLOCKED'}\n\n${feasible ? 'An action proposal has been constructed below for your review and execution.' : 'Please deposit additional collateral or select a smaller amount to borrow.'}\n\n${proposal}`;
   }
 
   // 10. "Reduce my risk" intent

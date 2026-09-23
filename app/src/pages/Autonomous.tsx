@@ -2119,7 +2119,7 @@ export default function Autonomous() {
         setActiveContextAsset(harnessResult.intent.asset);
       }
 
-      if (harnessResult.intent.type !== "GENERAL_CHAT" && harnessResult.replyText) {
+      if (harnessResult.intent.type !== "GENERAL_CHAT" && harnessResult.intent.type !== "EXPLANATION_MODE" && harnessResult.replyText) {
         const agentId = uid();
         const propBlock = harnessResult.blocks.find(b => b.type === "PROPOSAL_CARD") as ProposalCardBlockData | undefined;
 

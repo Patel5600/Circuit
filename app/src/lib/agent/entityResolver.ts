@@ -75,6 +75,18 @@ const TYPO_MAP: Record<string, string> = {
   conbase: "COIN",
 };
 
+export const STOP_WORDS = new Set([
+  "and", "the", "for", "are", "but", "not", "you", "all", "any", "can",
+  "had", "her", "was", "one", "our", "out", "day", "get", "has", "him",
+  "his", "how", "man", "new", "now", "old", "see", "two", "way", "who",
+  "boy", "did", "its", "let", "put", "say", "she", "too", "use", "ask",
+  "buy", "pay", "per", "via", "off", "from", "with", "what", "when", "why",
+  "where", "that", "this", "then", "them", "some", "more", "much", "lend",
+  "pool", "debt", "risk", "show", "tell", "view", "rate", "cost", "safe",
+  "have", "been", "work", "loan", "asset", "assets", "deposit", "borrow",
+  "repay", "withdraw", "circuit", "cuircuit"
+]);
+
 /**
  * Standard Levenshtein distance for fuzzy matching
  */
@@ -123,8 +135,9 @@ export function extractPotentialAssetTokens(text: string): string[] {
   const words = normalized.split(/\s+/).filter(Boolean);
   const candidates: string[] = [];
 
-  // Single words
+  // Single words (excluding common stop words)
   for (const w of words) {
+    if (STOP_WORDS.has(w)) continue;
     // Strip trailing 'x' if word looks like a tokenized equity e.g. "nvdax" -> "nvda"
     candidates.push(w);
     if (w.endsWith("x") && w.length > 3) {
@@ -134,7 +147,9 @@ export function extractPotentialAssetTokens(text: string): string[] {
 
   // 2-word combinations e.g. "nvidia stock", "apple inc"
   for (let i = 0; i < words.length - 1; i++) {
-    candidates.push(`${words[i]} ${words[i + 1]}`);
+    if (!STOP_WORDS.has(words[i]) && !STOP_WORDS.has(words[i + 1])) {
+      candidates.push(`${words[i]} ${words[i + 1]}`);
+    }
   }
 
   return Array.from(new Set(candidates));
@@ -240,6 +255,11 @@ export function resolveAssetEntity(query: string): ResolvedEntity | null {
   }
 
   // 3. Typo-tolerant Fuzzy Search across all deployed markets & aliases (Medium confidence)
+  // Common stop words must never be fuzzy matched to tickers (e.g. "and" -> "amd", "can" -> "coin")
+  if (STOP_WORDS.has(normalized)) {
+    return null;
+  }
+
   let bestDist = Infinity;
   let bestCandidate: DeployedMarket | null = null;
   let bestTerm = "";
@@ -320,4 +340,43 @@ export function findMentionedAssets(message: string): ResolvedEntity[] {
   }
 
   return matches;
+}
+
+export const KNOWN_EXTERNAL_SYMBOLS: Record<string, { symbol: string; name: string; type: "CRYPTO" | "INDEX" | "COMMODITY" }> = {
+  btc: { symbol: "BTC", name: "Bitcoin", type: "CRYPTO" },
+  bitcoin: { symbol: "BTC", name: "Bitcoin", type: "CRYPTO" },
+  eth: { symbol: "ETH", name: "Ethereum", type: "CRYPTO" },
+  ethereum: { symbol: "ETH", name: "Ethereum", type: "CRYPTO" },
+  sol: { symbol: "SOL", name: "Solana", type: "CRYPTO" },
+  solana: { symbol: "SOL", name: "Solana", type: "CRYPTO" },
+};
+
+/**
+ * Extract all symbols (both Circuit tokenized equities and external benchmarks like BTC/ETH/SOL)
+ * mentioned in a query for multi-asset resolution.
+ */
+export function extractQueriedSymbols(message: string): string[] {
+  const normalized = normalizeEntityQuery(message);
+  const words = normalized.split(/\s+/).filter(Boolean);
+  const symbols: string[] = [];
+  const seen = new Set<string>();
+
+  for (const word of words) {
+    const lower = word.toLowerCase();
+    if (STOP_WORDS.has(lower)) continue;
+
+    const ext = KNOWN_EXTERNAL_SYMBOLS[lower];
+    if (ext && !seen.has(ext.symbol)) {
+      seen.add(ext.symbol);
+      symbols.push(ext.symbol);
+      continue;
+    }
+    const res = resolveAssetEntity(word);
+    if (res && !seen.has(res.market.symbol)) {
+      seen.add(res.market.symbol);
+      symbols.push(res.market.symbol);
+    }
+  }
+
+  return symbols;
 }
