@@ -2,8 +2,8 @@
  * Circuit Protocol — Autonomous Agent Chat API
  * Server-side streaming endpoint. AI_GATEWAY_API_KEY never sent to browser.
  */
-import fs from "node:fs";
-import path from "node:path";
+import * as fs from "fs";
+import * as path from "path";
 
 export interface VercelRequest {
   method?: string;
