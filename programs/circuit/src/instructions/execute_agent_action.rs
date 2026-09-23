@@ -5,6 +5,11 @@ use crate::state::*;
 use crate::state::agent_authority::{
     AgentAuthority, ACTION_DEPOSIT, ACTION_BORROW, ACTION_REPAY, ACTION_WITHDRAW,
 };
+use crate::state::risk_envelope::{
+    RiskEnvelope, VENUE_CREDIT,
+    ENVELOPE_ACTION_BORROW, ENVELOPE_ACTION_WITHDRAW,
+    ENVELOPE_ACTION_REPAY, ENVELOPE_ACTION_DEPOSIT,
+};
 use crate::errors::CircuitError;
 use crate::oracle;
 use crate::market;
@@ -41,6 +46,60 @@ pub fn handler(
     require!(auth.asset_mint == asset.mint, CircuitError::InvalidAsset);
     require!(position.owner == auth.owner, CircuitError::InvalidPositionOwner);
     require!(position.asset == asset.mint, CircuitError::InvalidAsset);
+
+    // -- Step 1b: Canonical Risk Envelope Capability Token Verification & Consumption --
+    // If an envelope PDA is provided in remaining_accounts, verify and mark consumed.
+    if let Some(envelope_info) = ctx.remaining_accounts.first() {
+        require!(envelope_info.owner == &crate::ID, CircuitError::InvalidEnvelopePda);
+
+        let mut data: &[u8] = &envelope_info.try_borrow_data()?;
+        let mut envelope = RiskEnvelope::try_deserialize(&mut data)
+            .map_err(|_| CircuitError::InvalidEnvelopePda)?;
+
+        let (expected_pda, _bump) = Pubkey::find_program_address(
+            &[
+                RiskEnvelope::SEEDS_PREFIX,
+                auth.owner.as_ref(),
+                ctx.accounts.agent.key().as_ref(),
+                asset.mint.as_ref(),
+                &envelope.nonce.to_le_bytes(),
+            ],
+            &crate::ID,
+        );
+        require!(envelope_info.key() == expected_pda, CircuitError::InvalidEnvelopePda);
+        require!(!envelope.consumed, CircuitError::EnvelopeAlreadyConsumed);
+        require!(clock.slot <= envelope.expires_at_slot, CircuitError::EnvelopeExpired);
+        require!(envelope.risk_epoch == ratchet.risk_epoch, CircuitError::EnvelopeEpochMismatch);
+        require!(envelope.actor == ctx.accounts.agent.key(), CircuitError::InvalidEnvelopeActor);
+        require!(envelope.owner == auth.owner, CircuitError::InvalidEnvelopeOwner);
+        require!(envelope.venue == VENUE_CREDIT, CircuitError::EnvelopeVenueMismatch);
+
+        let expected_action = match action {
+            AgentAction::Borrow => ENVELOPE_ACTION_BORROW,
+            AgentAction::Withdraw => ENVELOPE_ACTION_WITHDRAW,
+            AgentAction::Repay => ENVELOPE_ACTION_REPAY,
+            AgentAction::Deposit => ENVELOPE_ACTION_DEPOSIT,
+        };
+        require!(envelope.action == expected_action, CircuitError::EnvelopeActionMismatch);
+        require!(amount <= envelope.max_notional, CircuitError::EnvelopeAmountExceeded);
+
+        envelope.consumed = true;
+        envelope.consumed_at_slot = clock.slot;
+
+        let mut mut_data = envelope_info.try_borrow_mut_data()?;
+        let mut cursor = std::io::Cursor::new(&mut mut_data[..]);
+        envelope.try_serialize(&mut cursor)?;
+
+        emit!(crate::events::EnvelopeConsumed {
+            envelope: envelope_info.key(),
+            actor: ctx.accounts.agent.key(),
+            action: expected_action,
+            venue: VENUE_CREDIT,
+            amount,
+            consumed_at_slot: clock.slot,
+            timestamp: clock.unix_timestamp,
+        });
+    }
 
     // -- Step 2: Protocol Status --
     if action == AgentAction::Borrow || action == AgentAction::Withdraw {
@@ -490,5 +549,110 @@ pub struct ExecuteAgentAction<'info> {
 
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::enums::MarketState;
+
+    fn sample_envelope_for_test(owner: Pubkey, actor: Pubkey, asset_mint: Pubkey) -> RiskEnvelope {
+        RiskEnvelope {
+            owner,
+            actor,
+            asset_mint,
+            venue: VENUE_CREDIT,
+            action: ENVELOPE_ACTION_BORROW,
+            max_notional: 1_000_000,
+            max_ltv_bps: 5000,
+            max_slippage_bps: 0,
+            risk_state: MarketState::Safe,
+            oracle_freshness: 2,
+            confidence_limit_bps: 30,
+            oracle_price: 150_000_000,
+            oracle_expo: -6,
+            policy_version: 1,
+            risk_epoch: 10,
+            authorized_at_slot: 1000,
+            expires_at_slot: 1020,
+            nonce: 5,
+            consumed: false,
+            consumed_at_slot: 0,
+            bump: 254,
+        }
+    }
+
+    #[test]
+    fn test_execute_agent_action_action_mapping() {
+        let to_envelope_action = |a: AgentAction| -> u8 {
+            match a {
+                AgentAction::Borrow => ENVELOPE_ACTION_BORROW,
+                AgentAction::Withdraw => ENVELOPE_ACTION_WITHDRAW,
+                AgentAction::Repay => ENVELOPE_ACTION_REPAY,
+                AgentAction::Deposit => ENVELOPE_ACTION_DEPOSIT,
+            }
+        };
+
+        assert_eq!(to_envelope_action(AgentAction::Borrow), ENVELOPE_ACTION_BORROW);
+        assert_eq!(to_envelope_action(AgentAction::Withdraw), ENVELOPE_ACTION_WITHDRAW);
+        assert_eq!(to_envelope_action(AgentAction::Repay), ENVELOPE_ACTION_REPAY);
+        assert_eq!(to_envelope_action(AgentAction::Deposit), ENVELOPE_ACTION_DEPOSIT);
+    }
+
+    #[test]
+    fn test_execute_agent_action_envelope_pda_seeds() {
+        let program_id = crate::ID;
+        let owner = Pubkey::new_unique();
+        let agent = Pubkey::new_unique();
+        let mint = Pubkey::new_unique();
+        let nonce = 5u64;
+
+        let (expected_pda, bump) = Pubkey::find_program_address(
+            &[
+                RiskEnvelope::SEEDS_PREFIX,
+                owner.as_ref(),
+                agent.as_ref(),
+                mint.as_ref(),
+                &nonce.to_le_bytes(),
+            ],
+            &program_id,
+        );
+
+        assert_ne!(expected_pda, Pubkey::default());
+        assert!(bump > 0);
+    }
+
+    #[test]
+    fn test_execute_agent_action_envelope_consumption_flow() {
+        let owner = Pubkey::new_unique();
+        let agent = Pubkey::new_unique();
+        let mint = Pubkey::new_unique();
+        let mut env = sample_envelope_for_test(owner, agent, mint);
+
+        // Before execution: valid
+        assert!(env.is_valid_for_execution(1010, 10, ENVELOPE_ACTION_BORROW, VENUE_CREDIT, 500_000));
+
+        // Consume envelope
+        env.consumed = true;
+        env.consumed_at_slot = 1010;
+
+        // After execution: invalidated
+        assert!(!env.is_valid_for_execution(1010, 10, ENVELOPE_ACTION_BORROW, VENUE_CREDIT, 500_000));
+        assert!(env.consumed);
+        assert_eq!(env.consumed_at_slot, 1010);
+    }
+
+    #[test]
+    fn test_execute_agent_action_envelope_epoch_mismatch_blocks_execution() {
+        let owner = Pubkey::new_unique();
+        let agent = Pubkey::new_unique();
+        let mint = Pubkey::new_unique();
+        let env = sample_envelope_for_test(owner, agent, mint);
+
+        // Market shifts, risk ratchet epoch increments from 10 to 11
+        let current_ratchet_epoch = 11u64;
+        assert_ne!(env.risk_epoch, current_ratchet_epoch);
+        assert!(!env.is_valid_for_execution(1010, current_ratchet_epoch, ENVELOPE_ACTION_BORROW, VENUE_CREDIT, 500_000));
+    }
 }
 

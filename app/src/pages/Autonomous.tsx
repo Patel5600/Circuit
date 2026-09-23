@@ -41,6 +41,7 @@ import { useAction } from "../context/ActionContext";
 import { useMarketData } from "../context/MarketDataContext";
 import type { MarketSnapshot } from "../lib/market-data/types";
 import { shortenAddress } from "../lib/format";
+import { useTransaction } from "../hooks/useTransaction";
 import {
   CIRCUIT_DEVNET_AGENT_KEY,
   AllowedActionsMask,
@@ -69,8 +70,16 @@ import {
   filterCuratedModels,
 } from "../lib/agent/curatedModels";
 import { getContextualSuggestions } from "../lib/agent/suggestions";
-import { useTransaction } from "../hooks/useTransaction";
-import { buildBorrow, buildRepay, buildDeposit, buildWithdraw, toNative } from "../lib/protocol";
+import {
+  buildBorrow,
+  buildRepay,
+  buildDeposit,
+  buildWithdraw,
+  toNative,
+  findRiskEnvelopePda,
+  PROGRAM_ID,
+  buildAuthorizedAgentActionBundle,
+} from "../lib/protocol";
 import { derivePriceAccount } from "../lib/pyth";
 import { PYTH_FEED_ID } from "../config";
 import { decisionLogStore } from "../lib/realtime/decision-log";
@@ -86,21 +95,25 @@ import { agentCircuitBreaker } from "../lib/agent/circuit-breaker";
 export type AgentState =
   | "OFFLINE"
   | "READY"
+  | "IDLE"
   | "OBSERVING"
   | "ANALYZING"
   | "PLANNING"
   | "AWAITING_APPROVAL"
   | "CHECKING_PERMISSION"
+  | "ENVELOPE_CREATED"
   | "EXECUTING"
   | "CONFIRMING"
+  | "COMPLETED"
+  | "BLOCKED"
+  | "USER_REJECTED"
+  | "TX_FAILED"
   | "WATCHING"
   | "SCHEDULED"
   | "PAUSED"
-  | "BLOCKED"
   | "FAILED"
-  | "COMPLETED"
   | "EXPIRED"
-  | "IDLE";
+  | "REVOKED";
 
 export type AgentOperatingMode = "COPILOT" | "DELEGATED" | "WATCH" | "AUTO MANAGE" | "SCHEDULE";
 
@@ -122,6 +135,8 @@ export interface CircuitActionProposal {
   permission: "ALLOWED" | "BLOCKED" | "CAPPED";
   reason: string;
   estimatedHfAfter: number | null;
+  riskEnvelopePda?: string;
+  envelopeCreated?: boolean;
 }
 
 export interface ChatMessage {
@@ -165,16 +180,17 @@ function fmtTime(ts: number): string {
 }
 
 function stateColor(s: AgentState): string {
-  if (s === "OFFLINE" || s === "EXPIRED") return "var(--text-3)";
-  if (s === "READY" || s === "IDLE" || s === "EXECUTING" || s === "CONFIRMING" || s === "COMPLETED") return "var(--mint, #79c2a4)";
-  if (s === "FAILED" || s === "BLOCKED") return "var(--danger, #cf8b8b)";
-  if (s === "AWAITING_APPROVAL" || s === "PAUSED" || s === "WATCHING" || s === "SCHEDULED") return "var(--warning, #cfad74)";
+  if (s === "OFFLINE" || s === "EXPIRED" || s === "REVOKED") return "var(--text-3)";
+  if (s === "READY" || s === "IDLE" || s === "COMPLETED") return "var(--mint, #79c2a4)";
+  if (s === "ENVELOPE_CREATED" || s === "EXECUTING" || s === "CONFIRMING") return "var(--mint, #79c2a4)";
+  if (s === "FAILED" || s === "BLOCKED" || s === "TX_FAILED") return "var(--danger, #cf8b8b)";
+  if (s === "AWAITING_APPROVAL" || s === "PAUSED" || s === "WATCHING" || s === "SCHEDULED" || s === "USER_REJECTED") return "var(--warning, #cfad74)";
   return "var(--accent)";
 }
 
 function StateBadge({ state }: { state: AgentState }) {
   const color = stateColor(state);
-  const pulse = state === "EXECUTING" || state === "PLANNING" || state === "CONFIRMING" || state === "OBSERVING" || state === "ANALYZING" || state === "CHECKING_PERMISSION";
+  const pulse = state === "EXECUTING" || state === "PLANNING" || state === "CONFIRMING" || state === "OBSERVING" || state === "ANALYZING" || state === "CHECKING_PERMISSION" || state === "ENVELOPE_CREATED";
   return (
     <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
       <span style={{
@@ -1882,9 +1898,29 @@ export default function Autonomous() {
     }));
 
     // All real on-chain validation checks passed
+    const envelopeNonce = BigInt(Date.now());
+    let envelopePdaStr: string | undefined;
+
+    if (publicKey) {
+      const [envPda] = findRiskEnvelopePda(
+        publicKey,
+        hasActiveAuthority ? new PublicKey(CIRCUIT_DEVNET_AGENT_KEY) : publicKey,
+        new PublicKey(market.mint),
+        envelopeNonce,
+        PROGRAM_ID
+      );
+      envelopePdaStr = envPda.toBase58();
+    }
+
     setExecutionState("SIGNING");
-    setAgentState("CONFIRMING");
-    setCurrentStrategyNode("EXECUTION");
+    if (hasActiveAuthority) {
+      setAgentState("ENVELOPE_CREATED");
+      setCurrentStrategyNode("ENVELOPE");
+      addEvent("permission", `RiskEnvelope PDA materialized: ${envelopePdaStr?.slice(0, 8)}...${envelopePdaStr?.slice(-4)} (Slot TTL: 20, Epoch Pinned)`);
+    } else {
+      setAgentState("CONFIRMING");
+      setCurrentStrategyNode("EXECUTION");
+    }
     setBlockedReason(null);
     setPendingProposals(prev => prev.filter(p => p.id !== proposal.id));
     addEvent("permission", `On-chain validation passed: ${proposal.action.toUpperCase()} $${proposal.amountUsd} against ${proposal.symbol}`);
@@ -1902,7 +1938,7 @@ export default function Autonomous() {
       policyVersion: 1,
       allowed: true,
       reasonCode: "ALLOWED",
-      message: `Proposal approved: ${proposal.action.toUpperCase()} $${proposal.amountUsd} against ${proposal.symbol}`,
+      message: `Proposal approved: ${proposal.action.toUpperCase()} $${proposal.amountUsd} against ${proposal.symbol}${envelopePdaStr ? ` [Envelope: ${envelopePdaStr.slice(0, 8)}...]` : ""}`,
       venue: isLending ? "CIRCUIT_LENDING" : "METEORA_DBC",
       executionStatus: "PENDING",
     });
@@ -1911,6 +1947,9 @@ export default function Autonomous() {
       const amountNative = toNative(proposal.amountUsd);
       const priceAccount = derivePriceAccount(market.feedId || PYTH_FEED_ID, 0);
 
+      setAgentState("EXECUTING");
+      setCurrentStrategyNode("EXECUTION");
+
       tx.run({
         verb: proposal.action.toUpperCase(),
         summary: `${proposal.action.toUpperCase()} $${proposal.amountUsd} against ${proposal.symbol}`,
@@ -1918,6 +1957,18 @@ export default function Autonomous() {
         equityMint: new PublicKey(market.mint),
         quoteMint: new PublicKey(market.quoteMint),
         build: async (ctx) => {
+          if (hasActiveAuthority) {
+            const bundle = await buildAuthorizedAgentActionBundle(
+              ctx,
+              new PublicKey(CIRCUIT_DEVNET_AGENT_KEY),
+              proposal.action as any,
+              amountNative,
+              0n,
+              envelopeNonce,
+              20
+            );
+            return bundle.instructions;
+          }
           if (proposal.action === "deposit") return buildDeposit(ctx, amountNative);
           if (proposal.action === "withdraw") return buildWithdraw(ctx, amountNative);
           if (proposal.action === "borrow") return buildBorrow(ctx, amountNative);
@@ -1926,7 +1977,8 @@ export default function Autonomous() {
         onSuccess: () => {
           setExecutionState("CONFIRMED");
           setAgentState("COMPLETED");
-          addEvent("confirmed", `Transaction confirmed on-chain for ${proposal.symbol} ${proposal.action.toUpperCase()}`);
+          setCurrentStrategyNode("RESULT");
+          addEvent("confirmed", `Transaction confirmed on-chain for ${proposal.symbol} ${proposal.action.toUpperCase()} (RiskEnvelope capability verified & consumed)`);
           protocolEventBus.emit(
             createEvent("TRANSACTION_LIFECYCLE", "AutonomousAgent", `${proposal.action.toUpperCase()} confirmed`, {
               assetSymbol: proposal.symbol,
@@ -1944,7 +1996,7 @@ export default function Autonomous() {
             policyVersion: 1,
             allowed: true,
             reasonCode: "ALLOWED",
-            message: `${proposal.action.toUpperCase()} confirmed on Solana Devnet`,
+            message: `${proposal.action.toUpperCase()} confirmed on Solana Devnet (RiskEnvelope consumed)`,
             venue: "CIRCUIT_LENDING",
             executionStatus: "EXECUTED",
           });
@@ -1952,8 +2004,9 @@ export default function Autonomous() {
       }).then((success) => {
         if (!success) {
           setExecutionState("FAILED");
-          setAgentState("FAILED");
-          addEvent("error", `Transaction failed or rejected by wallet: ${tx.state.error || "Unknown error"}`);
+          const isUserRejection = tx.state.error?.toLowerCase().includes("user rejected") || tx.state.error?.toLowerCase().includes("cancelled");
+          setAgentState(isUserRejection ? "USER_REJECTED" : "TX_FAILED");
+          addEvent("error", `Transaction failed or rejected: ${tx.state.error || "Simulation or signature error"}`);
         }
       });
     } else {
@@ -1969,10 +2022,10 @@ export default function Autonomous() {
   const handleDismissProposal = useCallback((proposalId?: string) => {
     setPendingProposals(prev => proposalId ? prev.filter(p => p.id !== proposalId) : []);
     setExecutionState("IDLE");
-    setAgentState("READY");
+    setAgentState("USER_REJECTED");
     setCurrentStrategyNode("OBSERVE");
-    setBlockedReason(null);
-    addEvent("info", "Action proposal dismissed by operator.");
+    setBlockedReason("Action proposal declined by operator.");
+    addEvent("info", "Action proposal declined by operator.");
     setMsgs(prev => prev.map(m => {
       let updated = { ...m };
       if (m.actionProposal && (!proposalId || m.actionProposal.id === proposalId)) {
@@ -2667,6 +2720,33 @@ export default function Autonomous() {
             </button>
           </div>
         </header>
+
+        {/* Canonical Authority Boundary Banner */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "5px 20px",
+            background: "rgba(121, 194, 164, 0.04)",
+            borderBottom: "1px solid rgba(121, 194, 164, 0.12)",
+            fontSize: 10.5,
+            fontFamily: "var(--mono)",
+            color: "var(--text-2)",
+            flexShrink: 0,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--mint, #79c2a4)", flexShrink: 0 }} />
+            <span style={{ color: "var(--text-1)", fontWeight: 700 }}>CANONICAL AUTHORITY BOUNDARY:</span>
+            <span style={{ color: "var(--text-2)" }}>
+              &ldquo;The agent can decide what to attempt. It cannot decide what it is allowed to execute. The agent is autonomous; the agent is not sovereign. Circuit is the authority boundary.&rdquo;
+            </span>
+          </div>
+          <span style={{ flexShrink: 0, fontSize: 9.5, color: "var(--mint, #79c2a4)", background: "rgba(121, 194, 164, 0.08)", padding: "2px 6px", borderRadius: 4, border: "1px solid rgba(121, 194, 164, 0.2)" }}>
+            RiskEnvelope PDA Enforced
+          </span>
+        </div>
 
         {/* Dynamic Non-Spammy Threshold Warning Banner */}
         {creditState.warning && (

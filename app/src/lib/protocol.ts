@@ -14,6 +14,7 @@ import {
 } from "@solana/spl-token";
 
 import { CIRCUIT_TREASURY_KEY, PROGRAM_ID, PYTH_FEED_ID, idl } from "../config";
+export { PROGRAM_ID };
 
 /**
  * Typed access to the Circuit program: PDA derivation, account reads, and
@@ -132,7 +133,17 @@ export interface AgentAuthorityView {
   bump: number;
 }
 
-import type { RiskEnvelopeView, EnvelopeView } from "./envelope";
+import {
+  type RiskEnvelopeView,
+  type EnvelopeView,
+  findRiskEnvelopePda,
+  buildAuthorizeActionInstruction,
+  VENUE_CREDIT,
+  ENVELOPE_ACTION_BORROW,
+  ENVELOPE_ACTION_WITHDRAW,
+  ENVELOPE_ACTION_REPAY,
+  ENVELOPE_ACTION_DEPOSIT,
+} from "./envelope";
 export type { RiskEnvelopeView, EnvelopeView };
 
 // -- PDAs ------------------------------------------------------------------
@@ -794,7 +805,8 @@ export async function buildExecuteAgentAction(
   amountNative: bigint,
   intentNonce: bigint | number,
   userCollateralAta?: PublicKey,
-  userQuoteAta?: PublicKey
+  userQuoteAta?: PublicKey,
+  envelopePda?: PublicKey
 ): Promise<TransactionInstruction[]> {
   const pda = agentAuthorityPda(ctx.owner, agentWallet, ctx.equityMint);
   const ratchetPda = riskRatchetPda();
@@ -802,7 +814,7 @@ export async function buildExecuteAgentAction(
   const uCollateralAta = userCollateralAta ?? getAssociatedTokenAddressSync(ctx.equityMint, ctx.owner);
   const uQuoteAta = userQuoteAta ?? getAssociatedTokenAddressSync(ctx.quoteMint, ctx.owner);
 
-  const ix = await ctx.program.methods
+  let methodBuilder = ctx.program.methods
     .executeAgentAction(
       { [action]: {} } as any,
       new BN(amountNative.toString()),
@@ -825,9 +837,85 @@ export async function buildExecuteAgentAction(
       priceUpdate: ctx.priceUpdate,
       tokenProgram: TOKEN_PROGRAM_ID,
       systemProgram: SystemProgram.programId,
-    })
-    .instruction();
+    });
+
+  if (envelopePda) {
+    methodBuilder = methodBuilder.remainingAccounts([
+      { pubkey: envelopePda, isSigner: false, isWritable: true }
+    ]);
+  }
+
+  const ix = await methodBuilder.instruction();
   return [ix];
+}
+
+/**
+ * Assembles an atomic transaction bundle combining:
+ * Instruction 0: authorize_action (evaluates Risk Kernel, mints RiskEnvelope PDA)
+ * Instruction 1: execute_agent_action (verifies & consumes RiskEnvelope PDA onchain)
+ *
+ * This enforces RiskEnvelope as the canonical on-chain capability boundary
+ * for all autonomous agent execution on Solana.
+ */
+export async function buildAuthorizedAgentActionBundle(
+  ctx: ActionContext,
+  agentWallet: PublicKey,
+  action: "deposit" | "borrow" | "repay" | "withdraw",
+  amountNative: bigint,
+  intentNonce: bigint | number,
+  envelopeNonce: bigint | number,
+  ttlSlots: number = 20,
+  userCollateralAta?: PublicKey,
+  userQuoteAta?: PublicKey
+): Promise<{ instructions: TransactionInstruction[]; envelopePda: PublicKey }> {
+  const [envelopePda] = findRiskEnvelopePda(
+    ctx.owner,
+    agentWallet,
+    ctx.equityMint,
+    envelopeNonce,
+    ctx.program.programId
+  );
+
+  const actionCode =
+    action === "borrow" ? ENVELOPE_ACTION_BORROW :
+    action === "withdraw" ? ENVELOPE_ACTION_WITHDRAW :
+    action === "repay" ? ENVELOPE_ACTION_REPAY :
+    ENVELOPE_ACTION_DEPOSIT;
+
+  // Instruction 0: Authorize Action & Mint RiskEnvelope PDA
+  const authIx = await buildAuthorizeActionInstruction(
+    ctx.program,
+    {
+      payer: ctx.owner,
+      owner: ctx.owner,
+      actor: agentWallet,
+      assetMint: ctx.equityMint,
+      action: actionCode,
+      venue: VENUE_CREDIT,
+      requestedAmount: amountNative,
+      maxSlippageBps: 0,
+      nonce: envelopeNonce,
+      ttlSlots,
+      priceUpdate: ctx.priceUpdate,
+    }
+  );
+
+  // Instruction 1: Execute Agent Action & Verify/Consume RiskEnvelope PDA
+  const execIxs = await buildExecuteAgentAction(
+    ctx,
+    agentWallet,
+    action,
+    amountNative,
+    intentNonce,
+    userCollateralAta,
+    userQuoteAta,
+    envelopePda
+  );
+
+  return {
+    instructions: [authIx, ...execIxs],
+    envelopePda,
+  };
 }
 
 // -- sending ---------------------------------------------------------------

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Circuit Protocol — Live Strategy Execution Graph
  *
  * Visual node-flow displaying the agent's continuous execution loop:
@@ -18,6 +18,7 @@ export type StrategyNodeId =
   | "RISK"
   | "POLICY"
   | "PERMISSION"
+  | "ENVELOPE"
   | "ACTION"
   | "EXECUTION"
   | "RESULT";
@@ -37,6 +38,7 @@ const NODES: Array<{ id: StrategyNodeId; label: string; description: string }> =
   { id: "RISK", label: "RISK", description: "Risk Ratchet & LTV evaluation" },
   { id: "POLICY", label: "POLICY", description: "Owner delegated constraints" },
   { id: "PERMISSION", label: "PERMISSION", description: "Circuit permission engine" },
+  { id: "ENVELOPE", label: "ENVELOPE", description: "RiskEnvelope capability token PDA" },
   { id: "ACTION", label: "ACTION", description: "Intent translation & quote" },
   { id: "EXECUTION", label: "EXECUTION", description: "CPI & transaction settlement" },
   { id: "RESULT", label: "RESULT", description: "State reload & loop reset" },
@@ -50,7 +52,7 @@ export function LiveStrategyGraph({
   compact = false,
 }: LiveStrategyGraphProps) {
   const getNodeStatus = (id: StrategyNodeId): NodeStatus => {
-    const nodeOrder: StrategyNodeId[] = ["OBSERVE", "RISK", "POLICY", "PERMISSION", "ACTION", "EXECUTION", "RESULT"];
+    const nodeOrder: StrategyNodeId[] = ["OBSERVE", "RISK", "POLICY", "PERMISSION", "ENVELOPE", "ACTION", "EXECUTION", "RESULT"];
     const currentIdx = nodeOrder.indexOf(currentNode);
     const thisIdx = nodeOrder.indexOf(id);
 

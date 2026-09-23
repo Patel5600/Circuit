@@ -324,6 +324,14 @@ pub enum CircuitError {
     #[msg("Signer does not match envelope authorized actor")]
     InvalidEnvelopeActor,
 
+    /// Risk envelope account PDA is invalid or corrupted
+    #[msg("Risk envelope account PDA is invalid or corrupted")]
+    InvalidEnvelopePda,
+
+    /// Envelope owner does not match position owner
+    #[msg("Envelope owner does not match position owner")]
+    InvalidEnvelopeOwner,
+
     /// Security is in an inferred halt state (feed stale during expected active trading session)
     #[msg("Security-level halt inferred: feed is stale during expected active trading session")]
     SecurityHaltInferred,

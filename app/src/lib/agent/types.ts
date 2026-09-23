@@ -91,6 +91,29 @@ export interface ChartCardBlockData {
   reason?: string;
 }
 
+export type AgentLifecycleState =
+  | "IDLE"
+  | "OBSERVING"
+  | "ANALYZING"
+  | "PLANNING"
+  | "AWAITING_APPROVAL"
+  | "CHECKING_PERMISSION"
+  | "ENVELOPE_CREATED"
+  | "EXECUTING"
+  | "CONFIRMING"
+  | "COMPLETED"
+  | "BLOCKED"
+  | "USER_REJECTED"
+  | "TX_FAILED"
+  | "PAUSED"
+  | "EXPIRED"
+  | "REVOKED"
+  | "READY"
+  | "FAILED"
+  | "WATCHING"
+  | "SCHEDULED"
+  | "OFFLINE";
+
 export interface ProposalCardBlockData {
   type: "PROPOSAL_CARD";
   id: string;
@@ -106,6 +129,9 @@ export interface ProposalCardBlockData {
   estimatedHfAfter: number | null;
   timestamp: number;
   stale?: boolean;
+  riskEnvelopePda?: string;
+  envelopeCreated?: boolean;
+  envelopeExpiresAtSlot?: number;
 }
 
 export interface PermissionCardBlockData {
@@ -119,11 +145,12 @@ export interface PermissionCardBlockData {
   limit: string;
   result: "ALLOWED" | "BLOCKED" | "CAPPED";
   reason: string;
+  riskEnvelopePda?: string;
 }
 
 export interface TransactionCardBlockData {
   type: "TRANSACTION_CARD";
-  state: "CHECKING" | "AUTHORIZED" | "SIGNING" | "SUBMITTED" | "CONFIRMING" | "CONFIRMED" | "FAILED";
+  state: "CHECKING" | "AUTHORIZED" | "ENVELOPE_CREATED" | "SIGNING" | "SUBMITTED" | "CONFIRMING" | "CONFIRMED" | "FAILED";
   action: ProtocolAction;
   symbol: string;
   amountUsd: number;
@@ -131,6 +158,7 @@ export interface TransactionCardBlockData {
   explorerUrl?: string;
   error?: string;
   confirmedAt?: number;
+  riskEnvelopePda?: string;
 }
 
 export interface StrategyCardBlockData {

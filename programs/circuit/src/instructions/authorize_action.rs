@@ -486,7 +486,7 @@ mod tests {
         let mint = Pubkey::new_unique();
         let nonce: u64 = 42;
 
-        let (pda, bump) = Pubkey::find_program_address(
+        let (pda, _bump) = Pubkey::find_program_address(
             &[
                 RiskEnvelope::SEEDS_PREFIX,
                 owner.as_ref(),
