@@ -28,27 +28,27 @@ function toRandomCase(text: string, seed = 2026): string {
 
 const RAW_MECHANISMS = [
   {
-    name: "01 — OBSERVE",
+    name: "OBSERVE",
     desc: "Validate the current market and oracle conditions.",
     shapeType: "circle" as const,
   },
   {
-    name: "02 — EVALUATE",
+    name: "EVALUATE",
     desc: "Compute the applicable risk state and capital policy.",
     shapeType: "rounded" as const,
   },
   {
-    name: "03 — AUTHORIZE",
+    name: "AUTHORIZE",
     desc: "Evaluate the requested action against authority, position, market, and policy constraints.",
     shapeType: "vertical" as const,
   },
   {
-    name: "04 — EXECUTE",
+    name: "EXECUTE",
     desc: "Allow the authorized execution path to consume the applicable permission.",
     shapeType: "horizontal" as const,
   },
   {
-    name: "05 — RECOVER",
+    name: "RECOVER",
     desc: "As risk tightens, risk-increasing actions contract while permitted recovery and exit actions remain available.",
     shapeType: "full" as const,
   },
@@ -69,19 +69,19 @@ export const ScrollMorphSection: React.FC<ScrollMorphSectionProps> = ({ simpleMo
 
     const pin = track.querySelector<HTMLDivElement>(".sm-pin");
     const shape = track.querySelector<HTMLDivElement>("#sm-shape");
-    const cap = track.querySelector<HTMLElement>("#sm-cap");
+    const stageWords = track.querySelectorAll<HTMLElement>(".sm-stage-word");
     const items = track.querySelectorAll<HTMLLIElement>("#sm-rail li");
     const stage = track.querySelector<HTMLDivElement>(".sm-stage");
 
-    if (!pin || !shape || !cap || !stage) return;
+    if (!pin || !shape || !stage) return;
 
     // 5 Architectural Formats with responsive geometry (format 5 expands to full frame W x H)
     const KF = [
-      { p: 0, w0: 320, h0: 320, r: 160, rot: -6, ts: 1, name: "01 — OBSERVE", w: 0, h: 0 },
-      { p: 0.22, w0: 540, h0: 180, r: 90, rot: 4, ts: 1, name: "02 — EVALUATE", w: 0, h: 0 },
-      { p: 0.45, w0: 280, h0: 410, r: 16, rot: -4, ts: 1, name: "03 — AUTHORIZE", w: 0, h: 0 },
-      { p: 0.68, w0: 480, h0: 300, r: 16, rot: 2, ts: 1, name: "04 — EXECUTE", w: 0, h: 0 },
-      { p: 0.92, w0: 0, h0: 0, r: 0, rot: 0, ts: 1.15, name: "05 — RECOVER", w: 0, h: 0 },
+      { p: 0, w0: 320, h0: 320, r: 160, rot: 0, ts: 1, name: "OBSERVE", w: 0, h: 0 },
+      { p: 0.22, w0: 540, h0: 180, r: 90, rot: 0, ts: 1, name: "EVALUATE", w: 0, h: 0 },
+      { p: 0.45, w0: 280, h0: 410, r: 16, rot: 0, ts: 1, name: "AUTHORIZE", w: 0, h: 0 },
+      { p: 0.68, w0: 480, h0: 300, r: 16, rot: 0, ts: 1, name: "EXECUTE", w: 0, h: 0 },
+      { p: 0.92, w0: 0, h0: 0, r: 0, rot: 0, ts: 1.15, name: "RECOVER", w: 0, h: 0 },
     ];
 
     const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -104,14 +104,18 @@ export const ScrollMorphSection: React.FC<ScrollMorphSectionProps> = ({ simpleMo
       });
     };
 
-    const num = track.querySelector<HTMLElement>("#sm-n");
-
     const updateContent = (idx: number) => {
       const m = MECHANISMS[idx];
       if (!m) return;
-      if (cap) cap.textContent = m.name;
-      if (num) num.textContent = `(${idx + 1})`;
       shape.dataset.shape = m.shapeType;
+
+      stageWords.forEach((w, n) => {
+        if (n === idx) {
+          w.classList.add("is-active");
+        } else {
+          w.classList.remove("is-active");
+        }
+      });
 
       items.forEach((li, n) => {
         if (n === idx) {
@@ -221,17 +225,24 @@ export const ScrollMorphSection: React.FC<ScrollMorphSectionProps> = ({ simpleMo
               <i className="sm-black" />
               <i className="ink w sm-w" />
               <div className="sm-txt">
-                <small id="sm-n">(1)</small>
-                <strong id="sm-cap">01 — OBSERVE</strong>
+                {MECHANISMS.map((m, i) => (
+                  <strong
+                    key={m.name}
+                    className={`sm-stage-word ${i === 0 ? "is-active" : ""}`}
+                    data-stage={i}
+                  >
+                    {m.name}
+                  </strong>
+                ))}
               </div>
             </div>
 
             <ol className="sm-rail" id="sm-rail" aria-label="Protocol execution formats">
-              <li aria-current="true">01 — OBSERVE</li>
-              <li>02 — EVALUATE</li>
-              <li>03 — AUTHORIZE</li>
-              <li>04 — EXECUTE</li>
-              <li>05 — RECOVER</li>
+              <li aria-current="true">OBSERVE</li>
+              <li>EVALUATE</li>
+              <li>AUTHORIZE</li>
+              <li>EXECUTE</li>
+              <li>RECOVER</li>
             </ol>
             <i className="sm-bar" />
           </div>

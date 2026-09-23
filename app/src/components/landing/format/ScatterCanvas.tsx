@@ -56,7 +56,7 @@ export const ScatterCanvas: React.FC<ScatterCanvasProps> = ({ simpleMode }) => {
                   (Capability)<b>RiskEnvelope</b>
                   <span class="real-card-sub">Single-use Authorization</span>
                 </div>
-                <span class="real-card-tag">01 Authorize</span>
+                <span class="real-card-tag">Authorize</span>
               </div>
               <div class="real-stage">
                 <canvas width="252" height="110" style="border-radius:4px;background:#f4f4f0;"></canvas>
@@ -267,13 +267,13 @@ export const ScatterCanvas: React.FC<ScatterCanvasProps> = ({ simpleMode }) => {
               <div class="real-card-head">
                 <div class="real-card-meta">
                   (Stages)<b>5-Stage Pipeline</b>
-                  <span class="real-card-sub" id="morph-label">01 Observe</span>
+                  <span class="real-card-sub" id="morph-label">Observe</span>
                 </div>
-                <span class="real-card-tag">05 Stages</span>
+                <span class="real-card-tag">5 Stages</span>
               </div>
               <div class="real-stage">
                 <div class="morph-shape-mini" style="width:84px;height:74px;border-radius:50%;">
-                  <strong>01 Observe</strong>
+                  <strong>Observe</strong>
                 </div>
               </div>
               <div style="font-size:7px;opacity:0.5;font-family:var(--lf-mono);">Market observation to enforced action</div>
@@ -283,11 +283,11 @@ export const ScatterCanvas: React.FC<ScatterCanvasProps> = ({ simpleMode }) => {
           const shape = container.querySelector(".morph-shape-mini") as HTMLElement | null;
           const label = container.querySelector("#morph-label") as HTMLElement | null;
           const stages = [
-            { name: "01 Observe", w: "84px", h: "74px", rad: "50%" },
-            { name: "02 Evaluate", w: "135px", h: "65px", rad: "32px" },
-            { name: "03 Authorize", w: "75px", h: "115px", rad: "4px" },
-            { name: "04 Execute", w: "145px", h: "75px", rad: "4px" },
-            { name: "05 Recover", w: "210px", h: "115px", rad: "0px" },
+            { name: "Observe", w: "84px", h: "74px", rad: "50%" },
+            { name: "Evaluate", w: "135px", h: "65px", rad: "32px" },
+            { name: "Authorize", w: "75px", h: "115px", rad: "4px" },
+            { name: "Execute", w: "145px", h: "75px", rad: "4px" },
+            { name: "Recover", w: "210px", h: "115px", rad: "0px" },
           ];
 
           let idx = 0;

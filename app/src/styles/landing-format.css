@@ -1909,15 +1909,15 @@
   position: absolute;
   inset: 0;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
   text-align: center;
   color: #fff;
   mix-blend-mode: difference;
-  transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
-  padding: 16px;
+  padding: 0;
+  margin: 0;
   z-index: 5;
+  pointer-events: none;
 }
 .sm-shape.is-white-active .sm-txt {
   opacity: 0 !important;
@@ -1927,8 +1927,7 @@
 }
 .sm-txt small,
 .lf-sm-txt small {
-  font-size: 11px;
-  margin-bottom: 4px;
+  display: none !important;
 }
 .sm-txt strong,
 .lf-sm-txt strong {
@@ -1939,6 +1938,38 @@
 }
 .sm-click-hint {
   display: none !important;
+}
+
+/* ── Centered Words with Smooth Transitions ── */
+.sm-stage-word {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: calc(clamp(28px, 3.6vw, 48px) * var(--ts, 1));
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: #fff;
+  opacity: 0;
+  transform: scale(0.93);
+  filter: blur(4px);
+  transition: opacity 0.42s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.48s cubic-bezier(0.16, 1, 0.3, 1),
+              filter 0.42s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+  margin: 0;
+  padding: 0;
+}
+
+.sm-stage-word.is-active {
+  opacity: 1;
+  transform: scale(1);
+  filter: blur(0px);
 }
 
 /* ── Smooth Wipe Transition Layer: Transforms from one side to full fill ── */
