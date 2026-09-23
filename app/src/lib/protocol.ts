@@ -41,6 +41,24 @@ export type MarketState = "safe" | "restricted" | "defensive" | "emergency";
 export type CustodyState = "healthy" | "delayed" | "impaired";
 export type LiquidityState = "deep" | "normal" | "thin" | "critical";
 export type PositionState = "healthy" | "liquidatable";
+export type HaltState = "open_normal" | "closed" | "halted_inferred";
+
+export function decodeHaltState(v: any): HaltState {
+  if (!v) return "open_normal";
+  let key = "";
+  if (typeof v === "string") {
+    key = v.toLowerCase();
+  } else if (typeof v === "object") {
+    key = Object.keys(v)[0]?.toLowerCase() || "";
+  }
+  if (key === "haltedinferred" || key === "halted_inferred" || key === "halted") {
+    return "halted_inferred";
+  }
+  if (key === "closed") {
+    return "closed";
+  }
+  return "open_normal";
+}
 
 /** Anchor decodes unit enum variants as `{ variantName: {} }`. */
 function enumKey<T extends string>(v: any, fallback: T): T {
@@ -84,6 +102,10 @@ export interface MarketGuardView {
   lastValidExpo: number;
   lastPublishTime: bigint;
   lastCheckedSlot: bigint;
+  haltState?: HaltState;
+  feedStalenessSeconds?: bigint;
+  sessionExpectedOpen?: boolean;
+  globalOracleHealthy?: boolean;
 }
 
 export interface PositionView {
@@ -252,14 +274,71 @@ export function decodeMarketGuardView(
   program: Program,
   info: { data: Uint8Array | Buffer } | null | undefined
 ): MarketGuardView | null {
-  return decodeAccountData(program, "marketGuard", info, (r) => ({
+  if (!info || !info.data) return null;
+  const buf = Buffer.from(info.data);
+  const decoded = decodeAccountData(program, "marketGuard", info, (r) => ({
     marketState: enumKey<MarketState>(r.marketState, "emergency"),
     reason: enumKey(r.reason, "ok"),
     lastValidPrice: BigInt(r.lastValidPrice.toString()),
     lastValidExpo: Number(r.lastValidExpo),
     lastPublishTime: BigInt(r.lastPublishTime.toString()),
     lastCheckedSlot: BigInt(r.lastCheckedSlot.toString()),
+    haltState: decodeHaltState(r.haltState),
+    feedStalenessSeconds: r.feedStalenessSeconds != null ? BigInt(r.feedStalenessSeconds.toString()) : 0n,
+    sessionExpectedOpen: r.sessionExpectedOpen != null ? Boolean(r.sessionExpectedOpen) : true,
+    globalOracleHealthy: r.globalOracleHealthy != null ? Boolean(r.globalOracleHealthy) : true,
   }));
+  if (decoded) return decoded;
+
+  // Fallback direct buffer decoding if coder failed due to schema difference
+  if (buf.length >= 71) {
+    try {
+      // 8 discriminator + 32 feed_id
+      const lastValidPrice = buf.readBigInt64LE(40);
+      const lastValidExpo = buf.readInt32LE(48);
+      const lastPublishTime = buf.readBigInt64LE(52);
+      const marketStateByte = buf.readUInt8(60);
+      const reasonByte = buf.readUInt8(61);
+      const lastCheckedSlot = buf.readBigUInt64LE(62);
+
+      const marketStates: MarketState[] = ["safe", "restricted", "defensive", "emergency"];
+      const reasons = [
+        "ok", "staleoracle", "confidencetoowide", "marketclosed", "invalidprice",
+        "custodyimpaired", "liquiditycritical", "liquiditythin", "ratchetdefensive",
+        "ratchetrecoverypending", "securityhaltinferred", "oracleunavailable"
+      ];
+
+      let haltState: HaltState = "open_normal";
+      let feedStalenessSeconds = 0n;
+      let sessionExpectedOpen = true;
+      let globalOracleHealthy = true;
+
+      if (buf.length >= 82) {
+        const haltByte = buf.readUInt8(71);
+        if (haltByte === 1) haltState = "closed";
+        else if (haltByte === 2) haltState = "halted_inferred";
+        feedStalenessSeconds = buf.readBigUInt64LE(72);
+        sessionExpectedOpen = buf.readUInt8(80) !== 0;
+        globalOracleHealthy = buf.readUInt8(81) !== 0;
+      }
+
+      return {
+        marketState: marketStates[marketStateByte] || "emergency",
+        reason: reasons[reasonByte] || "ok",
+        lastValidPrice,
+        lastValidExpo,
+        lastPublishTime,
+        lastCheckedSlot,
+        haltState,
+        feedStalenessSeconds,
+        sessionExpectedOpen,
+        globalOracleHealthy,
+      };
+    } catch (e) {
+      console.warn("Fallback marketGuard decode error", e);
+    }
+  }
+  return null;
 }
 
 export function decodePositionView(
@@ -350,14 +429,10 @@ export async function fetchMarketGuard(
   conn: Connection,
   feedHex = PYTH_FEED_ID
 ): Promise<MarketGuardView | null> {
-  return decodeMaybe(program, conn, "marketGuard", marketGuardPda(feedHex), (r) => ({
-    marketState: enumKey<MarketState>(r.marketState, "emergency"),
-    reason: enumKey(r.reason, "ok"),
-    lastValidPrice: BigInt(r.lastValidPrice.toString()),
-    lastValidExpo: Number(r.lastValidExpo),
-    lastPublishTime: BigInt(r.lastPublishTime.toString()),
-    lastCheckedSlot: BigInt(r.lastCheckedSlot.toString()),
-  }));
+  const pda = marketGuardPda(feedHex);
+  const info = await conn.getAccountInfo(pda);
+  if (!info) return null;
+  return decodeMarketGuardView(program, info);
 }
 
 export async function fetchPosition(

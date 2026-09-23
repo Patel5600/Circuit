@@ -158,6 +158,7 @@ export const ClockAndTiltedStack: React.FC<ClockAndTiltedStackProps> = ({ simple
 
     const words = [
       "CIRCUIT RISK KERNEL",
+      "PER-SECURITY MARKETGUARD",
       "MARKET STATE VECTOR",
       "PYTH ORACLE VALIDATION",
       "RISK RATCHET",

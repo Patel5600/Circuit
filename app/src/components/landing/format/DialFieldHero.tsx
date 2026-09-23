@@ -169,11 +169,14 @@ export const DialFieldHero: React.FC<DialFieldHeroProps> = ({ simpleMode }) => {
           Market state<br />becomes permission.
         </h1>
         <div style={{ maxWidth: "680px", marginTop: "14px", fontSize: "clamp(12px, 1.1vw, 15px)", lineHeight: 1.5, opacity: 0.9 }}>
-          <p style={{ margin: "0 0 6px 0" }}>
-            Inputs include: validated oracle state · price freshness · oracle confidence · market session state · collateral value · debt · position LTV · actor authority · action limits · risk state · policy constraints.
+          <p style={{ margin: "0 0 6px 0", fontWeight: 600 }}>
+            MarketGuard sees the security, not just the session.
           </p>
-          <p style={{ margin: 0, fontWeight: 500 }}>
-            The result is not merely a risk signal. It is an enforceable capital boundary.
+          <p style={{ margin: "0 0 6px 0" }}>
+            A market can be open while an individual security is not trading. Circuit evaluates market state per asset. During an expected trading session, abnormal feed staleness can place the affected security into an inferred halt state, restricting risk-increasing actions without freezing unrelated assets.
+          </p>
+          <p style={{ margin: 0, fontSize: "clamp(11px, 0.95vw, 13px)", opacity: 0.8 }}>
+            Note: Circuit infers a security-level halt condition from market-session expectations and feed freshness.
           </p>
         </div>
       </div>

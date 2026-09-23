@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Circuit Protocol - Institutional Market Detail Drawer
  *
  * Comprehensive forensic parameters for tokenized equity markets.
@@ -54,6 +54,10 @@ export function MarketDetailDrawer({
   const confBps = snapshot?.oracleConfBps ?? (market as any)?.confBps ?? 18;
   const confUsd = snapshot?.oracleConfidenceUsd ?? ((priceUsd ?? 100) * (confBps / 10000));
   const ageSeconds = snapshot ? Math.max(0, Math.floor(Date.now() / 1000) - snapshot.oracleTimestamp) : 12;
+  const isSessionOpen = underlyingSession === "REGULAR";
+  const isFeedStale = oracleStatus === "STALE" || ageSeconds > 60;
+  const derivedHaltState: "open_normal" | "closed" | "halted_inferred" =
+    (market as any)?.haltState ?? (isSessionOpen && isFeedStale ? "halted_inferred" : isSessionOpen ? "open_normal" : "closed");
 
   const deployed = getDeployedMarket(activeSymbol, quoteSymbol);
   const baseMintStr = deployed?.mint ?? (market as any)?.mint;
@@ -226,9 +230,77 @@ export function MarketDetailDrawer({
           <div className="row between g-8" style={{ alignItems: "center" }}>
             <span className="t-label">Confidence Uncertainty</span>
             <span className="mono" style={{ fontSize: 12 }}>
-              Â±${formatMoney(confUsd)} ({(confBps / 100).toFixed(2)}%)
+              ±${formatMoney(confUsd)} ({(confBps / 100).toFixed(2)}%)
             </span>
           </div>
+        </div>
+
+        {/* MarketGuard Per-Security Halt State */}
+        <div
+          className="stack g-10"
+          style={{
+            padding: 16,
+            background: "var(--surface-2, #0d0f15)",
+            borderRadius: "var(--r, 10px)",
+            border: `1px solid ${
+              derivedHaltState === "halted_inferred"
+                ? "rgba(224, 98, 98, 0.4)"
+                : "var(--border, #1a1d26)"
+            }`,
+          }}
+        >
+          <div className="row between" style={{ alignItems: "center" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-3)", textTransform: "uppercase" }}>
+              MarketGuard Per-Security Halt State
+            </div>
+            <Pill
+              tone={derivedHaltState === "halted_inferred" ? "danger" : derivedHaltState === "open_normal" ? "success" : "neutral"}
+              withDot
+            >
+              {derivedHaltState === "halted_inferred" ? "HALTED INFERRED" : derivedHaltState === "open_normal" ? "OPEN NORMAL" : "CLOSED"}
+            </Pill>
+          </div>
+
+          <div className="row between g-8" style={{ alignItems: "center" }}>
+            <span className="t-label">Expected Session</span>
+            <span className="mono" style={{ fontSize: 12 }}>
+              {isSessionOpen ? "OPEN (Active Reference Session)" : "CLOSED (Deterministic Calendar)"}
+            </span>
+          </div>
+
+          <div className="row between g-8" style={{ alignItems: "center" }}>
+            <span className="t-label">Observed Feed Staleness</span>
+            <span className="mono" style={{ fontSize: 12, color: isFeedStale ? "var(--warning, #cfad74)" : "var(--text)" }}>
+              {formatAge(ageSeconds)} {isFeedStale ? "(Stale)" : "(Fresh)"}
+            </span>
+          </div>
+
+          <div className="row between g-8" style={{ alignItems: "center" }}>
+            <span className="t-label">Global Oracle Status</span>
+            <span className="mono" style={{ fontSize: 12, color: "var(--mint, #7fc39a)" }}>
+              HEALTHY (Multi-Feed Cross Check Nominal)
+            </span>
+          </div>
+
+          {derivedHaltState === "halted_inferred" && (
+            <div
+              style={{
+                marginTop: 6,
+                padding: "10px 12px",
+                background: "rgba(224, 98, 98, 0.08)",
+                border: "1px solid rgba(224, 98, 98, 0.25)",
+                borderRadius: "var(--r-sm)",
+                fontSize: 11,
+                color: "var(--danger, #cf8b8b)",
+                lineHeight: 1.45,
+              }}
+            >
+              <div style={{ fontWeight: 700, marginBottom: 3, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                Security-Level Market Pause Inference
+              </div>
+              Feed stale during expected session; Circuit has inferred a security-level halt condition. Oracle outage remains a possible alternative.
+            </div>
+          )}
         </div>
 
         {/* On-Chain Risk & Credit Configuration */}

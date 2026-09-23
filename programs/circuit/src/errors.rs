@@ -323,6 +323,14 @@ pub enum CircuitError {
     /// Signer does not match envelope authorized actor
     #[msg("Signer does not match envelope authorized actor")]
     InvalidEnvelopeActor,
+
+    /// Security is in an inferred halt state (feed stale during expected active trading session)
+    #[msg("Security-level halt inferred: feed is stale during expected active trading session")]
+    SecurityHaltInferred,
+
+    /// Oracle service unavailable across multiple feeds
+    #[msg("Oracle service unavailable: multiple feeds failing or degraded")]
+    OracleUnavailable,
 }
 
 

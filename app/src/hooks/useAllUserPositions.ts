@@ -6,6 +6,7 @@ import {
   positionPda,
   assetConfigPda,
   marketGuardPda,
+  decodeMarketGuardView,
   readOnlyProgram,
   PositionView,
   CustodyState,
@@ -145,10 +146,12 @@ export function useAllUserPositions(): UserPortfolioData {
           const guardInfo = guardInfos[i];
           if (guardInfo && guardInfo.data.length > 0) {
             try {
-              const rawG = program.coder.accounts.decode("marketGuard", Buffer.from(guardInfo.data));
-              marketState = rawG.marketState?.emergency ? "emergency" : rawG.marketState?.restricted ? "restricted" : "safe";
-              if (rawG.lastValidPrice) lastValidPriceBig = BigInt(rawG.lastValidPrice.toString());
-              if (rawG.lastValidExpo) lastValidExpoNum = Number(rawG.lastValidExpo);
+              const decodedG = decodeMarketGuardView(program, guardInfo);
+              if (decodedG) {
+                marketState = decodedG.marketState;
+                lastValidPriceBig = decodedG.lastValidPrice;
+                lastValidExpoNum = decodedG.lastValidExpo;
+              }
             } catch {}
           }
 

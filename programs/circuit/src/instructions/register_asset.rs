@@ -49,6 +49,10 @@ pub fn handler(
     guard.market_state = MarketState::Emergency; // Conservative default until first refresh
     guard.reason = GuardReason::InvalidPrice;
     guard.last_checked_slot = 0;
+    guard.halt_state = HaltState::Closed;
+    guard.feed_staleness_seconds = 0;
+    guard.session_expected_open = false;
+    guard.global_oracle_healthy = true;
     guard.bump = ctx.bumps.market_guard;
 
     msg!("Asset registered. Mint: {}, Feed: {:?}", asset_config.mint, &pyth_feed_id[..4]);

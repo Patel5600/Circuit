@@ -535,6 +535,33 @@ function DemoView() {
                 </div>
               </div>
             </Card>
+
+            {/* Panel 4 */}
+            <Card title="Panel 4: MarketGuard — Per-Security Inferred Halt">
+              <div className="stack g-12">
+                <div className="grid grid--2 g-10">
+                  <div className="drow"><span className="drow__k">Target Asset</span><span className="drow__v mono">AAPL</span></div>
+                  <div className="drow"><span className="drow__k">Reference Session</span><span className="drow__v mono">OPEN (Regular)</span></div>
+                  <div className="drow"><span className="drow__k">Feed Staleness</span><span className="drow__v mono" style={{ color: 'var(--danger)' }}>650s (Stale)</span></div>
+                  <div className="drow"><span className="drow__k">Global Oracle</span><span className="drow__v mono" style={{ color: 'var(--mint, #79c2a4)' }}>HEALTHY</span></div>
+                  <div className="drow"><span className="drow__k">MarketGuard</span><span className="drow__v"><Pill tone="danger">HALTED INFERRED</Pill></span></div>
+                  <div className="drow"><span className="drow__k">Risk Epoch</span><span className="drow__v mono">Epoch 2 (Invalidated prior)</span></div>
+                </div>
+                <div style={{ padding: 12, borderRadius: 'var(--r)', background: 'rgba(207, 139, 139, 0.12)', border: '1px solid rgba(207, 139, 139, 0.4)' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--danger)', marginBottom: 4 }}>
+                    BORROW AAPL &rarr; BLOCKED (CircuitError::SecurityHaltInferred)
+                  </div>
+                  <div style={{ fontSize: 11.5, color: 'var(--text-2)', lineHeight: 1.4 }}>
+                    Feed stale during expected session; Circuit has inferred a security-level halt condition. Prior RiskEnvelope invalidated. Unrelated securities (NVDA, MSFT) remain OPEN NORMAL.
+                  </div>
+                </div>
+                <div className="row g-6 wrap">
+                  <Pill tone="danger">SECURITY HALT INFERRED</Pill>
+                  <Pill tone="success">MSFT UNAFFECTED</Pill>
+                  <Pill tone="neutral">REPAY PERMITTED</Pill>
+                </div>
+              </div>
+            </Card>
           </div>
         </div>
 

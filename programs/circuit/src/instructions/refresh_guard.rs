@@ -27,7 +27,10 @@ pub fn handler(ctx: Context<RefreshGuard>) -> Result<()> {
     let ratchet = &mut ctx.accounts.risk_ratchet;
     let clock = Clock::get()?;
 
-    // Try to validate oracle
+    // 1. Reference market session evaluation
+    let session_expected_open = market::is_market_open(clock.unix_timestamp).unwrap_or(false);
+
+    // 2. Validate current oracle feed
     let oracle_result = oracle::try_validate_pyth_price(
         &ctx.accounts.price_update,
         &asset.pyth_feed_id,
@@ -36,15 +39,53 @@ pub fn handler(ctx: Context<RefreshGuard>) -> Result<()> {
         &clock,
     );
 
+    // Extract exact publish time & staleness from PriceUpdateV2
+    let msg = &ctx.accounts.price_update.price_message;
+    let feed_staleness_seconds = clock.unix_timestamp.saturating_sub(msg.publish_time) as u64;
+
     let (conf_ratio_bps, oracle_age) = if let Some(ref val) = oracle_result {
         let ratio = math::calculate_confidence_ratio_bps(val.price, val.conf).unwrap_or(10_000);
         let age = clock.unix_timestamp.saturating_sub(val.publish_time) as u64;
         (ratio, age)
     } else {
-        (10_000, asset.max_oracle_age + 1)
+        let ratio = math::calculate_confidence_ratio_bps(msg.price, msg.conf).unwrap_or(10_000);
+        (ratio, feed_staleness_seconds)
     };
 
-    let market_open = market::is_market_open(clock.unix_timestamp).unwrap_or(false);
+    // 3. Multi-feed global oracle health assessment (distinguishes halt from broader oracle outage)
+    let mut global_oracle_healthy = true;
+    if !ctx.remaining_accounts.is_empty() {
+        let mut total_extra_feeds = 0usize;
+        let mut stale_extra_feeds = 0usize;
+
+        for acc in ctx.remaining_accounts.iter() {
+            if acc.data_len() >= 133 {
+                if let Ok(extra_update) = Account::<PriceUpdateV2>::try_from(acc) {
+                    total_extra_feeds += 1;
+                    let extra_age = clock.unix_timestamp.saturating_sub(extra_update.price_message.publish_time) as u64;
+                    if extra_age > asset.max_oracle_age {
+                        stale_extra_feeds += 1;
+                    }
+                }
+            }
+        }
+
+        // If multiple feeds were provided and ALL extra feeds are stale along with this feed, global oracle is degraded
+        if total_extra_feeds > 0 && stale_extra_feeds == total_extra_feeds && oracle_result.is_none() {
+            global_oracle_healthy = false;
+        }
+    }
+
+    // 4. Derive per-security halt state
+    let halt_state = if !session_expected_open {
+        HaltState::Closed
+    } else if oracle_result.is_some() {
+        HaltState::OpenNormal
+    } else if global_oracle_healthy {
+        HaltState::HaltedInferred
+    } else {
+        HaltState::Closed
+    };
 
     if ratchet.feed_id == [0u8; 32] && ratchet.last_updated_slot == 0 {
         ratchet.feed_id = asset.pyth_feed_id;
@@ -53,9 +94,9 @@ pub fn handler(ctx: Context<RefreshGuard>) -> Result<()> {
         ratchet.policy_version = crate::risk::CANONICAL_POLICY_VERSION;
     }
 
-    let engine_res = crate::risk::DynamicRiskEngine::evaluate_and_update(
+    let mut engine_res = crate::risk::DynamicRiskEngine::evaluate_and_update(
         ratchet,
-        market_open,
+        session_expected_open,
         conf_ratio_bps,
         oracle_age,
         asset.max_oracle_age,
@@ -64,6 +105,33 @@ pub fn handler(ctx: Context<RefreshGuard>) -> Result<()> {
         clock.slot,
         clock.unix_timestamp,
     )?;
+
+    // 5. Integrate HALTED_INFERRED into RiskRatchet
+    if halt_state == HaltState::HaltedInferred {
+        // Enforce fast tightening to at least Defensive
+        let previous_state = ratchet.state;
+        let target_state = match ratchet.state {
+            MarketState::Emergency => MarketState::Emergency,
+            _ => MarketState::Defensive,
+        };
+
+        if target_state != ratchet.state {
+            ratchet.state = target_state;
+            ratchet.risk_epoch = ratchet.risk_epoch.saturating_add(1);
+            ratchet.transition_nonce = ratchet.transition_nonce.saturating_add(1);
+            ratchet.last_stress_slot = clock.slot;
+            ratchet.last_transition_ts = clock.unix_timestamp;
+            ratchet.consecutive_healthy_observations = 0;
+            engine_res.state_changed = true;
+            engine_res.previous_state = previous_state;
+            engine_res.new_state = target_state;
+        }
+        ratchet.reason = GuardReason::SecurityHaltInferred;
+        engine_res.reason = GuardReason::SecurityHaltInferred;
+    } else if !global_oracle_healthy && session_expected_open {
+        ratchet.reason = GuardReason::OracleUnavailable;
+        engine_res.reason = GuardReason::OracleUnavailable;
+    }
 
     if engine_res.state_changed {
         emit!(crate::events::RiskStateChanged {
@@ -85,10 +153,14 @@ pub fn handler(ctx: Context<RefreshGuard>) -> Result<()> {
         });
     }
 
-    // Update cached guard state for backward-compatible frontend/indexer observability
+    // Update cached guard state
     guard.market_state = engine_res.new_state;
     guard.reason = engine_res.reason;
     guard.last_checked_slot = clock.slot;
+    guard.halt_state = halt_state;
+    guard.feed_staleness_seconds = feed_staleness_seconds;
+    guard.session_expected_open = session_expected_open;
+    guard.global_oracle_healthy = global_oracle_healthy;
 
     // Update last_valid_price ONLY when oracle validation succeeds
     // INVARIANT: invalid oracle data never overwrites the last known good price
@@ -99,11 +171,10 @@ pub fn handler(ctx: Context<RefreshGuard>) -> Result<()> {
     }
 
     msg!(
-        "Guard refreshed: {:?} reason={:?} score={} velocity={} epoch={}",
+        "Guard refreshed: {:?} halt={:?} reason={:?} epoch={}",
         ratchet.state,
-        ratchet.reason,
-        ratchet.risk_score,
-        ratchet.risk_velocity,
+        guard.halt_state,
+        guard.reason,
         ratchet.risk_epoch,
     );
     Ok(())
@@ -122,9 +193,13 @@ pub struct RefreshGuard<'info> {
     )]
     pub asset_config: Account<'info, AssetConfig>,
 
-    /// MarketGuard PDA to update
+    /// MarketGuard PDA to update.
+    /// Uses realloc to safely expand account space for existing Devnet PDAs.
     #[account(
         mut,
+        realloc = 8 + MarketGuard::INIT_SPACE,
+        realloc::payer = caller,
+        realloc::zero = false,
         seeds = [MarketGuard::SEEDS_PREFIX, &asset_config.pyth_feed_id],
         bump = market_guard.bump,
     )]

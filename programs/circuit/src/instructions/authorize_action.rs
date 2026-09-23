@@ -252,6 +252,8 @@ pub fn handler(
         });
 
         match perm.denial_reason {
+            PermissionDenialReason::SecurityHaltInferred => return err!(CircuitError::SecurityHaltInferred),
+            PermissionDenialReason::OracleUnavailable => return err!(CircuitError::OracleUnavailable),
             PermissionDenialReason::RiskEmergency => return err!(CircuitError::RiskEmergency),
             PermissionDenialReason::RiskDefensive => return err!(CircuitError::RiskDefensive),
             PermissionDenialReason::RiskRestricted => return err!(CircuitError::RiskRestricted),

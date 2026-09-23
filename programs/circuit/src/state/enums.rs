@@ -1,6 +1,21 @@
 use anchor_lang::prelude::*;
 
 // --------------------------------------------------------------
+// HaltState - per-security market halt state detection
+// --------------------------------------------------------------
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug, InitSpace, Default)]
+pub enum HaltState {
+    /// Reference market session is expected open and the asset's validated feed is fresh
+    #[default]
+    OpenNormal,
+    /// Reference market session is closed according to deterministic calendar logic
+    Closed,
+    /// Reference market session is expected active, but this security's feed is stale while broader oracle is healthy
+    HaltedInferred,
+}
+
+// --------------------------------------------------------------
 // MarketState - derived from oracle + session + custody + liquidity
 // --------------------------------------------------------------
 
@@ -108,6 +123,10 @@ pub enum GuardReason {
     RatchetDefensive,
     /// Risk ratchet requires consecutive healthy observations before recovery
     RatchetRecoveryPending,
+    /// Inferred security-level halt: feed is stale during expected active session while oracle is healthy
+    SecurityHaltInferred,
+    /// Global oracle failure or broader data-service degradation detected
+    OracleUnavailable,
 }
 
 impl Default for GuardReason {
@@ -198,6 +217,10 @@ pub enum PermissionDenialReason {
     ConfidenceTooWide,
     /// Pyth oracle price is stale or unverified
     OracleUnsafe,
+    /// Security is in an inferred halt state (stale feed during expected active trading session)
+    SecurityHaltInferred,
+    /// Oracle is unavailable or broader oracle failure detected
+    OracleUnavailable,
 }
 
 impl Default for PermissionDenialReason {

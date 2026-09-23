@@ -71,6 +71,8 @@ export type PermissionReasonCode =
   | "INVALID_AUTHORITY"
   | "PROTOCOL_PAUSED"
   | "ASSET_DISABLED"
+  | "SECURITY_HALT_INFERRED"
+  | "ORACLE_UNAVAILABLE"
   // DBC-specific reason codes
   | "DBC_UNAVAILABLE"
   | "DBC_ACTION_BLOCKED_RISK_STATE"
@@ -122,6 +124,12 @@ export interface PermissionEvaluationParams {
   minHealthFactorBps?: number;
   liquidationThresholdBps?: number;
 
+  // MarketGuard per-security halt state
+  haltState?: "open_normal" | "closed" | "halted_inferred";
+  feedStalenessSeconds?: number;
+  sessionExpectedOpen?: boolean;
+  globalOracleHealthy?: boolean;
+
   // Agent-specific parameters (ignored for HUMAN)
   agentAuthority?: {
     active: boolean;
@@ -170,6 +178,10 @@ function evaluatePermissionInternal(params: PermissionEvaluationParams): Permiss
     currentDebtUsd = 0,
     minHealthFactorBps = 10_000,
     liquidationThresholdBps = 8000,
+    haltState = "open_normal",
+    feedStalenessSeconds = 0,
+    sessionExpectedOpen = true,
+    globalOracleHealthy = true,
     agentAuthority = null,
   } = params;
 
@@ -240,8 +252,42 @@ function evaluatePermissionInternal(params: PermissionEvaluationParams): Permiss
   }
 
   // --------------------------------------------------------------------------
-  // 3. MARKETGUARD ORACLE VALIDATION
+  // 3. MARKETGUARD ORACLE VALIDATION & PER-SECURITY HALT STATE
   // --------------------------------------------------------------------------
+  if (!globalOracleHealthy) {
+    return makeResult(false, "ORACLE_UNAVAILABLE", "Global oracle failure or broader data-service degradation detected. Risky actions blocked.", riskState, 0, 0, null, 0, 0);
+  }
+
+  if (haltState === "halted_inferred") {
+    const isRiskIncreasing =
+      action === "borrow" ||
+      (action === "withdraw" && currentDebtUsd > 0) ||
+      action === "swap" ||
+      action === "enter_liquidity" ||
+      action === "rebalance" ||
+      action === "create_dbc_position" ||
+      action === "manage_dbc_position" ||
+      action === "rebalance_liquidity";
+    if (isRiskIncreasing) {
+      const defensiveLtv = Math.max(0, baseLtvBps - 2000);
+      return makeResult(
+        false,
+        "SECURITY_HALT_INFERRED",
+        "Inferred security-level halt: feed stale during expected active session. Risk-increasing operations blocked; recovery and repayment preserved.",
+        riskState === "SAFE" || riskState === "RESTRICTED" ? "DEFENSIVE" : riskState,
+        defensiveLtv,
+        0,
+        null,
+        0,
+        0
+      );
+    }
+  }
+
+  if (haltState === "closed" && (action === "borrow" || (action === "withdraw" && currentDebtUsd > 0))) {
+    return makeResult(false, "MARKET_CLOSED", "Reference equity market (NYSE) is closed. Credit creation locked.", riskState, 0, 0, null, 0, 0);
+  }
+
   if (oracleStale) {
     return makeResult(false, "STALE_ORACLE", "Pyth oracle price is stale (> max_oracle_age). Risky actions blocked.", riskState, 0, 0, null, 0, 0);
   }

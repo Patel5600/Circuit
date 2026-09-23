@@ -95,6 +95,9 @@ export interface MarketRow {
   marketSymbol?: string;
   mint?: string;
   pythFeedId?: string;
+  haltState?: "open_normal" | "closed" | "halted_inferred";
+  feedStalenessSeconds?: number;
+  globalOracleHealthy?: boolean;
 }
 
 /**
@@ -123,6 +126,9 @@ export function MarketCard({
   const isSol = row.quoteSymbol === "WSOL";
   const change = row.change24hPercent ?? 0;
   const isPos = change >= 0;
+  const sessionOpen = row.underlyingSession === "REGULAR";
+  const feedStale = row.freshness === "STALE";
+  const haltState = row.haltState ?? (sessionOpen && feedStale ? "halted_inferred" : sessionOpen ? "open_normal" : "closed");
 
   // Real mini sparkline
   const points = row.sparkline ?? [];
@@ -270,11 +276,17 @@ export function MarketCard({
           </div>
         </div>
 
-        {/* Underlying Session */}
+        {/* MarketGuard Status */}
         <div>
-          <div style={{ color: "var(--text-3)", fontSize: 10, fontFamily: "var(--mono)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Underlying</div>
-          <div style={{ fontWeight: 600, color: row.underlyingSession === "REGULAR" ? "var(--text)" : "var(--text-2)", fontFamily: "var(--mono)", fontSize: 11.5, marginTop: 2 }}>
-            {row.underlyingSession ?? "CLOSED"}
+          <div style={{ color: "var(--text-3)", fontSize: 10, fontFamily: "var(--mono)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>MarketGuard</div>
+          <div style={{
+            fontWeight: 700,
+            color: haltState === "halted_inferred" ? "var(--danger, #cf8b8b)" : haltState === "open_normal" ? "var(--mint, #7fc39a)" : "var(--text-2)",
+            fontFamily: "var(--mono)",
+            fontSize: 11,
+            marginTop: 2
+          }}>
+            {haltState === "halted_inferred" ? "HALTED INFERRED" : haltState === "open_normal" ? "OPEN NORMAL" : "CLOSED"}
           </div>
         </div>
 
@@ -295,16 +307,37 @@ export function MarketCard({
         </div>
       </div>
 
+      {/* Security Halt Disclaimer Callout */}
+      {haltState === "halted_inferred" && (
+        <div
+          style={{
+            background: "rgba(224, 98, 98, 0.08)",
+            border: "1px solid rgba(224, 98, 98, 0.3)",
+            borderRadius: "var(--r-sm)",
+            padding: "8px 10px",
+            fontSize: 10.5,
+            color: "var(--danger, #cf8b8b)",
+            marginBottom: 12,
+            lineHeight: 1.4,
+          }}
+        >
+          <div style={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 2 }}>
+            ⚠️ HALTED INFERRED · Security-level Pause
+          </div>
+          Feed stale during expected session; Circuit has inferred a security-level halt condition. Oracle outage remains a possible alternative.
+        </div>
+      )}
+
       {/* 4. Action Buttons */}
       <div className="row g-8">
         <button
           type="button"
           className="btn btn--primary btn--sm grow"
           onClick={onSelect}
-          disabled={!row.live}
+          disabled={!row.live || haltState === "halted_inferred"}
           style={{ fontWeight: 600, fontSize: 12.5 }}
         >
-          Borrow {isSol ? "SOL" : (row.quoteSymbol || "USDC")}
+          {haltState === "halted_inferred" ? "Borrow Locked (Halted)" : `Borrow ${isSol ? "SOL" : (row.quoteSymbol || "USDC")}`}
         </button>
         <button
           type="button"
