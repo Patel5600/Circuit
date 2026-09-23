@@ -30,7 +30,7 @@ export const MonumentalFooter: React.FC<MonumentalFooterProps> = ({ liveSlot }) 
           CIRCUIT PROTOCOL // AUTONOMOUS INVARIANT RISK ENGINE // SOLANA DEVNET SLOT: {liveSlot > 0 ? liveSlot : 324189004}
         </p>
         <p>
-          Deterministic bounded-loss capital allocation. Non-custodial programmatic vault architecture.
+          AI provides intent. Circuit provides authority. Solana provides enforcement.
         </p>
 
         {/* Prominent GitHub Repository Action Dock */}

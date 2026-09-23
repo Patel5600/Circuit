@@ -134,12 +134,10 @@ export const HeroInkTrail: React.FC<HeroInkTrailProps> = ({ simpleMode, liveSlot
         <canvas ref={canvasRef} className="lf-hero__canvas" />
       </div>
       <div className="lf-hero__txt">
-        <small>(Circuit)</small>
-        <h1>Capital<br />Governs<br />Risk</h1>
+        <small>CAPITAL PERMISSION LAYER</small>
+        <h1>CIRCUIT</h1>
         <p>
-          {simpleMode
-            ? "Every dollar is tracked by automated safety rules. No one can steal or lose your collateral."
-            : "Pyth sub-second pull feeds · Anchor PDA authority · Meteora dynamic bonding curve · 4-state ratchet"}
+          Programmable capital needs programmable permissions. Tokenized equities let agents and protocols move capital automatically. Circuit makes that capital conditional on live market state. Market -&gt; Risk -&gt; Permission -&gt; Execution. Humans decide. Agents execute. Circuit enforces.
         </p>
         <div className="lf-hero__cta">
           <Link to="/app" className="lf-pill lf-pill--fill" data-snap="">Launch Terminal</Link>

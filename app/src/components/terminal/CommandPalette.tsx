@@ -164,6 +164,17 @@ export function CommandPalette({
           navigate("/app/learn");
           onClose();
         },
+      },
+      {
+        id: "audit-adversarial-lab",
+        category: "AUDIT",
+        title: "Adversarial Lab — Invariant Verification",
+        subtitle: "Audit live Devnet receipts for all 8 blocked attacks and recovery exemptions",
+        icon: "shield",
+        onSelect: () => {
+          navigate("/app/lab");
+          onClose();
+        },
       }
     );
 

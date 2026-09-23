@@ -11,7 +11,146 @@ import {
   createAssociatedTokenAccountIdempotentInstruction,
   createMintToInstruction,
 } from "@solana/spl-token";
-import { FAUCET_ASSETS } from "../app/src/lib/faucet";
+export interface FaucetAssetInfo {
+  symbol: string;
+  name: string;
+  tokenSymbol: string;
+  mint: string;
+  decimals: number;
+  isNativeSol?: boolean;
+  fullAmount: number;
+  addressAmount: number;
+}
+
+export const FAUCET_ASSETS: FaucetAssetInfo[] = [
+  {
+    symbol: "SOL",
+    name: "Solana Devnet SOL",
+    tokenSymbol: "SOL",
+    mint: "11111111111111111111111111111111",
+    decimals: 9,
+    isNativeSol: true,
+    fullAmount: 1.0,
+    addressAmount: 0.2,
+  },
+  {
+    symbol: "USDC",
+    name: "USD Coin (Mock Quote)",
+    tokenSymbol: "USDC",
+    mint: "23hpSsK3h4na3pwSUf1YzaDF9nzX3t2PppJJf16Qpkxc",
+    decimals: 6,
+    fullAmount: 10_000,
+    addressAmount: 2_000,
+  },
+  {
+    symbol: "WSOL",
+    name: "Wrapped SOL (Mock Quote)",
+    tokenSymbol: "WSOL",
+    mint: "So11111111111111111111111111111111111111112",
+    decimals: 6,
+    fullAmount: 20,
+    addressAmount: 4,
+  },
+  {
+    symbol: "NVDA",
+    name: "NVIDIA Corporation",
+    tokenSymbol: "NVDAx",
+    mint: "CARqKy5GTCxz5G1tFiYA96A3Q8jaUE9Vppk7cjGJxRqq",
+    decimals: 6,
+    fullAmount: 50,
+    addressAmount: 10,
+  },
+  {
+    symbol: "AAPL",
+    name: "Apple Inc.",
+    tokenSymbol: "AAPLx",
+    mint: "4zs2vg7MXYms9gwQxA6VYTZCfGy4NVyp1pca8TqdMmnS",
+    decimals: 6,
+    fullAmount: 50,
+    addressAmount: 10,
+  },
+  {
+    symbol: "MSFT",
+    name: "Microsoft Corporation",
+    tokenSymbol: "MSFTx",
+    mint: "83K7QWw28kC9u2yCqfG77k7tH5vS9w87Z1eX2y3z4A5B",
+    decimals: 6,
+    fullAmount: 50,
+    addressAmount: 10,
+  },
+  {
+    symbol: "AMZN",
+    name: "Amazon.com Inc.",
+    tokenSymbol: "AMZNx",
+    mint: "9zL8RXx39lD8v3zDrgH88l8uI6wT0x98a2fY3z4A5B6C",
+    decimals: 6,
+    fullAmount: 50,
+    addressAmount: 10,
+  },
+  {
+    symbol: "GOOGL",
+    name: "Alphabet Inc.",
+    tokenSymbol: "GOOGLx",
+    mint: "A1b2CXy40mE9w4aEshI99m9vJ7xU1y09b3gZ4a5B6C7D",
+    decimals: 6,
+    fullAmount: 50,
+    addressAmount: 10,
+  },
+  {
+    symbol: "META",
+    name: "Meta Platforms Inc.",
+    tokenSymbol: "METAx",
+    mint: "B2c3DYz51nF0x5bFtiJ00n0wK8yV2z10c4hA5b6C7D8E",
+    decimals: 6,
+    fullAmount: 50,
+    addressAmount: 10,
+  },
+  {
+    symbol: "TSLA",
+    name: "Tesla Inc.",
+    tokenSymbol: "TSLAx",
+    mint: "C3d4EZa62oG1y6cGujK11o1xL9zW3a21d5iB6c7D8E9F",
+    decimals: 6,
+    fullAmount: 50,
+    addressAmount: 10,
+  },
+  {
+    symbol: "NFLX",
+    name: "Netflix Inc.",
+    tokenSymbol: "NFLXx",
+    mint: "D4e2VBb73pH2z7dHvkL22p2yM0aX4b32e6jC7d8E9F0G",
+    decimals: 6,
+    fullAmount: 50,
+    addressAmount: 10,
+  },
+  {
+    symbol: "COIN",
+    name: "Coinbase Global Inc.",
+    tokenSymbol: "COINx",
+    mint: "E5f3WCc84qI3a8eIw233q3zN1bY5c43f7kD8e9F0G1H",
+    decimals: 6,
+    fullAmount: 50,
+    addressAmount: 10,
+  },
+  {
+    symbol: "AMD",
+    name: "Advanced Micro Devices",
+    tokenSymbol: "AMDx",
+    mint: "F6g4XDd95rJ4b9fJx344r4aO2cZ6d54g8lE9f0G1H2I",
+    decimals: 6,
+    fullAmount: 50,
+    addressAmount: 10,
+  },
+  {
+    symbol: "SPY",
+    name: "SPDR S&P 500 ETF Trust",
+    tokenSymbol: "SPYx",
+    mint: "G7h5YEe06sK5c0gKy455s5bP3da7e65h9mF0g1H2I3J",
+    decimals: 6,
+    fullAmount: 50,
+    addressAmount: 10,
+  },
+];
 
 const RPC_URL = process.env.VITE_RPC_URL || "https://api.devnet.solana.com";
 

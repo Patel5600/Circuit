@@ -2,14 +2,14 @@
 
 <div align="center">
 
-> **Circuit is a realtime programmable capital-permission layer for tokenized equities on Solana. It converts verified market conditions into enforceable rules for credit, liquidity, autonomous execution, and recovery, so capital authority adapts as conditions change.**
+> **Circuit is the risk kernel that converts live market conditions into enforceable capital permissions for Solana protocols and autonomous agents. It introduces the Risk Envelope — a short-lived, single-use, CPI-verifiable on-chain capability token that externalizes permission decisions for any downstream program.**
 
 [![Solana Devnet](https://img.shields.io/badge/Solana-Devnet%20Live-14F195?style=for-the-badge&logo=solana&logoColor=000)](https://explorer.solana.com/address/Cq4Lvd6Kgr3a2aP6ENPVGQ8tUpbkGmoWr9ZDBdXGiTs2?cluster=devnet)
 [![Anchor Version](https://img.shields.io/badge/Anchor-v1.2.0-blueviolet?style=for-the-badge&logo=anchor)](https://www.anchor-lang.com/)
 [![Rust](https://img.shields.io/badge/Rust-1.98.1-orange?style=for-the-badge&logo=rust)](https://www.rust-lang.org/)
 [![Pyth Network](https://img.shields.io/badge/Pyth-PriceUpdateV2-purple?style=for-the-badge&logo=pyth)](https://pyth.network/)
 [![Meteora DBC](https://img.shields.io/badge/Meteora-DBC%20Curve-cyan?style=for-the-badge)](https://meteora.ag/)
-[![Security Invariants](https://img.shields.io/badge/Security_Invariants-15%2F15_Passing-success?style=for-the-badge)](docs/SECURITY.md)
+[![Security Invariants](https://img.shields.io/badge/Security_Invariants-16%2F16_Passing-success?style=for-the-badge)](docs/SECURITY.md)
 [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
 </div>
@@ -54,6 +54,51 @@
 > Circuit makes programmable capital governable.  
 >  
 > Humans define authority. Agents operate within it. Market conditions continuously change what authority permits. Circuit enforces the boundary. Solana records the result.
+
+---
+
+## The Risk Kernel
+
+Circuit is not a lending app with safety features. It is the infrastructure layer that decides whether programmable capital is allowed to move.
+
+The Risk Kernel evaluates live market conditions — oracle prices, confidence intervals, session state, risk velocity — and produces a deterministic permission decision. That decision is externalized as a **Risk Envelope**: a short-lived, single-use, CPI-verifiable on-chain capability token.
+
+### Risk Envelope
+
+A `RiskEnvelope` is a PDA account that says:
+
+> This actor may perform this exact action, against this asset, at this venue, up to this amount, under these market conditions, until this slot.
+
+**Properties:**
+- **Short-lived**: 20 slots (~8 seconds). Market conditions cannot meaningfully drift.
+- **Single-use**: `consumed` flag prevents replay.
+- **Epoch-bound**: Invalidated if `risk_epoch` changes between authorization and consumption.
+- **CPI-verifiable**: Any downstream Solana program can verify via `circuit-risk-sdk`.
+- **Action-scoped**: Bound to specific action (Borrow, Withdraw, Swap, etc.) and venue (Credit, MeteoraDBC).
+
+### Pipeline
+
+```
+Pyth Oracle → Market State Vector → Risk Kernel → Risk Envelope → Permission Engine → Execution Venue → Solana Receipt
+```
+
+### Circuit Risk SDK
+
+Downstream programs integrate via `circuit-risk-sdk`:
+
+```rust
+use circuit_risk_sdk::{verify_envelope, CircuitAction, CircuitVenue};
+
+// Verify an envelope in your instruction handler:
+verify_envelope(
+    &envelope_account,
+    &clock,
+    &risk_ratchet,
+    CircuitAction::Borrow,
+    CircuitVenue::Credit,
+    requested_amount,
+)?;
+```
 
 ---
 
@@ -231,9 +276,9 @@ Solana Devnet MVP/protocol prototype.
 
 ---
 
-## 15 Protocol Security Invariants
+## 16 Protocol Security Invariants
 
-All 15 security invariants are enforced by Anchor program constraints, Rust checked arithmetic, and audited unit tests:
+All 16 security invariants are enforced by Anchor program constraints, Rust checked arithmetic, and audited unit tests:
 
 | # | Invariant | Description | Verification Surface |
 |:---:|---|---|---|
@@ -252,6 +297,26 @@ All 15 security invariants are enforced by Anchor program constraints, Rust chec
 | `13` | **Idempotent Automation** | Automation tasks follow strict FSM; never mark success before confirmation. | State machine in `api/automation/_engine.ts` |
 | `14` | **Checked Arithmetic Safety** | Zero floating-point math on-chain; all operations checked `u128`. | Arithmetic invariant test suite passing |
 | `15` | **Harness State Isolation** | Simulation sandbox state never contaminates production routes. | `DemoHarnessContext` isolation audit |
+| `16` | **Risk Envelope Isolation** | Envelopes are single-use, epoch-bound, and expire within 20 slots. | `authorize_action`, `consume_envelope`, `close_envelope` |
+
+---
+
+## Adversarial Lab
+
+The `/app/lab` page contains 8 adversarial test scenarios that prove the Risk Kernel's enforcement boundaries with real Devnet transactions:
+
+| # | Scenario | Expected | Validates |
+|---|---|---|---|
+| 01 | Stale Oracle Borrow | BLOCKED | Oracle freshness gate |
+| 02 | Excess LTV Borrow | BLOCKED | Capital policy LTV ceiling |
+| 03 | Expired Agent Authority | BLOCKED | Authority expiry enforcement |
+| 04 | Agent Amount > Policy Limit | BLOCKED | Delegation boundary |
+| 05 | Wrong Asset Scope | BLOCKED | Asset isolation |
+| 06 | Defensive State Borrow | BLOCKED | Risk-increasing gate |
+| 07 | Emergency Borrow | BLOCKED | Emergency lockdown |
+| 08 | Emergency Repay | ALLOWED | Risk-reducing exemption |
+
+Every result has a Devnet transaction signature linked to Solana Explorer.
 
 ---
 

@@ -266,4 +266,61 @@ pub struct DbcActionDenied {
     pub timestamp: i64,
 }
 
+/// Emitted when a RiskEnvelope capability token is authorized and minted on-chain.
+#[event]
+pub struct EnvelopeAuthorized {
+    pub envelope: Pubkey,
+    pub owner: Pubkey,
+    pub actor: Pubkey,
+    pub asset_mint: Pubkey,
+    pub venue: u8,
+    pub action: u8,
+    pub max_notional: u64,
+    pub max_ltv_bps: u64,
+    pub max_slippage_bps: u64,
+    pub risk_state: MarketState,
+    pub risk_epoch: u64,
+    pub authorized_at_slot: u64,
+    pub expires_at_slot: u64,
+    pub nonce: u64,
+    pub timestamp: i64,
+}
+
+/// Emitted when a RiskEnvelope capability token is consumed by an authorized operation.
+#[event]
+pub struct EnvelopeConsumed {
+    pub envelope: Pubkey,
+    pub actor: Pubkey,
+    pub action: u8,
+    pub venue: u8,
+    pub amount: u64,
+    pub consumed_at_slot: u64,
+    pub timestamp: i64,
+}
+
+/// Emitted when an expired or consumed RiskEnvelope account is closed.
+#[event]
+pub struct EnvelopeClosed {
+    pub envelope: Pubkey,
+    pub closed_by: Pubkey,
+    pub refund_to: Pubkey,
+    pub slot: u64,
+    pub timestamp: i64,
+}
+
+/// Emitted when an authorization request for a RiskEnvelope is denied by the Risk Kernel.
+#[event]
+pub struct EnvelopeAuthorizationDenied {
+    pub owner: Pubkey,
+    pub actor: Pubkey,
+    pub asset_mint: Pubkey,
+    pub action: u8,
+    pub venue: u8,
+    pub requested_amount: u64,
+    pub risk_state: MarketState,
+    pub denial_reason: PermissionDenialReason,
+    pub timestamp: i64,
+}
+
+
 

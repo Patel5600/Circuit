@@ -258,6 +258,45 @@ pub mod circuit {
             dbc_instruction_data,
         )
     }
+
+    /// Authorize a scoped action capability and mint a short-lived RiskEnvelope PDA.
+    /// Strictly evaluated by the canonical Risk Ratchet, Pyth oracle confidence, and Permission Engine.
+    pub fn authorize_action(
+        ctx: Context<AuthorizeAction>,
+        action: u8,
+        venue: u8,
+        requested_amount: u64,
+        max_slippage_bps: u64,
+        nonce: u64,
+        ttl_slots: u64,
+    ) -> Result<()> {
+        instructions::authorize_action::handler(
+            ctx,
+            action,
+            venue,
+            requested_amount,
+            max_slippage_bps,
+            nonce,
+            ttl_slots,
+        )
+    }
+
+    /// Consume an authorized RiskEnvelope capability token.
+    /// Strictly verifies actor, non-consumption, expiration, risk epoch, action, venue, and notional limit.
+    pub fn consume_envelope(
+        ctx: Context<ConsumeEnvelope>,
+        action: u8,
+        venue: u8,
+        amount: u64,
+    ) -> Result<()> {
+        instructions::consume_envelope::handler(ctx, action, venue, amount)
+    }
+
+    /// Close an expired or consumed RiskEnvelope account and reclaim rent back to owner.
+    /// Permissionless crank.
+    pub fn close_envelope(ctx: Context<CloseEnvelope>) -> Result<()> {
+        instructions::close_envelope::handler(ctx)
+    }
 }
 
 

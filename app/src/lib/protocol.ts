@@ -44,9 +44,10 @@ export type PositionState = "healthy" | "liquidatable";
 
 /** Anchor decodes unit enum variants as `{ variantName: {} }`. */
 function enumKey<T extends string>(v: any, fallback: T): T {
+  if (typeof v === "string") return v.toLowerCase() as T;
   if (!v || typeof v !== "object") return fallback;
   const k = Object.keys(v)[0];
-  return (k as T) ?? fallback;
+  return (k ? (k.toLowerCase() as T) : fallback);
 }
 
 // -- account shapes --------------------------------------------------------
@@ -109,6 +110,9 @@ export interface AgentAuthorityView {
   bump: number;
 }
 
+import type { RiskEnvelopeView, EnvelopeView } from "./envelope";
+export type { RiskEnvelopeView, EnvelopeView };
+
 // -- PDAs ------------------------------------------------------------------
 
 function utf8(s: string): Uint8Array {
@@ -161,6 +165,8 @@ export const agentAuthorityPda = (
     PROGRAM_ID
   )[0];
 
+export { u64LeBytes, riskEnvelopePda, findEnvelopePda, findRiskEnvelopePda } from "./envelope";
+
 export const vaultFor = (mint: PublicKey): PublicKey =>
   getAssociatedTokenAddressSync(mint, protocolConfigPda(), true);
 
@@ -193,7 +199,13 @@ export function decodeAccountData<T>(
   if (!info) return null;
   try {
     const buf = Buffer.isBuffer(info.data) ? info.data : Buffer.from(info.data);
-    const raw = program.coder.accounts.decode(name, buf);
+    let raw: any;
+    try {
+      raw = program.coder.accounts.decode(name, buf);
+    } catch {
+      const altName = name.charAt(0).toUpperCase() + name.slice(1);
+      raw = program.coder.accounts.decode(altName, buf);
+    }
     return map(raw);
   } catch (e) {
     console.warn(`failed to decode ${name}`, e);
@@ -263,6 +275,8 @@ export function decodePositionView(
     state: enumKey<PositionState>(r.state, "healthy"),
   }));
 }
+
+export { decodeRiskEnvelopeView, decodeEnvelopeView } from "./envelope";
 
 export function decodeTokenAmount(
   info: { data: Uint8Array | Buffer } | null | undefined
@@ -361,6 +375,8 @@ export async function fetchPosition(
     state: enumKey<PositionState>(r.state, "healthy"),
   }));
 }
+
+export { fetchRiskEnvelope, fetchEnvelope } from "./envelope";
 
 export async function fetchTokenAmount(
   conn: Connection,
@@ -815,6 +831,32 @@ const VARIANT_MESSAGES: Record<string, string> = {
   ActionNonceInvalid: "Action intent nonce mismatch or replay detected.",
   InvalidDbcPool: "The selected trading pool does not match this asset.",
   DbcSlippageExceeded: "Trading slippage exceeded the safety limit. Try a smaller amount or adjust slippage.",
+  AuctionAlreadyActive: "A Dutch auction liquidation is already active for this position.",
+  AuctionNotActive: "No active liquidation auction found for this position.",
+  AuctionStillActive: "Position health factor is still below safety threshold; auction cannot be cancelled.",
+  RiskRestricted: "Operation rejected: Risk Ratchet is in Restricted state (caps risk-increasing actions).",
+  RiskDefensive: "Operation rejected: Risk Ratchet is in Defensive state (blocks new borrow and leverage).",
+  RiskEmergency: "Operation rejected: Risk Ratchet is in Emergency state (all credit and withdrawals blocked).",
+  WithdrawRestrictedInStress: "Collateral withdrawal with active debt is prohibited during defensive or emergency risk states.",
+  InvalidConfidenceInterval: "Oracle confidence interval exceeds maximum allowable threshold.",
+  IllegalStateTransition: "Illegal risk ratchet recovery transition attempted.",
+  RiskStateTransitionDenied: "Risk state transition was denied by state machine rules.",
+  CooldownActive: "Transition rejected: cooldown duration is currently active.",
+  RecoveryConditionsNotMet: "Staged recovery conditions have not yet been satisfied.",
+  ActionBlockedByRisk: "Financial action blocked by authoritative on-chain risk policy.",
+  ActionLimitExceeded: "Action amount exceeds allowable limit under current risk state.",
+  AssetScopeViolation: "Asset mint is outside authorized scope.",
+  PolicyVersionMismatch: "Evaluated policy version does not match active protocol configuration.",
+  DbcActionBlocked: "DBC action blocked by authoritative on-chain risk policy.",
+  EnvelopeExpired: "Risk envelope has expired. Re-authorize action to continue.",
+  EnvelopeAlreadyConsumed: "Risk envelope has already been consumed (single-use protection).",
+  EnvelopeEpochMismatch: "Risk epoch changed since envelope authorization. Market conditions shifted.",
+  EnvelopeActionMismatch: "Envelope action does not match requested operation.",
+  EnvelopeVenueMismatch: "Envelope venue does not match requested venue.",
+  EnvelopeAmountExceeded: "Requested amount exceeds authorized risk envelope limit.",
+  EnvelopeTtlExceeded: "Requested envelope TTL exceeds maximum allowable slots.",
+  EnvelopeStillActive: "Envelope is still active and unexpired; cannot be closed.",
+  InvalidEnvelopeActor: "Signer does not match the envelope authorized actor.",
 };
 
 function humanizeVariant(v: string): string {
@@ -917,4 +959,15 @@ export async function sendInstructions(
   );
   return sig;
 }
+
+// -- risk envelope instruction builders & PDAs -----------------------------
+export * from "./envelope";
+export {
+  buildAuthorizeActionInstruction,
+  buildConsumeEnvelopeInstruction,
+  buildCloseEnvelopeInstruction,
+  type BuildAuthorizeActionParams,
+  type BuildConsumeEnvelopeParams,
+  type BuildCloseEnvelopeParams,
+} from "./envelope";
 

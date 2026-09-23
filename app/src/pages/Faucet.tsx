@@ -131,12 +131,21 @@ export default function Faucet() {
       );
       if (results.length > 0) {
         setRecentClaims((prev) => [...results, ...prev.slice(0, 5)]);
+        const claimedSymbols = results.map((r) => r.asset).join(", ");
+        const gotSol = results.some((r) => r.isNativeSol);
         setSuccessMsg(
-          `Starter Pack claimed! Minted ${results.length} assets to ${activeAddress.slice(0, 4)}...${activeAddress.slice(-4)}`
+          `Starter Pack claimed! Minted: ${claimedSymbols}.${!gotSol ? " (Devnet SOL airdrop was throttled by Solana public RPC; fund SOL via faucet.solana.com)" : ""}`
         );
         setTimeout(() => refreshBalances(activeAddress), 2000);
       } else {
-        setErrorMsg("All starter pack assets are currently on cooldown for this address.");
+        const anyCooldown = ["NVDA", "AAPL", "USDC", "SOL"].some(
+          (sym) => getCooldownRemaining(activeAddress, sym) > 0
+        );
+        if (anyCooldown) {
+          setErrorMsg("Starter pack assets are currently on cooldown for this address. Please wait or claim individual tokens below.");
+        } else {
+          setErrorMsg("Could not complete starter pack. Please claim individual tokens below or check network status.");
+        }
       }
     } catch (err: any) {
       setErrorMsg(sanitizeFaucetError(err));

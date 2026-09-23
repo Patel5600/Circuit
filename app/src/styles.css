@@ -1215,7 +1215,7 @@ svg {
   z-index: 70;
   height: calc(var(--bottomnav-h) + env(safe-area-inset-bottom));
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
   background: rgba(6, 6, 8, 0.94);
   backdrop-filter: blur(12px);
   border-top: 1px solid var(--border);
@@ -6183,4 +6183,433 @@ svg {
   .ink-magnetic {
     transform: none !important;
   }
+}
+
+/* ==========================================================================
+   Adversarial Lab — Institutional Security Verification Suite
+   ========================================================================== */
+
+.adv-lab {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding-bottom: 64px;
+}
+
+.adv-lab__hero {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl, 20px);
+  padding: 28px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+.adv-lab__hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 9999px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-2);
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+
+.adv-lab__title {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  margin: 0 0 8px 0;
+  text-transform: uppercase;
+}
+
+.adv-lab__subtitle {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text-2);
+  max-width: 680px;
+  margin: 0;
+}
+
+.adv-lab__controls-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg, 14px);
+  padding: 16px 20px;
+}
+
+.adv-lab__filter-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--surface-0);
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+  padding: 4px;
+}
+
+.adv-lab__tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--mono);
+  color: var(--text-3);
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--t-fast);
+}
+
+.adv-lab__tab-btn:hover {
+  color: var(--text);
+}
+
+.adv-lab__tab-btn--active {
+  background: var(--surface-3);
+  color: var(--text);
+  border-color: var(--border-strong);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.adv-lab__tab-count {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  background: var(--surface-1);
+  color: var(--text-2);
+}
+
+.adv-lab__pass-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 18px;
+  background: var(--surface-0);
+  border: 1px solid var(--border);
+  border-radius: var(--r, 10px);
+}
+
+.adv-lab__pass-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--success);
+}
+
+.adv-lab__pass-bar {
+  width: 140px;
+  height: 6px;
+  background: var(--surface-3);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.adv-lab__pass-fill {
+  height: 100%;
+  background: var(--success);
+  transition: width 300ms ease;
+}
+
+.adv-lab__cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.adv-lab-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg, 14px);
+  padding: 22px;
+  transition: border-color var(--t-fast), box-shadow var(--t-fast);
+  position: relative;
+  min-height: 280px;
+}
+
+.adv-lab-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow);
+}
+
+.adv-lab-card--running {
+  border-color: var(--violet);
+  box-shadow: 0 0 0 1px var(--violet-dim);
+}
+
+.adv-lab-card__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.adv-lab-card__id-badge {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--accent);
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm, 6px);
+  padding: 3px 8px;
+  letter-spacing: 0.05em;
+  display: inline-flex;
+  align-items: center;
+}
+
+.adv-lab-card__title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.adv-lab-card__meta-tags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.adv-lab-card__tag {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+}
+
+.adv-lab-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.adv-lab-card__status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 9999px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.adv-lab-card__status-pill--pass {
+  background: var(--success-dim);
+  border: 1px solid var(--success);
+  color: var(--success);
+}
+
+.adv-lab-card__status-pill--fail {
+  background: var(--danger-dim);
+  border: 1px solid var(--danger);
+  color: var(--danger);
+}
+
+.adv-lab-card__status-pill--running {
+  background: var(--violet-dim);
+  border: 1px solid var(--violet);
+  color: var(--violet);
+}
+
+.adv-lab-card__status-pill--idle {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-3);
+}
+
+.adv-lab-card__expected-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.adv-lab-card__expected-pill--blocked {
+  background: rgba(207, 139, 139, 0.12);
+  border: 1px solid rgba(207, 139, 139, 0.35);
+  color: var(--danger);
+}
+
+.adv-lab-card__expected-pill--allowed {
+  background: rgba(121, 194, 164, 0.12);
+  border: 1px solid rgba(121, 194, 164, 0.35);
+  color: var(--mint);
+}
+
+/* 4-Stage Breakdown Grid */
+.adv-lab-card__breakdown {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin: 18px 0;
+}
+
+@media (max-width: 980px) {
+  .adv-lab-card__breakdown {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .adv-lab-card__breakdown {
+    grid-template-columns: 1fr;
+  }
+}
+
+.adv-lab-stage {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r, 10px);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 120px;
+}
+
+.adv-lab-stage__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.adv-lab-stage__idx {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--surface-3);
+  color: var(--accent);
+}
+
+.adv-lab-stage__title {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+.adv-lab-stage__desc {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-3);
+  margin: 0;
+}
+
+/* Card Receipt Footer */
+.adv-lab-card__receipt-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.adv-lab-card__code-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-0);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm, 6px);
+  padding: 6px 10px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-2);
+}
+
+.adv-lab-card__tx-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--accent);
+  text-decoration: none;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  padding: 5px 10px;
+  border-radius: var(--r-sm, 6px);
+  transition: all var(--t-fast);
+}
+
+.adv-lab-card__tx-link:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+  background: var(--surface-3);
+}
+
+[data-theme="light"] .adv-lab__hero {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .adv-lab-card {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .adv-lab-stage {
+  background: #f7f7f9;
+  border-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .adv-lab-card__code-box {
+  background: #f3f3f5;
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .adv-lab__pass-banner {
+  background: #f7f7f9;
+  border-color: rgba(0, 0, 0, 0.06);
 }

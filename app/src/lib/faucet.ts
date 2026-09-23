@@ -2,7 +2,7 @@ import {
   Connection,
   PublicKey,
 } from "@solana/web3.js";
-const RPC_URL = "https://api.devnet.solana.com";
+import { RPC_URL } from "../env";
 import marketsData from "../data/markets.json";
 
 export interface FaucetAsset {
@@ -225,8 +225,8 @@ export function formatCooldown(ms: number): string {
 
 export function sanitizeFaucetError(err: any): string {
   const msg = String(err?.message || err || "Unknown faucet error");
-  if (msg.includes("429") || msg.includes("rate limit") || msg.includes("limit reached")) {
-    return "Devnet rate limit reached. Please wait for cooldown or try again later.";
+  if (msg.includes("429") || msg.includes("rate limit") || msg.includes("limit reached") || msg.includes("airdrop request limit")) {
+    return "Devnet rate limit reached on Solana public RPC (faucet airdrop limit). Use https://faucet.solana.com/ for Devnet SOL, or claim Circuit tokenized equities (NVDAx, AAPLx, USDC) below which mint via protocol authority.";
   }
   if (msg.includes("insufficient lamports")) {
     return "Faucet authority has insufficient Devnet SOL for rent/fees.";

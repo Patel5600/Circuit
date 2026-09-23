@@ -135,14 +135,14 @@ export const InkTrailSection: React.FC<InkTrailSectionProps> = ({ simpleMode, is
           <canvas id="goo" ref={canvasRef} />
         </div>
         <div className="goo-txt goo-txt--hero">
-          <span className="goo-hero-tag">Autonomous Risk &amp; Credit</span>
+          <span className="goo-hero-tag">CAPITAL PERMISSION LAYER</span>
           <h1 className="goo-hero-title">
-            Circuit
+            CIRCUIT
           </h1>
           <p className="goo-hero-def">
             {simpleMode
-              ? "The self-governing credit protocol for Solana. Borrow against tokenized equities under autonomous risk protection."
-              : "The self-governing credit engine for Solana. Unifying autonomous execution, tokenized equities, and real-time risk control into a single closed circuit."}
+              ? "Programmable capital needs programmable permissions. Tokenized equities let agents and protocols move capital automatically. Circuit makes that capital conditional on live market state. Market -> Risk -> Permission -> Execution. Humans decide. Agents execute. Circuit enforces."
+              : "Programmable capital needs programmable permissions. Tokenized equities let agents and protocols move capital automatically. Circuit makes that capital conditional on live market state. Market -> Risk -> Permission -> Execution. Humans decide. Agents execute. Circuit enforces."}
           </p>
         </div>
       </section>

@@ -287,6 +287,42 @@ pub enum CircuitError {
     /// DBC action not allowed under current risk policy
     #[msg("DBC action blocked by risk policy")]
     DbcActionBlocked,
+
+    /// Risk envelope has expired
+    #[msg("Risk envelope has expired")]
+    EnvelopeExpired,
+
+    /// Risk envelope has already been consumed
+    #[msg("Risk envelope has already been consumed")]
+    EnvelopeAlreadyConsumed,
+
+    /// Risk epoch has changed since envelope was authorized
+    #[msg("Risk epoch has changed since envelope was authorized")]
+    EnvelopeEpochMismatch,
+
+    /// Envelope action does not match requested operation
+    #[msg("Envelope action does not match requested operation")]
+    EnvelopeActionMismatch,
+
+    /// Envelope venue does not match requested venue
+    #[msg("Envelope venue does not match requested venue")]
+    EnvelopeVenueMismatch,
+
+    /// Requested amount exceeds envelope authorization
+    #[msg("Requested amount exceeds envelope authorization")]
+    EnvelopeAmountExceeded,
+
+    /// Requested TTL exceeds maximum allowable slots
+    #[msg("Requested TTL exceeds maximum allowed")]
+    EnvelopeTtlExceeded,
+
+    /// Envelope is not expired and has not been consumed; cannot be closed
+    #[msg("Envelope is still active and cannot be closed")]
+    EnvelopeStillActive,
+
+    /// Signer does not match envelope authorized actor
+    #[msg("Signer does not match envelope authorized actor")]
+    InvalidEnvelopeActor,
 }
 
 

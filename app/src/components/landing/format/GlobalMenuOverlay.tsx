@@ -123,6 +123,9 @@ export const GlobalMenuOverlay: React.FC<GlobalMenuOverlayProps> = ({
           {liveSlot !== undefined && <span>SLOT: {liveSlot}</span>}
         </div>
         <div className="menu-ov-foot-r">
+          <Link to="/app/lab" onClick={onClose}>
+            Adversarial Lab
+          </Link>
           <Link to="/app/verify" onClick={onClose}>
             Verification
           </Link>

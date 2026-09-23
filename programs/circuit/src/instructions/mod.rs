@@ -25,6 +25,9 @@ pub mod create_agent_authority;
 pub mod update_agent_authority;
 pub mod execute_agent_action;
 pub mod execute_dbc_action;
+pub mod consume_envelope;
+pub mod close_envelope;
+pub mod authorize_action;
 
 pub use initialize_protocol::*;
 pub use register_asset::*;
@@ -45,5 +48,8 @@ pub use create_agent_authority::*;
 pub use update_agent_authority::*;
 pub use execute_agent_action::*;
 pub use execute_dbc_action::*;
+pub use consume_envelope::*;
+pub use close_envelope::*;
+pub use authorize_action::*;
 
 

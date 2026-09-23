@@ -86,6 +86,52 @@ export default defineConfig({
               res.statusCode = 500;
               res.setHeader("Content-Type", "application/json");
               res.end(JSON.stringify({ error: err?.message || "Internal server error" }));
+            }
+          }
+
+          if (req.url?.startsWith("/api/faucet")) {
+            try {
+              let bodyStr = "";
+              for await (const chunk of req) {
+                bodyStr += chunk;
+              }
+              const parsedBody = bodyStr ? JSON.parse(bodyStr) : {};
+              const mockReq = {
+                method: req.method,
+                headers: req.headers,
+                body: parsedBody,
+                query: {},
+              };
+              const mockRes = {
+                statusCode: 200,
+                status(c: number) {
+                  this.statusCode = c;
+                  res.statusCode = c;
+                  return this;
+                },
+                setHeader(k: string, v: string) {
+                  res.setHeader(k, v);
+                  return this;
+                },
+                json(payload: any) {
+                  res.statusCode = this.statusCode;
+                  res.setHeader("Content-Type", "application/json");
+                  res.end(JSON.stringify(payload));
+                },
+                end(payload?: any) {
+                  res.statusCode = this.statusCode;
+                  res.end(payload);
+                },
+              };
+              const apiFile = path.resolve(__dirname, "api/faucet.ts");
+              const mod = await server.ssrLoadModule(apiFile);
+              const handler = mod.default;
+              await handler(mockReq, mockRes);
+              return;
+            } catch (err: any) {
+              res.statusCode = 500;
+              res.setHeader("Content-Type", "application/json");
+              res.end(JSON.stringify({ error: err?.message || "Internal server error" }));
               return;
             }
           }

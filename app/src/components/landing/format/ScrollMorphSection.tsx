@@ -28,28 +28,28 @@ function toRandomCase(text: string, seed = 2026): string {
 
 const RAW_MECHANISMS = [
   {
-    name: "Dutch Auctions",
-    desc: "Circuit deploys continuous Dutch auctions for non-recourse debt liquidations across 150 Solana slots. Execution prices decay smoothly along deterministic curves to eliminate toxic MEV frontrunning and fire-sale insolvencies, auctioning the exact minimum collateral needed to restore health factor to 1.05.",
+    name: "Market State",
+    desc: "High-frequency Pyth oracle streaming, session validation, confidence ratios, and custody telemetry.",
     shapeType: "circle" as const,
   },
   {
-    name: "Autonomous Agents",
-    desc: "Autonomous Agents execute capital allocation strictly within user-signed cryptographic risk envelopes bound to Anchor PDA seeds. Programmatically restricted by pre-authorized drawdown limits, maximum allowable slippage, and instant one-click authority revocation.",
+    name: "Risk Engine",
+    desc: "Deterministic 4-state risk ratchet with asymmetric fast tightening and monotonic hysteresis recovery.",
     shapeType: "rounded" as const,
   },
   {
-    name: "Risk Ratchet",
-    desc: "The dynamic Risk Ratchet operates a 4-tier solvency governor across Normal, Caution, Defensive, and Emergency regimes. Volatility shocks swiftly compress collateral LTV from 70% down to 50%, while capital recovery repayments remain unconditionally operational.",
+    name: "Risk Envelope",
+    desc: "Short-lived onchain capability token binding action, venue, max notional, and LTV ceiling to slot TTL.",
     shapeType: "vertical" as const,
   },
   {
-    name: "Pyth Confidence",
-    desc: "Dual-bound Pyth pull oracles stream high-frequency price feeds with sub-second confidence intervals (P ± σ). The protocol verifies publication slot freshness and flags oracle manipulation whenever confidence spread exceeds the 200 bps safety tolerance.",
+    name: "Permission Engine",
+    desc: "Unified 7-attribute evaluation governing humans and agents under identical solvency constraints.",
     shapeType: "horizontal" as const,
   },
   {
-    name: "Safe State",
-    desc: "Safe State activates as an emergency circuit breaker whenever oracle confidence fails, price deviation spikes, or drawdowns breach protocol boundaries. Halts all new debt creation and leverage expansion while preserving liquidations and debt repayments.",
+    name: "Enforcement",
+    desc: "Atomic Solana transaction execution, slippage verification, and rent-reclaiming lifecycle receipts.",
     shapeType: "full" as const,
   },
 ];
@@ -77,11 +77,11 @@ export const ScrollMorphSection: React.FC<ScrollMorphSectionProps> = ({ simpleMo
 
     // 5 Architectural Formats with responsive geometry (format 5 expands to full frame W x H)
     const KF = [
-      { p: 0, w0: 320, h0: 320, r: 160, rot: -6, ts: 1, name: "Dutch Auctions", w: 0, h: 0 },
-      { p: 0.22, w0: 540, h0: 180, r: 90, rot: 4, ts: 1, name: "Autonomous Agents", w: 0, h: 0 },
-      { p: 0.45, w0: 280, h0: 410, r: 16, rot: -4, ts: 1, name: "Risk Ratchet", w: 0, h: 0 },
-      { p: 0.68, w0: 480, h0: 300, r: 16, rot: 2, ts: 1, name: "Pyth Confidence", w: 0, h: 0 },
-      { p: 0.92, w0: 0, h0: 0, r: 0, rot: 0, ts: 1.15, name: "Safe State", w: 0, h: 0 },
+      { p: 0, w0: 320, h0: 320, r: 160, rot: -6, ts: 1, name: "Market State", w: 0, h: 0 },
+      { p: 0.22, w0: 540, h0: 180, r: 90, rot: 4, ts: 1, name: "Risk Engine", w: 0, h: 0 },
+      { p: 0.45, w0: 280, h0: 410, r: 16, rot: -4, ts: 1, name: "Risk Envelope", w: 0, h: 0 },
+      { p: 0.68, w0: 480, h0: 300, r: 16, rot: 2, ts: 1, name: "Permission Engine", w: 0, h: 0 },
+      { p: 0.92, w0: 0, h0: 0, r: 0, rot: 0, ts: 1.15, name: "Enforcement", w: 0, h: 0 },
     ];
 
     const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -131,7 +131,7 @@ export const ScrollMorphSection: React.FC<ScrollMorphSectionProps> = ({ simpleMo
       const a = KF[i];
       const b = KF[i + 1];
       const rawT = clamp((p - a.p) / (b.p - a.p), 0, 1);
-      // Continuous smooth hermite/cosine interpolation between Pyth Confidence and Safe State
+      // Continuous smooth hermite/cosine interpolation between Permission Engine and Enforcement
       const t = i === 3 ? (1 - Math.cos(rawT * Math.PI)) * 0.5 : ease(rawT);
       const L = (k: "w" | "h" | "r" | "rot" | "ts") => a[k] + (b[k] - a[k]) * t;
 
@@ -204,8 +204,8 @@ export const ScrollMorphSection: React.FC<ScrollMorphSectionProps> = ({ simpleMo
         <h2>Architectural Formats</h2>
         <p>
           {simpleMode
-            ? "Circuit's five core protocol mechanisms: Dutch auctions, autonomous agents, risk ratchet, Pyth confidence, and safe state."
-            : "The section pins while one shape travels through five protocol formats: Dutch auctions, autonomous agents, risk ratchet, Pyth confidence, and safe state full frame."}
+            ? "Circuit's five core protocol mechanisms: Market State, Risk Engine, Risk Envelope, Permission Engine, and Enforcement."
+            : "The section pins while one shape travels through five protocol formats: Market State, Risk Engine, Risk Envelope, Permission Engine, and Enforcement full frame."}
         </p>
       </div>
       <div className="sm-track" id="sm" ref={trackRef}>
@@ -222,16 +222,16 @@ export const ScrollMorphSection: React.FC<ScrollMorphSectionProps> = ({ simpleMo
               <i className="ink w sm-w" />
               <div className="sm-txt">
                 <small id="sm-n">(1)</small>
-                <strong id="sm-cap">Dutch Auctions</strong>
+                <strong id="sm-cap">Market State</strong>
               </div>
             </div>
 
             <ol className="sm-rail" id="sm-rail" aria-label="Protocol execution formats">
-              <li aria-current="true">(1) Dutch Auctions</li>
-              <li>(2) Autonomous Agents</li>
-              <li>(3) Risk Ratchet</li>
-              <li>(4) Pyth Confidence</li>
-              <li>(5) Safe State</li>
+              <li aria-current="true">(1) Market State</li>
+              <li>(2) Risk Engine</li>
+              <li>(3) Risk Envelope</li>
+              <li>(4) Permission Engine</li>
+              <li>(5) Enforcement</li>
             </ol>
             <i className="sm-bar" />
           </div>

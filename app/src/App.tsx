@@ -39,6 +39,7 @@ const Demo      = lazy(() => import("./pages/Demo"));
 const Faucet    = lazy(() => import("./pages/Faucet"));
 const Profile    = lazy(() => import("./pages/Profile"));
 const Autonomous = lazy(() => import("./pages/Autonomous"));
+const Lab        = lazy(() => import("./pages/Lab"));
 const NotFound   = lazy(() => import("./pages/NotFound"));
 
 /** Page title map — Economics entry removed; route redirects to Verify. */
@@ -56,6 +57,7 @@ const TITLES: Record<string, string> = {
   "/app/verify":        "Verification",
   "/app/demo":          "Interactive Demo",
   "/app/autonomous":    "Agent",
+  "/app/lab":           "Adversarial Lab",
 };
 
 function TitleSync() {
@@ -200,6 +202,7 @@ export default function App() {
               <Route path="/app/verify"         element={<Verify />} />
               <Route path="/app/demo"           element={<Demo />} />
               <Route path="/app/autonomous"     element={<Autonomous />} />
+              <Route path="/app/lab"            element={<Lab />} />
               <Route path="/app/economics"      element={<Navigate to="/app/verify" replace />} />
             </Route>
 

@@ -318,6 +318,98 @@ function AutonomousStrategyLifecycle() {
   );
 }
 
+function RiskEnvelopePipeline() {
+  return (
+    <Card title="Risk Envelope Pipeline — Authorize → Consume → Close">
+      <div className="stack g-24">
+        {/* Pipeline Flow */}
+        <div>
+          <span className="t-meta" style={{ display: 'block', marginBottom: 12 }}>PIPELINE FLOW</span>
+          <div className="row g-8 wrap" style={{ alignItems: 'center' }}>
+            {[
+              { title: 'Pyth Oracle', label: 'Market Data' },
+              { title: 'Risk Kernel', label: 'State Derivation' },
+              { title: 'Risk Envelope', label: 'Capability Token' },
+              { title: 'Permission Engine', label: '7-Attribute Gate' },
+              { title: 'Execution Venue', label: 'Solana TX' }
+            ].map((stage, idx, arr) => (
+              <React.Fragment key={stage.title}>
+                <div style={{
+                  padding: '12px 16px',
+                  background: 'var(--surface-2)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--r)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 4
+                }}>
+                  <span style={{ fontSize: 13, fontWeight: 600 }}>{stage.title}</span>
+                  <span className="t-meta" style={{ fontSize: 10 }}>{stage.label}</span>
+                </div>
+                {idx < arr.length - 1 && (
+                  <span style={{ color: 'var(--text-3)' }}>
+                    <Icon name="arrowRight" size={16} />
+                  </span>
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+
+        {/* Envelope Lifecycle */}
+        <div>
+          <span className="t-meta" style={{ display: 'block', marginBottom: 12 }}>ENVELOPE LIFECYCLE</span>
+          <div className="grid grid--3 g-12">
+            {[
+              { name: 'Authorize', desc: 'authorize_action creates a short-lived RiskEnvelope PDA. Contains: action, venue, max_amount, risk_state, oracle_snapshot, TTL.', icon: 'shield' as const },
+              { name: 'Consume', desc: 'consume_envelope verifies epoch, expiry, action/venue match, and marks consumed=true. Single use only.', icon: 'check' as const },
+              { name: 'Close', desc: 'close_envelope reclaims rent after expiry or consumption. Permissionless cleanup.', icon: 'cross' as const }
+            ].map(phase => (
+              <div key={phase.name} style={{
+                padding: 16,
+                background: 'var(--surface-2)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--r)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8
+              }}>
+                <div className="row g-8" style={{ alignItems: 'center' }}>
+                  <Icon name={phase.icon} size={16} />
+                  <span style={{ fontSize: 14, fontWeight: 700 }}>{phase.name}</span>
+                </div>
+                <div style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.5 }}>
+                  {phase.desc}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Key Properties */}
+        <div>
+          <span className="t-meta" style={{ display: 'block', marginBottom: 12 }}>KEY PROPERTIES</span>
+          <div className="grid grid--2 g-10">
+            {[
+              { k: 'TTL', v: '20 slots (~8 seconds)' },
+              { k: 'Replay Protection', v: 'Unique nonce per envelope PDA' },
+              { k: 'Epoch Binding', v: 'Invalidated if risk_epoch changes' },
+              { k: 'Single Use', v: 'consumed flag prevents reuse' },
+              { k: 'CPI Verifiable', v: 'Downstream programs verify via circuit-risk-sdk' },
+              { k: 'Rent Refund', v: 'Owner reclaims SOL after expiry' }
+            ].map(prop => (
+              <div key={prop.k} className="drow">
+                <span className="drow__k">{prop.k}</span>
+                <span className="drow__v">{prop.v}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function DemoView() {
   const {
     nvdaCollateral,
@@ -362,6 +454,87 @@ function DemoView() {
               <Icon name="verify" size={14} />
               Verify Bytecode
             </Link>
+          </div>
+        </div>
+
+        {/* The Central Proof */}
+        <div className="stack g-16" style={{ marginTop: 8, marginBottom: 8 }}>
+          <div className="row g-8 wrap">
+            <Pill tone="accent">THE CENTRAL PROOF</Pill>
+            <Pill tone="neutral">SAME COLLATERAL · SAME INSTRUCTION · DIFFERENT MARKET STATE</Pill>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
+            {/* Panel 1 */}
+            <Card title="Panel 1: SAFE — Borrow Authorized">
+              <div className="stack g-12">
+                <div className="grid grid--2 g-10">
+                  <div className="drow"><span className="drow__k">Asset</span><span className="drow__v mono">NVDA</span></div>
+                  <div className="drow"><span className="drow__k">Market</span><span className="drow__v mono">OPEN</span></div>
+                  <div className="drow"><span className="drow__k">Oracle</span><span className="drow__v mono">FRESH</span></div>
+                  <div className="drow"><span className="drow__k">Confidence</span><span className="drow__v mono">0.08%</span></div>
+                  <div className="drow"><span className="drow__k">Risk State</span><span className="drow__v">SAFE</span></div>
+                </div>
+                <div style={{ padding: 12, borderRadius: 'var(--r)', background: 'rgba(127, 195, 154, 0.12)', border: '1px solid rgba(127, 195, 154, 0.4)' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--success)', marginBottom: 4 }}>
+                    BORROW $40 USDC &rarr; CIRCUIT RISK KERNEL &rarr; AUTHORIZED &rarr; Envelope Created
+                  </div>
+                  <div style={{ fontSize: 11.5, color: 'var(--text-2)' }}>
+                    Risk Envelope PDA created. TTL: 20 slots (~8s). Action: Borrow. Venue: Credit.
+                  </div>
+                </div>
+                <div>
+                  <Pill tone="success">PERMITTED</Pill>
+                </div>
+              </div>
+            </Card>
+
+            {/* Panel 2 */}
+            <Card title="Panel 2: DEFENSIVE — Borrow Rejected">
+              <div className="stack g-12">
+                <div className="grid grid--2 g-10">
+                  <div className="drow"><span className="drow__k">Asset</span><span className="drow__v mono">NVDA</span></div>
+                  <div className="drow"><span className="drow__k">Market</span><span className="drow__v mono">VOLATILE</span></div>
+                  <div className="drow"><span className="drow__k">Oracle</span><span className="drow__v mono">DEGRADED</span></div>
+                  <div className="drow"><span className="drow__k">Confidence</span><span className="drow__v mono">2.85%</span></div>
+                  <div className="drow"><span className="drow__k">Risk State</span><span className="drow__v">DEFENSIVE</span></div>
+                </div>
+                <div style={{ padding: 12, borderRadius: 'var(--r)', background: 'rgba(207, 139, 139, 0.12)', border: '1px solid rgba(207, 139, 139, 0.4)' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--danger)', marginBottom: 4 }}>
+                    BORROW $40 USDC &rarr; CIRCUIT RISK KERNEL &rarr; REJECTED (DEFENSIVE_RISK_POLICY)
+                  </div>
+                  <div style={{ fontSize: 11.5, color: 'var(--text-2)' }}>
+                    Same actor. Same collateral. Same amount. Different market state &rarr; different authority.
+                  </div>
+                </div>
+                <div>
+                  <Pill tone="danger">BLOCKED</Pill>
+                </div>
+              </div>
+            </Card>
+
+            {/* Panel 3 */}
+            <Card title="Panel 3: Recovery — Repay Allowed">
+              <div className="stack g-12">
+                <div className="grid grid--2 g-10">
+                  <div className="drow"><span className="drow__k">Asset</span><span className="drow__v mono">NVDA</span></div>
+                  <div className="drow"><span className="drow__k">Market</span><span className="drow__v mono">VOLATILE</span></div>
+                  <div className="drow"><span className="drow__k">Oracle</span><span className="drow__v mono">DEGRADED</span></div>
+                  <div className="drow"><span className="drow__k">Confidence</span><span className="drow__v mono">2.85%</span></div>
+                  <div className="drow"><span className="drow__k">Risk State</span><span className="drow__v">DEFENSIVE</span></div>
+                </div>
+                <div style={{ padding: 12, borderRadius: 'var(--r)', background: 'rgba(127, 195, 154, 0.12)', border: '1px solid rgba(127, 195, 154, 0.4)' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--success)', marginBottom: 4 }}>
+                    REPAY $10 USDC &rarr; CIRCUIT RISK KERNEL &rarr; ALLOWED (RISK_REDUCING_EXEMPTION)
+                  </div>
+                  <div style={{ fontSize: 11.5, color: 'var(--text-2)' }}>
+                    Same defensive market state. Repayment reduces risk &rarr; always permitted. This is the asymmetric enforcement thesis.
+                  </div>
+                </div>
+                <div>
+                  <Pill tone="success">RISK-REDUCING EXEMPTION</Pill>
+                </div>
+              </div>
+            </Card>
           </div>
         </div>
 
@@ -501,6 +674,9 @@ function DemoView() {
 
         {/* 9-Step Autonomous Strategy Judge Flow (Section 27) */}
         <AutonomousStrategyLifecycle />
+
+        {/* Risk Envelope Pipeline Visualization */}
+        <RiskEnvelopePipeline />
 
         {/* 4-State Machine Timeline */}
         <RiskRatchetTimeline />
