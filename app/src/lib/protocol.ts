@@ -45,7 +45,7 @@ export type PositionState = "healthy" | "liquidatable";
 export type HaltState = "open_normal" | "closed" | "halted_inferred";
 
 export function decodeHaltState(v: any): HaltState {
-  if (!v) return "halted_inferred";
+  if (!v) return "open_normal";
   let key = "";
   if (typeof v === "string") {
     key = v.toLowerCase();
@@ -58,7 +58,10 @@ export function decodeHaltState(v: any): HaltState {
   if (key === "closed") {
     return "closed";
   }
-  return "halted_inferred";
+  if (key === "haltedinferred" || key === "halted_inferred") {
+    return "halted_inferred";
+  }
+  return "open_normal";
 }
 
 /** Anchor decodes unit enum variants as `{ variantName: {} }`. */
@@ -363,7 +366,7 @@ export function decodeMarketGuardView(
         "ratchetrecoverypending", "securityhaltinferred", "oracleunavailable"
       ];
 
-      let haltState: HaltState = "halted_inferred";
+      let haltState: HaltState = "open_normal";
       let feedStalenessSeconds = 0n;
       let sessionExpectedOpen = true;
       let globalOracleHealthy = true;
@@ -372,7 +375,8 @@ export function decodeMarketGuardView(
         const haltByte = buf.readUInt8(71);
         if (haltByte === 0) haltState = "open_normal";
         else if (haltByte === 1) haltState = "closed";
-        else haltState = "halted_inferred";
+        else if (haltByte === 2) haltState = "halted_inferred";
+        else haltState = "open_normal";
         feedStalenessSeconds = buf.readBigUInt64LE(72);
         sessionExpectedOpen = buf.readUInt8(80) !== 0;
         globalOracleHealthy = buf.readUInt8(81) !== 0;

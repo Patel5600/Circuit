@@ -7,11 +7,11 @@ use anchor_lang::prelude::*;
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug, InitSpace, Default)]
 pub enum HaltState {
     /// Reference market session is expected open and the asset's validated feed is fresh
+    #[default]
     OpenNormal,
     /// Reference market session is closed according to deterministic calendar logic
     Closed,
     /// Reference market session is expected active, but this security's feed is stale while broader oracle is healthy
-    #[default]
     HaltedInferred,
     /// Global oracle failure or broader data-service degradation detected
     OracleUnavailable,

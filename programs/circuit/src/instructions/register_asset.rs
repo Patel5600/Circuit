@@ -46,10 +46,10 @@ pub fn handler(
     guard.last_valid_price = 0;
     guard.last_valid_expo = 0;
     guard.last_publish_time = 0;
-    guard.market_state = MarketState::Defensive; // Auto-halted conservative state upon addition
-    guard.reason = GuardReason::SecurityHaltInferred;
+    guard.market_state = MarketState::Defensive; // Initial conservative state awaiting first crank
+    guard.reason = GuardReason::MarketClosed;
     guard.last_checked_slot = 0;
-    guard.halt_state = HaltState::HaltedInferred; // AUTO HALTED BY DEFAULT FOR ALL NEW STOCKS
+    guard.halt_state = HaltState::Closed; // Initial calendar state awaiting first crank
     guard.feed_staleness_seconds = 0;
     guard.session_expected_open = false;
     guard.global_oracle_healthy = true;

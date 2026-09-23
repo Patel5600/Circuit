@@ -7,7 +7,7 @@ import { MarketCandlestick } from "./MarketCandlestick";
 import { AssetConfigView } from "../../lib/protocol";
 import { OracleSnapshot } from "../../lib/pyth";
 import { SessionHint } from "../../hooks/useProtocolState";
-import { MarketSnapshot, UnderlyingSession, OracleStatus as OracleStatusType, Candle } from "../../lib/market-data/types";
+import { MarketSnapshot, UnderlyingSession, OracleStatus as OracleStatusType, MarketSecurityState, Candle } from "../../lib/market-data/types";
 import { useAction } from "../../context/ActionContext";
 import { getDeployedMarket } from "../../data/markets";
 
@@ -87,6 +87,8 @@ export interface MarketRow {
   underlyingSession?: UnderlyingSession;
   onchainAvailability?: string;
   collateralStatus?: string;
+  securityState?: MarketSecurityState;
+  haltReason?: string;
   sparkline?: number[];
   candles?: Candle[];
   referencePrice24h?: number | null;
@@ -127,7 +129,21 @@ export function MarketCard({
   const change = row.change24hPercent ?? 0;
   const isPos = change >= 0;
   const sessionOpen = row.underlyingSession === "REGULAR";
-  const haltState = row.haltState ?? "halted_inferred";
+  const securityState =
+    row.securityState ??
+    (row.haltState === "halted_inferred"
+      ? "HALTED_INFERRED"
+      : row.haltState === "closed"
+      ? "CLOSED"
+      : sessionOpen
+      ? "NORMAL"
+      : "CLOSED");
+  const haltState =
+    securityState === "HALTED_INFERRED"
+      ? "halted_inferred"
+      : securityState === "CLOSED"
+      ? "closed"
+      : "open_normal";
 
   // Real mini sparkline
   const points = row.sparkline ?? [];
@@ -280,12 +296,29 @@ export function MarketCard({
           <div style={{ color: "var(--text-3)", fontSize: 10, fontFamily: "var(--mono)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>MarketGuard</div>
           <div style={{
             fontWeight: 700,
-            color: haltState === "halted_inferred" ? "var(--danger, #cf8b8b)" : haltState === "open_normal" ? "var(--mint, #7fc39a)" : "var(--text-2)",
+            color:
+              securityState === "HALTED_INFERRED"
+                ? "var(--warning, #e69d45)"
+                : securityState === "ORACLE_UNAVAILABLE"
+                ? "var(--warning, #cfad74)"
+                : securityState === "NORMAL"
+                ? "var(--mint, #7fc39a)"
+                : securityState === "UNKNOWN"
+                ? "var(--text-3)"
+                : "var(--text-2)",
             fontFamily: "var(--mono)",
             fontSize: 11,
             marginTop: 2
           }}>
-            {haltState === "halted_inferred" ? "HALTED INFERRED" : haltState === "open_normal" ? "OPEN NORMAL" : "CLOSED"}
+            {securityState === "HALTED_INFERRED"
+              ? "HALT INFERRED"
+              : securityState === "ORACLE_UNAVAILABLE"
+              ? "ORACLE SYNC"
+              : securityState === "NORMAL"
+              ? "NORMAL"
+              : securityState === "UNKNOWN"
+              ? "SYNCING"
+              : "CLOSED"}
           </div>
         </div>
 
@@ -306,24 +339,45 @@ export function MarketCard({
         </div>
       </div>
 
-      {/* Security Halt Disclaimer Callout */}
-      {haltState === "halted_inferred" && (
+      {/* Genuine Security Halt Warning Callout */}
+      {securityState === "HALTED_INFERRED" && (
         <div
           style={{
-            background: "rgba(224, 98, 98, 0.08)",
-            border: "1px solid rgba(224, 98, 98, 0.3)",
+            background: "rgba(230, 157, 69, 0.08)",
+            border: "1px solid rgba(230, 157, 69, 0.35)",
             borderRadius: "var(--r-sm)",
             padding: "8px 10px",
             fontSize: 10.5,
-            color: "var(--danger, #cf8b8b)",
+            color: "var(--warning, #e69d45)",
             marginBottom: 12,
             lineHeight: 1.4,
           }}
         >
           <div style={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 2 }}>
-            ⚠️ HALTED INFERRED · Security-level Pause
+            ⚠️ Trading Halt Inferred · Reference feed inactive
           </div>
-          Feed stale during expected session; Circuit has inferred a security-level halt condition. Oracle outage remains a possible alternative.
+          Inferred from feed freshness and session expectations; exchange halt confirmation is not available.
+        </div>
+      )}
+
+      {/* Calm Closed Market Subtext */}
+      {securityState === "CLOSED" && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "6px 8px",
+            borderRadius: "var(--r-sm)",
+            background: "var(--surface-3, #151821)",
+            border: "1px solid var(--border-subtle, #1e222d)",
+            fontSize: 10.5,
+            color: "var(--text-3)",
+            marginBottom: 12,
+          }}
+        >
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--text-3)" }} />
+          <span>Reference market closed · Secondary token trading continues 24/7</span>
         </div>
       )}
 
@@ -333,10 +387,18 @@ export function MarketCard({
           type="button"
           className="btn btn--primary btn--sm grow"
           onClick={onSelect}
-          disabled={!row.live || haltState === "halted_inferred"}
+          disabled={!row.live || securityState === "HALTED_INFERRED" || securityState === "CLOSED" || securityState === "ORACLE_UNAVAILABLE"}
           style={{ fontWeight: 600, fontSize: 12.5 }}
         >
-          {haltState === "halted_inferred" ? "Borrow Locked (Halted)" : `Borrow ${isSol ? "SOL" : (row.quoteSymbol || "USDC")}`}
+          {securityState === "HALTED_INFERRED"
+            ? "Borrow Paused (Halt Inferred)"
+            : securityState === "ORACLE_UNAVAILABLE"
+            ? "Oracle Syncing"
+            : securityState === "CLOSED"
+            ? "Market Closed"
+            : !row.live
+            ? "Discovery"
+            : `Borrow ${isSol ? "SOL" : (row.quoteSymbol || "USDC")}`}
         </button>
         <button
           type="button"

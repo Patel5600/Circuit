@@ -111,10 +111,12 @@ export function evaluateAction(
 
   if (!globalOracleHealthy) {
     haltInference = "ORACLE_UNAVAILABLE";
-  } else if (state.isMarketOpen && ageSeconds > 60) {
-    haltInference = "HALTED_INFERRED";
   } else if (!state.isMarketOpen) {
     haltInference = "CLOSED";
+  } else if (state.oraclePublishTime <= 0 || freshness === "UNAVAILABLE") {
+    haltInference = "ORACLE_UNAVAILABLE";
+  } else if (state.isMarketOpen && ageSeconds > 60) {
+    haltInference = "HALTED_INFERRED";
   } else {
     haltInference = "OPEN_NORMAL";
   }

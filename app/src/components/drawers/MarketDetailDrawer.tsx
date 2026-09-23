@@ -56,8 +56,19 @@ export function MarketDetailDrawer({
   const ageSeconds: number | null = snapshot?.oracleTimestamp ? Math.max(0, Math.floor(Date.now() / 1000) - snapshot.oracleTimestamp) : null;
   const isSessionOpen = underlyingSession === "REGULAR";
   const isFeedStale = oracleStatus === "STALE" || (ageSeconds != null && ageSeconds > 60);
-  const derivedHaltState: "open_normal" | "closed" | "halted_inferred" | "oracle_unavailable" =
-    (market as any)?.haltState ?? "open_normal";
+  const derivedSecurityState: "NORMAL" | "CLOSED" | "HALTED_INFERRED" | "ORACLE_UNAVAILABLE" | "UNKNOWN" =
+    snapshot?.securityState ??
+    ((market as any)?.securityState
+      ? (market as any).securityState
+      : (market as any)?.haltState === "halted_inferred"
+      ? "HALTED_INFERRED"
+      : !isSessionOpen
+      ? "CLOSED"
+      : isFeedStale && oracleStatus !== "UNAVAILABLE"
+      ? "HALTED_INFERRED"
+      : oracleStatus === "UNAVAILABLE"
+      ? "ORACLE_UNAVAILABLE"
+      : "NORMAL");
 
   const deployed = getDeployedMarket(activeSymbol, quoteSymbol);
   const baseMintStr = deployed?.mint ?? (market as any)?.mint;
@@ -95,7 +106,7 @@ export function MarketDetailDrawer({
       open={open}
       onClose={onClose}
       title={`${name} (${displaySymbol})`}
-      subtitle={`Market Â· ${activeSymbol}/${quoteSymbol}`}
+      subtitle={`Market · ${activeSymbol}/${quoteSymbol}`}
       badge={
         <Pill tone={underlyingSession === "REGULAR" ? "success" : "neutral"} withDot>
           {underlyingSession === "REGULAR" ? "NYSE Regular Open" : "NYSE Session Closed"}
@@ -245,21 +256,37 @@ export function MarketDetailDrawer({
             background: "var(--surface-2, #0d0f15)",
             borderRadius: "var(--r, 10px)",
             border: `1px solid ${
-              derivedHaltState === "halted_inferred"
-                ? "rgba(224, 98, 98, 0.4)"
+              derivedSecurityState === "HALTED_INFERRED"
+                ? "rgba(230, 157, 69, 0.4)"
                 : "var(--border, #1a1d26)"
             }`,
           }}
         >
           <div className="row between" style={{ alignItems: "center" }}>
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-3)", textTransform: "uppercase" }}>
-              MarketGuard Per-Security Halt State
+              MarketGuard Security State
             </div>
             <Pill
-              tone={derivedHaltState === "halted_inferred" ? "danger" : derivedHaltState === "open_normal" ? "success" : "neutral"}
+              tone={
+                derivedSecurityState === "HALTED_INFERRED"
+                  ? "warning"
+                  : derivedSecurityState === "ORACLE_UNAVAILABLE"
+                  ? "warning"
+                  : derivedSecurityState === "NORMAL"
+                  ? "success"
+                  : "neutral"
+              }
               withDot
             >
-              {derivedHaltState === "halted_inferred" ? "HALTED INFERRED" : derivedHaltState === "open_normal" ? "OPEN NORMAL" : "CLOSED"}
+              {derivedSecurityState === "HALTED_INFERRED"
+                ? "HALT INFERRED"
+                : derivedSecurityState === "ORACLE_UNAVAILABLE"
+                ? "ORACLE SYNC"
+                : derivedSecurityState === "NORMAL"
+                ? "NORMAL"
+                : derivedSecurityState === "UNKNOWN"
+                ? "SYNCING"
+                : "CLOSED"}
             </Pill>
           </div>
 
@@ -284,23 +311,23 @@ export function MarketDetailDrawer({
             </span>
           </div>
 
-          {derivedHaltState === "halted_inferred" && (
+          {derivedSecurityState === "HALTED_INFERRED" && (
             <div
               style={{
                 marginTop: 6,
                 padding: "10px 12px",
-                background: "rgba(224, 98, 98, 0.08)",
-                border: "1px solid rgba(224, 98, 98, 0.25)",
+                background: "rgba(230, 157, 69, 0.08)",
+                border: "1px solid rgba(230, 157, 69, 0.3)",
                 borderRadius: "var(--r-sm)",
                 fontSize: 11,
-                color: "var(--danger, #cf8b8b)",
+                color: "var(--warning, #e69d45)",
                 lineHeight: 1.45,
               }}
             >
               <div style={{ fontWeight: 700, marginBottom: 3, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                Security-Level Market Pause Inference
+                ⚠️ Trading Halt Inferred · Reference feed inactive
               </div>
-              Feed stale during expected session; Circuit has inferred a security-level halt condition. Oracle outage remains a possible alternative.
+              Inferred from feed freshness and session expectations; exchange halt confirmation is not available.
             </div>
           )}
         </div>

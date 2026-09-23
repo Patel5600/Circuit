@@ -10,6 +10,7 @@ import {
   MarketSessionState,
   UnderlyingSession,
   OracleStatus,
+  MarketSecurityState,
   OnchainMarketState,
   CollateralStatus,
   HistoricalPoint,
@@ -132,6 +133,8 @@ function buildInitialSnapshots(): Record<string, MarketSnapshot> {
       sessionDescription: sessionDetail.label,
       onchainAvailability: asset.collateralSupported ? "TRADEABLE" : "UNAVAILABLE",
       collateralStatus: asset.collateralSupported ? "AVAILABLE" : "COMING_SOON",
+      securityState: sessionDetail.isOpen ? "UNKNOWN" : "CLOSED",
+      haltReason: sessionDetail.isOpen ? "Initializing market feed" : "Reference equity session is closed (NYSE calendar)",
       referencePrice24h: null,
       change24hUsd: null,
       change24hPercent: null,
@@ -205,6 +208,10 @@ export function useMarketDataService() {
       } catch (e) {
         // RPC degradation fallback
       }
+
+      const hasOnchainOracleResponse = onchainInfos.some((info) => Boolean(info && info.data && info.data.length > 0));
+      const hasServerResponse = Object.keys(serverDataMap).length > 0;
+      const globalOracleHealthy = hasOnchainOracleResponse || hasServerResponse;
 
       const nextSnapshots: Record<string, MarketSnapshot> = {};
 
@@ -354,9 +361,29 @@ export function useMarketDataService() {
         }
         previousPricesRef.current[asset.id] = activePriceUsd;
 
-        // 7. Separate 4 Independent Semantic Dimensions
+        // 7. Separate 5 Independent Semantic Dimensions & Deterministic Security State
         const collateralStatus: CollateralStatus = asset.collateralSupported ? "AVAILABLE" : "COMING_SOON";
         const onchainAvailability: OnchainMarketState = asset.collateralSupported ? "TRADEABLE" : "UNAVAILABLE";
+
+        let securityState: MarketSecurityState = "NORMAL";
+        let haltReason: string | undefined = undefined;
+
+        if (activeOracleStatus === "UNAVAILABLE" || activePriceUsd <= 0 || activePublishTime <= 0) {
+          securityState = "ORACLE_UNAVAILABLE";
+          haltReason = "Price feed data unavailable or delayed";
+        } else if (!sessionDetail.isOpen) {
+          securityState = "CLOSED";
+          haltReason = `Reference market closed · ${sessionDetail.nextTransitionLabel}`;
+        } else if (!globalOracleHealthy) {
+          securityState = "ORACLE_UNAVAILABLE";
+          haltReason = "Global oracle service delayed across feeds";
+        } else if (activePublishTime > 0 && (nowSeconds - activePublishTime) > 60) {
+          securityState = "HALTED_INFERRED";
+          haltReason = "Inferred from feed freshness and session expectations; exchange halt confirmation is not available.";
+        } else {
+          securityState = "NORMAL";
+          haltReason = undefined;
+        }
 
         nextSnapshots[asset.symbol] = {
           assetId: asset.id,
@@ -375,6 +402,8 @@ export function useMarketDataService() {
           sessionDescription: sessionDetail.label,
           onchainAvailability,
           collateralStatus,
+          securityState,
+          haltReason,
           referencePrice24h: hasRealRef24h ? ref24h : null,
           change24hUsd: changeUsd,
           change24hPercent: changePercent,

@@ -13,8 +13,9 @@ import { useMarket } from "../context/MarketContext";
 import { useAction } from "../context/ActionContext";
 import { useMarketData } from "../context/MarketDataContext";
 import { getDeployedMarket } from "../data/markets";
-import { MarketSnapshot } from "../lib/market-data/types";
+import { MarketSnapshot, MarketSecurityState } from "../lib/market-data/types";
 import { CANONICAL_ASSET_REGISTRY } from "../lib/market-data/registry";
+import { getDetailedMarketSession, classifyOracleStatus } from "../lib/market-data/stream";
 import { AssetLogo } from "../components/brand/AssetLogo";
 import { DbcPoolStatusPill } from "../components/dbc/DbcPoolStatusPill";
 import { getRegisteredDbcSymbols } from "../lib/meteora/registry";
@@ -46,10 +47,20 @@ export default function Markets() {
 
   // Convert snapshots to rows for rendering and sorting
   const rows = useMemo<MarketRow[]>(() => {
+    const currentSession = getDetailedMarketSession(Math.floor(Date.now() / 1000));
     return CANONICAL_ASSET_REGISTRY.map((asset) => {
       const snap = snapshots[asset.symbol];
       const isCurrent = s.market?.mint === asset.mint;
       const priceUsd = snap?.priceUsd ?? (isCurrent && s.oracle?.priceUsd ? s.oracle.priceUsd : asset.initialPriceUsd);
+
+      const securityState: MarketSecurityState =
+        snap?.securityState ?? (currentSession.isOpen ? "UNKNOWN" : "CLOSED");
+      const haltState =
+        securityState === "HALTED_INFERRED"
+          ? "halted_inferred"
+          : securityState === "CLOSED"
+          ? "closed"
+          : "open_normal";
 
       return {
         symbol: asset.tokenSymbol,
@@ -61,11 +72,13 @@ export default function Markets() {
         priceDirection: snap?.priceDirection,
         change24hPercent: snap?.changeStatus === "AVAILABLE" ? (snap.change24hPercent ?? null) : null,
         changeStatus: snap?.changeStatus ?? "UNAVAILABLE",
-        confBps: snap?.oracleConfBps ?? 18,
-        freshness: snap?.oracleStatus ?? "LIVE",
-        underlyingSession: snap?.underlyingSession ?? "CLOSED",
+        confBps: snap?.oracleConfBps ?? (isCurrent && s.oracle?.confBps ? s.oracle.confBps : 0),
+        freshness: snap?.oracleStatus ?? (isCurrent && s.oracle ? classifyOracleStatus(s.oracle.ageSeconds, true) : "UNAVAILABLE"),
+        underlyingSession: snap?.underlyingSession ?? currentSession.session,
         onchainAvailability: snap?.onchainAvailability ?? (asset.collateralSupported ? "TRADEABLE" : "UNAVAILABLE"),
         collateralStatus: snap?.collateralStatus ?? (asset.collateralSupported ? "AVAILABLE" : "COMING_SOON"),
+        securityState,
+        haltReason: snap?.haltReason,
         sparkline: snap?.sparkline,
         candles: snap?.candles,
         referencePrice24h: snap?.referencePrice24h,
@@ -74,7 +87,7 @@ export default function Markets() {
         marketSymbol: asset.symbol,
         mint: asset.mint,
         pythFeedId: asset.oracleFeedId,
-        haltState: (snap as any)?.haltState ?? "halted_inferred",
+        haltState,
       };
     });
   }, [snapshots, s.market, s.oracle]);

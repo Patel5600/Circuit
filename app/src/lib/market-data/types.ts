@@ -1,12 +1,14 @@
 import { PublicKey } from "@solana/web3.js";
 
 /**
- * 4 Independent Semantic Market Dimensions
+ * 5 Independent Semantic Market Dimensions
  */
 export type UnderlyingSession = "REGULAR" | "PRE_MARKET" | "POST_MARKET" | "OVERNIGHT" | "CLOSED";
 export type OracleStatus = "LIVE" | "RECENT" | "STALE" | "UNAVAILABLE";
+export type MarketSecurityState = "NORMAL" | "HALTED_INFERRED" | "CLOSED" | "ORACLE_UNAVAILABLE" | "UNKNOWN";
 export type OnchainMarketState = "OPEN" | "TRADEABLE" | "NO_LIQUIDITY" | "UNAVAILABLE" | "UNKNOWN";
 export type CollateralStatus = "AVAILABLE" | "COMING_SOON" | "UNSUPPORTED";
+export type CreditPermissionStatus = "AVAILABLE" | "RESTRICTED" | "BLOCKED";
 
 /**
  * Legacy aliases for backwards compatibility
@@ -76,6 +78,10 @@ export interface MarketSnapshot {
   
   // 4. Collateral Status
   collateralStatus: CollateralStatus;
+
+  // 5. Market Security / Halt State (Deterministic MarketGuard inference)
+  securityState: MarketSecurityState;
+  haltReason?: string;
   
   // 24h Movement & Intraday High/Low
   referencePrice24h: number | null;
