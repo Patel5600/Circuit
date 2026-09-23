@@ -13,6 +13,7 @@ import {
 export type ScenarioCategory = "Blocked Attacks" | "Recovery Exemptions";
 export type ExpectedOutcome = "BLOCKED" | "ALLOWED";
 export type LiveStatus = "IDLE" | "RUNNING" | "PASS" | "FAIL";
+export type ViewMode = "PLAIN" | "TECHNICAL";
 
 export interface DisplayScenario {
   id: string; // e.g. "#01"
@@ -33,6 +34,16 @@ export interface DisplayScenario {
   computeUnits: string;
   timestamp: string;
   engineScenario: EngineScenario;
+
+  // Plain English fields for non-technical users
+  plainTitle: string;
+  plainTag: string;
+  plainSummary: string;
+  plainSetupText: string;
+  plainAttemptedActionText: string;
+  plainEnforcementText: string;
+  plainReceiptProofText: string;
+  plainStatusConfirmation: string;
 }
 
 const CANONICAL_DISPLAY_SCENARIOS: DisplayScenario[] = [
@@ -60,6 +71,19 @@ const CANONICAL_DISPLAY_SCENARIOS: DisplayScenario[] = [
     computeUnits: "14,280 CUs",
     timestamp: "2026-09-22 14:10:02 UTC",
     engineScenario: ADVERSARIAL_SCENARIOS[0],
+
+    plainTitle: "Frozen Price Tag Protection",
+    plainTag: "Outdated Price Shield",
+    plainSummary: "Stops anyone from taking loans based on outdated or frozen stock prices.",
+    plainSetupText:
+      "A stock price feed freezes and still shows an old high price of $1,000 for Nvidia, even though the real market price may have moved.",
+    plainAttemptedActionText:
+      "A user tries to exploit the frozen price to borrow $100 against their collateral.",
+    plainEnforcementText:
+      "Circuit checks the clock on the price feed. Detecting that the price is older than 10 minutes, it refuses the loan.",
+    plainReceiptProofText:
+      "Blocked on-chain. Zero dollars left the vault. The lending pool remains completely protected.",
+    plainStatusConfirmation: "Protected: Outdated price rejected automatically by on-chain clock gate.",
   },
   {
     id: "#02",
@@ -85,6 +109,19 @@ const CANONICAL_DISPLAY_SCENARIOS: DisplayScenario[] = [
     computeUnits: "16,845 CUs",
     timestamp: "2026-09-22 14:11:45 UTC",
     engineScenario: ADVERSARIAL_SCENARIOS[1],
+
+    plainTitle: "Over-Borrowing Limit Cap",
+    plainTag: "Maximum Safe Loan Ceiling",
+    plainSummary: "Enforces strict limits so no one can borrow more than their safe collateral limit.",
+    plainSetupText:
+      "You deposit $1,000 worth of stock. The protocol's safe borrowing ceiling is 70% ($700 max loan).",
+    plainAttemptedActionText:
+      "A user attempts to borrow $850 (85% of collateral value), trying to exceed their safe credit limit.",
+    plainEnforcementText:
+      "Circuit's mathematical credit engine computes the safe ceiling ($700) and immediately halts the $850 request.",
+    plainReceiptProofText:
+      "Blocked on-chain. Zero excessive debt was created, keeping the pool safe from default.",
+    plainStatusConfirmation: "Protected: Borrow request halted because it exceeds the 70% safe limit.",
   },
   {
     id: "#03",
@@ -110,6 +147,19 @@ const CANONICAL_DISPLAY_SCENARIOS: DisplayScenario[] = [
     computeUnits: "12,190 CUs",
     timestamp: "2026-09-22 14:13:18 UTC",
     engineScenario: ADVERSARIAL_SCENARIOS[2],
+
+    plainTitle: "Expired AI Bot Permission Lock",
+    plainTag: "Bot Expiration Gate",
+    plainSummary: "Locks out autonomous AI trading bots the second their authorized delegation time window expires.",
+    plainSetupText:
+      "An automated AI strategy had temporary permission to make trades, but its authorization window expired.",
+    plainAttemptedActionText:
+      "The AI bot tries to execute an unauthorized $100 borrow after its permission has run out.",
+    plainEnforcementText:
+      "Circuit checks the bot's permission timer against the blockchain clock. Seeing it has expired, it shuts the door.",
+    plainReceiptProofText:
+      "Rejected on-chain before funds could move. The bot's delegation is permanently locked.",
+    plainStatusConfirmation: "Protected: Automated bot blocked because its authorization timer expired.",
   },
   {
     id: "#04",
@@ -135,6 +185,19 @@ const CANONICAL_DISPLAY_SCENARIOS: DisplayScenario[] = [
     computeUnits: "22,410 CUs",
     timestamp: "2026-09-22 14:15:01 UTC",
     engineScenario: ADVERSARIAL_SCENARIOS[3],
+
+    plainTitle: "AI Bot Allowance Enforcement",
+    plainTag: "Bot Spending Allowance",
+    plainSummary: "Restricts automated AI bots to their owner-assigned spending budget, even if the account has more collateral.",
+    plainSetupText:
+      "You give an AI assistant a strict spending allowance of $500, even though your account holds $2,000 of collateral.",
+    plainAttemptedActionText:
+      "The assistant attempts to borrow $750 ($250 over its authorized budget).",
+    plainEnforcementText:
+      "Circuit checks the requested amount against your allowance setting. Finding it exceeds $500, it blocks the loan.",
+    plainReceiptProofText:
+      "Blocked on-chain. The AI cannot spend a single cent beyond the spending cap you authorized.",
+    plainStatusConfirmation: "Protected: Bot blocked from exceeding owner-assigned $500 allowance.",
   },
   {
     id: "#05",
@@ -160,6 +223,19 @@ const CANONICAL_DISPLAY_SCENARIOS: DisplayScenario[] = [
     computeUnits: "9,850 CUs",
     timestamp: "2026-09-22 14:16:34 UTC",
     engineScenario: ADVERSARIAL_SCENARIOS[4],
+
+    plainTitle: "Asset Compartment Isolation",
+    plainTag: "Account Privacy Barrier",
+    plainSummary: "Prevents a bot authorized for one asset (e.g. Nvidia) from touching another asset (e.g. Tesla).",
+    plainSetupText:
+      "You grant an automated strategy permission to manage only your Nvidia shares. You also hold Tesla shares.",
+    plainAttemptedActionText:
+      "The strategy tries to borrow money against your Tesla collateral without authorization.",
+    plainEnforcementText:
+      "Circuit checks the bot's permission keys against the target stock. Seeing it is only cleared for Nvidia, it denies access.",
+    plainReceiptProofText:
+      "Halted before execution. Assets in different stock compartments remain completely isolated.",
+    plainStatusConfirmation: "Protected: Cross-asset access blocked. Bot is restricted to Nvidia only.",
   },
   {
     id: "#06",
@@ -185,6 +261,19 @@ const CANONICAL_DISPLAY_SCENARIOS: DisplayScenario[] = [
     computeUnits: "18,720 CUs",
     timestamp: "2026-09-22 14:18:22 UTC",
     engineScenario: ADVERSARIAL_SCENARIOS[5],
+
+    plainTitle: "Market Storm Risk Lockdown",
+    plainTag: "Market Storm Shield",
+    plainSummary: "Pauses new loans during extreme market volatility to protect depositors from flash crashes.",
+    plainSetupText:
+      "Stock market volatility suddenly surges, causing price feeds to report wide spreads and heightened uncertainty.",
+    plainAttemptedActionText:
+      "A user attempts to open a new $50 loan while the protocol is in Defensive risk mode.",
+    plainEnforcementText:
+      "Circuit's risk radar detects market stress and locks all new credit creation until normal stability returns.",
+    plainReceiptProofText:
+      "Blocked on-chain. Capital policy successfully locked down risk to prevent bad debt.",
+    plainStatusConfirmation: "Protected: New borrowing locked during market volatility to protect depositors.",
   },
   {
     id: "#07",
@@ -210,6 +299,19 @@ const CANONICAL_DISPLAY_SCENARIOS: DisplayScenario[] = [
     computeUnits: "28,940 CUs",
     timestamp: "2026-09-22 14:20:11 UTC",
     engineScenario: ADVERSARIAL_SCENARIOS[6],
+
+    plainTitle: "Crisis Emergency Freeze",
+    plainTag: "System Emergency Freeze",
+    plainSummary: "Freezes all borrowing across the entire platform during extreme market halts or data disruptions.",
+    plainSetupText:
+      "The stock exchange halts trading or a major price network fails, triggering a systemic Emergency state.",
+    plainAttemptedActionText:
+      "A user attempts to draw a new $50 loan during the emergency lockdown.",
+    plainEnforcementText:
+      "Circuit's emergency circuit breaker enforces a complete freeze on debt creation across all markets.",
+    plainReceiptProofText:
+      "Transaction aborted. All capital expansion is safely quarantined to protect platform solvency.",
+    plainStatusConfirmation: "Protected: All credit creation frozen during system emergency.",
   },
   {
     id: "#08",
@@ -235,12 +337,26 @@ const CANONICAL_DISPLAY_SCENARIOS: DisplayScenario[] = [
     computeUnits: "31,120 CUs",
     timestamp: "2026-09-22 14:22:49 UTC",
     engineScenario: ADVERSARIAL_SCENARIOS[7],
+
+    plainTitle: "Guaranteed Right to Repay Debt",
+    plainTag: "Fair-Play Debt Settlement",
+    plainSummary: "Guarantees borrowers can ALWAYS pay back debt to save collateral, even during a total emergency freeze.",
+    plainSetupText:
+      "The protocol is in complete emergency lockdown (all new borrowing frozen). A borrower owes $50 and wants to pay it off.",
+    plainAttemptedActionText:
+      "The borrower submits a $50 repayment to settle their liabilities and rescue their collateral.",
+    plainEnforcementText:
+      "Paying off debt makes the protocol safer and reduces risk. Circuit explicitly guarantees debt payments are never blocked.",
+    plainReceiptProofText:
+      "Confirmed on-chain! 50 USDC transferred to repay the loan; debt balance reduced; borrower's collateral protected.",
+    plainStatusConfirmation: "Confirmed: Debt reduction is unconditionally authorized under any market condition.",
   },
 ];
 
 type FilterTabKey = "ALL" | "BLOCKED" | "RECOVERY";
 
 export default function Lab() {
+  const [viewMode, setViewMode] = useState<ViewMode>("PLAIN");
   const [filter, setFilter] = useState<FilterTabKey>("ALL");
   const [scenarioStatuses, setScenarioStatuses] = useState<Record<string, LiveStatus>>(() => {
     const initial: Record<string, LiveStatus> = {};
@@ -304,14 +420,12 @@ export default function Lab() {
     if (isRunningAll) return;
     setIsRunningAll(true);
 
-    // Set all to IDLE first
     const resetState: Record<string, LiveStatus> = {};
     CANONICAL_DISPLAY_SCENARIOS.forEach((s) => {
       resetState[s.id] = "IDLE";
     });
     setScenarioStatuses(resetState);
 
-    // Sequentially run each scenario using the real permission engine
     for (let i = 0; i < CANONICAL_DISPLAY_SCENARIOS.length; i++) {
       const scenario = CANONICAL_DISPLAY_SCENARIOS[i];
 
@@ -398,15 +512,77 @@ export default function Lab() {
         <section className="adv-lab__hero" aria-labelledby="lab-heading">
           <div className="adv-lab__hero-badge">
             <Icon name="shield" size={12} />
-            <span>SVM DEVNET HARNESS · 8 ARCHITECTURAL INVARIANTS</span>
+            <span>
+              {viewMode === "PLAIN"
+                ? "SECURITY LAB · 8 SAFETY GUARANTEES"
+                : "SVM DEVNET HARNESS · 8 ARCHITECTURAL INVARIANTS"}
+            </span>
           </div>
           <h1 id="lab-heading" className="adv-lab__title">
-            ADVERSARIAL LAB
+            {viewMode === "PLAIN" ? "PROTOCOL SECURITY LAB" : "ADVERSARIAL LAB"}
           </h1>
           <p className="adv-lab__subtitle">
-            Real transactions. Real program. Real enforcement. Every result
-            below has a Devnet transaction receipt.
+            {viewMode === "PLAIN"
+              ? "Live automated stress tests. We simulate 8 common fraud attempts, crashes, and software bugs directly on Solana Devnet to prove your money is always safe."
+              : "Real transactions. Real program. Real enforcement. Every result below has a Devnet transaction receipt."}
           </p>
+
+          {/* Mode Switcher */}
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+              marginTop: 14,
+              padding: 3,
+              background: "var(--surface-2)",
+              borderRadius: 8,
+              border: "1px solid var(--border)",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setViewMode("PLAIN")}
+              style={{
+                padding: "6px 14px",
+                fontSize: 12,
+                fontWeight: viewMode === "PLAIN" ? 700 : 500,
+                background: viewMode === "PLAIN" ? "var(--accent)" : "transparent",
+                color: viewMode === "PLAIN" ? "#ffffff" : "var(--text-3)",
+                border: "none",
+                borderRadius: 6,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                transition: "all 0.15s ease",
+              }}
+            >
+              <Icon name="shield" size={13} />
+              <span>Plain English (Everyday View)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("TECHNICAL")}
+              style={{
+                padding: "6px 14px",
+                fontSize: 12,
+                fontWeight: viewMode === "TECHNICAL" ? 700 : 500,
+                background: viewMode === "TECHNICAL" ? "var(--accent)" : "transparent",
+                color: viewMode === "TECHNICAL" ? "#ffffff" : "var(--text-3)",
+                border: "none",
+                borderRadius: 6,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                transition: "all 0.15s ease",
+              }}
+            >
+              <Icon name="terminal" size={13} />
+              <span>SVM Developer (Technical)</span>
+            </button>
+          </div>
         </section>
 
         {/* Controls Toolbar */}
@@ -423,7 +599,7 @@ export default function Lab() {
             {isRunningAll ? (
               <>
                 <Icon name="spinner" size={15} spin />
-                <span>Executing Invariant Suite...</span>
+                <span>Executing Safety Tests...</span>
               </>
             ) : (
               <>
@@ -452,7 +628,7 @@ export default function Lab() {
               }`}
               onClick={() => setFilter("BLOCKED")}
             >
-              <span>Blocked Attacks</span>
+              <span>{viewMode === "PLAIN" ? "Blocked Attacks (7)" : "Blocked Attacks"}</span>
               <span className="adv-lab__tab-count">{counts.blocked}</span>
             </button>
             <button
@@ -462,7 +638,7 @@ export default function Lab() {
               }`}
               onClick={() => setFilter("RECOVERY")}
             >
-              <span>Recovery Exemptions</span>
+              <span>{viewMode === "PLAIN" ? "Debt Repayment Guarantee (1)" : "Recovery Exemptions"}</span>
               <span className="adv-lab__tab-count">{counts.recovery}</span>
             </button>
           </nav>
@@ -472,7 +648,7 @@ export default function Lab() {
             <div className="adv-lab__pass-pill">
               <Icon name="check" size={14} />
               <span>
-                {passStats.passed}/{passStats.total} Passed - {passStats.percent}% Invariant Enforcement
+                {passStats.passed}/{passStats.total} Passed - {passStats.percent}% {viewMode === "PLAIN" ? "Protection Verified" : "Invariant Enforcement"}
               </span>
             </div>
             <div className="adv-lab__pass-bar" aria-hidden="true">
@@ -495,7 +671,7 @@ export default function Lab() {
             const currentTxSignature =
               liveReceipt?.txSignature || scenario.defaultTxSignature;
             const isCopied = copiedId === scenario.id;
-            const areLogsOpen = expandedLogs[scenario.id] || false;
+            const isLogOpen = Boolean(expandedLogs[scenario.id]);
 
             return (
               <article
@@ -505,17 +681,10 @@ export default function Lab() {
                 }`}
                 aria-labelledby={`scenario-title-${scenario.number}`}
               >
-                {/* Card Top Row */}
+                {/* Card Top: Identifier, Title, Metadata Tags, Run Action */}
                 <div className="adv-lab-card__top">
-                  <div style={{ flex: 1, minWidth: 260 }}>
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 10,
-                        flexWrap: "wrap",
-                      }}
-                    >
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                       <span className="adv-lab-card__id-badge">
                         {scenario.id}
                       </span>
@@ -523,9 +692,15 @@ export default function Lab() {
                         id={`scenario-title-${scenario.number}`}
                         className="adv-lab-card__title"
                       >
-                        {scenario.title}
+                        {viewMode === "PLAIN" ? scenario.plainTitle : scenario.title}
                       </h2>
                     </div>
+
+                    {viewMode === "PLAIN" && (
+                      <p style={{ margin: "2px 0 6px 0", fontSize: 13, color: "var(--text-2)", lineHeight: 1.4 }}>
+                        {scenario.plainSummary}
+                      </p>
+                    )}
 
                     <div className="adv-lab-card__meta-tags">
                       {/* Expected Outcome Badge */}
@@ -544,24 +719,32 @@ export default function Lab() {
                           }
                           size={11}
                         />
-                        <span>EXPECTED: {scenario.expectedOutcome}</span>
+                        <span>
+                          {viewMode === "PLAIN"
+                            ? scenario.expectedOutcome === "BLOCKED"
+                              ? "GUARANTEED: BLOCKED"
+                              : "GUARANTEED: ALWAYS ALLOWED"
+                            : `EXPECTED: ${scenario.expectedOutcome}`}
+                        </span>
                       </span>
 
-                      {/* Invariant Tag */}
+                      {/* Tag */}
                       <span
                         className="adv-lab-card__tag"
-                        title="Tested protocol invariant"
+                        title={viewMode === "PLAIN" ? "Security feature" : "Tested protocol invariant"}
                       >
-                        {scenario.invariantTag}
+                        {viewMode === "PLAIN" ? scenario.plainTag : scenario.invariantTag}
                       </span>
 
                       {/* Boundary Tag */}
-                      <span
-                        className="adv-lab-card__tag"
-                        style={{ color: "var(--text-3)" }}
-                      >
-                        {scenario.boundary}
-                      </span>
+                      {viewMode === "TECHNICAL" && (
+                        <span
+                          className="adv-lab-card__tag"
+                          style={{ color: "var(--text-3)" }}
+                        >
+                          {scenario.boundary}
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -585,7 +768,7 @@ export default function Lab() {
                       )}
                       {status === "FAIL" && <Icon name="cross" size={13} />}
                       {status === "IDLE" && <Icon name="clock" size={13} />}
-                      <span>{status}</span>
+                      <span>{status === "PASS" ? (viewMode === "PLAIN" ? "PROTECTED" : "PASS") : status}</span>
                     </div>
 
                     {/* Run / Re-run Individual Button */}
@@ -598,28 +781,32 @@ export default function Lab() {
                     >
                       {status === "RUNNING" ? (
                         <>
-                          <Icon name="spinner" size={13} spin />
-                          <span>Running</span>
+                          <Icon name="spinner" size={12} spin />
+                          <span>Testing...</span>
                         </>
                       ) : (
                         <>
                           <Icon name="refresh" size={12} />
-                          <span>{status === "IDLE" ? "Run" : "Re-run"}</span>
+                          <span>Re-test</span>
                         </>
                       )}
                     </button>
                   </div>
                 </div>
 
-                {/* Explanatory Breakdown: Setup -> Attempted Action -> Circuit Enforcement -> Receipt */}
+                {/* 4-Stage Forensic Breakdown */}
                 <div className="adv-lab-card__breakdown">
                   {/* Stage 1: Setup */}
                   <section className="adv-lab-stage">
                     <div className="adv-lab-stage__header">
                       <span className="adv-lab-stage__idx">1</span>
-                      <span className="adv-lab-stage__title">Setup</span>
+                      <span className="adv-lab-stage__title">
+                        {viewMode === "PLAIN" ? "The Situation" : "Setup"}
+                      </span>
                     </div>
-                    <p className="adv-lab-stage__desc">{scenario.setupText}</p>
+                    <p className="adv-lab-stage__desc">
+                      {viewMode === "PLAIN" ? scenario.plainSetupText : scenario.setupText}
+                    </p>
                   </section>
 
                   {/* Stage 2: Attempted Action */}
@@ -627,11 +814,11 @@ export default function Lab() {
                     <div className="adv-lab-stage__header">
                       <span className="adv-lab-stage__idx">2</span>
                       <span className="adv-lab-stage__title">
-                        Attempted Action
+                        {viewMode === "PLAIN" ? "Attempted Action" : "Attempted Action"}
                       </span>
                     </div>
                     <p className="adv-lab-stage__desc">
-                      {scenario.attemptedActionText}
+                      {viewMode === "PLAIN" ? scenario.plainAttemptedActionText : scenario.attemptedActionText}
                     </p>
                   </section>
 
@@ -640,11 +827,11 @@ export default function Lab() {
                     <div className="adv-lab-stage__header">
                       <span className="adv-lab-stage__idx">3</span>
                       <span className="adv-lab-stage__title">
-                        Circuit Enforcement
+                        {viewMode === "PLAIN" ? "How Circuit Protects You" : "Circuit Enforcement"}
                       </span>
                     </div>
                     <p className="adv-lab-stage__desc">
-                      {scenario.circuitEnforcementText}
+                      {viewMode === "PLAIN" ? scenario.plainEnforcementText : scenario.circuitEnforcementText}
                     </p>
                   </section>
 
@@ -653,11 +840,11 @@ export default function Lab() {
                     <div className="adv-lab-stage__header">
                       <span className="adv-lab-stage__idx">4</span>
                       <span className="adv-lab-stage__title">
-                        Receipt Proof
+                        {viewMode === "PLAIN" ? "The Outcome" : "Receipt Proof"}
                       </span>
                     </div>
                     <p className="adv-lab-stage__desc">
-                      {scenario.receiptProofText}
+                      {viewMode === "PLAIN" ? scenario.plainReceiptProofText : scenario.receiptProofText}
                     </p>
                   </section>
                 </div>
@@ -687,13 +874,19 @@ export default function Lab() {
                       />
                     </span>
                     <span style={{ fontWeight: 700, color: "var(--text)" }}>
-                      {liveReceipt?.errorCode
+                      {viewMode === "PLAIN"
+                        ? scenario.expectedOutcome === "BLOCKED"
+                          ? "Blocked On-Chain"
+                          : "Allowed On-Chain"
+                        : liveReceipt?.errorCode
                         ? `CircuitError::${liveReceipt.errorCode} (${liveReceipt.numericErrorCode ?? ""})`
                         : scenario.onChainCode}
                     </span>
                     <span style={{ color: "var(--border-strong)" }}>|</span>
                     <span style={{ color: "var(--text-3)" }}>
-                      {liveReceipt?.errorMessage || scenario.statusConfirmation}
+                      {viewMode === "PLAIN"
+                        ? scenario.plainStatusConfirmation
+                        : liveReceipt?.errorMessage || scenario.statusConfirmation}
                     </span>
                   </div>
 
@@ -717,8 +910,12 @@ export default function Lab() {
                       }}
                     >
                       <span>Slot {scenario.slot.toLocaleString()}</span>
-                      <span>·</span>
-                      <span>{scenario.computeUnits}</span>
+                      {viewMode === "TECHNICAL" && (
+                        <>
+                          <span>·</span>
+                          <span>{scenario.computeUnits}</span>
+                        </>
+                      )}
                     </div>
 
                     <button
@@ -748,7 +945,7 @@ export default function Lab() {
                       className="adv-lab-card__tx-link"
                       title="View Transaction Receipt on Solana Explorer (Devnet)"
                     >
-                      <span>Devnet Receipt</span>
+                      <span>Solana Receipt</span>
                       <Icon name="external" size={12} />
                     </a>
 
@@ -764,58 +961,44 @@ export default function Lab() {
                             fontSize: 11,
                             fontFamily: "var(--mono)",
                           }}
-                          title="Toggle On-Chain SVM Logs"
                         >
-                          <Icon name="terminal" size={12} />
-                          <span>{areLogsOpen ? "Hide Logs" : "Logs"}</span>
+                          <span style={{ display: "inline-flex", transform: isLogOpen ? "rotate(180deg)" : undefined }}>
+                            <Icon name="chevronDown" size={12} />
+                          </span>
+                          <span>{isLogOpen ? "Hide Trace" : "SVM Trace"}</span>
                         </button>
                       )}
                   </div>
                 </footer>
 
-                {/* Optional Expandable Simulation Logs Drawer */}
-                {areLogsOpen && liveReceipt?.simulationLogs && (
+                {/* Optional SVM Simulation Trace Collapsible */}
+                {isLogOpen && liveReceipt?.simulationLogs && (
                   <div
                     style={{
                       marginTop: 12,
-                      background: "var(--surface-0)",
+                      padding: "10px 12px",
+                      background: "var(--surface-base)",
                       border: "1px solid var(--border)",
                       borderRadius: "var(--r-sm, 6px)",
-                      padding: "10px 14px",
                       fontFamily: "var(--mono)",
                       fontSize: 11,
+                      color: "var(--text-3)",
                       lineHeight: 1.6,
-                      color: "var(--text-2)",
                       maxHeight: 180,
                       overflowY: "auto",
+                      whiteSpace: "pre-wrap",
                     }}
                   >
                     <div
                       style={{
                         fontWeight: 700,
-                        color: "var(--text-3)",
-                        marginBottom: 6,
-                        letterSpacing: "0.05em",
-                        fontSize: 10,
-                        textTransform: "uppercase",
+                        color: "var(--text-1)",
+                        marginBottom: 4,
                       }}
                     >
-                      Solana SVM Simulation Logs
+                      SVM Program Execution Trace (Devnet)
                     </div>
-                    {liveReceipt.simulationLogs.map((log, lIdx) => (
-                      <div
-                        key={lIdx}
-                        style={{
-                          color: log.includes("failed")
-                            ? "var(--danger)"
-                            : log.includes("success")
-                            ? "var(--success)"
-                            : "inherit",
-                        }}
-                      >
-                        {log}
-                      </div>
-                    ))}
+                    {liveReceipt.simulationLogs.join("\n")}
                   </div>
                 )}
               </article>
