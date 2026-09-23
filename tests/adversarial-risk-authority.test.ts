@@ -16,9 +16,9 @@ import {
   WRONG_FEED_ID_HEX,
   FEED_ID_HEX,
 } from "./helpers/harness";
-import { isFailure, isSuccess, logsOf, errOf } from "./helpers/svm";
+import { isLiteSvmAvailable, isFailure, isSuccess, logsOf, errOf } from "./helpers/svm";
 
-describe("Risk-Adaptive Permission Layer & Adversarial Financial Invariant Tests", () => {
+describe("Risk-Adaptive Permission Layer & Adversarial Financial Invariant Tests", function () {
   let h: Harness;
   let agent: Keypair;
   let rogueAgent: Keypair;
@@ -26,7 +26,18 @@ describe("Risk-Adaptive Permission Layer & Adversarial Financial Invariant Tests
   let agentQuoteAta: PublicKey;
   let agentEquityAta: PublicKey;
 
-  beforeEach(async () => {
+  before(function () {
+    if (!isLiteSvmAvailable) {
+      console.warn("Skipping LiteSVM tests: native binding not available in current environment");
+      this.skip();
+    }
+  });
+
+  beforeEach(async function () {
+    if (!isLiteSvmAvailable) {
+      this.skip();
+      return;
+    }
     h = await setupHarness();
     agent = Keypair.generate();
     rogueAgent = Keypair.generate();

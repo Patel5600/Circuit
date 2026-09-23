@@ -57,7 +57,7 @@ export function MarketDetailDrawer({
   const isSessionOpen = underlyingSession === "REGULAR";
   const isFeedStale = oracleStatus === "STALE" || ageSeconds > 60;
   const derivedHaltState: "open_normal" | "closed" | "halted_inferred" =
-    (market as any)?.haltState ?? (isSessionOpen && isFeedStale ? "halted_inferred" : isSessionOpen ? "open_normal" : "closed");
+    (market as any)?.haltState ?? "halted_inferred";
 
   const deployed = getDeployedMarket(activeSymbol, quoteSymbol);
   const baseMintStr = deployed?.mint ?? (market as any)?.mint;

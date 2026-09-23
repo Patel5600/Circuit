@@ -216,6 +216,7 @@ impl<'info> ToAccountInfos<'info> for Close<'info> {
 
 /// Creates a `solana_program::instruction::Instruction` targeting Circuit Program ID
 /// for `authorize_action` with custom program ID.
+#[allow(clippy::too_many_arguments)]
 pub fn build_authorize_instruction_with_program(
     program_id: &Pubkey,
     payer: &Pubkey,
@@ -265,6 +266,7 @@ pub fn build_authorize_instruction_with_program(
 /// with required accounts:
 /// payer, owner, actor, protocol_config, asset_config, risk_ratchet, position,
 /// agent_authority, envelope PDA, price_update, system_program.
+#[allow(clippy::too_many_arguments)]
 pub fn build_authorize_instruction(
     payer: &Pubkey,
     owner: &Pubkey,

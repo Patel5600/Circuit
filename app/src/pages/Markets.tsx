@@ -74,6 +74,7 @@ export default function Markets() {
         marketSymbol: asset.symbol,
         mint: asset.mint,
         pythFeedId: asset.oracleFeedId,
+        haltState: (snap as any)?.haltState ?? "halted_inferred",
       };
     });
   }, [snapshots, s.market, s.oracle]);

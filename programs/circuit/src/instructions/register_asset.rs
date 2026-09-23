@@ -40,16 +40,16 @@ pub fn handler(
     asset_config.quote_mint = ctx.accounts.quote_mint.key();
     asset_config.bump = ctx.bumps.asset_config;
 
-    // Initialize MarketGuard
+    // Initialize MarketGuard - Auto-halted by default on registration
     let guard = &mut ctx.accounts.market_guard;
     guard.feed_id = pyth_feed_id;
     guard.last_valid_price = 0;
     guard.last_valid_expo = 0;
     guard.last_publish_time = 0;
-    guard.market_state = MarketState::Emergency; // Conservative default until first refresh
-    guard.reason = GuardReason::InvalidPrice;
+    guard.market_state = MarketState::Defensive; // Auto-halted conservative state upon addition
+    guard.reason = GuardReason::SecurityHaltInferred;
     guard.last_checked_slot = 0;
-    guard.halt_state = HaltState::Closed;
+    guard.halt_state = HaltState::HaltedInferred; // AUTO HALTED BY DEFAULT FOR ALL NEW STOCKS
     guard.feed_staleness_seconds = 0;
     guard.session_expected_open = false;
     guard.global_oracle_healthy = true;

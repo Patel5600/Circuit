@@ -12,12 +12,23 @@ import {
   expectFailure,
   isFailure,
 } from "./helpers/harness";
+import { isLiteSvmAvailable } from "./helpers/svm";
 
 describe("Protocol Economics & Treasury Invariant Tests", () => {
   let h: Harness;
   const TREASURY_PUBKEY = new PublicKey("7AALMsZ5MuioSW7BMwBCwTmy9Y1fMJ6MKXAELYyrtb4");
 
-  beforeEach(async () => {
+  before(function () {
+    if (!isLiteSvmAvailable) {
+      this.skip();
+    }
+  });
+
+  beforeEach(async function () {
+    if (!isLiteSvmAvailable) {
+      this.skip();
+      return;
+    }
     h = await setupHarness();
     // Bootstrap protocol: initialize, register asset, fund liquidity vault with $100k
     await h.bootstrapProtocol(100_000);

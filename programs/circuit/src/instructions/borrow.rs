@@ -202,11 +202,11 @@ pub fn handler(ctx: Context<Borrow>, amount: u64) -> Result<()> {
     position.last_valid_price = conservative_price;
     position.last_valid_expo = validated_price.expo;
 
-    let resulting_ltv_bps = if collateral_value > 0 {
-        (((new_debt as u128) * 10_000) / collateral_value).min(10_000) as u64
-    } else {
-        0
-    };
+    let resulting_ltv_bps = new_debt
+        .checked_mul(10_000)
+        .and_then(|v| v.checked_div(collateral_value))
+        .unwrap_or(0)
+        .min(10_000) as u64;
 
     emit!(crate::events::BorrowExecuted {
         user: ctx.accounts.owner.key(),

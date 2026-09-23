@@ -19,7 +19,7 @@ import {
   FEED_ID_HEX,
   WRONG_FEED_ID_HEX,
 } from "./helpers/harness";
-import { isFailure, isSuccess, logsOf, errOf } from "./helpers/svm";
+import { isLiteSvmAvailable, isFailure, isSuccess, logsOf, errOf } from "./helpers/svm";
 
 describe("Circuit Autonomous Capital & UX Regression Suite (Section 26 - 30 Vectors)", () => {
   let h: Harness;
@@ -36,7 +36,17 @@ describe("Circuit Autonomous Capital & UX Regression Suite (Section 26 - 30 Vect
   const ACTION_REPAY = 1 << 2;    // 4
   const ACTION_WITHDRAW = 1 << 3; // 8
 
-  beforeEach(async () => {
+  before(function () {
+    if (!isLiteSvmAvailable) {
+      this.skip();
+    }
+  });
+
+  beforeEach(async function () {
+    if (!isLiteSvmAvailable) {
+      this.skip();
+      return;
+    }
     h = await setupHarness();
     agent = Keypair.generate();
     rogueAgent = Keypair.generate();

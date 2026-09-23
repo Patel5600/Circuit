@@ -14,7 +14,7 @@ import {
   TS_MARKET_OPEN,
   FEED_ID_HEX,
 } from "./helpers/harness";
-import { isFailure, isSuccess, logsOf, errOf } from "./helpers/svm";
+import { isLiteSvmAvailable, isFailure, isSuccess, logsOf, errOf } from "./helpers/svm";
 
 describe("Autonomous Stock Strategy Control: End-to-End Lifecycle Demo (Section 33)", () => {
   let h: Harness;
@@ -27,7 +27,11 @@ describe("Autonomous Stock Strategy Control: End-to-End Lifecycle Demo (Section 
   const ACTION_BORROW = 1 << 1;
   const ACTION_REPAY = 1 << 2;
 
-  before(async () => {
+  before(async function () {
+    if (!isLiteSvmAvailable) {
+      this.skip();
+      return;
+    }
     h = await setupHarness();
     agent = Keypair.generate();
 

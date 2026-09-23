@@ -498,7 +498,6 @@ mod tests {
         );
 
         assert_ne!(pda, Pubkey::default());
-        assert!(bump <= 255);
     }
 
     #[test]

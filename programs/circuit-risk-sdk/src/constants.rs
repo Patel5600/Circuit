@@ -19,7 +19,7 @@ pub const ENVELOPE_ACTION_REPAY: u8 = 7;
 pub const ENVELOPE_ACTION_DEPOSIT: u8 = 8;
 
 // ── PDA Seed Prefixes ──────────────────────────────────────────────
-pub const ENVELOPE_SEEDS_PREFIX: &'static [u8] = b"envelope";
+pub const ENVELOPE_SEEDS_PREFIX: &[u8] = b"envelope";
 
 // ── Slot TTL Constants ─────────────────────────────────────────────
 pub const DEFAULT_ENVELOPE_TTL_SLOTS: u64 = 20;

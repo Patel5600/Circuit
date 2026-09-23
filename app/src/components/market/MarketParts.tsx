@@ -127,8 +127,7 @@ export function MarketCard({
   const change = row.change24hPercent ?? 0;
   const isPos = change >= 0;
   const sessionOpen = row.underlyingSession === "REGULAR";
-  const feedStale = row.freshness === "STALE";
-  const haltState = row.haltState ?? (sessionOpen && feedStale ? "halted_inferred" : sessionOpen ? "open_normal" : "closed");
+  const haltState = row.haltState ?? "halted_inferred";
 
   // Real mini sparkline
   const points = row.sparkline ?? [];

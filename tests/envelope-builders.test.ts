@@ -21,7 +21,7 @@ import {
   buildConsumeEnvelopeInstruction as protoBuildConsume,
   buildCloseEnvelopeInstruction as protoBuildClose,
 } from "../app/src/lib/protocol";
-import idl from "../app/src/idl/circuit.json";
+const idl = require("../app/src/idl/circuit.json");
 
 describe("RiskEnvelope Instruction Builders & Re-exports", () => {
   it("re-exports instruction builders identically from protocol.ts", () => {

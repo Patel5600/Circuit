@@ -7,11 +7,11 @@ use anchor_lang::prelude::*;
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug, InitSpace, Default)]
 pub enum HaltState {
     /// Reference market session is expected open and the asset's validated feed is fresh
-    #[default]
     OpenNormal,
     /// Reference market session is closed according to deterministic calendar logic
     Closed,
     /// Reference market session is expected active, but this security's feed is stale while broader oracle is healthy
+    #[default]
     HaltedInferred,
 }
 
@@ -19,7 +19,7 @@ pub enum HaltState {
 // MarketState - derived from oracle + session + custody + liquidity
 // --------------------------------------------------------------
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug, InitSpace)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug, InitSpace, Default)]
 pub enum MarketState {
     /// All conditions nominal - borrowing enabled
     Safe,
@@ -28,22 +28,18 @@ pub enum MarketState {
     /// Elevated market stress - borrowing blocked, withdrawals restricted
     Defensive,
     /// Critical condition - borrowing blocked, emergency liquidation rules apply
+    #[default]
     Emergency,
-}
-
-impl Default for MarketState {
-    fn default() -> Self {
-        MarketState::Emergency // conservative default
-    }
 }
 
 // --------------------------------------------------------------
 // CustodyState - admin-controlled simulation input for MVP
 // --------------------------------------------------------------
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug, InitSpace)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug, InitSpace, Default)]
 pub enum CustodyState {
     /// Custody provider operating normally
+    #[default]
     Healthy,
     /// Minor delays or degraded service
     Delayed,
@@ -51,19 +47,14 @@ pub enum CustodyState {
     Impaired,
 }
 
-impl Default for CustodyState {
-    fn default() -> Self {
-        CustodyState::Healthy
-    }
-}
-
 // --------------------------------------------------------------
 // LiquidityState - admin-controlled simulation input for MVP
 // --------------------------------------------------------------
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug, InitSpace)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug, InitSpace, Default)]
 pub enum LiquidityState {
     /// Deep liquidity available
+    #[default]
     Deep,
     /// Normal liquidity levels
     Normal,
@@ -73,37 +64,27 @@ pub enum LiquidityState {
     Critical,
 }
 
-impl Default for LiquidityState {
-    fn default() -> Self {
-        LiquidityState::Deep
-    }
-}
-
 // --------------------------------------------------------------
 // PositionState - tracks individual position health
 // --------------------------------------------------------------
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug, InitSpace)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug, InitSpace, Default)]
 pub enum PositionState {
     /// Position health factor is above minimum
+    #[default]
     Healthy,
     /// Position health factor is below minimum - eligible for liquidation
     Liquidatable,
-}
-
-impl Default for PositionState {
-    fn default() -> Self {
-        PositionState::Healthy
-    }
 }
 
 // --------------------------------------------------------------
 // GuardReason - explains why the MarketGuard is in its current state
 // --------------------------------------------------------------
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug, InitSpace)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug, InitSpace, Default)]
 pub enum GuardReason {
     /// All checks passed
+    #[default]
     Ok,
     /// Oracle price is stale (exceeds max age)
     StaleOracle,
@@ -129,19 +110,14 @@ pub enum GuardReason {
     OracleUnavailable,
 }
 
-impl Default for GuardReason {
-    fn default() -> Self {
-        GuardReason::Ok
-    }
-}
-
 // --------------------------------------------------------------
 // AuctionStatus - tracks lifecycle of a liquidation Dutch auction
 // --------------------------------------------------------------
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug, InitSpace)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug, InitSpace, Default)]
 pub enum AuctionStatus {
     /// Auction is active and accepting settlement bids
+    #[default]
     Active,
     /// Auction has been settled
     Settled,
@@ -151,37 +127,27 @@ pub enum AuctionStatus {
     Cancelled,
 }
 
-impl Default for AuctionStatus {
-    fn default() -> Self {
-        AuctionStatus::Active
-    }
-}
-
 // --------------------------------------------------------------
 // AgentAction - canonical action types an autonomous strategy may propose
 // --------------------------------------------------------------
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug, InitSpace)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug, InitSpace, Default)]
 pub enum AgentAction {
+    #[default]
     Deposit,
     Borrow,
     Repay,
     Withdraw,
 }
 
-impl Default for AgentAction {
-    fn default() -> Self {
-        AgentAction::Deposit
-    }
-}
-
 // --------------------------------------------------------------
 // PermissionDenialReason - machine-readable reasons for action authorization or denial
 // --------------------------------------------------------------
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug, InitSpace)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug, InitSpace, Default)]
 pub enum PermissionDenialReason {
     /// Action is authorized
+    #[default]
     Ok,
     /// Protocol is globally paused
     ProtocolPaused,
@@ -221,11 +187,5 @@ pub enum PermissionDenialReason {
     SecurityHaltInferred,
     /// Oracle is unavailable or broader oracle failure detected
     OracleUnavailable,
-}
-
-impl Default for PermissionDenialReason {
-    fn default() -> Self {
-        PermissionDenialReason::Ok
-    }
 }
 

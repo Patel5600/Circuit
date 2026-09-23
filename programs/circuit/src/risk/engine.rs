@@ -23,6 +23,7 @@ pub struct RiskEngineResult {
 pub struct DynamicRiskEngine;
 
 impl DynamicRiskEngine {
+    #[allow(clippy::too_many_arguments)]
     pub fn evaluate_and_update(
         ratchet: &mut RiskRatchet,
         market_open: bool,

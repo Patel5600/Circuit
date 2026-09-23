@@ -95,7 +95,7 @@ fn eastern_time_offset(utc_ts: i64) -> i64 {
     let (year, month, day) = timestamp_to_date(utc_ts);
     let hour = ((utc_ts % SECS_PER_DAY + SECS_PER_DAY) % SECS_PER_DAY / 3600) as u32;
 
-    if month < 3 || month > 11 {
+    if !(3..=11).contains(&month) {
         return EST_OFFSET; // Jan, Feb, Dec -> EST
     }
     if month > 3 && month < 11 {

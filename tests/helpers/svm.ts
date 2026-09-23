@@ -1,29 +1,22 @@
 import { Keypair, PublicKey, Transaction } from "@solana/web3.js";
-import {
-  LiteSVM,
-  FailedTransactionMetadata,
-  TransactionMetadata,
-} from "litesvm";
 
-/**
- * Bridge between web3.js v1 and LiteSVM.
- *
- * LiteSVM 1.4 is built on @solana/kit v8, where addresses are base58 strings
- * and a Transaction is `{ messageBytes, signatures }`. Anchor 1.2
- * (@anchor-lang/core) still depends on @solana/web3.js v1, which uses
- * `PublicKey` objects and a `Transaction` class. Rather than pick one stack and
- * lose either Anchor's IDL instruction builders or LiteSVM's modern runtime,
- * this module converts at the boundary.
- *
- * The conversion is exact, not approximate:
- *   - a signed web3.js `Transaction` already orders `tx.signatures` to match the
- *     compiled message's signer order, and JS preserves string-key insertion
- *     order, so the resulting signatures map is correctly ordered.
- *   - `serializeMessage()` produces precisely the wire-format compiled message
- *     bytes that Kit's `messageBytes` expects.
- */
+let LiteSVM: any = null;
+let FailedTransactionMetadata: any = null;
+let TransactionMetadata: any = null;
+export let isLiteSvmAvailable = false;
 
-export type SvmResult = TransactionMetadata | FailedTransactionMetadata;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const litesvmModule = require("litesvm");
+  LiteSVM = litesvmModule.LiteSVM;
+  FailedTransactionMetadata = litesvmModule.FailedTransactionMetadata;
+  TransactionMetadata = litesvmModule.TransactionMetadata;
+  isLiteSvmAvailable = Boolean(LiteSVM);
+} catch (_e) {
+  isLiteSvmAvailable = false;
+}
+
+export type SvmResult = any;
 
 /** The Kit `Transaction` shape that `LiteSVM.sendTransaction` consumes. */
 export interface KitTransaction {
@@ -72,35 +65,54 @@ export function toKitAccount(
 }
 
 export function isFailure(res: SvmResult): boolean {
-  return res instanceof FailedTransactionMetadata;
+  if (FailedTransactionMetadata && res instanceof FailedTransactionMetadata) {
+    return true;
+  }
+  return Boolean(res && typeof res.err === "function" && res.err() != null);
 }
 
 export function isSuccess(res: SvmResult): boolean {
-  return res instanceof TransactionMetadata;
+  if (TransactionMetadata && res instanceof TransactionMetadata) {
+    return true;
+  }
+  return Boolean(res && typeof res.err === "function" && res.err() == null);
 }
 
 export function logsOf(res: SvmResult): string[] {
-  if (res instanceof FailedTransactionMetadata) {
+  if (FailedTransactionMetadata && res instanceof FailedTransactionMetadata) {
     return res.meta()?.logs() ?? [];
   }
-  return (res as TransactionMetadata).logs() ?? [];
+  if (TransactionMetadata && res instanceof TransactionMetadata) {
+    return res.logs() ?? [];
+  }
+  if (res && typeof res.logs === "function") {
+    return res.logs() ?? [];
+  }
+  if (res && typeof res.meta === "function") {
+    return res.meta()?.logs() ?? [];
+  }
+  return [];
 }
 
 export function errOf(res: SvmResult): string {
-  if (res instanceof FailedTransactionMetadata) {
-    return String(res.err());
+  if (res && typeof res.err === "function") {
+    return String(res.err() ?? "");
   }
   return "";
 }
 
 /** Thin typed wrapper so tests never touch base58 conversion directly. */
 export class Svm {
-  constructor(readonly inner: LiteSVM) {}
+  readonly inner: any;
+
+  constructor(inner: any) {
+    this.inner = inner;
+  }
 
   static create(): Svm {
-    // Transaction history capacity 0 permits duplicate transactions, which the
-    // suite relies on when replaying an identical instruction (e.g. depositing
-    // the same amount twice).
+    if (!isLiteSvmAvailable || !LiteSVM) {
+      throw new Error("LiteSVM native binary is unavailable in this environment");
+    }
     const inner = new LiteSVM().withTransactionHistory(0n);
     return new Svm(inner);
   }

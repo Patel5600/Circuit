@@ -13,6 +13,7 @@ use crate::risk::policy::CANONICAL_POLICY_VERSION;
 ///
 /// Humans and Autonomous Agents are different authorities, NOT different risk systems.
 /// Both paths pass through this exact function.
+#[allow(clippy::too_many_arguments)]
 pub fn evaluate_permission(
     actor: &Pubkey,
     action: CircuitAction,

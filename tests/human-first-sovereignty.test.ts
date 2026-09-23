@@ -17,7 +17,7 @@ import {
   TS_MARKET_OPEN,
   FEED_ID_HEX,
 } from "./helpers/harness";
-import { isFailure, isSuccess, logsOf } from "./helpers/svm";
+import { isLiteSvmAvailable, isFailure, isSuccess, logsOf } from "./helpers/svm";
 
 describe("Section 24: Human-First, Agent-Optional, Protocol-Sovereign Suite (18 Tests)", () => {
   let h: Harness;
@@ -34,7 +34,17 @@ describe("Section 24: Human-First, Agent-Optional, Protocol-Sovereign Suite (18 
   const ACTION_REPAY = 1 << 2;    // 4
   const ACTION_WITHDRAW = 1 << 3; // 8
 
-  beforeEach(async () => {
+  before(function () {
+    if (!isLiteSvmAvailable) {
+      this.skip();
+    }
+  });
+
+  beforeEach(async function () {
+    if (!isLiteSvmAvailable) {
+      this.skip();
+      return;
+    }
     h = await setupHarness();
     agent = Keypair.generate();
     rogueAgent = Keypair.generate();
