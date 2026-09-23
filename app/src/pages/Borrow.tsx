@@ -169,7 +169,9 @@ export default function Borrow() {
     const value = collateralValue(
       collateral,
       s.oracle.update.price,
-      s.oracle.update.exponent
+      s.oracle.update.exponent,
+      6,
+      6
     );
     return healthFactorBps(value, s.asset.liquidationThresholdBps, newDebt);
   }, [s.asset, s.oracle, valid, collateral, newDebt]);

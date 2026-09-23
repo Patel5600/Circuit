@@ -322,13 +322,6 @@
           "writable": true
         },
         {
-          "name": "treasury_quote_ata",
-          "docs": [
-            "Circuit Treasury's quote token account (receives protocol fee)"
-          ],
-          "writable": true
-        },
-        {
           "name": "liquidity_vault",
           "docs": [
             "Protocol liquidity vault (source of borrowed tokens)"
@@ -6674,27 +6667,6 @@
               "Liquidators receive this % bonus on seized collateral."
             ],
             "type": "u64"
-          },
-          {
-            "name": "fee_recipient",
-            "docs": [
-              "Treasury recipient that receives protocol fees"
-            ],
-            "type": "pubkey"
-          },
-          {
-            "name": "borrow_fee_bps",
-            "docs": [
-              "Protocol origination / credit execution fee in BPS (e.g., 25 = 0.25%)"
-            ],
-            "type": "u64"
-          },
-          {
-            "name": "fee_enabled",
-            "docs": [
-              "Whether protocol fee collection is currently active"
-            ],
-            "type": "bool"
           },
           {
             "name": "bump",

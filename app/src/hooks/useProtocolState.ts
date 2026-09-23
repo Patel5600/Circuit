@@ -368,7 +368,9 @@ export function useProtocolState(overrideMarket?: DeployedMarket): ProtocolState
     const value = collateralValue(
       collateral,
       oracle.update.price,
-      oracle.update.exponent
+      oracle.update.exponent,
+      6,
+      6
     );
     const capacity = maxBorrow(value, asset.baseLtvBps);
     const available = capacity > debt ? capacity - debt : 0n;

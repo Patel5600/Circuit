@@ -273,6 +273,11 @@ export function evaluateAction(
       verdictCode = "INSUFFICIENT_COLLATERAL";
       verdictReason = "Deposit collateral to activate borrowing power.";
       source = "POSITION";
+    } else if (action === "borrow" && availableCreditUsd <= 0) {
+      verdictStatus = "BLOCK";
+      verdictCode = "BORROW_LIMIT_EXCEEDED";
+      verdictReason = "No remaining borrowing capacity.";
+      source = "POSITION";
     } else if (action === "borrow" && amountUsd > availableCreditUsd) {
       verdictStatus = "BLOCK";
       verdictCode = "BORROW_LIMIT_EXCEEDED";

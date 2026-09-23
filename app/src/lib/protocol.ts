@@ -256,16 +256,54 @@ export function decodeProtocolConfigView(
   program: Program,
   info: { data: Uint8Array | Buffer } | null | undefined
 ): ProtocolConfigView | null {
-  return decodeAccountData(program, "protocolConfig", info, (r) => ({
+  if (!info || !info.data) return null;
+  const decoded = decodeAccountData(program, "protocolConfig", info, (r) => ({
     authority: r.authority,
     paused: Boolean(r.paused),
     version: Number(r.version),
     minHealthFactorBps: Number(r.minHealthFactorBps),
     liquidationBonusBps: Number(r.liquidationBonusBps),
-    feeRecipient: r.feeRecipient ? new PublicKey(r.feeRecipient) : undefined,
-    borrowFeeBps: r.borrowFeeBps ? Number(r.borrowFeeBps) : 25,
-    feeEnabled: r.feeEnabled !== undefined ? Boolean(r.feeEnabled) : true,
+    feeRecipient: r.feeRecipient ? new PublicKey(r.feeRecipient) : CIRCUIT_TREASURY_KEY,
+    borrowFeeBps: r.borrowFeeBps ? Number(r.borrowFeeBps) : 0,
+    feeEnabled: r.feeEnabled !== undefined ? Boolean(r.feeEnabled) : false,
   }));
+  if (decoded) return decoded;
+
+  const buf = Buffer.isBuffer(info.data) ? info.data : Buffer.from(info.data);
+  if (buf.length >= 76) {
+    try {
+      const authority = new PublicKey(buf.subarray(8, 40));
+      const paused = buf.readUInt8(40) !== 0;
+      const version = buf.readUInt16LE(41);
+      const minHealthFactorBps = Number(buf.readBigUInt64LE(43));
+      const liquidationBonusBps = Number(buf.readBigUInt64LE(67));
+
+      let feeRecipient = CIRCUIT_TREASURY_KEY;
+      let borrowFeeBps = 0;
+      let feeEnabled = false;
+
+      if (buf.length >= 117) {
+        feeRecipient = new PublicKey(buf.subarray(75, 107));
+        borrowFeeBps = Number(buf.readBigUInt64LE(107));
+        feeEnabled = buf.readUInt8(115) !== 0;
+      }
+
+      return {
+        authority,
+        paused,
+        version,
+        minHealthFactorBps,
+        liquidationBonusBps,
+        feeRecipient,
+        borrowFeeBps,
+        feeEnabled,
+      };
+    } catch (e) {
+      console.warn("Fallback protocolConfig decode error", e);
+    }
+  }
+
+  return null;
 }
 
 export function decodeAssetConfigView(
@@ -612,7 +650,6 @@ export async function buildBorrow(
   amountNative: bigint
 ): Promise<TransactionInstruction[]> {
   const userQuoteAta = getAssociatedTokenAddressSync(ctx.quoteMint, ctx.owner);
-  const treasuryQuoteAta = getAssociatedTokenAddressSync(ctx.quoteMint, CIRCUIT_TREASURY_KEY);
   const ix = await ctx.program.methods
     .borrow(new BN(amountNative.toString()))
     .accountsPartial({
@@ -625,7 +662,6 @@ export async function buildBorrow(
       quoteMint: ctx.quoteMint,
       userQuoteAta,
       liquidityVault: vaultFor(ctx.quoteMint),
-      treasuryQuoteAta,
       tokenProgram: TOKEN_PROGRAM_ID,
     })
     .remainingAccounts([
@@ -638,18 +674,11 @@ export async function buildBorrow(
     .instruction();
 
   // The borrower may not hold the quote mint yet; create the ATA idempotently.
-  // We also ensure the protocol treasury quote ATA exists idempotently.
   return [
     createAssociatedTokenAccountIdempotentInstruction(
       ctx.owner,
       userQuoteAta,
       ctx.owner,
-      ctx.quoteMint
-    ),
-    createAssociatedTokenAccountIdempotentInstruction(
-      ctx.owner,
-      treasuryQuoteAta,
-      CIRCUIT_TREASURY_KEY,
       ctx.quoteMint
     ),
     ix,
