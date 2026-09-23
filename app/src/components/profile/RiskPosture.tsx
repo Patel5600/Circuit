@@ -31,9 +31,19 @@ export function RiskPosture({
   maxOracleAge,
   liquidityState,
   leverageRatio,
-  riskScore = 18,
+  riskScore,
   riskState = "SAFE",
 }: RiskPostureProps) {
+  const effectiveScore =
+    riskScore !== undefined
+      ? riskScore
+      : riskState === "SAFE"
+      ? 10
+      : riskState === "RESTRICTED"
+      ? 40
+      : riskState === "DEFENSIVE"
+      ? 70
+      : 95;
   // 1. Concentration
   const concSeverity = concentrationPct <= 40 ? "LOW" : concentrationPct <= 60 ? "MEDIUM" : "HIGH";
   const concTone: Tone = concentrationPct <= 40 ? "success" : concentrationPct <= 60 ? "warning" : "danger";
@@ -103,7 +113,7 @@ export function RiskPosture({
     },
     {
       title: "Oracle Quality",
-      value: `±${oracleConfBps} bps`,
+      value: oracleConfBps > 0 ? `±${oracleConfBps} bps` : "Unavailable",
       severity: oracleSeverity,
       tone: oracleTone,
       explanation: oracleExplanation,
@@ -121,12 +131,12 @@ export function RiskPosture({
     },
     {
       title: "Portfolio Risk",
-      value: `${riskScore} / 100`,
+      value: `${effectiveScore} / 100`,
       severity: portSeverity,
       tone: portTone,
       explanation: portExplanation,
       source: "Dynamic Risk Ratchet engine",
-      progressPct: riskScore,
+      progressPct: effectiveScore,
     },
   ];
 

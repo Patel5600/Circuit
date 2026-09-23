@@ -99,15 +99,19 @@ export function AutonomousAuthorityCard() {
                 </h3>
                 <Pill
                   tone={
-                    hasActiveAuthority
+                    controlMode === "MANUAL"
+                      ? "neutral"
+                      : hasActiveAuthority
                       ? "success"
                       : onChainAuthorities.length > 0
                       ? "warning"
                       : "neutral"
                   }
-                  withDot={hasActiveAuthority}
+                  withDot={controlMode === "AUTONOMOUS" && hasActiveAuthority}
                 >
-                  {hasActiveAuthority
+                  {controlMode === "MANUAL"
+                    ? "NOT APPLICABLE · MANUAL MODE"
+                    : hasActiveAuthority
                     ? "ACTIVE ONCHAIN"
                     : onChainAuthorities.length > 0
                     ? "INACTIVE / EXPIRED"

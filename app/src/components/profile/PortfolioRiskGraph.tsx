@@ -51,6 +51,8 @@ export interface PortfolioRiskGraphProps {
   borrowAllowed: boolean;
   hardOverride: boolean;
   hardOverrideReason?: string;
+  verdictStatus?: string;
+  verdictReason?: string;
   uneditable?: boolean;
   loading?: boolean;
   simMode?: "LIVE" | "HEALTHY" | "STRESS" | "EMERGENCY";
@@ -755,6 +757,7 @@ function PermissionNode({
   y,
   borrowAllowed,
   hardOverride,
+  verdictStatus,
   isDimmed,
   isDark,
   onMouseEnter,
@@ -764,6 +767,7 @@ function PermissionNode({
   y: number;
   borrowAllowed: boolean;
   hardOverride: boolean;
+  verdictStatus?: string;
   isDimmed: boolean;
   isDark: boolean;
   onMouseEnter: () => void;
@@ -822,7 +826,17 @@ function PermissionNode({
           width={52}
           height={16}
           rx={4}
-          fill={hardOverride ? `${red}20` : borrowAllowed ? `${green}20` : `${yellow}20`}
+          fill={
+            verdictStatus
+              ? verdictStatus === "ALLOW"
+                ? `${green}20`
+                : `${red}20`
+              : hardOverride
+              ? `${red}20`
+              : borrowAllowed
+              ? `${green}20`
+              : `${yellow}20`
+          }
         />
         <text
           x={82}
@@ -831,9 +845,19 @@ function PermissionNode({
           fontSize={8.5}
           fontFamily="var(--mono)"
           fontWeight={700}
-          fill={hardOverride ? red : borrowAllowed ? green : yellow}
+          fill={
+            verdictStatus
+              ? verdictStatus === "ALLOW"
+                ? green
+                : red
+              : hardOverride
+              ? red
+              : borrowAllowed
+              ? green
+              : yellow
+          }
         >
-          {hardOverride ? "BLOCKED" : borrowAllowed ? "ALLOWED" : "RESTRICT"}
+          {verdictStatus ? (verdictStatus === "ALLOW" ? "ALLOWED" : "BLOCKED") : (hardOverride ? "BLOCKED" : borrowAllowed ? "ALLOWED" : "RESTRICT")}
         </text>
       </g>
 
@@ -966,6 +990,8 @@ export function PortfolioRiskGraph({
   borrowAllowed: liveAllowed,
   hardOverride: liveHardOverride,
   hardOverrideReason: liveHardReason,
+  verdictStatus,
+  verdictReason,
   uneditable = true,
   loading = false,
   simMode: controlledSimMode,
@@ -1515,8 +1541,8 @@ export function PortfolioRiskGraph({
           boxShadow: isDark ? "0 12px 40px rgba(0, 0, 0, 0.5)" : "0 4px 16px rgba(0, 0, 0, 0.05)",
         }}
       >
-        {/* Loading overlay */}
-        {loading && (
+        {/* Loading overlay - only displayed on cold start when zero assets loaded yet */}
+        {loading && activeAssets.length === 0 && (
           <div
             style={{
               position: "absolute",
@@ -1912,6 +1938,7 @@ export function PortfolioRiskGraph({
                 y={centerY}
                 borrowAllowed={activeAllowed}
                 hardOverride={activeHardOverride}
+                verdictStatus={activeScenario === "LIVE" ? verdictStatus : undefined}
                 isDimmed={isDimmed("permission:panel")}
                 isDark={isDark}
                 onMouseEnter={() => {

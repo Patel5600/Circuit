@@ -30,6 +30,7 @@ import {
   decodePositionDirect,
   DecodedPositionDirect,
 } from "./provider";
+import { protocolEventBus } from "../realtime/event-bus";
 
 export { decodePositionDirect };
 
@@ -212,11 +213,11 @@ export async function fetchLivePortfolioSnapshot(
       } catch {}
     }
 
-    // Decode Pyth oracle PriceUpdateV2
-    let priceUsd = cat?.price ?? 100;
-    let confBps = 18;
-    let oracleHealthy = true;
-    let publishTime = nowSeconds;
+    // Decode Pyth oracle PriceUpdateV2 (zero fake fallbacks)
+    let priceUsd = 0;
+    let confBps = 0;
+    let oracleHealthy = false;
+    let publishTime = 0;
 
     const pInfo = pythInfos[idx];
     if (pInfo && pInfo.data.length > 0) {
@@ -225,8 +226,8 @@ export async function fetchLivePortfolioSnapshot(
         if (update && update.isFull && update.price > 0n) {
           priceUsd = Number(update.price) * Math.pow(10, update.exponent);
           const abs = update.price < 0n ? -update.price : update.price;
-          confBps = abs === 0n ? -1 : Number((update.conf * 10_000n) / abs);
-          const ageSec = nowSeconds - Number(update.publishTime);
+          confBps = abs === 0n ? 0 : Number((update.conf * 10_000n) / abs);
+          const ageSec = Math.max(0, nowSeconds - Number(update.publishTime));
           oracleHealthy = ageSec <= maxOracleAge && confBps <= maxConfBps;
           publishTime = Number(update.publishTime);
         }
@@ -235,6 +236,7 @@ export async function fetchLivePortfolioSnapshot(
 
     if (priceUsd <= 0 && raw.lastValidPrice > 0n) {
       priceUsd = Number(raw.lastValidPrice) * Math.pow(10, raw.lastValidExpo);
+      oracleHealthy = false; // On-chain fallback price is stale by definition
     }
 
     const confidenceUsd = (priceUsd * confBps) / BPS;
@@ -432,62 +434,178 @@ export async function fetchLivePortfolioSnapshot(
 }
 
 /**
- * React Hook providing authoritative live Devnet portfolio state
+ * React Hook providing authoritative live Devnet portfolio state.
+ * Fully reactive:
+ * - Listens for on-chain account updates via WebSocket (connection.onAccountChange)
+ * - Tracks slot heartbeat without polling (connection.onSlotChange)
+ * - Updates numbers in-place during background refreshes without flashing skeletons
+ * - Zero fake numeric fallbacks
  */
 export function useLiveDevnetPortfolio(
   connection: Connection,
   wallet: PublicKey | null
 ) {
   const [snapshot, setSnapshot] = useState<PortfolioSnapshot | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [isInitialLoading, setIsInitialLoading] = useState<boolean>(true);
+  const [isUpdating, setIsUpdating] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [tick, setTick] = useState(0);
+  const [currentSlot, setCurrentSlot] = useState<number | null>(null);
+  const [rpcLatencyMs, setRpcLatencyMs] = useState<number | null>(null);
+  const [lastSyncSlot, setLastSyncSlot] = useState<number | null>(null);
 
-  const refresh = useCallback(() => {
-    setTick((t) => t + 1);
-  }, []);
+  const snapshotRef = useRef<PortfolioSnapshot | null>(null);
+  snapshotRef.current = snapshot;
+  const inFlightRef = useRef<boolean>(false);
+  const activeSubsRef = useRef<number[]>([]);
 
+  const load = useCallback(async (isBackground: boolean = false) => {
+    if (!wallet || inFlightRef.current) return;
+    inFlightRef.current = true;
+    if (isBackground || snapshotRef.current !== null) {
+      setIsUpdating(true);
+    } else {
+      setIsInitialLoading(true);
+    }
+
+    const start = Date.now();
+    try {
+      const snap = await fetchLivePortfolioSnapshot(connection, wallet);
+      const latency = Date.now() - start;
+      setRpcLatencyMs(latency);
+      setSnapshot(snap);
+      setError(null);
+
+      // Try reading current slot if available
+      try {
+        const slot = await connection.getSlot("confirmed");
+        setCurrentSlot(slot);
+        setLastSyncSlot(slot);
+      } catch {}
+    } catch (err: any) {
+      setError(err?.message || "Failed to load live on-chain portfolio");
+    } finally {
+      inFlightRef.current = false;
+      setIsInitialLoading(false);
+      setIsUpdating(false);
+    }
+  }, [connection, wallet]);
+
+  const refresh = useCallback(async () => {
+    await load(true);
+  }, [load]);
+
+  // Initial load and periodic background sync (non-destructive)
   useEffect(() => {
     if (!wallet) {
       setSnapshot(null);
-      setLoading(false);
+      setIsInitialLoading(false);
+      setIsUpdating(false);
       return;
     }
 
     let isMounted = true;
+    load(false);
 
-    async function load() {
-      if (!wallet) return;
-      setLoading(true);
-      setError(null);
-      try {
-        const snap = await fetchLivePortfolioSnapshot(connection, wallet);
-        if (isMounted) {
-          setSnapshot(snap);
-          setLoading(false);
-        }
-      } catch (err: any) {
-        if (isMounted) {
-          setError(err?.message || "Failed to load live on-chain portfolio");
-          setLoading(false);
-        }
+    // Light heartbeat (every 30s as safety fallback; primary updates are event/WS-driven)
+    const interval = setInterval(() => {
+      if (isMounted) {
+        load(true);
       }
-    }
+    }, 30000);
 
-    load();
-
-    // Auto-poll every 12 seconds
-    const interval = setInterval(load, 12000);
     return () => {
       isMounted = false;
       clearInterval(interval);
     };
-  }, [connection, wallet, tick]);
+  }, [wallet, load]);
+
+  // WebSocket subscriptions for discovered positions
+  useEffect(() => {
+    if (!wallet || !connection || !snapshot) return;
+
+    // Clean up previous position account subscriptions
+    activeSubsRef.current.forEach((subId) => {
+      try {
+        connection.removeAccountChangeListener(subId);
+      } catch {}
+    });
+    activeSubsRef.current = [];
+
+    const subs: number[] = [];
+
+    // Subscribe to each on-chain position account
+    for (const p of snapshot.positions) {
+      try {
+        const pdaPubkey = new PublicKey(p.identity.collateralAccount);
+        const subId = connection.onAccountChange(
+          pdaPubkey,
+          () => {
+            load(true);
+          },
+          "confirmed"
+        );
+        subs.push(subId);
+      } catch {}
+    }
+
+    activeSubsRef.current = subs;
+
+    return () => {
+      subs.forEach((subId) => {
+        try {
+          connection.removeAccountChangeListener(subId);
+        } catch {}
+      });
+      activeSubsRef.current = [];
+    };
+  }, [wallet, connection, snapshot?.positions.length, load]);
+
+  // Slot subscription for true heartbeat and age tracking
+  useEffect(() => {
+    if (!connection) return;
+    let slotSubId: number | null = null;
+    try {
+      slotSubId = connection.onSlotChange((slotInfo) => {
+        setCurrentSlot(slotInfo.slot);
+      });
+    } catch {}
+
+    return () => {
+      if (slotSubId !== null) {
+        try {
+          connection.removeSlotChangeListener(slotSubId);
+        } catch {}
+      }
+    };
+  }, [connection]);
+
+  // Event bus integration: reactive to confirmed transactions and position events
+  useEffect(() => {
+    const unsubPos = protocolEventBus.onType("POSITION_CHANGE", () => {
+      load(true);
+    });
+    const unsubTx = protocolEventBus.onType("TRANSACTION_LIFECYCLE", (ev) => {
+      if (ev.data?.status === "CONFIRMED" || ev.data?.status === "SUCCESS") {
+        load(true);
+      }
+    });
+
+    return () => {
+      unsubPos();
+      unsubTx();
+    };
+  }, [load]);
 
   return {
     snapshot,
-    loading,
+    loading: isInitialLoading && !snapshot,
+    isInitialLoading: isInitialLoading && !snapshot,
+    isUpdating,
+    hasData: snapshot !== null,
     error,
     refresh,
+    currentSlot,
+    rpcLatencyMs,
+    lastSyncSlot,
   };
 }

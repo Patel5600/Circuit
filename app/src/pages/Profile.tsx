@@ -16,6 +16,8 @@ import {
   AssetNode,
   getAssetMark,
 } from "../components/profile/PortfolioRiskGraph";
+import { LiveMetric } from "../components/profile/LiveMetric";
+import { useCircuitDomain } from "../lib/domain/context";
 import { useLiveDevnetPortfolio } from "../lib/portfolio/live-provider";
 import { useAction } from "../context/ActionContext";
 import { getDeployedMarket, getDeployedMarketByMint } from "../data/markets";
@@ -42,41 +44,6 @@ function riskProfileTone(label: string): "neutral" | "success" | "warning" | "da
   return "danger";
 }
 
-function StatBlock({
-  label,
-  value,
-  sub,
-}: {
-  label: string;
-  value: React.ReactNode;
-  sub?: string;
-}) {
-  return (
-    <div style={{ flex: 1, minWidth: 140 }}>
-      <div
-        style={{
-          fontSize: 11,
-          fontFamily: "var(--mono)",
-          textTransform: "uppercase",
-          letterSpacing: "0.08em",
-          color: "var(--text-3)",
-          marginBottom: 4,
-        }}
-      >
-        {label}
-      </div>
-      <div style={{ fontSize: 20, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
-        {value}
-      </div>
-      {sub && (
-        <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 2 }}>
-          {sub}
-        </div>
-      )}
-    </div>
-  );
-}
-
 /* -------------------------------------------------------------------------- */
 /*  Profile Page - High Power Live Devnet Financial Cockpit                   */
 /* -------------------------------------------------------------------------- */
@@ -88,7 +55,18 @@ export default function Profile() {
   const { theme } = useTheme();
   const isDark = theme === "dark";
 
-  const { snapshot, loading, error, refresh } = useLiveDevnetPortfolio(connection, publicKey);
+  const domain = useCircuitDomain();
+  const {
+    snapshot,
+    loading,
+    isInitialLoading,
+    isUpdating,
+    error,
+    refresh,
+    currentSlot,
+    rpcLatencyMs,
+    lastSyncSlot,
+  } = useLiveDevnetPortfolio(connection, publicKey);
 
   const hasLiveCollateral = Boolean(snapshot && snapshot.totalCollateralUsd > 0);
   const leverageRatio =
@@ -275,19 +253,46 @@ export default function Profile() {
             <span style={{ fontSize: 11, fontFamily: "var(--mono)", color: "var(--text-3)" }}>
               SUBSYSTEMS:
             </span>
-            <Pill tone="success">Market: LIVE</Pill>
-            <Pill tone="success">Portfolio: LIVE</Pill>
-            <Pill tone="success">Risk: LIVE</Pill>
-            <Pill tone="success">Credit: LIVE</Pill>
+            <Pill tone="success">
+              RPC: {rpcLatencyMs ?? domain.systemHealth.rpcLatencyMs ?? 42}ms
+            </Pill>
+            <Pill
+              tone={
+                domain.decision.oracle.freshness === "LIVE"
+                  ? "success"
+                  : domain.decision.oracle.freshness === "RECENT"
+                  ? "warning"
+                  : "danger"
+              }
+            >
+              Pyth: {domain.decision.oracle.freshness}
+            </Pill>
+            <Pill tone="neutral">
+              Slot: {currentSlot ?? lastSyncSlot ?? "—"}
+            </Pill>
+            <Pill
+              tone={
+                snapshot?.riskState === "SAFE"
+                  ? "success"
+                  : snapshot?.riskState === "EMERGENCY"
+                  ? "danger"
+                  : "warning"
+              }
+            >
+              Risk: {snapshot?.riskState ?? "SAFE"}
+            </Pill>
+            <Pill tone="neutral">
+              Credit: ${formatMoney(snapshot?.borrowCapacityUsd ?? 0)}
+            </Pill>
             <button
               type="button"
               className="btn btn--secondary btn--sm"
               style={{ fontSize: 11, height: 26, padding: "0 10px" }}
               onClick={refresh}
-              disabled={loading}
+              disabled={isUpdating}
             >
               <Icon name="clock" size={12} />
-              <span>{loading ? "Querying..." : "Refresh"}</span>
+              <span>{isUpdating ? "Syncing..." : "Re-sync"}</span>
             </button>
           </div>
         </div>
@@ -359,7 +364,7 @@ export default function Profile() {
                     </span>
                   </div>
                   <div style={{ fontSize: 11.5, color: "var(--text-3)", marginTop: 4 }}>
-                    {loading
+                    {isInitialLoading
                       ? "Querying on-chain position accounts on Devnet..."
                       : hasLiveCollateral
                       ? `${snapshot?.positions.length} active tokenized equity position${
@@ -398,8 +403,8 @@ export default function Profile() {
               </div>
             </div>
 
-            {/* Metrics Grid (Expanded 6 StatBlocks) */}
-            {loading ? (
+            {/* Metrics Grid (Expanded 6 LiveMetric blocks) */}
+            {isInitialLoading ? (
               <div className="row g-16">
                 {[0, 1, 2, 3, 4, 5].map((i) => (
                   <Skeleton key={i} height={60} />
@@ -413,7 +418,7 @@ export default function Profile() {
                   gap: 16,
                 }}
               >
-                <StatBlock
+                <LiveMetric
                   label="Portfolio Health"
                   value={
                     <span
@@ -438,15 +443,18 @@ export default function Profile() {
                         : "Nominal Solvency"
                       : "Zero debt drawn"
                   }
+                  isUpdating={isUpdating}
                 />
-                <StatBlock
+                <LiveMetric
                   label="Current Debt"
                   value={`$${formatMoney(snapshot?.totalDebtUsd ?? 0)}`}
                   sub="Borrowed amount (USDC)"
+                  isUpdating={isUpdating}
                 />
-                <StatBlock
+                <LiveMetric
                   label="Available Credit"
                   value={`$${formatMoney(snapshot?.borrowCapacityUsd ?? 0)}`}
+                  tone={snapshot && snapshot.borrowCapacityUsd > 0 ? "accent" : "neutral"}
                   sub={
                     hasLiveCollateral
                       ? `Max: $${formatMoney(
@@ -455,8 +463,9 @@ export default function Profile() {
                         )}`
                       : "Awaiting collateral deposit"
                   }
+                  isUpdating={isUpdating}
                 />
-                <StatBlock
+                <LiveMetric
                   label="Collateral Value"
                   value={`$${formatMoney(snapshot?.conservativeCollateralUsd ?? 0)}`}
                   sub={
@@ -464,8 +473,9 @@ export default function Profile() {
                       ? `Nominal: $${formatMoney(snapshot?.totalCollateralUsd ?? 0)} (p - conf)`
                       : "0.0000 (No Collateral)"
                   }
+                  isUpdating={isUpdating}
                 />
-                <StatBlock
+                <LiveMetric
                   label="Effective LTV"
                   value={hasLiveCollateral ? `${effectiveLtvPct.toFixed(1)}%` : "0.0%"}
                   sub={
@@ -475,8 +485,9 @@ export default function Profile() {
                         } bps`
                       : "0.0% (Awaiting deposit)"
                   }
+                  isUpdating={isUpdating}
                 />
-                <StatBlock
+                <LiveMetric
                   label="Liquidation Cushion"
                   value={
                     liquidationBufferPct !== null ? (
@@ -496,107 +507,44 @@ export default function Profile() {
                       "∞ Buffer"
                     )
                   }
+                  tone={
+                    liquidationBufferPct === null
+                      ? "neutral"
+                      : liquidationBufferPct < 15
+                      ? "danger"
+                      : liquidationBufferPct < 30
+                      ? "warning"
+                      : "success"
+                  }
                   sub={
                     liquidationBufferPct !== null
                       ? "Drop needed to trigger liquidation"
                       : "Zero debt drawn (Safe)"
                   }
+                  isUpdating={isUpdating}
                 />
               </div>
             )}
-
-            {/* ── Instant Action Dock ── */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                flexWrap: "wrap",
-                gap: 12,
-                padding: "12px 18px",
-                background: "var(--surface-2)",
-                borderRadius: 9,
-                border: "1px solid var(--border)",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span
-                  style={{
-                    width: 7,
-                    height: 7,
-                    borderRadius: "50%",
-                    background: "var(--accent)",
-                  }}
-                />
-                <span
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 750,
-                    fontFamily: "var(--mono)",
-                    letterSpacing: "0.08em",
-                    color: "var(--text)",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  INSTANT ACTIONS
-                </span>
-              </div>
-              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                <button
-                  type="button"
-                  className="btn btn--accent btn--sm"
-                  style={{ fontSize: 11.5, height: 28, padding: "0 12px" }}
-                  onClick={() => {
-                    const firstMarket = snapshot?.positions[0]?.mint
-                      ? getDeployedMarketByMint(snapshot.positions[0].mint)
-                      : getDeployedMarket("NVDA");
-                    if (firstMarket) openAction({ type: "deposit", market: firstMarket });
-                  }}
-                >
-                  + Deposit Collateral
-                </button>
-                <button
-                  type="button"
-                  className="btn btn--secondary btn--sm"
-                  style={{ fontSize: 11.5, height: 28, padding: "0 12px" }}
-                  disabled={!snapshot?.borrowAllowed || snapshot.borrowCapacityUsd <= 0}
-                  onClick={() => {
-                    const firstMarket = snapshot?.positions[0]?.mint
-                      ? getDeployedMarketByMint(snapshot.positions[0].mint)
-                      : getDeployedMarket("NVDA");
-                    if (firstMarket) openAction({ type: "borrow", market: firstMarket });
-                  }}
-                >
-                  $ Borrow USDC
-                </button>
-                <button
-                  type="button"
-                  className="btn btn--secondary btn--sm"
-                  style={{ fontSize: 11.5, height: 28, padding: "0 12px" }}
-                  disabled={!snapshot || snapshot.totalDebtUsd <= 0}
-                  onClick={() => {
-                    const firstMarket = snapshot?.positions[0]?.mint
-                      ? getDeployedMarketByMint(snapshot.positions[0].mint)
-                      : getDeployedMarket("NVDA");
-                    if (firstMarket) openAction({ type: "repay", market: firstMarket });
-                  }}
-                >
-                  ↩ Repay Debt
-                </button>
-                <Link
-                  to="/app/faucet"
-                  className="btn btn--secondary btn--sm"
-                  style={{ fontSize: 11.5, height: 28, padding: "0 12px" }}
-                >
-                  ⚡ Faucet
-                </Link>
-              </div>
-            </div>
           </div>
         </Card>
 
-        {/* ── Section 2: Autonomous Strategy Authority Control Center ── */}
-        <AutonomousAuthorityCard />
+        {/* ── Section 2: High-Definition Causal Risk Graph Canvas ── */}
+        <PortfolioRiskGraph
+          assets={graphAssets}
+          riskState={snapshot?.riskState ?? domain.decision.risk.state ?? "SAFE"}
+          baseLtvBps={snapshot?.weightedBaseLtvBps ?? 7000}
+          effectiveLtvBps={snapshot?.effectiveLtvBps ?? 0}
+          borrowPowerUsd={snapshot?.borrowCapacityUsd ?? 0}
+          totalCollateralUsd={snapshot?.totalCollateralUsd ?? 0}
+          borrowAllowed={domain.decision.capitalPolicy.borrowAllowed}
+          verdictStatus={domain.decision.verdict.status}
+          verdictReason={domain.decision.verdict.reason}
+          hardOverride={Boolean(snapshot?.hardOverride)}
+          hardOverrideReason={snapshot?.hardOverrideReason}
+          uneditable={true}
+          loading={isInitialLoading}
+          onSelectNodeDriver={(nodeId) => setSelectedDriverNode(nodeId)}
+        />
 
         {/* ── Section 3: On-Chain Deposited Holdings Breakdown Table ── */}
         {snapshot && snapshot.positions.length > 0 && (
@@ -770,67 +718,125 @@ export default function Profile() {
           </Card>
         )}
 
-        {/* ── Section 4: Multi-Asset Risk Posture ── */}
+        {/* ── Section 4: Instant Actions Dock ── */}
+        <Card>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: 12,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span
+                style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: "50%",
+                  background: "var(--accent)",
+                }}
+              />
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 750,
+                  fontFamily: "var(--mono)",
+                  letterSpacing: "0.08em",
+                  color: "var(--text)",
+                  textTransform: "uppercase",
+                }}
+              >
+                INSTANT ACTIONS
+              </span>
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <button
+                type="button"
+                className="btn btn--accent btn--sm"
+                style={{ fontSize: 11.5, height: 28, padding: "0 12px" }}
+                onClick={() => {
+                  const firstMarket = snapshot?.positions[0]?.mint
+                    ? getDeployedMarketByMint(snapshot.positions[0].mint)
+                    : getDeployedMarket("NVDA");
+                  if (firstMarket) openAction({ type: "deposit", market: firstMarket });
+                }}
+              >
+                + Deposit Collateral
+              </button>
+              <button
+                type="button"
+                className="btn btn--secondary btn--sm"
+                style={{ fontSize: 11.5, height: 28, padding: "0 12px" }}
+                disabled={!domain.decision.capitalPolicy.borrowAllowed || (snapshot?.borrowCapacityUsd ?? 0) <= 0}
+                onClick={() => {
+                  const firstMarket = snapshot?.positions[0]?.mint
+                    ? getDeployedMarketByMint(snapshot.positions[0].mint)
+                    : getDeployedMarket("NVDA");
+                  if (firstMarket) openAction({ type: "borrow", market: firstMarket });
+                }}
+              >
+                $ Borrow USDC
+              </button>
+              <button
+                type="button"
+                className="btn btn--secondary btn--sm"
+                style={{ fontSize: 11.5, height: 28, padding: "0 12px" }}
+                disabled={!snapshot || snapshot.totalDebtUsd <= 0}
+                onClick={() => {
+                  const firstMarket = snapshot?.positions[0]?.mint
+                    ? getDeployedMarketByMint(snapshot.positions[0].mint)
+                    : getDeployedMarket("NVDA");
+                  if (firstMarket) openAction({ type: "repay", market: firstMarket });
+                }}
+              >
+                ↩ Repay Debt
+              </button>
+              <Link
+                to="/app/faucet"
+                className="btn btn--secondary btn--sm"
+                style={{ fontSize: 11.5, height: 28, padding: "0 12px" }}
+              >
+                ⚡ Faucet
+              </Link>
+            </div>
+          </div>
+        </Card>
+
+        {/* ── Section 5: Autonomous Strategy Authority Control Center ── */}
+        <AutonomousAuthorityCard />
+
+        {/* ── Section 6: Multi-Asset Risk Posture ── */}
         <RiskPosture
           concentrationPct={snapshot?.maxWeightPct ?? 0}
           oracleConfBps={
             snapshot && snapshot.positions.length > 0
               ? Math.max(...snapshot.positions.map((p) => p.confBps))
-              : 18
+              : 0
           }
           maxConfBps={
             snapshot && snapshot.positions.length > 0
               ? Math.max(...snapshot.positions.map((p) => p.maxConfBps))
               : 150
           }
-          oracleAgeSec={12}
+          oracleAgeSec={
+            domain.decision.oracle.ageSlots
+              ? Math.round(domain.decision.oracle.ageSlots * 0.4)
+              : 0
+          }
           maxOracleAge={600}
           liquidityState={snapshot?.hardOverride ? "critical" : "normal"}
           leverageRatio={leverageRatio}
           riskState={snapshot?.riskState ?? "SAFE"}
         />
 
-        {/* ── Section 5: Portfolio Stress Simulation Matrix ── */}
-        <StressScenarioPanel
-          totalCollateralUsd={snapshot?.totalCollateralUsd ?? 0}
-          totalDebtUsd={snapshot?.totalDebtUsd ?? 0}
-          baseLtvBps={snapshot?.weightedBaseLtvBps ?? 7000}
-          liqThresholdBps={weightedLiqThresholdBps}
-        />
-
-        {/* ── Section 6: High-Definition Causal Risk Graph Canvas ── */}
-        <PortfolioRiskGraph
-          assets={graphAssets}
-          riskState={snapshot?.riskState ?? "SAFE"}
-          baseLtvBps={snapshot?.weightedBaseLtvBps ?? 7000}
-          effectiveLtvBps={snapshot?.effectiveLtvBps ?? 0}
-          borrowPowerUsd={snapshot?.borrowCapacityUsd ?? 0}
-          totalCollateralUsd={snapshot?.totalCollateralUsd ?? 0}
-          borrowAllowed={Boolean(snapshot?.borrowAllowed)}
-          hardOverride={Boolean(snapshot?.hardOverride)}
-          hardOverrideReason={snapshot?.hardOverrideReason}
-          uneditable={true}
-          loading={loading}
-          onSelectNodeDriver={(nodeId) => setSelectedDriverNode(nodeId)}
-        />
-
-        {/* ── Section 7: Causal Explainability Engine ── */}
-        <WhyBorrowPowerChanged
-          borrowPowerDiffUsd={riskAnalysis.borrowPowerDiffUsd}
-          causalExplanations={riskAnalysis.causalExplanations}
-          onSelectDriver={(targetNode) => setSelectedDriverNode(targetNode)}
-        />
-
-        {/* ── Section 8: Protocol Permissions ── */}
+        {/* ── Section 7: Protocol Permissions ── */}
         <RiskPermissions
-          borrowAllowed={Boolean(snapshot?.borrowAllowed)}
+          borrowAllowed={domain.decision.capitalPolicy.borrowAllowed}
           borrowBlockers={
-            snapshot?.hardOverride
-              ? [snapshot.hardOverrideReason || "Hard risk override active"]
-              : !hasLiveCollateral
-              ? ["No collateral deposited — deposit tokenized equity to unlock borrow line"]
-              : !snapshot?.borrowAllowed
-              ? ["Capacity restricted by Risk Ratchet (Concentration penalty active)"]
+            !domain.decision.capitalPolicy.borrowAllowed
+              ? [domain.decision.verdict.reason]
               : []
           }
           withdrawAllowed={withdrawAllowed}
@@ -848,7 +854,22 @@ export default function Profile() {
           riskState={snapshot?.riskState ?? "SAFE"}
         />
 
-        {/* ── Section 9: Live Devnet Risk History ── */}
+        {/* ── Section 8: Causal Explainability Engine ── */}
+        <WhyBorrowPowerChanged
+          borrowPowerDiffUsd={riskAnalysis.borrowPowerDiffUsd}
+          causalExplanations={riskAnalysis.causalExplanations}
+          onSelectDriver={(targetNode) => setSelectedDriverNode(targetNode)}
+        />
+
+        {/* ── Section 9: Portfolio Stress Simulation Matrix ── */}
+        <StressScenarioPanel
+          totalCollateralUsd={snapshot?.totalCollateralUsd ?? 0}
+          totalDebtUsd={snapshot?.totalDebtUsd ?? 0}
+          baseLtvBps={snapshot?.weightedBaseLtvBps ?? 7000}
+          liqThresholdBps={weightedLiqThresholdBps}
+        />
+
+        {/* ── Section 10: Live Devnet Risk History ── */}
         <RiskHistory activeState={snapshot?.riskState ?? "SAFE"} allowDemo={false} />
 
         {/* ── Footer ── */}
