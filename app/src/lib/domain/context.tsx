@@ -36,7 +36,10 @@ import { RpcOrchestrator } from "./orchestrator";
 import { getWalletStatus, verifyClusterGenesis } from "./wallet";
 import { fetchLivePortfolioSnapshot } from "../portfolio/live-provider";
 import { DEPLOYED_MARKETS } from "../../data/markets";
-import { PROGRAM_ID, RPC_URL } from "../../config";
+import { PROGRAM_ID, RPC_URL, PYTH_PRICE_ACCOUNT } from "../../config";
+import { useMarketData } from "../../context/MarketDataContext";
+import { useMarket } from "../../context/MarketContext";
+import { oracleCache, fetchOracle } from "../pyth";
 import { detectActivityPatterns } from "../activity/pattern-engine";
 import { isNyseMarketOpen } from "../session";
 import {
@@ -51,6 +54,7 @@ import {
   buildRevokeAgentAuthorityInstruction,
   CIRCUIT_DEVNET_AGENT_KEY,
 } from "../agentAuthority";
+import { circuitTransport } from "../transport/circuit-transport";
 import { Transaction } from "@solana/web3.js";
 import { protocolEventBus, createEvent } from "../realtime/event-bus";
 import { DecisionSnapshot } from "../decision/types";
@@ -113,7 +117,33 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
   const { publicKey, connected, connecting, sendTransaction } = useWallet();
 
   const orchestrator = useMemo(() => new RpcOrchestrator(connection), [connection]);
-  const [activeMarketKey, setActiveMarketKey] = useState<string>("NVDA");
+  const { selectedMarket } = useMarket();
+  const { snapshots: marketSnapshots } = useMarketData();
+  const [activeMarketKey, setActiveMarketKey] = useState<string>(() => selectedMarket?.symbol || "NVDA");
+
+  useEffect(() => {
+    if (selectedMarket?.symbol && selectedMarket.symbol !== activeMarketKey) {
+      setActiveMarketKey(selectedMarket.symbol);
+    }
+  }, [selectedMarket?.symbol, activeMarketKey]);
+
+  // Proactively fetch Pyth oracle for the active market if not yet cached
+  useEffect(() => {
+    if (!connection) return;
+    const targetMarket =
+      DEPLOYED_MARKETS.find((m) => m.symbol.toUpperCase() === activeMarketKey.toUpperCase()) ||
+      DEPLOYED_MARKETS[0];
+    if (!targetMarket?.feedId) return;
+
+    const cacheKey =
+      targetMarket.symbol === "NVDA" && PYTH_PRICE_ACCOUNT
+        ? PYTH_PRICE_ACCOUNT.toBase58()
+        : targetMarket.feedId;
+
+    if (!oracleCache.has(cacheKey)) {
+      fetchOracle(connection, Math.floor(Date.now() / 1000), targetMarket.feedId).catch(() => null);
+    }
+  }, [connection, activeMarketKey]);
 
   // Domain states
   const [isDevnet, setIsDevnet] = useState<boolean>(true);
@@ -189,11 +219,17 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
   // Slot / Health heartbeat
   const fetchHealth = useCallback(async () => {
     try {
-      const start = Date.now();
-      const slot = await connection.getSlot("confirmed");
-      setRpcLatency(Date.now() - start);
-      setCurrentSlot(slot);
-      setIsRpcDegraded(false);
+      const slot = circuitTransport.slotStream.getCurrentSlot();
+      if (slot !== null) {
+        setCurrentSlot(slot);
+        setIsRpcDegraded(false);
+      } else {
+        const start = Date.now();
+        const liveSlot = await connection.getSlot("confirmed");
+        setRpcLatency(Date.now() - start);
+        setCurrentSlot(liveSlot);
+        setIsRpcDegraded(false);
+      }
     } catch (e) {
       setIsRpcDegraded(true);
     }
@@ -216,24 +252,32 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
     }
   }, [connection, publicKey]);
 
-  // Initial and periodic refresh
+  // Reactive Transport Connection & Slot Stream
+  useEffect(() => {
+    if (!connection) return;
+    circuitTransport.init(connection);
+
+    const unsubSlot = circuitTransport.slotStream.subscribe((slot) => {
+      setCurrentSlot(slot);
+    });
+
+    const unsubHealth = circuitTransport.subscribeHealth((health) => {
+      if (health.rpcLatencyMs > 0) setRpcLatency(health.rpcLatencyMs);
+      setIsRpcDegraded(health.solanaRpc === "DEGRADED");
+    });
+
+    return () => {
+      unsubSlot();
+      unsubHealth();
+    };
+  }, [connection]);
+
+  // Initial fetch on mount or identity change (no aggressive 10s polling interval)
   useEffect(() => {
     fetchBalance();
     fetchPortfolio();
-    fetchHealth();
     fetchAuthorities();
-
-    const interval = setInterval(() => {
-      if (orchestrator.isVisible()) {
-        fetchBalance();
-        fetchPortfolio();
-        fetchHealth();
-        fetchAuthorities();
-      }
-    }, 10000);
-
-    return () => clearInterval(interval);
-  }, [fetchBalance, fetchPortfolio, fetchHealth, fetchAuthorities, orchestrator]);
+  }, [fetchBalance, fetchPortfolio, fetchAuthorities]);
 
   // Invalidation listener
   useEffect(() => {
@@ -298,14 +342,47 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
   const marketState: MarketDomainState = useMemo(() => {
     const marketsMap: Record<string, any> = {};
     DEPLOYED_MARKETS.forEach((m) => {
-      marketsMap[m.symbol] = m;
+      const snap = marketSnapshots[m.symbol];
+      const cached =
+        oracleCache.get(m.feedId) ||
+        (m.symbol === "NVDA" && PYTH_PRICE_ACCOUNT
+          ? oracleCache.get(PYTH_PRICE_ACCOUNT.toBase58())
+          : null);
+
+      const price = snap && snap.priceUsd > 0 ? snap.priceUsd : cached?.snapshot.priceUsd;
+      const conf = snap ? snap.oracleConfidenceUsd : cached?.snapshot.confUsd;
+      const confBps = snap ? snap.oracleConfBps : cached?.snapshot.confBps;
+      const publishTime =
+        snap && snap.oracleTimestamp > 0
+          ? snap.oracleTimestamp
+          : cached
+          ? Number(cached.snapshot.update.publishTime)
+          : 0;
+      const status = snap ? snap.oracleStatus : cached?.snapshot.status;
+
+      marketsMap[m.symbol] = {
+        ...m,
+        priceData:
+          price && price > 0 && publishTime && publishTime > 0
+            ? {
+                price,
+                conf: conf ?? 0,
+                confBps: confBps ?? 0,
+                publishTime,
+                referencePrice: snap?.referencePrice24h ?? null,
+                change24hPct: snap?.change24hPercent ?? null,
+                change24hStatus: snap?.changeStatus ?? "UNAVAILABLE",
+                freshness: (status as any) ?? "RECENT",
+              }
+            : undefined,
+      };
     });
     return {
       markets: marketsMap,
       activeMarketKey,
       freshness: makeFreshness("markets-registry"),
     };
-  }, [activeMarketKey]);
+  }, [activeMarketKey, marketSnapshots]);
 
   const portfolioState: PortfolioDomainState = useMemo(() => {
     const positions = portfolioSnap?.positions ?? [];

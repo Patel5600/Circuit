@@ -74,6 +74,7 @@ export interface Position {
   confidenceUsd: number;
   confBps: number;
   maxConfBps: number;
+  maxOracleAge?: number;
   conservativePriceUsd: number;
   collateralValueUsd: number;
   conservativeValueUsd: number;

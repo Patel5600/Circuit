@@ -14,6 +14,7 @@ import { useTheme } from "../../context/ThemeContext";
 import { CommandPalette } from "../terminal/CommandPalette";
 import NetworkStatusBar from "../ui/NetworkStatusBar";
 import { useInkButtons } from "../../hooks/useInkButtons";
+import { circuitTransport, TransportHealthState } from "../../lib/transport/circuit-transport";
 
 /** Primary destinations, shared by the sidebar and the mobile bottom bar. Autonomous is excluded (top-level workspace mode). */
 const PRIMARY: { to: string; label: string; icon: IconName }[] = [
@@ -331,15 +332,38 @@ export function PageContainer({
   );
 }
 
-/** Derives real network source statuses from domain context */
+/** Derives real network source statuses from domain context and transport health */
 function NetworkStatusBarWrapper() {
   const { systemHealth } = useCircuitDomain();
-  const rpcStatus = systemHealth.isOnline
-    ? systemHealth.rpcLatencyMs > 3000
-      ? "DEGRADED" as const
-      : "LIVE" as const
-    : "DISCONNECTED" as const;
-  const pythStatus = systemHealth.isOnline ? "LIVE" as const : "UNAVAILABLE" as const;
+  const [transportHealth, setTransportHealth] = useState<TransportHealthState>(() =>
+    circuitTransport.getHealth()
+  );
+
+  useEffect(() => {
+    return circuitTransport.subscribeHealth((h) => {
+      setTransportHealth({ ...h });
+    });
+  }, []);
+
+  const rpcStatus = !systemHealth.isOnline
+    ? "DISCONNECTED"
+    : transportHealth.solanaRpc === "DEGRADED" || systemHealth.rpcLatencyMs > 3000
+    ? "DEGRADED"
+    : "LIVE";
+
+  const pythStatus = !systemHealth.isOnline
+    ? "DISCONNECTED"
+    : transportHealth.pythOracle === "LIVE"
+    ? "LIVE"
+    : transportHealth.pythOracle === "DEGRADED"
+    ? "DEGRADED"
+    : "UNAVAILABLE";
+
+  const circuitStatus = !systemHealth.isOnline
+    ? "DISCONNECTED"
+    : transportHealth.programState === "LIVE"
+    ? "LIVE"
+    : "UNAVAILABLE";
 
   return (
     <div
@@ -362,7 +386,7 @@ function NetworkStatusBarWrapper() {
             detail: systemHealth.rpcLatencyMs > 0 ? `${systemHealth.rpcLatencyMs}ms` : undefined,
           },
           { name: "PYTH", status: pythStatus },
-          { name: "CIRCUIT", status: systemHealth.isOnline ? "LIVE" : "UNAVAILABLE" },
+          { name: "CIRCUIT", status: circuitStatus },
         ]}
       />
     </div>

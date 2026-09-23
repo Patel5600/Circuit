@@ -19,6 +19,7 @@ import {
 import { LiveMetric } from "../components/profile/LiveMetric";
 import { useCircuitDomain } from "../lib/domain/context";
 import { useLiveDevnetPortfolio } from "../lib/portfolio/live-provider";
+import { circuitTransport } from "../lib/transport/circuit-transport";
 import { useAction } from "../context/ActionContext";
 import { getDeployedMarket, getDeployedMarketByMint } from "../data/markets";
 import { shortenAddress, formatMoney, formatPercent } from "../lib/format";
@@ -154,6 +155,7 @@ export default function Profile() {
         maxConfBps: p.maxConfBps,
         marketOpen: p.marketOpen,
         mark: p.mark || getAssetMark(p.symbol),
+        publishTime: p.publishTime,
         priceUsd: p.priceUsd,
         change24hPercent: p.change24hPercent,
         collateralValueUsd: p.collateralValueUsd,
@@ -268,21 +270,23 @@ export default function Profile() {
               Pyth: {domain.decision.oracle.freshness}
             </Pill>
             <Pill tone="neutral">
-              Slot: {currentSlot ?? lastSyncSlot ?? "—"}
+              Slot: {currentSlot ?? circuitTransport.slotStream.getCurrentSlot() ?? lastSyncSlot ?? "—"}
             </Pill>
             <Pill
               tone={
-                snapshot?.riskState === "SAFE"
+                !snapshot
+                  ? "neutral"
+                  : snapshot.riskState === "SAFE"
                   ? "success"
-                  : snapshot?.riskState === "EMERGENCY"
+                  : snapshot.riskState === "EMERGENCY"
                   ? "danger"
                   : "warning"
               }
             >
-              Risk: {snapshot?.riskState ?? "SAFE"}
+              Risk: {snapshot ? snapshot.riskState : (isInitialLoading ? "SYNCING..." : "UNKNOWN")}
             </Pill>
             <Pill tone="neutral">
-              Credit: ${formatMoney(snapshot?.borrowCapacityUsd ?? 0)}
+              Credit: {snapshot ? `$${formatMoney(snapshot.borrowCapacityUsd)}` : (isInitialLoading ? "SYNCING..." : "UNKNOWN")}
             </Pill>
             <button
               type="button"
@@ -315,16 +319,28 @@ export default function Profile() {
                   height: 46,
                   borderRadius: 12,
                   background: `linear-gradient(135deg, ${
-                    snapshot?.riskState === "SAFE" ? "rgba(127, 195, 154, 0.15)" : "rgba(224, 108, 108, 0.15)"
+                    !snapshot
+                      ? "rgba(100, 116, 139, 0.15)"
+                      : snapshot.riskState === "SAFE"
+                      ? "rgba(127, 195, 154, 0.15)"
+                      : "rgba(224, 108, 108, 0.15)"
                   }, var(--surface-2))`,
                   border: `1.5px solid ${
-                    snapshot?.riskState === "SAFE" ? "rgba(127, 195, 154, 0.4)" : "rgba(224, 108, 108, 0.4)"
+                    !snapshot
+                      ? "rgba(100, 116, 139, 0.3)"
+                      : snapshot.riskState === "SAFE"
+                      ? "rgba(127, 195, 154, 0.4)"
+                      : "rgba(224, 108, 108, 0.4)"
                   }`,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   flexShrink: 0,
-                  color: snapshot?.riskState === "SAFE" ? "var(--success)" : "var(--danger)",
+                  color: !snapshot
+                    ? "var(--text-3)"
+                    : snapshot.riskState === "SAFE"
+                    ? "var(--success)"
+                    : "var(--danger)",
                 }}
               >
                 <Icon name="user" size={22} />
@@ -362,9 +378,11 @@ export default function Profile() {
                 <div style={{ fontSize: 11.5, color: "var(--text-3)", marginTop: 4 }}>
                   {isInitialLoading
                     ? "Querying on-chain position accounts on Devnet..."
+                    : !snapshot
+                    ? "Position telemetry syncing or unavailable. Operational shell active."
                     : hasLiveCollateral
-                    ? `${snapshot?.positions.length} active tokenized equity position${
-                        snapshot?.positions.length !== 1 ? "s" : ""
+                    ? `${snapshot.positions.length} active tokenized equity position${
+                        snapshot.positions.length !== 1 ? "s" : ""
                       } evaluated under on-chain Risk Ratchet.`
                     : "Fresh wallet detected with $0.00 collateral. Borrow capacity is strictly $0.00."}
                 </div>
@@ -379,15 +397,17 @@ export default function Profile() {
                 </div>
                 <Pill
                   tone={
-                    snapshot?.riskState === "SAFE"
+                    !snapshot
+                      ? "neutral"
+                      : snapshot.riskState === "SAFE"
                       ? "success"
-                      : snapshot?.riskState === "EMERGENCY"
+                      : snapshot.riskState === "EMERGENCY"
                       ? "danger"
                       : "warning"
                   }
                   withDot
                 >
-                  {snapshot?.riskState ?? "SAFE"}
+                  {snapshot ? snapshot.riskState : (isInitialLoading ? "SYNCING..." : "UNKNOWN")}
                 </Pill>
               </div>
               <div style={{ textAlign: "right" }}>
@@ -465,19 +485,21 @@ export default function Profile() {
                 />
                 <LiveMetric
                   label="Current Debt"
-                  value={`$${formatMoney(snapshot?.totalDebtUsd ?? 0)}`}
+                  value={snapshot ? `$${formatMoney(snapshot.totalDebtUsd)}` : (isInitialLoading ? "Syncing..." : "Unknown")}
                   sub="Borrowed amount (USDC)"
                   isUpdating={isUpdating}
                 />
                 <LiveMetric
                   label="Available Credit"
-                  value={`$${formatMoney(snapshot?.borrowCapacityUsd ?? 0)}`}
+                  value={snapshot ? `$${formatMoney(snapshot.borrowCapacityUsd)}` : (isInitialLoading ? "Syncing..." : "Unknown")}
                   tone={snapshot && snapshot.borrowCapacityUsd > 0 ? "accent" : "neutral"}
                   sub={
-                    hasLiveCollateral
+                    !snapshot
+                      ? "Awaiting on-chain sync"
+                      : hasLiveCollateral
                       ? `Max: $${formatMoney(
-                          (snapshot?.totalCollateralUsd ?? 0) *
-                            ((snapshot?.effectiveLtvBps ?? 7000) / BPS)
+                          (snapshot.totalCollateralUsd) *
+                            ((snapshot.effectiveLtvBps ?? 7000) / BPS)
                         )}`
                       : "Awaiting collateral deposit"
                   }
@@ -485,10 +507,12 @@ export default function Profile() {
                 />
                 <LiveMetric
                   label="Collateral Value"
-                  value={`$${formatMoney(snapshot?.conservativeCollateralUsd ?? 0)}`}
+                  value={snapshot ? `$${formatMoney(snapshot.conservativeCollateralUsd)}` : (isInitialLoading ? "Syncing..." : "Unknown")}
                   sub={
-                    hasLiveCollateral
-                      ? `Nominal: $${formatMoney(snapshot?.totalCollateralUsd ?? 0)} (p - conf)`
+                    !snapshot
+                      ? "Awaiting on-chain sync"
+                      : hasLiveCollateral
+                      ? `Nominal: $${formatMoney(snapshot.totalCollateralUsd)} (p - conf)`
                       : "0.0000 (No Collateral)"
                   }
                   isUpdating={isUpdating}

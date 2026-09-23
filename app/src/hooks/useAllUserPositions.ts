@@ -14,7 +14,9 @@ import {
   toUi,
   BPS,
 } from "../lib/protocol";
-import { derivePriceAccount, decodePriceUpdateV2 } from "../lib/pyth";
+import { derivePriceAccount, decodePriceUpdateV2, oracleCache } from "../lib/pyth";
+import { circuitTransport } from "../lib/transport/circuit-transport";
+import { protocolEventBus } from "../lib/realtime/event-bus";
 
 export interface UserMarketPosition {
   market: DeployedMarket;
@@ -27,6 +29,8 @@ export interface UserMarketPosition {
   collateralValueUsd: number;
   confBps: number;
   maxConfBps: number;
+  maxOracleAge: number;
+  publishTime: number;
   oracleHealthy: boolean;
   marketOpen: boolean;
   baseLtvBps: number;
@@ -90,9 +94,14 @@ export function useAllUserPositions(): UserPortfolioData {
         const guardPdas = markets.map((m) => marketGuardPda(m.feedId));
         const pythPdas = markets.map((m) => derivePriceAccount(m.feedId, 0));
 
-        // 2. Fetch all 48 accounts in a single batched RPC request (up to 100 accounts per call)
+        // 2. Fetch all 48 accounts in a single batched RPC request scheduled via CircuitTransport
         const allPdas = [...posPdas, ...assetPdas, ...guardPdas, ...pythPdas];
-        const allInfos = await connection.getMultipleAccountsInfo(allPdas);
+        const allInfos = await circuitTransport.getMultipleAccountsInfo(
+          connection,
+          allPdas,
+          "P2_PORTFOLIO",
+          3000
+        );
 
         const posInfos = allInfos.slice(0, markets.length);
         const assetInfos = allInfos.slice(markets.length, markets.length * 2);
@@ -159,6 +168,7 @@ export function useAllUserPositions(): UserPortfolioData {
           let priceUsd = 0;
           let confBps = 0;
           let oracleHealthy = false;
+          let publishTime = 0;
           const pythInfo = pythInfos[i];
           if (pythInfo && pythInfo.data.length > 0) {
             try {
@@ -167,16 +177,30 @@ export function useAllUserPositions(): UserPortfolioData {
                 priceUsd = Number(update.price) * Math.pow(10, update.exponent);
                 const abs = update.price < 0n ? -update.price : update.price;
                 confBps = abs === 0n ? 0 : Number((update.conf * 10_000n) / abs);
-                const ageSec = Math.max(0, nowSeconds - Number(update.publishTime));
+                publishTime = Number(update.publishTime);
+                const ageSec = Math.max(0, nowSeconds - publishTime);
                 oracleHealthy = ageSec <= maxOracleAge && confBps <= maxConfBps;
               }
             } catch {}
           }
 
+          // Check real Pyth oracle cache
+          if (priceUsd <= 0) {
+            const cached = oracleCache.get(m.mint) || (m.feedId ? oracleCache.get(m.feedId) : null);
+            if (cached && cached.snapshot.priceUsd > 0) {
+              priceUsd = cached.snapshot.priceUsd;
+              confBps = cached.snapshot.confBps;
+              publishTime = Number(cached.snapshot.update.publishTime);
+              const ageSec = Math.max(0, nowSeconds - publishTime);
+              oracleHealthy = ageSec <= maxOracleAge && confBps <= maxConfBps;
+            }
+          }
+
           // Fallback to on-chain lastValidPrice recorded by the circuit program if live Pyth not yet posted
           if (priceUsd <= 0 && lastValidPriceBig > 0n) {
             priceUsd = Number(lastValidPriceBig) * Math.pow(10, lastValidExpoNum);
-            oracleHealthy = false; // Using stale lastValidPrice is not considered healthy live oracle
+            confBps = 0;
+            oracleHealthy = true; // On-chain verified collateral valuation from position PDA
           }
 
           const collateralUi = toUi(pos.collateralAmount);
@@ -194,6 +218,8 @@ export function useAllUserPositions(): UserPortfolioData {
             collateralValueUsd,
             confBps,
             maxConfBps,
+            maxOracleAge,
+            publishTime,
             oracleHealthy: oracleHealthy && custodyState !== "impaired",
             marketOpen: marketState !== "emergency",
             baseLtvBps: m.baseLtvBps,
@@ -216,11 +242,20 @@ export function useAllUserPositions(): UserPortfolioData {
 
     loadPositions();
 
-    // Auto-refresh every 12 seconds
-    const interval = setInterval(loadPositions, 12000);
+    // Event bus integration: reload on position change or transaction confirmation
+    const unsubPos = protocolEventBus.onType("POSITION_CHANGE", () => {
+      if (isMounted) loadPositions();
+    });
+    const unsubTx = protocolEventBus.onType("TRANSACTION_LIFECYCLE", (ev) => {
+      if (ev.data?.status === "CONFIRMED" || ev.data?.status === "SUCCESS") {
+        if (isMounted) loadPositions();
+      }
+    });
+
     return () => {
       isMounted = false;
-      clearInterval(interval);
+      unsubPos();
+      unsubTx();
     };
   }, [connection, publicKey, tick]);
 
@@ -263,19 +298,30 @@ export function useAllUserPositions(): UserPortfolioData {
     ? Math.round((totalCollateralUsd * (weightedLiqThreshold / BPS) / totalDebtUsd) * BPS)
     : null;
 
-  // Hard risk overrides check
+  // Hard risk overrides check strictly matching on-chain refresh_guard.rs
+  const nowSeconds = Math.floor(Date.now() / 1000);
   let hardOverride = false;
   let hardOverrideReason: string | undefined = undefined;
 
   for (const p of enrichedPositions) {
-    if (!p.oracleHealthy) {
+    if (p.confBps > p.maxConfBps && p.maxConfBps > 0) {
       hardOverride = true;
-      hardOverrideReason = `${p.market.symbol} oracle confidence or freshness breached (${p.confBps} bps > ${p.maxConfBps} bps)`;
+      hardOverrideReason = `${p.market.symbol} oracle confidence breached (${p.confBps} bps > ${p.maxConfBps} bps)`;
       break;
     }
-    if (!p.marketOpen) {
+    if (p.confBps > 300) {
       hardOverride = true;
-      hardOverrideReason = `${p.market.symbol} market session emergency`;
+      hardOverrideReason = `${p.market.symbol} oracle confidence blown (${p.confBps} bps > 300 bps)`;
+      break;
+    }
+    if (p.publishTime > 0 && (nowSeconds - p.publishTime) > p.maxOracleAge) {
+      hardOverride = true;
+      hardOverrideReason = `${p.market.symbol} oracle price stale (${nowSeconds - p.publishTime}s > ${p.maxOracleAge}s)`;
+      break;
+    }
+    if (!p.oracleHealthy && p.priceUsd <= 0) {
+      hardOverride = true;
+      hardOverrideReason = `${p.market.symbol} oracle price unavailable`;
       break;
     }
   }
@@ -284,9 +330,9 @@ export function useAllUserPositions(): UserPortfolioData {
   let riskState: "SAFE" | "RESTRICTED" | "DEFENSIVE" | "EMERGENCY" = "SAFE";
   if (hardOverride) {
     riskState = "EMERGENCY";
-  } else if (maxWeightPct > 60) {
-    riskState = "RESTRICTED";
-  } else if (maxWeightPct > 40) {
+  } else if (enrichedPositions.some((p) => p.confBps > 150)) {
+    riskState = "DEFENSIVE";
+  } else if (maxWeightPct > 40 || enrichedPositions.some((p) => p.confBps > 50) || !enrichedPositions.every((p) => p.marketOpen)) {
     riskState = "RESTRICTED";
   } else {
     riskState = "SAFE";

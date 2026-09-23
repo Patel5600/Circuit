@@ -19,6 +19,7 @@ import {
   derivePriceAccount,
   fetchOracle,
 } from "../lib/pyth";
+import { circuitTransport } from "../lib/transport/circuit-transport";
 import {
   AssetConfigView,
   MarketGuardView,
@@ -173,20 +174,24 @@ export function useProtocolState(overrideMarket?: DeployedMarket): ProtocolState
       try {
         const program = readOnlyProgram(conn);
 
-        // Fetch cluster clock in parallel with account queries; resilient to rate limits
-        const slotPromise = conn
-          .getSlot()
-          .then(async (slot) => {
-            const blockTime = await conn.getBlockTime(slot).catch(() => null);
-            return {
-              slot,
-              chainUnixTime: blockTime ?? Math.floor(Date.now() / 1000),
-            };
-          })
-          .catch(() => ({
-            slot: null,
-            chainUnixTime: Math.floor(Date.now() / 1000),
-          }));
+        // Fetch cluster clock using slotStream or fallback
+        const liveSlot = circuitTransport.slotStream.getCurrentSlot();
+        const slotPromise =
+          liveSlot !== null
+            ? Promise.resolve({ slot: liveSlot, chainUnixTime: Math.floor(Date.now() / 1000) })
+            : conn
+                .getSlot()
+                .then(async (slot) => {
+                  const blockTime = await conn.getBlockTime(slot).catch(() => null);
+                  return {
+                    slot,
+                    chainUnixTime: blockTime ?? Math.floor(Date.now() / 1000),
+                  };
+                })
+                .catch(() => ({
+                  slot: null,
+                  chainUnixTime: Math.floor(Date.now() / 1000),
+                }));
 
         const equityMint = activeMarket
           ? new PublicKey(activeMarket.mint)
@@ -243,13 +248,15 @@ export function useProtocolState(overrideMarket?: DeployedMarket): ProtocolState
           }
         });
 
-        // Execute clock check and account batch query in parallel (only 2 RPC calls total)
+        // Execute clock check and scheduled account batch query through CircuitTransport
         const [clock, accountInfos] = await Promise.all([
           slotPromise,
-          conn.getMultipleAccountsInfo(queryKeys).catch((err) => {
-            console.warn("[useProtocolState] getMultipleAccountsInfo batch fetch error:", err);
-            return null;
-          }),
+          circuitTransport
+            .getMultipleAccountsInfo(conn, queryKeys, "P1_ACTIVE_MARKET", 1500)
+            .catch((err) => {
+              console.warn("[useProtocolState] getMultipleAccountsInfo batch fetch error:", err);
+              return null;
+            }),
         ]);
 
         const { slot, chainUnixTime } = clock;
@@ -343,10 +350,40 @@ export function useProtocolState(overrideMarket?: DeployedMarket): ProtocolState
     }
 
     load(connection);
-    const timer = setInterval(() => load(connection), POLL_INTERVAL_MS);
+
+    // Subscribe reactively to active market position and oracle accounts via SubscriptionRegistry
+    const unsubs: (() => void)[] = [];
+    const equityMintPk = activeMarket ? new PublicKey(activeMarket.mint) : null;
+    const posPk = publicKey && equityMintPk ? positionPda(publicKey, equityMintPk) : null;
+    const oraclePk =
+      activeMarket?.feedId
+        ? (PYTH_PRICE_ACCOUNT && activeMarket.feedId === PYTH_FEED_ID
+            ? PYTH_PRICE_ACCOUNT
+            : derivePriceAccount(activeMarket.feedId, 0))
+        : null;
+
+    if (posPk) {
+      unsubs.push(
+        circuitTransport.subscriptionRegistry.subscribeAccount(connection, posPk, () => {
+          load(connection);
+        })
+      );
+    }
+    if (oraclePk) {
+      unsubs.push(
+        circuitTransport.subscriptionRegistry.subscribeAccount(connection, oraclePk, () => {
+          load(connection);
+        })
+      );
+    }
+
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      unsubs.forEach((u) => {
+        try {
+          u();
+        } catch {}
+      });
     };
   }, [
     connection,

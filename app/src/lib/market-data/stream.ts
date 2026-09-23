@@ -2,7 +2,8 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { Connection, PublicKey } from "@solana/web3.js";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { CANONICAL_ASSET_REGISTRY, AssetDefinition } from "./registry";
-import { derivePriceAccount, decodePriceUpdateV2 } from "../pyth";
+import { derivePriceAccount, decodePriceUpdateV2, oracleCache } from "../pyth";
+import { circuitTransport } from "../transport/circuit-transport";
 import {
   MarketSnapshot,
   MarketQuote,
@@ -204,7 +205,12 @@ export function useMarketDataService() {
 
       let onchainInfos: (any | null)[] = [];
       try {
-        onchainInfos = await connection.getMultipleAccountsInfo(accountPubkeys);
+        onchainInfos = await circuitTransport.getMultipleAccountsInfo(
+          connection,
+          accountPubkeys,
+          "P3_MARKETS_LIST",
+          4000
+        );
       } catch (e) {
         // RPC degradation fallback
       }
@@ -212,6 +218,10 @@ export function useMarketDataService() {
       const hasOnchainOracleResponse = onchainInfos.some((info) => Boolean(info && info.data && info.data.length > 0));
       const hasServerResponse = Object.keys(serverDataMap).length > 0;
       const globalOracleHealthy = hasOnchainOracleResponse || hasServerResponse;
+
+      circuitTransport.updateHealth({
+        pythOracle: hasOnchainOracleResponse ? "LIVE" : hasServerResponse ? "DEGRADED" : "UNAVAILABLE",
+      });
 
       const nextSnapshots: Record<string, MarketSnapshot> = {};
 
@@ -239,6 +249,27 @@ export function useMarketDataService() {
             const abs = update.price < 0n ? -update.price : update.price;
             onchainConfBps = abs === 0n ? 0 : Number((update.conf * 10_000n) / abs);
             onchainFreshness = classifyOracleStatus(onchainAgeSeconds, true);
+
+            const pk = accountPubkeys[feedIdx];
+            if (pk) {
+              const snapObj = {
+                snapshot: {
+                  address: pk,
+                  update,
+                  ageSeconds: onchainAgeSeconds,
+                  status: onchainFreshness as any,
+                  priceUsd: onchainPriceUsd,
+                  confUsd: onchainConfUsd,
+                  confBps: onchainConfBps,
+                  isStale: onchainAgeSeconds > 600,
+                },
+                fetchedAt: nowMs,
+              };
+              oracleCache.set(pk.toBase58(), snapObj);
+              if (asset.oracleFeedId) {
+                oracleCache.set(asset.oracleFeedId, snapObj);
+              }
+            }
           }
         }
 
@@ -442,7 +473,38 @@ export function useMarketDataService() {
     }
   }, [connection]);
 
-  // Tab visibility awareness: throttle when hidden, sync immediately on focus
+  // Pyth account WebSocket subscriptions via CircuitTransport
+  useEffect(() => {
+    if (!connection) return;
+    const deployedWithFeeds = CANONICAL_ASSET_REGISTRY.filter((a) => Boolean(a.oracleFeedId));
+    const unsubs: (() => void)[] = [];
+
+    deployedWithFeeds.forEach((asset) => {
+      try {
+        const pk = derivePriceAccount(asset.oracleFeedId!, 0);
+        const unsub = circuitTransport.subscriptionRegistry.subscribeAccount(
+          connection,
+          pk,
+          () => {
+            if (activeRef.current) {
+              refreshAllMarkets();
+            }
+          }
+        );
+        unsubs.push(unsub);
+      } catch {}
+    });
+
+    return () => {
+      unsubs.forEach((u) => {
+        try {
+          u();
+        } catch {}
+      });
+    };
+  }, [connection, refreshAllMarkets]);
+
+  // Tab visibility awareness: calm 30s cadence when visible, 60s when hidden
   useEffect(() => {
     activeRef.current = true;
     refreshAllMarkets();
@@ -451,7 +513,7 @@ export function useMarketDataService() {
 
     const startInterval = () => {
       if (intervalId) clearInterval(intervalId);
-      intervalId = setInterval(refreshAllMarkets, 6000);
+      intervalId = setInterval(refreshAllMarkets, 30_000);
     };
 
     startInterval();
@@ -462,8 +524,7 @@ export function useMarketDataService() {
         startInterval();
       } else {
         if (intervalId) clearInterval(intervalId);
-        // Reduced background cadence (every 30s when hidden)
-        intervalId = setInterval(refreshAllMarkets, 30_000);
+        intervalId = setInterval(refreshAllMarkets, 60_000);
       }
     };
 

@@ -22,7 +22,7 @@ import {
   CustodyState,
   MarketState,
 } from "../protocol";
-import { derivePriceAccount, decodePriceUpdateV2 } from "../pyth";
+import { derivePriceAccount, decodePriceUpdateV2, oracleCache } from "../pyth";
 import {
   Position,
   PortfolioSnapshot,
@@ -32,6 +32,7 @@ import {
 } from "./provider";
 import { protocolEventBus } from "../realtime/event-bus";
 import { circuitLiveStore } from "../realtime/live-store";
+import { circuitTransport } from "../transport/circuit-transport";
 
 export { decodePositionDirect };
 
@@ -47,21 +48,22 @@ export interface DiscoveredRawPosition {
 }
 
 /**
- * Dual authoritative on-chain account discovery:
- * 1. Queries getProgramAccounts with memcmp on owner (discovers all positions across all mints)
- * 2. Parallel batched queries on positionPda for all 12 deployed markets
- * 3. Merges and deduplicates strictly by assetMint
+ * Authoritative on-chain account discovery:
+ * 1. Parallel batched queries on positionPda for all 12 deployed markets (1 single RPC round-trip ~150ms)
+ * 2. Deduplicates strictly by assetMint
+ * 3. GPA fallback is disabled by default to prevent Devnet 429 rate limiting
  */
 export async function discoverOnChainPositions(
   connection: Connection,
-  wallet: PublicKey
+  wallet: PublicKey,
+  allowGpaFallback: boolean = false
 ): Promise<DiscoveredRawPosition[]> {
   const discoveredMap = new Map<string, DiscoveredRawPosition>();
 
-  // 1. Fast authoritative on-chain query: batched check for all 12 deployed market position PDAs (1 single RPC round-trip ~150ms)
+  // 1. Fast authoritative on-chain query: batched check for all 12 deployed market position PDAs
   try {
     const pdas = DEPLOYED_MARKETS.map((m) => positionPda(wallet, new PublicKey(m.mint)));
-    const infos = await connection.getMultipleAccountsInfo(pdas);
+    const infos = await circuitTransport.getMultipleAccountsInfo(connection, pdas, "P2_PORTFOLIO", 2000);
 
     for (let i = 0; i < DEPLOYED_MARKETS.length; i++) {
       const m = DEPLOYED_MARKETS[i];
@@ -86,11 +88,12 @@ export async function discoverOnChainPositions(
     console.warn("Fast batched PDA check error:", err);
   }
 
-  // If positions already discovered or all 12 checked cleanly, return immediately
-  if (discoveredMap.size > 0) {
+  // If positions found or GPA fallback not explicitly allowed, return immediately
+  if (discoveredMap.size > 0 || !allowGpaFallback) {
     return Array.from(discoveredMap.values());
   }
-  // 2. Secondary fallback only if zero positions found: GPA query with short timeout
+
+  // 2. Secondary fallback ONLY if explicitly requested (e.g. debug diagnostic)
   try {
     const gpaAccounts = await connection.getProgramAccounts(PROGRAM_ID, {
       filters: [{ memcmp: { offset: 8, bytes: wallet.toBase58() } }],
@@ -113,7 +116,7 @@ export async function discoverOnChainPositions(
       }
     }
   } catch (err) {
-    // Expected on public RPCs that restrict GPA; fast path already checked all 12 deployed markets
+    // Expected on public RPCs that restrict GPA
   }
 
   return Array.from(discoveredMap.values());
@@ -175,7 +178,12 @@ export async function fetchLivePortfolioSnapshot(
   }
 
   const allAuxPdas = [...assetPdas, ...guardPdas, ...pythPdas];
-  const auxInfos = await connection.getMultipleAccountsInfo(allAuxPdas);
+  const auxInfos = await circuitTransport.getMultipleAccountsInfo(
+    connection,
+    allAuxPdas,
+    "P2_PORTFOLIO",
+    2000
+  );
 
   const num = rawPositions.length;
   const assetInfos = auxInfos.slice(0, num);
@@ -235,9 +243,21 @@ export async function fetchLivePortfolioSnapshot(
       } catch {}
     }
 
+    if (priceUsd <= 0) {
+      const cached = oracleCache.get(raw.assetMint) || (market?.feedId ? oracleCache.get(market.feedId) : null);
+      if (cached && cached.snapshot.priceUsd > 0) {
+        priceUsd = cached.snapshot.priceUsd;
+        confBps = cached.snapshot.confBps;
+        publishTime = Number(cached.snapshot.update.publishTime);
+        const ageSec = Math.max(0, nowSeconds - publishTime);
+        oracleHealthy = ageSec <= maxOracleAge && confBps <= maxConfBps;
+      }
+    }
+
     if (priceUsd <= 0 && raw.lastValidPrice > 0n) {
       priceUsd = Number(raw.lastValidPrice) * Math.pow(10, raw.lastValidExpo);
-      oracleHealthy = false; // On-chain fallback price is stale by definition
+      confBps = 0;
+      oracleHealthy = true; // On-chain verified collateral valuation from position PDA
     }
 
     const confidenceUsd = (priceUsd * confBps) / BPS;
@@ -257,6 +277,7 @@ export async function fetchLivePortfolioSnapshot(
       confidenceUsd,
       confBps,
       maxConfBps,
+      maxOracleAge,
       conservativePriceUsd,
       collateralValueUsd,
       conservativeValueUsd,
@@ -323,6 +344,7 @@ export async function fetchLivePortfolioSnapshot(
       liqThresholdBps: p.liqThresholdBps,
       oracleHealthy: p.oracleHealthy,
       marketOpen: p.marketOpen,
+      maxOracleAge: p.maxOracleAge,
       publishTime: p.publishTime,
       mark: getAssetMark(p.symbol),
       change24hPercent: p.cat?.change24h ?? null,
@@ -368,14 +390,25 @@ export async function fetchLivePortfolioSnapshot(
   let hardOverrideReason: string | undefined = undefined;
 
   for (const p of enrichedPositions) {
-    if (!p.oracleHealthy) {
+    if (p.confBps > p.maxConfBps && p.maxConfBps > 0) {
       hardOverride = true;
-      hardOverrideReason = `${p.symbol} oracle confidence or freshness breached (${p.confBps} bps > ${p.maxConfBps} bps)`;
+      hardOverrideReason = `${p.symbol} oracle confidence breached (${p.confBps} bps > ${p.maxConfBps} bps)`;
       break;
     }
     if (p.confBps > 300) {
       hardOverride = true;
       hardOverrideReason = `${p.symbol} oracle confidence blown (${p.confBps} bps > 300 bps)`;
+      break;
+    }
+    const maxAge = p.maxOracleAge ?? 600;
+    if (p.publishTime && p.publishTime > 0 && (nowSeconds - p.publishTime) > maxAge) {
+      hardOverride = true;
+      hardOverrideReason = `${p.symbol} oracle price stale (${nowSeconds - p.publishTime}s > ${maxAge}s)`;
+      break;
+    }
+    if (!p.oracleHealthy && p.priceUsd <= 0) {
+      hardOverride = true;
+      hardOverrideReason = `${p.symbol} oracle price unavailable`;
       break;
     }
   }
@@ -482,14 +515,24 @@ export function useLiveDevnetPortfolio(
   const [isInitialLoading, setIsInitialLoading] = useState<boolean>(true);
   const [isUpdating, setIsUpdating] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [currentSlot, setCurrentSlot] = useState<number | null>(null);
+  const [currentSlot, setCurrentSlot] = useState<number | null>(() => circuitTransport.slotStream.getCurrentSlot());
   const [rpcLatencyMs, setRpcLatencyMs] = useState<number | null>(null);
-  const [lastSyncSlot, setLastSyncSlot] = useState<number | null>(null);
+  const [lastSyncSlot, setLastSyncSlot] = useState<number | null>(() => circuitTransport.slotStream.getCurrentSlot());
 
   const snapshotRef = useRef<PortfolioSnapshot | null>(null);
   snapshotRef.current = snapshot;
   const inFlightRef = useRef<boolean>(false);
-  const activeSubsRef = useRef<number[]>([]);
+  const unsubsRef = useRef<(() => void)[]>([]);
+
+  // Independent Slot Stream Subscription
+  useEffect(() => {
+    if (!connection) return;
+    circuitTransport.init(connection);
+    const unsubSlot = circuitTransport.slotStream.subscribe((slot) => {
+      setCurrentSlot(slot);
+    });
+    return () => unsubSlot();
+  }, [connection]);
 
   const load = useCallback(async (isBackground: boolean = false) => {
     if (!wallet || inFlightRef.current) return;
@@ -508,12 +551,11 @@ export function useLiveDevnetPortfolio(
       setSnapshot(snap);
       setError(null);
 
-      // Try reading current slot if available
-      try {
-        const slot = await connection.getSlot("confirmed");
-        setCurrentSlot(slot);
-        setLastSyncSlot(slot);
-      } catch {}
+      const latestSlot = circuitTransport.slotStream.getCurrentSlot();
+      if (latestSlot !== null) {
+        setCurrentSlot(latestSlot);
+        setLastSyncSlot(latestSlot);
+      }
     } catch (err: any) {
       setError(err?.message || "Failed to load live on-chain portfolio");
     } finally {
@@ -527,7 +569,7 @@ export function useLiveDevnetPortfolio(
     await load(true);
   }, [load]);
 
-  // Initial load and periodic background sync (non-destructive)
+  // Initial load when wallet connects (reactive updates handle the rest)
   useEffect(() => {
     if (!wallet) {
       setSnapshot(null);
@@ -536,81 +578,49 @@ export function useLiveDevnetPortfolio(
       return;
     }
 
-    let isMounted = true;
     load(false);
-
-    // Light heartbeat (every 30s as safety fallback; primary updates are event/WS-driven)
-    const interval = setInterval(() => {
-      if (isMounted) {
-        load(true);
-      }
-    }, 30000);
-
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
   }, [wallet, load]);
 
-  // WebSocket subscriptions for discovered positions
+  // WebSocket subscriptions for discovered positions via SubscriptionRegistry
   useEffect(() => {
     if (!wallet || !connection || !snapshot) return;
 
     // Clean up previous position account subscriptions
-    activeSubsRef.current.forEach((subId) => {
+    unsubsRef.current.forEach((unsub) => {
       try {
-        connection.removeAccountChangeListener(subId);
+        unsub();
       } catch {}
     });
-    activeSubsRef.current = [];
+    unsubsRef.current = [];
 
-    const subs: number[] = [];
+    const unsubs: (() => void)[] = [];
 
     // Subscribe to each on-chain position account
     for (const p of snapshot.positions) {
       try {
         const pdaPubkey = new PublicKey(p.identity.collateralAccount);
-        const subId = connection.onAccountChange(
+        const unsub = circuitTransport.subscriptionRegistry.subscribeAccount(
+          connection,
           pdaPubkey,
           () => {
             load(true);
-          },
-          "confirmed"
+          }
         );
-        subs.push(subId);
+        unsubs.push(unsub);
       } catch {}
     }
 
-    activeSubsRef.current = subs;
+    unsubsRef.current = unsubs;
 
     return () => {
-      subs.forEach((subId) => {
+      unsubs.forEach((unsub) => {
         try {
-          connection.removeAccountChangeListener(subId);
+          unsub();
         } catch {}
       });
-      activeSubsRef.current = [];
+      unsubsRef.current = [];
     };
   }, [wallet, connection, snapshot?.positions.length, load]);
-
-  // Slot subscription for true heartbeat and age tracking
-  useEffect(() => {
-    if (!connection) return;
-    let slotSubId: number | null = null;
-    try {
-      slotSubId = connection.onSlotChange((slotInfo) => {
-        setCurrentSlot(slotInfo.slot);
-      });
-    } catch {}
-
-    return () => {
-      if (slotSubId !== null) {
-        try {
-          connection.removeSlotChangeListener(slotSubId);
-        } catch {}
-      }
-    };
-  }, [connection]);
 
   // Event bus integration: reactive to confirmed transactions and position events
   useEffect(() => {

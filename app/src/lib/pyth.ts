@@ -1,4 +1,5 @@
 import { Connection, PublicKey } from "@solana/web3.js";
+import { circuitTransport } from "./transport/circuit-transport";
 
 export const DEFAULT_FEED_ID = "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d";
 export const PYTH_FEED_ID = DEFAULT_FEED_ID;
@@ -40,6 +41,12 @@ export interface OracleSnapshot {
   confBps: number;
   /** Price as a float, expo applied. */
   priceUsd: number;
+  /** Confidence spread in USD */
+  confUsd?: number;
+  /** Semantic freshness status */
+  status?: "LIVE" | "RECENT" | "STALE" | "EXPIRED" | "UNAVAILABLE";
+  /** Whether the price exceeds staleness bound */
+  isStale?: boolean;
 }
 
 function feedIdBytes(hex: string): Uint8Array {
@@ -115,12 +122,21 @@ function toSnapshot(
   const abs = update.price < 0n ? -update.price : update.price;
   const confBps =
     abs === 0n ? -1 : Number((update.conf * 10_000n) / abs);
+  const ageSeconds = referenceUnixSeconds - Number(update.publishTime);
+  const priceUsd = Number(update.price) * Math.pow(10, update.exponent);
+  const confUsd = Number(update.conf) * Math.pow(10, update.exponent);
+  const status: "LIVE" | "RECENT" | "STALE" =
+    ageSeconds <= 45 ? "LIVE" : ageSeconds <= 300 ? "RECENT" : "STALE";
+
   return {
     address,
     update,
-    ageSeconds: referenceUnixSeconds - Number(update.publishTime),
+    ageSeconds,
     confBps,
-    priceUsd: Number(update.price) * Math.pow(10, update.exponent),
+    priceUsd,
+    confUsd,
+    status,
+    isStale: ageSeconds > 600,
   };
 }
 
@@ -147,6 +163,14 @@ export function decodeOracleInfo(
   if (!update) return null;
   const snap = toSnapshot(address, update, referenceUnixSeconds);
   oracleCache.set(address.toBase58(), { snapshot: snap, fetchedAt: Date.now() });
+  circuitTransport.updateHealth({
+    pythOracle:
+      snap.status === "LIVE" || snap.status === "RECENT"
+        ? "LIVE"
+        : snap.status === "STALE"
+        ? "DEGRADED"
+        : "UNAVAILABLE",
+  });
   return snap;
 }
 
@@ -208,6 +232,14 @@ export async function fetchOracle(
     }
     if (best) {
       oracleCache.set(cacheKey, { snapshot: best, fetchedAt: Date.now() });
+      circuitTransport.updateHealth({
+        pythOracle:
+          best.status === "LIVE" || best.status === "RECENT"
+            ? "LIVE"
+            : best.status === "STALE"
+            ? "DEGRADED"
+            : "UNAVAILABLE",
+      });
       return best;
     }
     return getCachedFallback();

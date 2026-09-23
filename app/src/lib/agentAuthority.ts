@@ -17,6 +17,9 @@ import { AnchorProvider, BN, Program } from "@anchor-lang/core";
 import { PROGRAM_ID, idl } from "../config";
 import { readOnlyProgram } from "./protocol";
 
+import { DEPLOYED_MARKETS } from "../data/markets";
+import { circuitTransport } from "./transport/circuit-transport";
+
 // ── Action Bitmask Constants (Matches programs/circuit/src/state/agent_authority.rs) ──
 export const ACTION_DEPOSIT = 1 << 0;  // 1
 export const ACTION_BORROW = 1 << 1;   // 2
@@ -176,12 +179,43 @@ export function decodeAgentAuthorityBuffer(
 
 /**
  * Fetches all on-chain AgentAuthority accounts created by the connected owner on Devnet.
+ * Uses fast batched PDA checks for deployed markets by default.
  */
 export async function fetchOwnerAgentAuthorities(
   connection: Connection,
-  owner: PublicKey
+  owner: PublicKey,
+  allowGpaScan: boolean = false
 ): Promise<OnChainAgentAuthority[]> {
   try {
+    // 1. Fast authoritative check: Batched query on deterministic PDAs for deployed markets
+    const pdasWithPubkeys = DEPLOYED_MARKETS.map((m) => {
+      const [pda] = deriveAgentAuthorityPda(owner, CIRCUIT_DEVNET_AGENT_KEY, new PublicKey(m.mint));
+      return pda;
+    });
+
+    const infos = await circuitTransport.getMultipleAccountsInfo(
+      connection,
+      pdasWithPubkeys,
+      "P3_MARKETS_LIST",
+      5000
+    );
+
+    const results: OnChainAgentAuthority[] = [];
+    for (let i = 0; i < pdasWithPubkeys.length; i++) {
+      const info = infos[i];
+      if (info && info.data && info.data.length >= 160) {
+        const decoded = decodeAgentAuthorityBuffer(pdasWithPubkeys[i], info.data);
+        if (decoded) {
+          results.push(decoded);
+        }
+      }
+    }
+
+    if (results.length > 0 || !allowGpaScan) {
+      return results;
+    }
+
+    // 2. Secondary fallback GPA scan ONLY if explicitly requested
     const accounts = await connection.getProgramAccounts(PROGRAM_ID, {
       filters: [
         {
@@ -193,16 +227,15 @@ export async function fetchOwnerAgentAuthorities(
       ],
     });
 
-    const results: OnChainAgentAuthority[] = [];
     for (const acc of accounts) {
       const decoded = decodeAgentAuthorityBuffer(acc.pubkey, acc.account.data);
-      if (decoded) {
+      if (decoded && !results.some((r) => r.pda.equals(acc.pubkey))) {
         results.push(decoded);
       }
     }
     return results;
   } catch (err) {
-    console.warn("fetchOwnerAgentAuthorities GPA error:", err);
+    console.warn("fetchOwnerAgentAuthorities error:", err);
     return [];
   }
 }

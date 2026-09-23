@@ -82,6 +82,7 @@ export default function Position() {
       maxConfBps: p.maxConfBps,
       marketOpen: p.marketOpen,
       mark: getAssetMark(p.symbol),
+      publishTime: p.publishTime,
       priceUsd: p.priceUsd,
       change24hPercent: p.change24hPercent,
       collateralValueUsd: p.collateralValueUsd,

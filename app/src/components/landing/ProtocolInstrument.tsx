@@ -9,6 +9,7 @@ import { MARKETS_DATA, MarketMetadata } from "../../data/markets";
 import { getDetailedMarketSession } from "../../lib/market-data/stream";
 import { CLUSTER_LABEL, PROGRAM_ID_STRING, explorerUrl } from "../../env";
 import { Icon } from "../ui/Icon";
+import { circuitTransport } from "../../lib/transport/circuit-transport";
 
 type RiskState = "SAFE" | "RESTRICTED" | "DEFENSIVE" | "EMERGENCY";
 
@@ -110,28 +111,17 @@ export function ProtocolInstrument() {
   const [selectedAction, setSelectedAction] = useState<ActionItem | null>(CAPITAL_ACTIONS[1]); // Default to BORROW
   const [traceActive, setTraceActive] = useState<boolean>(false);
   const [traceStep, setTraceStep] = useState<number>(1);
-  const [liveSlot, setLiveSlot] = useState<number>(328492810);
+  const [liveSlot, setLiveSlot] = useState<number>(() => circuitTransport.slotStream.getCurrentSlot() ?? 328492810);
 
-  // Poll live slot from connection or increment realistically
+  // Subscribe to live reactive slot stream via CircuitTransport (zero polling)
   useEffect(() => {
-    let mounted = true;
-    const fetchSlot = async () => {
-      try {
-        if (connection) {
-          const s = await connection.getSlot("processed");
-          if (mounted && s > 0) setLiveSlot(s);
-        }
-      } catch {
-        // Fallback to simulated slot increment
-        if (mounted) setLiveSlot((prev) => prev + 2);
-      }
-    };
-    fetchSlot();
-    const iv = setInterval(fetchSlot, 2000);
-    return () => {
-      mounted = false;
-      clearInterval(iv);
-    };
+    if (connection) {
+      circuitTransport.init(connection);
+    }
+    const unsub = circuitTransport.slotStream.subscribe((s) => {
+      if (s > 0) setLiveSlot(s);
+    });
+    return () => unsub();
   }, [connection]);
 
   // Trace mode sequential stepper

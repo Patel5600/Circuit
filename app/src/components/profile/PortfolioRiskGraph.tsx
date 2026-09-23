@@ -21,6 +21,7 @@ export interface AssetNode {
   maxConfBps: number;
   marketOpen: boolean;
   mark?: LogoMark;
+  publishTime?: number;
 
   // Real financial fields for detail panel
   priceUsd?: number;
@@ -941,34 +942,82 @@ function PermissionNode({
 
 function HardOverrideLine({ y, reason, isDark }: { y: number; reason?: string; isDark: boolean }) {
   const red = isDark ? "#f87171" : "#dc2626";
+  const bg = isDark ? "#1f1013" : "#fff1f2";
+  const subText = isDark ? "#fca5a5" : "#991b1b";
+
+  const title = "⚠️ HARD RISK OVERRIDE ACTIVE: ALL BORROWS BLOCKED";
+  const hasReason = Boolean(reason && reason.trim().length > 0);
+  const maxLen = Math.max(title.length, reason ? reason.length : 0);
+  const boxW = Math.min(W - 80, Math.max(480, maxLen * 7.5 + 40));
+  const boxH = hasReason ? 50 : 28;
+  const boxX = (W - boxW) / 2;
+  const boxY = y - boxH / 2;
+
   return (
     <g>
-      <line x1={30} y1={y} x2={W - 30} y2={y} stroke={red} strokeWidth={1.8} strokeDasharray="8 4">
-        <animate attributeName="stroke-opacity" values="0.3;0.95;0.3" dur="1.5s" repeatCount="indefinite" />
-      </line>
-      <rect
-        x={W / 2 - 170}
-        y={y - 12}
-        width={340}
-        height={24}
-        rx={5}
-        fill={isDark ? "rgba(239, 68, 68, 0.22)" : "rgba(239, 68, 68, 0.12)"}
+      {/* Left flanking dashed line */}
+      <line
+        x1={30}
+        y1={y}
+        x2={boxX - 10}
+        y2={y}
         stroke={red}
-        strokeWidth={1}
+        strokeWidth={1.8}
+        strokeDasharray="8 4"
+      >
+        <animate attributeName="stroke-opacity" values="0.35;0.95;0.35" dur="1.5s" repeatCount="indefinite" />
+      </line>
+
+      {/* Right flanking dashed line */}
+      <line
+        x1={boxX + boxW + 10}
+        y1={y}
+        x2={W - 30}
+        y2={y}
+        stroke={red}
+        strokeWidth={1.8}
+        strokeDasharray="8 4"
+      >
+        <animate attributeName="stroke-opacity" values="0.35;0.95;0.35" dur="1.5s" repeatCount="indefinite" />
+      </line>
+
+      {/* Solid background container with border */}
+      <rect
+        x={boxX}
+        y={boxY}
+        width={boxW}
+        height={boxH}
+        rx={6}
+        fill={bg}
+        stroke={red}
+        strokeWidth={1.5}
       />
+
+      {/* Warning Title */}
       <text
         x={W / 2}
-        y={y + 4.5}
+        y={hasReason ? boxY + 20 : boxY + 17.5}
         textAnchor="middle"
-        fontSize={10}
+        fontSize={10.5}
         fontWeight={750}
         fontFamily="var(--mono)"
         fill={red}
+        letterSpacing="0.02em"
       >
-        ⚠️ HARD RISK OVERRIDE ACTIVE: ALL BORROWS BLOCKED
+        {title}
       </text>
-      {reason && (
-        <text x={W / 2} y={y + 24} textAnchor="middle" fontSize={9.5} fontWeight={600} fill={red}>
+
+      {/* Reason safely enclosed inside container */}
+      {hasReason && (
+        <text
+          x={W / 2}
+          y={boxY + 38}
+          textAnchor="middle"
+          fontSize={9.5}
+          fontWeight={600}
+          fontFamily="var(--mono)"
+          fill={subText}
+        >
           {reason}
         </text>
       )}
@@ -1157,7 +1206,7 @@ export function PortfolioRiskGraph({
   const N = activeAssets.length;
   const assetSpacing = N <= 1 ? 0 : Math.max(84, Math.min(115, Math.floor(540 / Math.max(2, N))));
   const totalSpread = (N - 1) * assetSpacing;
-  const H = Math.max(480, totalSpread + 200);
+  const H = Math.max(activeHardOverride ? 520 : 480, totalSpread + (activeHardOverride ? 240 : 200));
   const centerY = Math.round(H / 2);
   const assetStartY = centerY - Math.round(totalSpread / 2);
 
@@ -1194,13 +1243,18 @@ export function PortfolioRiskGraph({
     assetPositions.forEach((asset, ai) => {
       // 1. Pyth Oracle
       const oracleStressed = !asset.oracleHealthy;
+      const oracleValueText = oracleStressed
+        ? "ERR"
+        : (asset.publishTime && asset.publishTime > 0)
+        ? "LIVE"
+        : "ON-CHAIN";
       result.push({
         id: `risk:${asset.mint || asset.symbol}:Oracle`,
         parentId: asset.id,
         x: COL_RISK,
         y: asset.y + factorOffsets[0],
         label: "Pyth EMA",
-        valueText: oracleStressed ? "ERR" : "HEALTHY",
+        valueText: oracleValueText,
         level: oracleStressed ? "high" : "low",
         stressed: oracleStressed,
         parentIdx: ai,
@@ -1515,6 +1569,29 @@ export function PortfolioRiskGraph({
           </span>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          {loading && (
+            <span
+              style={{
+                fontSize: 10.5,
+                fontFamily: "var(--mono)",
+                color: "var(--warning, #e5a93c)",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+              }}
+            >
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: "50%",
+                  background: "var(--warning, #e5a93c)",
+                  animation: "pulse 1.2s infinite ease-in-out",
+                }}
+              />
+              SYNCING ON-CHAIN TELEMETRY...
+            </span>
+          )}
           <span style={{ color: isDark ? "#94a3b8" : "#64748b" }}>STATUS:</span>
           <Pill tone={whatChanged.tone} withDot>
             {whatChanged.deltaScore}
@@ -1541,40 +1618,8 @@ export function PortfolioRiskGraph({
           boxShadow: isDark ? "0 12px 40px rgba(0, 0, 0, 0.5)" : "0 4px 16px rgba(0, 0, 0, 0.05)",
         }}
       >
-        {/* Loading overlay - only displayed on cold start when zero assets loaded yet */}
-        {loading && activeAssets.length === 0 && (
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              background: isDark ? "rgba(7, 9, 14, 0.85)" : "rgba(255, 255, 255, 0.85)",
-              backdropFilter: "blur(4px)",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              zIndex: 20,
-              gap: 12,
-            }}
-          >
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                border: "2px solid #7fc39a",
-                borderTopColor: "transparent",
-                borderRadius: "50%",
-                animation: "spin 0.8s linear infinite",
-              }}
-            />
-            <div style={{ fontSize: 12, fontFamily: "var(--mono)", color: isDark ? "#f8fafc" : "#0f172a", letterSpacing: "0.08em" }}>
-              SYNCING ON-CHAIN PORTFOLIO TELEMETRY...
-            </div>
-          </div>
-        )}
-
-        {/* Empty state when 0 positions deposited */}
-        {!loading && activeAssets.length === 0 ? (
+        {/* Empty state when 0 positions deposited (renders immediately without blocking UI) */}
+        {activeAssets.length === 0 ? (
           <div
             style={{
               padding: "80px 24px",
@@ -1841,7 +1886,7 @@ export function PortfolioRiskGraph({
 
               {/* Hard override line across all stages if triggered */}
               {activeHardOverride && (
-                <HardOverrideLine y={H - 35} reason={activeHardReason} isDark={isDark} />
+                <HardOverrideLine y={H - (activeHardReason ? 42 : 30)} reason={activeHardReason} isDark={isDark} />
               )}
 
               {/* ── Stage 1: Asset Nodes ── */}

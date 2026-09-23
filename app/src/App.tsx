@@ -121,9 +121,9 @@ function AppLayout() {
   return (
     <Suspense fallback={<ShellFallback />}>
       <SolanaProviders>
-        <CircuitProtocolProvider>
-          <MarketProvider>
-            <MarketDataProvider>
+        <MarketProvider>
+          <MarketDataProvider>
+            <CircuitProtocolProvider>
               <DbcProvider>
                 <ActionProvider>
                   <AppShell>
@@ -137,9 +137,9 @@ function AppLayout() {
                   <DecisionInspector />
                 </ActionProvider>
               </DbcProvider>
-            </MarketDataProvider>
-          </MarketProvider>
-        </CircuitProtocolProvider>
+            </CircuitProtocolProvider>
+          </MarketDataProvider>
+        </MarketProvider>
       </SolanaProviders>
     </Suspense>
   );
@@ -170,17 +170,19 @@ export default function App() {
               element={
                 <Suspense fallback={<ShellFallback />}>
                   <SolanaProviders>
-                    <CircuitProtocolProvider>
-                      <MarketProvider>
-                        <ActionProvider>
-                          <AppShell>
-                            <Suspense fallback={<PageFallback />}>
-                              <Learn />
-                            </Suspense>
-                          </AppShell>
-                        </ActionProvider>
-                      </MarketProvider>
-                    </CircuitProtocolProvider>
+                    <MarketProvider>
+                      <MarketDataProvider>
+                        <CircuitProtocolProvider>
+                          <ActionProvider>
+                            <AppShell>
+                              <Suspense fallback={<PageFallback />}>
+                                <Learn />
+                              </Suspense>
+                            </AppShell>
+                          </ActionProvider>
+                        </CircuitProtocolProvider>
+                      </MarketDataProvider>
+                    </MarketProvider>
                   </SolanaProviders>
                 </Suspense>
               }
