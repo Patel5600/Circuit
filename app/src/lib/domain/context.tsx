@@ -43,6 +43,7 @@ import {
   evaluatePermission,
   PermissionResult,
   ProtocolAction,
+  CANONICAL_POLICY_VERSION,
 } from "../permission-engine";
 import {
   OnChainAgentAuthority,
@@ -52,8 +53,17 @@ import {
 } from "../agentAuthority";
 import { Transaction } from "@solana/web3.js";
 import { protocolEventBus, createEvent } from "../realtime/event-bus";
+import { DecisionSnapshot } from "../decision/types";
+import { evaluateAction } from "../decision/evaluator";
 
 export interface DomainContextValue {
+  decision: DecisionSnapshot;
+  evaluateDecision: (
+    action?: ProtocolAction,
+    amountUsd?: number,
+    symbolOrMint?: string,
+    modeOverride?: ControlMode
+  ) => DecisionSnapshot;
   wallet: WalletDomainState;
   protocol: ProtocolDomainState;
   markets: MarketDomainState;
@@ -494,11 +504,12 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
           a.assetMint.toBase58() === symbolOrMint
       );
 
-      // If no on-chain authority exists for this asset, strictly report NOT_CONFIGURED (zero fake data)
+      // If no on-chain authority exists for this asset, strictly report NOT_CONFIGURED (or NOT_APPLICABLE if MANUAL)
       if (!auth) {
+        const isManual = controlMode === "MANUAL";
         return {
           hasAuthority: false,
-          strategyName: "Not Configured",
+          strategyName: isManual ? "Not Applicable" : "Not Configured",
           agentAddress: null,
           ownerAddress: publicKey ? publicKey.toBase58() : null,
           assetMint: mintStr ?? null,
@@ -513,8 +524,8 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
           expiryTs: 0,
           isExpired: false,
           nonce: 0,
-          status: "NOT_CONFIGURED",
-          effectiveAuthority: "BLOCKED",
+          status: isManual ? "NOT_APPLICABLE" : "NOT_CONFIGURED",
+          effectiveAuthority: isManual ? "NOT_APPLICABLE" : "BLOCKED",
         };
       }
 
@@ -617,47 +628,76 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
     };
   }, [isRpcDegraded, isDevnet, rpcLatency, currentSlot]);
 
-  const evaluatePermissionForAction = useCallback(
-    (action: ProtocolAction, amountUsd: number = 0, symbolOrMint?: string): PermissionResult => {
+  const evaluateDecision = useCallback(
+    (
+      action: ProtocolAction = "borrow",
+      amountUsd: number = 0,
+      symbolOrMint?: string,
+      modeOverride?: ControlMode
+    ): DecisionSnapshot => {
       const sym = (symbolOrMint || activeMarketKey).toUpperCase();
+      const mkt = DEPLOYED_MARKETS.find(
+        (m) => m.symbol.toUpperCase() === sym || m.mint === symbolOrMint
+      );
       const pos = portfolioState.positions.find(
         (p) => p.symbol.toUpperCase() === sym || p.mint === symbolOrMint
       );
       const collatUsd =
-        pos?.collateralValueUsd ?? portfolioState.totalCollateralUsd ?? 0;
-      const debtUsd = pos?.debtUi ?? (portfolioState.totalDebtUsd || 0);
-      const agentAuth = controlMode === "AUTONOMOUS" ? getAgentAuthorityForAsset(sym) : null;
+        pos?.collateralValueUsd ?? (pos ? 0 : portfolioState.totalCollateralUsd ?? 0);
+      const debtUsd = pos?.debtUi ?? (pos ? 0 : portfolioState.totalDebtUsd || 0);
 
-      return evaluatePermission({
-        actor: controlMode === "MANUAL" ? "HUMAN" : "AGENT",
+      const effectiveMode = modeOverride ?? controlMode;
+      const isAgent = effectiveMode === "AUTONOMOUS";
+      const agentAuth = isAgent ? getAgentAuthorityForAsset(sym) : null;
+
+      const pData = marketState.markets[sym]?.priceData;
+      const oraclePrice = pData?.price ?? (pos?.priceUsd || 100);
+      const oracleExpo = -8;
+      const oracleConf = pData?.conf ?? 0;
+      const oracleConfBps = pData?.confBps ?? riskState.maxConfSpreadBps;
+      const oraclePublishTime = pData?.publishTime ?? Math.floor(Date.now() / 1000);
+
+      return evaluateAction(
+        isAgent
+          ? {
+              mode: "AGENT",
+              agentPubkey:
+                agentAuth?.agentAddress || CIRCUIT_DEVNET_AGENT_KEY.toBase58(),
+            }
+          : { mode: "MANUAL" },
         action,
         amountUsd,
-        protocolPaused: protocolState.isFrozen,
-        assetEnabled: true,
-        isMarketOpen: riskState.isMarketOpen,
-        oracleStale: riskState.isStaleOracle,
-        confBps: riskState.maxConfSpreadBps,
-        maxConfBps: 100,
-        riskState: riskState.ratchetState,
-        baseLtvBps: portfolioState.weightedBaseLtvBps || 7000,
-        collateralUsd: collatUsd,
-        currentDebtUsd: debtUsd,
-        minHealthFactorBps: protocolState.minHealthFactorBps || 10_000,
-        liquidationThresholdBps: 8000,
-        agentAuthority: agentAuth
-          ? {
-              active: agentAuth.hasAuthority && agentAuth.status !== "REVOKED",
-              isExpired: agentAuth.isExpired,
-              targetAssetMint: agentAuth.assetMint ?? undefined,
-              currentAssetMint: pos?.mint ?? DEPLOYED_MARKETS.find((m) => m.symbol.toUpperCase() === sym)?.mint,
-              allowedActions: agentAuth.allowedActions,
-              maxBorrowLimitUsd: agentAuth.maxBorrowLimit,
-              maxWithdrawLimitUsd: agentAuth.maxWithdrawLimit,
-              currentBorrowedUsd: agentAuth.currentBorrowed,
-              riskBudgetUsd: agentAuth.riskBudget,
-            }
-          : null,
-      });
+        {
+          slot: currentSlot,
+          blockTime: null,
+          protocolPaused: protocolState.isFrozen,
+          assetEnabled: true,
+          assetMint: mkt?.mint ?? pos?.mint ?? "",
+          assetSymbol: sym,
+          oraclePrice,
+          oracleExpo,
+          oracleConf,
+          oracleConfBps,
+          oraclePublishTime,
+          globalOracleHealthy: !riskState.isStaleOracle,
+          isMarketOpen: riskState.isMarketOpen,
+          ratchetState: riskState.ratchetState,
+          baseLtvBps: portfolioState.weightedBaseLtvBps || 7000,
+          collateralUsd: collatUsd,
+          debtUsd: debtUsd,
+          agentAuthority: agentAuth
+            ? {
+                active: agentAuth.hasAuthority && agentAuth.status !== "REVOKED",
+                isExpired: agentAuth.isExpired,
+                allowedActions: agentAuth.allowedActions,
+                maxBorrowLimitUsd: agentAuth.maxBorrowLimit,
+                maxWithdrawLimitUsd: agentAuth.maxWithdrawLimit,
+                currentBorrowedUsd: agentAuth.currentBorrowed,
+                riskBudgetUsd: agentAuth.riskBudget,
+              }
+            : null,
+        }
+      );
     },
     [
       controlMode,
@@ -665,11 +705,41 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
       portfolioState,
       riskState,
       protocolState,
+      marketState,
+      currentSlot,
       getAgentAuthorityForAsset,
     ]
   );
 
+  const decision = useMemo(
+    () => evaluateDecision("borrow", 0, activeMarketKey),
+    [evaluateDecision, activeMarketKey]
+  );
+
+  const evaluatePermissionForAction = useCallback(
+    (action: ProtocolAction, amountUsd: number = 0, symbolOrMint?: string): PermissionResult => {
+      const snap = evaluateDecision(action, amountUsd, symbolOrMint);
+      return {
+        allowed: snap.permission.allowed,
+        reasonCode: snap.permission.reasonCode,
+        message: snap.permission.message,
+        effectiveLtvBps: Math.round(snap.capitalPolicy.maxLtv * 10_000),
+        borrowCapacityUsd: snap.capitalPolicy.maxBorrow,
+        healthFactorBps: snap.position.health !== null ? Math.round(snap.position.health * 10_000) : null,
+        riskState: snap.risk.state,
+        actionCostUsd: 0,
+        remainingRiskBudgetUsd: snap.authority.limits?.riskBudget ?? 0,
+        policyVersion: CANONICAL_POLICY_VERSION,
+        evaluatedAt: snap.freshness.evaluatedAt,
+        venue: "CIRCUIT_LENDING",
+      };
+    },
+    [evaluateDecision]
+  );
+
   const value: DomainContextValue = {
+    decision,
+    evaluateDecision,
     wallet: walletState,
     protocol: protocolState,
     markets: marketState,

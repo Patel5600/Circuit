@@ -12,6 +12,7 @@ import { MarketDataProvider } from "./context/MarketDataContext";
 import { DbcProvider } from "./context/DbcContext";
 import { AssetActionDrawer } from "./components/drawers/AssetActionDrawer";
 import { ThemeProvider } from "./context/ThemeContext";
+import { DecisionInspector } from "./components/dev/DecisionInspector";
 
 
 /**
@@ -133,6 +134,7 @@ function AppLayout() {
                     </ErrorBoundary>
                   </AppShell>
                   <AssetActionDrawer />
+                  <DecisionInspector />
                 </ActionProvider>
               </DbcProvider>
             </MarketDataProvider>

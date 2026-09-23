@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Link } from "react-router-dom";
 
 import { Card, Disclosure, DataRow, Icon, Pill, Skeleton, Tone } from "../ui";
@@ -30,13 +30,16 @@ export function buildSafetyChecks(
   const freshOk = Boolean(
     oracle && asset && oracle.ageSeconds <= asset.maxOracleAge
   );
+  const age = oracle ? oracle.ageSeconds : 999999;
+  const freshnessLabel = age < 30 ? "LIVE" : age <= 120 ? "RECENT" : "STALE";
+
   checks.push({
     name: "Price freshness",
     detail: oracle
-      ? `Last verified ${formatAge(oracle.ageSeconds)}`
+      ? `Pyth ${freshnessLabel} · Last verified ${formatAge(oracle.ageSeconds)}`
       : "No verified price available",
     ok: freshOk,
-    status: freshOk ? "Fresh" : "Stale",
+    status: freshnessLabel,
   });
 
   const confOk = Boolean(oracle && asset && oracle.confBps <= asset.maxConfBps);
@@ -112,6 +115,8 @@ export function SafetyStatus({
   session,
   guardReason,
   showTechnical = true,
+  borrowAllowed = false,
+  decisionReason,
 }: {
   loading: boolean;
   asset: AssetConfigView | null;
@@ -119,11 +124,26 @@ export function SafetyStatus({
   session: SessionHint | null;
   guardReason?: string;
   showTechnical?: boolean;
+  borrowAllowed?: boolean;
+  decisionReason?: string;
 }) {
   const checks = buildSafetyChecks(asset, oracle, session);
   const allOk = checks.every((c) => c.ok);
   const tone: Tone = allOk ? "success" : "warning";
   const headline = allOk ? "Safe" : "Restricted";
+
+  const statusNarrative = useMemo(() => {
+    if (decisionReason) {
+      return decisionReason;
+    }
+    if (borrowAllowed) {
+      return "All market and oracle safety checks pass. Borrowing is permitted.";
+    }
+    if (allOk) {
+      return "Market risk metrics are nominal. Deposit collateral to unlock borrowing capacity.";
+    }
+    return "One or more risk gates did not pass. New credit creation is throttled; existing positions remain protected.";
+  }, [decisionReason, borrowAllowed, allOk]);
 
   return (
     <Card
@@ -147,9 +167,7 @@ export function SafetyStatus({
       ) : (
         <>
           <p className="t-sm muted" style={{ marginBottom: 12 }}>
-            {allOk
-              ? "All safety checks pass. Borrowing is available."
-              : "One or more checks did not pass, so new borrowing is paused. Existing positions are unaffected."}
+            {statusNarrative}
           </p>
 
           <RiskCheckList checks={checks} />

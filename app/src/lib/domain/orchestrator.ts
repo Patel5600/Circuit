@@ -108,8 +108,19 @@ export class RpcOrchestrator {
     return this.dedupeAndCache(key, ttlMs, () => this.connection.getBalance(pubkey));
   }
 
+  private rateLimitedUntil: number = 0;
+  private backoffMs: number = 2000;
+
+  public isRateLimited(): boolean {
+    return Date.now() < this.rateLimitedUntil;
+  }
+
+  public getRateLimitCooldown(): number {
+    return Math.max(0, this.rateLimitedUntil - Date.now());
+  }
+
   /**
-   * Generic deduplication + TTL caching engine.
+   * Generic deduplication + TTL caching engine with rate-limit defense.
    */
   public async dedupeAndCache<T>(
     key: string,
@@ -122,6 +133,11 @@ export class RpcOrchestrator {
       return cached.data as T;
     }
 
+    // If currently rate-limited and we have stale cached data, return it gracefully
+    if (this.isRateLimited() && cached) {
+      return cached.data as T;
+    }
+
     if (this.inFlightRequests.has(key)) {
       return this.inFlightRequests.get(key) as Promise<T>;
     }
@@ -130,10 +146,29 @@ export class RpcOrchestrator {
       .then((data) => {
         this.cache.set(key, { data, expiry: Date.now() + ttlMs });
         this.inFlightRequests.delete(key);
+        // Successful call resets backoff
+        this.backoffMs = 2000;
         return data;
       })
       .catch((err) => {
         this.inFlightRequests.delete(key);
+        const errMsg = err?.message ?? String(err);
+        const is429 =
+          errMsg.includes("429") ||
+          errMsg.includes("rate limit") ||
+          errMsg.includes("Connection rate limits exceeded");
+
+        if (is429) {
+          const jitter = Math.floor(Math.random() * 1000);
+          this.rateLimitedUntil = Date.now() + this.backoffMs + jitter;
+          this.backoffMs = Math.min(16000, this.backoffMs * 2);
+          console.warn(
+            `[RpcOrchestrator] Solana RPC rate limit hit. Cooldown for ${this.backoffMs}ms.`
+          );
+          if (cached) {
+            return cached.data as T;
+          }
+        }
         throw err;
       });
 

@@ -181,11 +181,8 @@ export default function Borrow() {
   const objections = useMemo<string[]>(() => {
     const out: string[] = [];
     if (!valid) return out;
-    if (credit.permissions.borrow.status === "BLOCKED") {
-      out.push(
-        credit.permissions.borrow.reason ||
-          `Blocked by Circuit: Risk Ratchet in ${risk.ratchetState} state`
-      );
+    if (!permResult.allowed) {
+      out.push(permResult.message);
     }
     if (amountNative > max) {
       out.push(
@@ -198,14 +195,8 @@ export default function Borrow() {
         `This would leave a health factor of ${(projectedHf / 10_000).toFixed(2)}, below the ${(minBps / 10_000).toFixed(2)} minimum`
       );
     }
-    if (s.risk) {
-      for (const b of s.risk.blockers) {
-        if (b === "No remaining borrow capacity" && amountNative <= max) continue;
-        out.push(b);
-      }
-    }
     return Array.from(new Set(out));
-  }, [valid, amountNative, max, s.protocol, s.risk, projectedHf, minBps, isSolBorrow, quoteSymbol, credit, risk]);
+  }, [valid, permResult, amountNative, max, isSolBorrow, quoteSymbol, s.protocol, projectedHf, minBps]);
 
   const canSubmit = valid && objections.length === 0 && tx.ready && !tx.busy;
 
@@ -338,9 +329,7 @@ export default function Borrow() {
         </div>
 
         {/* Structured Protocol Rejection Card */}
-        {(risk.ratchetState === "DEFENSIVE" ||
-          risk.ratchetState === "EMERGENCY" ||
-          credit.permissions.borrow.status === "BLOCKED") && (
+        {!permResult.allowed && permResult.reasonCode !== "INSUFFICIENT_COLLATERAL" && (
           <div
             style={{
               padding: 16,
@@ -359,28 +348,27 @@ export default function Borrow() {
                   letterSpacing: "0.04em",
                 }}
               >
-                BORROW BLOCKED ON-CHAIN
+                BORROW RESTRICTED BY PROTOCOL
               </span>
               <Pill tone="danger" withDot>
                 {risk.ratchetState}
               </Pill>
             </div>
             <div style={{ fontSize: 12.5, color: "var(--text-2)", lineHeight: 1.5 }}>
-              The on-chain Permission Engine has rejected borrow authorization:{" "}
-              <strong>Additional risk is not permitted</strong> under {risk.ratchetState} state.
+              Circuit Permission Engine: <strong>{permResult.message}</strong>
             </div>
             <div className="grid grid--2 g-8" style={{ marginTop: 4 }}>
               <div style={{ fontSize: 11, color: "var(--text-3)" }}>
                 Risk State: <span style={{ color: "var(--danger)", fontWeight: 650 }}>{risk.ratchetState}</span>
               </div>
               <div style={{ fontSize: 11, color: "var(--text-3)" }}>
-                Policy: <span style={{ color: "var(--text-2)", fontWeight: 600 }}>Borrowing Disabled</span>
+                Reason Code: <span style={{ color: "var(--text-2)", fontWeight: 600 }}>{permResult.reasonCode}</span>
               </div>
               <div style={{ fontSize: 11, color: "var(--text-3)" }}>
-                Oracle: <span style={{ color: "var(--success)", fontWeight: 600 }}>VALID</span>
+                Oracle Freshness: <span style={{ color: s.oracle?.ageSeconds && s.oracle.ageSeconds < 30 ? "var(--success)" : "var(--warning)", fontWeight: 650 }}>{s.oracle?.ageSeconds && s.oracle.ageSeconds < 30 ? "LIVE" : "STALE"}</span>
               </div>
               <div style={{ fontSize: 11, color: "var(--text-3)" }}>
-                Authority: <span style={{ color: "var(--text-2)", fontWeight: 600 }}>VERIFIED</span>
+                Execution Mode: <span style={{ color: "var(--text-2)", fontWeight: 600 }}>{controlMode}</span>
               </div>
             </div>
           </div>

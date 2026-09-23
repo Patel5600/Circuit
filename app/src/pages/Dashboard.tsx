@@ -80,7 +80,10 @@ export default function Dashboard() {
 
       {s.error && (
         <div style={{ marginBottom: 18 }}>
-          <Notice tone="danger" title="Could not reach the network">
+          <Notice
+            tone={s.error.includes("rate limit") ? "warning" : "danger"}
+            title={s.error.includes("rate limit") ? "Solana Devnet RPC Rate-Limited" : "Could not reach the network"}
+          >
             {s.error}
           </Notice>
         </div>
@@ -212,8 +215,9 @@ export default function Dashboard() {
                     type="button"
                     onClick={() => openAction({ type: "borrow", market: selectedMarket })}
                     className="btn btn--accent btn--sm"
-                    disabled={borrowBlocked}
-                    aria-disabled={borrowBlocked || undefined}
+                    disabled={domain.decision.verdict.status !== "ALLOW"}
+                    aria-disabled={domain.decision.verdict.status !== "ALLOW" || undefined}
+                    title={domain.decision.verdict.reason}
                   >
                     Borrow {quoteSymbol}
                   </button>
@@ -222,68 +226,75 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Autonomous Capital Status Surface */}
+          {/* Execution Authority & Control Surface */}
           <Card
-            title="Agent Capital Control"
+            title="Execution Authority & Control Mode"
             action={
               <Link to="/app/autonomous?tab=PERMISSIONS" className="btn btn--ghost btn--sm" style={{ fontSize: 11 }}>
-                Manage
+                {domain.controlMode === "MANUAL" ? "Configure Strategy" : "Manage"}
               </Link>
             }
           >
             <div className="row g-12 wrap" style={{ alignItems: "center" }}>
               <div className="row g-8" style={{ alignItems: "center" }}>
-                <span className="muted" style={{ fontSize: 12 }}>Strategy:</span>
-                <span style={{ fontSize: 13, fontWeight: 650 }}>{domain.agentAuthority.strategyName}</span>
+                <span className="muted" style={{ fontSize: 12 }}>Control Mode:</span>
+                <span style={{ fontSize: 13, fontWeight: 650 }}>
+                  {domain.controlMode === "MANUAL" ? "Direct Wallet (Self-Sovereign)" : "Autonomous Strategy"}
+                </span>
               </div>
 
               <div className="row g-8" style={{ alignItems: "center" }}>
-                <span className="muted" style={{ fontSize: 12 }}>Authority:</span>
+                <span className="muted" style={{ fontSize: 12 }}>Agent Authority:</span>
                 <Pill
                   tone={
-                    domain.agentAuthority.effectiveAuthority === "FULL"
+                    domain.controlMode === "MANUAL"
+                      ? "neutral"
+                      : domain.agentAuthority.effectiveAuthority === "FULL"
                       ? "success"
                       : domain.agentAuthority.effectiveAuthority === "LIMITED"
                       ? "warning"
                       : "danger"
                   }
                 >
-                  {domain.agentAuthority.effectiveAuthority}
+                  {domain.controlMode === "MANUAL" ? "NOT APPLICABLE" : domain.agentAuthority.effectiveAuthority}
                 </Pill>
               </div>
 
               <div className="row g-8" style={{ alignItems: "center" }}>
-                <span className="muted" style={{ fontSize: 12 }}>Borrow:</span>
+                <span className="muted" style={{ fontSize: 12 }}>Borrow Permission:</span>
                 <span
                   style={{
                     fontFamily: "var(--mono)",
                     fontWeight: 650,
                     fontSize: 12,
                     color:
-                      domain.agentAuthority.effectiveAuthority === "BLOCKED"
-                        ? "var(--danger)"
-                        : domain.agentAuthority.effectiveAuthority === "LIMITED"
-                        ? "var(--warning)"
-                        : "var(--success)",
+                      domain.decision.verdict.status === "ALLOW"
+                        ? "var(--success)"
+                        : "var(--warning)",
                   }}
                 >
-                  {domain.agentAuthority.effectiveAuthority === "BLOCKED"
-                    ? "BLOCKED"
-                    : domain.agentAuthority.effectiveAuthority === "LIMITED"
-                    ? "CONSTRAINED"
-                    : "ENABLED"}
+                  {domain.decision.verdict.status === "ALLOW"
+                    ? "AVAILABLE"
+                    : domain.decision.verdict.code === "INSUFFICIENT_COLLATERAL"
+                    ? "ZERO COLLATERAL"
+                    : "BLOCKED"}
                 </span>
               </div>
             </div>
           </Card>
 
-          {borrowBlocked && !s.loading && (
-            <Notice tone="warning" title="New borrowing is paused">
-              {s.risk!.blockers[0]}
-              {s.risk!.blockers.length > 1
-                ? ` (and ${s.risk!.blockers.length - 1} more)`
-                : ""}
-              . Your existing position is not affected.
+          {!s.loading && domain.decision.verdict.status !== "ALLOW" && (
+            <Notice
+              tone={domain.decision.verdict.code === "INSUFFICIENT_COLLATERAL" ? "neutral" : "warning"}
+              title={
+                domain.decision.verdict.code === "INSUFFICIENT_COLLATERAL"
+                  ? "Collateral required to borrow"
+                  : domain.decision.verdict.code === "PROTOCOL_PAUSED"
+                  ? "New borrowing is paused by protocol"
+                  : "Borrowing currently restricted"
+              }
+            >
+              {domain.decision.verdict.reason}
             </Notice>
           )}
 
@@ -293,6 +304,8 @@ export default function Dashboard() {
             oracle={s.oracle}
             session={s.session}
             guardReason={s.guard?.reason}
+            borrowAllowed={domain.decision.verdict.status === "ALLOW"}
+            decisionReason={domain.decision.verdict.status !== "ALLOW" ? domain.decision.verdict.reason : undefined}
           />
 
           {/* 12 Live Markets Grid */}

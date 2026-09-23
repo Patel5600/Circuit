@@ -136,8 +136,8 @@ export interface AgentAuthorityDomainState {
   expiryTs: number;
   isExpired: boolean;
   nonce: number;
-  status: "ACTIVE" | "LIMITED" | "BLOCKED" | "REVOKED" | "EXPIRED" | "NOT_CONFIGURED";
-  effectiveAuthority: "FULL" | "LIMITED" | "BLOCKED";
+  status: "ACTIVE" | "LIMITED" | "BLOCKED" | "REVOKED" | "EXPIRED" | "NOT_CONFIGURED" | "NOT_APPLICABLE";
+  effectiveAuthority: "FULL" | "LIMITED" | "BLOCKED" | "NOT_APPLICABLE";
 }
 
 export type ActivityActionType =
