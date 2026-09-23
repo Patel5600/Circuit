@@ -18,10 +18,10 @@ interface MenuItem {
 }
 
 const MENU_ITEMS: MenuItem[] = [
-  { title: "Terminal", path: "/app", format: "horizontal", sub: "Core Trading & Account Interface" },
-  { title: "Markets", path: "/app/markets", format: "rounded", sub: "Equity Pool Discovery & Liquidity" },
-  { title: "Borrow & Credit", path: "/app/borrow", format: "vertical", sub: "Dynamic Underwriting & Leverage" },
-  { title: "Autonomous Agent", path: "/app/autonomous", format: "circle", sub: "Autonomous Policy Execution" },
+  { title: "Terminal", path: "/app", format: "horizontal", sub: "Risk Kernel Interface" },
+  { title: "Markets", path: "/app/markets", format: "rounded", sub: "Tokenized Equity Liquidity" },
+  { title: "Borrow & Credit", path: "/app/borrow", format: "vertical", sub: "Position-Aware Capital Permissions" },
+  { title: "Autonomous Agent", path: "/app/autonomous", format: "circle", sub: "Bounded Execution Authority" },
 ];
 
 export const GlobalMenuOverlay: React.FC<GlobalMenuOverlayProps> = ({

@@ -132,8 +132,8 @@ export const ManifestoAndRing: React.FC<ManifestoAndRingProps> = ({ simpleMode }
     };
 
     const run = () => {
-      fit(tp1, 326, ["Dutch Auctions", "Risk Ratchet", "Pyth Oracles", "Meteora DBC"].join(SEP) + SEP);
-      fit(tp2, 252, ["Tokenized Stocks", "Autonomous Agents", "Safe State"].join(SEP) + SEP);
+      fit(tp1, 326, ["Risk Envelope", "Risk Ratchet", "Pyth Oracles", "Meteora DBC"].join(SEP) + SEP);
+      fit(tp2, 252, ["Tokenized Equities", "Autonomous Agents", "Solana Runtime"].join(SEP) + SEP);
     };
 
     run();
@@ -304,15 +304,15 @@ export const ManifestoAndRing: React.FC<ManifestoAndRingProps> = ({ simpleMode }
       {/* ── MELTING HEADLINE ── */}
       <section className="lab" data-note="Melting headline">
         <div className="lab-head">
-          <h2>Credit Governance</h2>
+          <h2>Agents propose. Circuit authorizes. Solana enforces.</h2>
           <p>
-            Liquidity expands programmatically where capital parameters are bounded and verifiable on-chain.
+            Markets change continuously. Capital permissions should too. Risk becomes meaningful when it changes what capital is permitted to do.
           </p>
         </div>
         <div className="lf-stage lf-melt-stage" ref={meltStageRef}>
           <div style={{ position: "relative", zIndex: 2, padding: "0 20px" }}>
             <h3 className="lf-melt" ref={meltHeadingRef}>
-              Capital governs<br />risk
+              Agents propose.<br />Solana enforces.
             </h3>
           </div>
           <span className="lf-melt-hint">Bring pointer close to distort</span>
@@ -322,9 +322,9 @@ export const ManifestoAndRing: React.FC<ManifestoAndRingProps> = ({ simpleMode }
       {/* ── KINETIC RING ── */}
       <section className="lab" data-note="Kinetic Ring">
         <div className="lab-head">
-          <h2>Dynamic Risk Matrix</h2>
+          <h2>Continuous Verification</h2>
           <p>
-            Counter-rotating on-chain primitives and asset pairs: Dutch auction curves, risk ratchets, and Pyth price confidence bands.
+            Counter-rotating capability rings: Market observation, risk ratchet policy, Pyth confidence, and verifiable risk envelopes.
           </p>
         </div>
         <div className="lf-stage lf-guides lf-ring-stage">
@@ -354,7 +354,7 @@ export const ManifestoAndRing: React.FC<ManifestoAndRingProps> = ({ simpleMode }
             <circle cx="400" cy="400" r="196" fill="#ffffff" />
             <circle cx="400" cy="400" r="150" fill="none" stroke="#e2e2de" />
             <text x="400" y="386" textAnchor="middle" fontSize="12" fill="#999995" style={{ fill: "#999995" }}>
-              (Protocol Invariant)
+              (Risk Kernel)
             </text>
             <text x="400" y="430" textAnchor="middle" fontSize="46" style={{ fill: "#000000", letterSpacing: "-1.5px", fontWeight: 700 }}>
               CIRCUIT
@@ -369,9 +369,9 @@ export const ManifestoAndRing: React.FC<ManifestoAndRingProps> = ({ simpleMode }
       {/* ── FORMAT CURSOR ── */}
       <section className="lab" data-note="Format Cursor">
         <div className="lab-head">
-          <h2>Adaptive Instruments</h2>
+          <h2>The authorization layer</h2>
           <p>
-            Interactive protocol surfaces. Hover across terminal links, liquidation mechanisms, and risk parameters.
+            Circuit evaluates a proposed capital action against current market conditions, position state, authority, and policy constraints. When an action satisfies policy, Circuit creates a short-lived, action-specific RiskEnvelope that can be verified by the execution path.
           </p>
         </div>
         <div className="lf-stage lf-cur-stage" ref={curStageRef}>
@@ -379,17 +379,17 @@ export const ManifestoAndRing: React.FC<ManifestoAndRingProps> = ({ simpleMode }
             <ul className="lf-cur-menu">
               <li>
                 <button type="button" data-snap>
-                  <Link to="/app" style={{ color: "inherit", textDecoration: "none" }}>Launch Terminal</Link>
+                  <Link to="/app/demo" style={{ color: "inherit", textDecoration: "none" }}>authorize_action</Link>
                 </button>
               </li>
               <li>
                 <button type="button" data-snap>
-                  <Link to="/app/markets" style={{ color: "inherit", textDecoration: "none" }}>Bonding Curves</Link>
+                  <Link to="/app/lab" style={{ color: "inherit", textDecoration: "none" }}>consume_envelope</Link>
                 </button>
               </li>
               <li>
                 <button type="button" data-snap>
-                  <Link to="/app" style={{ color: "inherit", textDecoration: "none" }}>Vault Analytics</Link>
+                  <Link to="/app" style={{ color: "inherit", textDecoration: "none" }}>close_envelope</Link>
                 </button>
               </li>
               <li>
@@ -412,23 +412,23 @@ export const ManifestoAndRing: React.FC<ManifestoAndRingProps> = ({ simpleMode }
                   </div>
                 </Link>
               </button>
-              <button type="button" className="lf-cur-card" data-snap aria-label="Dutch Auction Liquidation">
-                <Link to="/app" style={{ color: "inherit", textDecoration: "none", width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-                  <span style={{ fontSize: "10px", opacity: 0.55, letterSpacing: "0.04em" }}>(Protocol)</span>
+              <button type="button" className="lf-cur-card" data-snap aria-label="RiskEnvelope Capability">
+                <Link to="/app/demo" style={{ color: "inherit", textDecoration: "none", width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: "10px", opacity: 0.55, letterSpacing: "0.04em" }}>(Capability)</span>
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: "12px", lineHeight: 1.25 }}>Dutch Auction</div>
-                    <div style={{ fontSize: "10px", opacity: 0.5, marginTop: "3px" }}>Orderly Clearing</div>
+                    <div style={{ fontWeight: 600, fontSize: "12px", lineHeight: 1.25 }}>RiskEnvelope</div>
+                    <div style={{ fontSize: "10px", opacity: 0.5, marginTop: "3px" }}>Single-use · Slot TTL</div>
                   </div>
                 </Link>
               </button>
               <button type="button" className="lf-cur-badge" data-snap aria-label="Autonomous Agents">
-                <Link to="/app/agent" style={{ color: "inherit", textDecoration: "none", width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "2px" }}>
-                  <span style={{ fontSize: "9px", opacity: 0.55, letterSpacing: "0.04em" }}>[AUTOMATION]</span>
+                <Link to="/app/autonomous" style={{ color: "inherit", textDecoration: "none", width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "2px" }}>
+                  <span style={{ fontSize: "9px", opacity: 0.55, letterSpacing: "0.04em" }}>[BOUNDED]</span>
                   <span style={{ fontWeight: 600, fontSize: "13px" }}>Agents</span>
                 </Link>
               </button>
               <button type="button" className="lf-cur-pill" data-snap aria-label="Risk Ratchet Engine">
-                <Link to="/app/demo" style={{ color: "inherit", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                <Link to="/app/lab" style={{ color: "inherit", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "6px" }}>
                   <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#10b981", display: "inline-block" }} />
                   <span>Risk Ratchet</span>
                 </Link>

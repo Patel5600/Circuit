@@ -53,15 +53,15 @@ export const ScatterCanvas: React.FC<ScatterCanvasProps> = ({ simpleMode }) => {
             <div class="face">
               <div class="real-card-head">
                 <div class="real-card-meta">
-                  (Format)<b>Draw with ink</b>
-                  <span class="real-card-sub">Metaball Canvas</span>
+                  (Capability)<b>RiskEnvelope</b>
+                  <span class="real-card-sub">Single-use Authorization</span>
                 </div>
-                <span class="real-card-tag">01 Hero</span>
+                <span class="real-card-tag">01 Authorize</span>
               </div>
               <div class="real-stage">
                 <canvas width="252" height="110" style="border-radius:4px;background:#f4f4f0;"></canvas>
               </div>
-              <div style="font-size:7px;opacity:0.5;font-family:var(--lf-mono);">Fluid displacement · 60fps</div>
+              <div style="font-size:7px;opacity:0.5;font-family:var(--lf-mono);">Action & Venue PDA · Slot TTL</div>
             </div>
           `;
           const cvs = container.querySelector("canvas") as HTMLCanvasElement | null;
@@ -130,15 +130,15 @@ export const ScatterCanvas: React.FC<ScatterCanvasProps> = ({ simpleMode }) => {
             <div class="face">
               <div class="real-card-head">
                 <div class="real-card-meta">
-                  (Format)<b>Dial Field</b>
-                  <span class="real-card-sub">400 Dial Lattice</span>
+                  (Observation)<b>Market State</b>
+                  <span class="real-card-sub">Pyth Price & Confidence</span>
                 </div>
-                <span class="real-card-tag">02 Field</span>
+                <span class="real-card-tag">02 Observe</span>
               </div>
               <div class="real-stage">
                 <div class="dial-grid-mini">${dialsHtml}</div>
               </div>
-              <div style="font-size:7px;opacity:0.5;font-family:var(--lf-mono);text-align:right;">Synchronous angles</div>
+              <div style="font-size:7px;opacity:0.5;font-family:var(--lf-mono);text-align:right;">Validated Telemetry</div>
             </div>
           `;
 
@@ -166,10 +166,10 @@ export const ScatterCanvas: React.FC<ScatterCanvasProps> = ({ simpleMode }) => {
             <div class="face">
               <div class="real-card-head">
                 <div class="real-card-meta">
-                  (Format)<b>Colour reveal</b>
-                  <span class="real-card-sub">RGB Aperture Mesh</span>
+                  (Pipeline)<b>The Risk Kernel</b>
+                  <span class="real-card-sub">Deterministic Policy Gating</span>
                 </div>
-                <span class="real-card-tag">03 Reveal</span>
+                <span class="real-card-tag">03 Pipeline</span>
               </div>
               <div class="real-stage">
                 <div class="colour-stage-mini">
@@ -177,7 +177,7 @@ export const ScatterCanvas: React.FC<ScatterCanvasProps> = ({ simpleMode }) => {
                   <div class="colour-mask-mini"></div>
                 </div>
               </div>
-              <div style="font-size:7px;opacity:0.5;font-family:var(--lf-mono);">Aperture mask reveal</div>
+              <div style="font-size:7px;opacity:0.5;font-family:var(--lf-mono);">Market → Risk → Permission</div>
             </div>
           `;
 
@@ -210,7 +210,7 @@ export const ScatterCanvas: React.FC<ScatterCanvasProps> = ({ simpleMode }) => {
         w: 310,
         h: 180,
         create: (container: HTMLElement) => {
-          const shapes = ["Arch", "Pill", "Frame", "Tab", "Oval", "Leaf", "Slab", "Soft"];
+          const shapes = ["Credit", "Agents", "Meteora", "Envelope", "Pyth", "Ratchet", "Solana", "Policy"];
           const itemsHtml = shapes
             .map(
               (s, i) => `
@@ -226,15 +226,15 @@ export const ScatterCanvas: React.FC<ScatterCanvasProps> = ({ simpleMode }) => {
             <div class="face" style="background:#111;color:#fff;">
               <div class="real-card-head">
                 <div class="real-card-meta">
-                  <span style="color:#aaa;">(Format)</span><b style="color:#fff;">Inertia ribbon</b>
-                  <span class="real-card-sub" style="color:#888;">Momentum Strip</span>
+                  <span style="color:#aaa;">(Surfaces)</span><b style="color:#fff;">Execution Surfaces</b>
+                  <span class="real-card-sub" style="color:#888;">Credit · Agents · Meteora DBC</span>
                 </div>
-                <span class="real-card-tag" style="border-color:rgba(255,255,255,0.4);">04 Ribbon</span>
+                <span class="real-card-tag" style="border-color:rgba(255,255,255,0.4);">04 Surfaces</span>
               </div>
               <div class="real-stage" style="justify-content:flex-start;overflow:hidden;">
                 <div class="ribbon-track-mini">${itemsHtml}${itemsHtml}</div>
               </div>
-              <div style="font-size:7px;opacity:0.5;font-family:var(--lf-mono);color:#aaa;">Continuous momentum scroll</div>
+              <div style="font-size:7px;opacity:0.5;font-family:var(--lf-mono);color:#aaa;">Modular execution · Enforced authority</div>
             </div>
           `;
 
@@ -266,28 +266,28 @@ export const ScatterCanvas: React.FC<ScatterCanvasProps> = ({ simpleMode }) => {
             <div class="face">
               <div class="real-card-head">
                 <div class="real-card-meta">
-                  (Format)<b>Scroll morph</b>
-                  <span class="real-card-sub" id="morph-label">Circle</span>
+                  (Stages)<b>5-Stage Pipeline</b>
+                  <span class="real-card-sub" id="morph-label">01 Observe</span>
                 </div>
-                <span class="real-card-tag">05 Morph</span>
+                <span class="real-card-tag">05 Stages</span>
               </div>
               <div class="real-stage">
-                <div class="morph-shape-mini" style="width:74px;height:74px;border-radius:50%;">
-                  <strong>Circle</strong>
+                <div class="morph-shape-mini" style="width:84px;height:74px;border-radius:50%;">
+                  <strong>01 Observe</strong>
                 </div>
               </div>
-              <div style="font-size:7px;opacity:0.5;font-family:var(--lf-mono);">5-Stage shape cycle</div>
+              <div style="font-size:7px;opacity:0.5;font-family:var(--lf-mono);">Market observation to enforced action</div>
             </div>
           `;
 
           const shape = container.querySelector(".morph-shape-mini") as HTMLElement | null;
           const label = container.querySelector("#morph-label") as HTMLElement | null;
           const stages = [
-            { name: "Circle", w: "74px", h: "74px", rad: "50%" },
-            { name: "Rounded", w: "135px", h: "65px", rad: "32px" },
-            { name: "Vertical", w: "65px", h: "115px", rad: "4px" },
-            { name: "Horizontal", w: "145px", h: "75px", rad: "4px" },
-            { name: "Full frame", w: "210px", h: "115px", rad: "0px" },
+            { name: "01 Observe", w: "84px", h: "74px", rad: "50%" },
+            { name: "02 Evaluate", w: "135px", h: "65px", rad: "32px" },
+            { name: "03 Authorize", w: "75px", h: "115px", rad: "4px" },
+            { name: "04 Execute", w: "145px", h: "75px", rad: "4px" },
+            { name: "05 Recover", w: "210px", h: "115px", rad: "0px" },
           ];
 
           let idx = 0;
@@ -318,17 +318,17 @@ export const ScatterCanvas: React.FC<ScatterCanvasProps> = ({ simpleMode }) => {
             <div class="face" style="background:#000;color:#fff;">
               <div class="real-card-head">
                 <div class="real-card-meta">
-                  <span style="color:#aaa;">(Format)</span><b style="color:#fff;">Melting headline</b>
-                  <span class="real-card-sub" style="color:#888;">Displacement Drip</span>
+                  <span style="color:#aaa;">(Authority)</span><b style="color:#fff;">Bounded Agents</b>
+                  <span class="real-card-sub" style="color:#888;">Intent → Circuit → Solana</span>
                 </div>
-                <span class="real-card-tag" style="border-color:rgba(255,255,255,0.4);">06 Melt</span>
+                <span class="real-card-tag" style="border-color:rgba(255,255,255,0.4);">06 Bounded</span>
               </div>
               <div class="real-stage">
                 <div class="melt-stage-mini">
-                  <div class="melt-headline-mini">Capital</div>
+                  <div class="melt-headline-mini">Bounded</div>
                 </div>
               </div>
-              <div style="font-size:7px;opacity:0.5;font-family:var(--lf-mono);color:#aaa;">Vertical noise displacement</div>
+              <div style="font-size:7px;opacity:0.5;font-family:var(--lf-mono);color:#aaa;">Agents propose · Solana enforces</div>
             </div>
           `;
           return undefined;
@@ -346,10 +346,10 @@ export const ScatterCanvas: React.FC<ScatterCanvasProps> = ({ simpleMode }) => {
             <div class="face">
               <div class="real-card-head">
                 <div class="real-card-meta">
-                  (Format)<b>Kinetic ring</b>
-                  <span class="real-card-sub">Concentric Text</span>
+                  (Verification)<b>Continuous Verification</b>
+                  <span class="real-card-sub">Epoch Synchronization</span>
                 </div>
-                <span class="real-card-tag">07 Ring</span>
+                <span class="real-card-tag">07 Verify</span>
               </div>
               <div class="real-stage">
                 <svg class="ring-svg-mini" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
@@ -361,12 +361,12 @@ export const ScatterCanvas: React.FC<ScatterCanvasProps> = ({ simpleMode }) => {
                   <circle cx="60" cy="60" r="26" fill="none" stroke="currentColor" stroke-dasharray="2 3" opacity="0.25" />
                   <g class="ring-g-mini-1">
                     <text font-size="6.5" font-family="var(--lf-font)" font-weight="600" fill="currentColor">
-                      <textPath href="#mini-p1-${nextId}">FORMAT · CIRCUIT · ARCHITECTURE ·</textPath>
+                      <textPath href="#mini-p1-${nextId}">CIRCUIT · RISK KERNEL · SOLANA ·</textPath>
                     </text>
                   </g>
                   <g class="ring-g-mini-2">
                     <text font-size="5.5" font-family="var(--lf-font)" font-weight="500" fill="currentColor">
-                      <textPath href="#mini-p2-${nextId}">EQUITY · COLLATERAL · RECOVERY ·</textPath>
+                      <textPath href="#mini-p2-${nextId}">SAFE · RESTRICTED · DEFENSIVE · EMERGENCY ·</textPath>
                     </text>
                   </g>
                 </svg>
@@ -389,15 +389,15 @@ export const ScatterCanvas: React.FC<ScatterCanvasProps> = ({ simpleMode }) => {
             <div class="face">
               <div class="real-card-head">
                 <div class="real-card-meta">
-                  (Format)<b>Format cursor</b>
-                  <span class="real-card-sub">Inverted Difference</span>
+                  (Evaluator)<b>Permission Evaluator</b>
+                  <span class="real-card-sub">State & Limit Gating</span>
                 </div>
-                <span class="real-card-tag">08 Cursor</span>
+                <span class="real-card-tag">08 Gate</span>
               </div>
               <div class="real-stage">
                 <div class="cursor-stage-mini">
                   <div class="cursor-dot-mini" style="left:50%;top:50%;"></div>
-                  <div style="position:absolute;left:14px;top:14px;font-size:18px;font-weight:700;color:#000;">Hover / Trace</div>
+                  <div style="position:absolute;left:14px;top:14px;font-size:16px;font-weight:700;color:#000;">Gated / Boundary</div>
                 </div>
               </div>
               <div style="font-size:7px;opacity:0.5;font-family:var(--lf-mono);">Mix-blend difference tracking</div>
@@ -457,15 +457,15 @@ export const ScatterCanvas: React.FC<ScatterCanvasProps> = ({ simpleMode }) => {
             <div class="face" style="background:#000;color:#fff;">
               <div class="real-card-head">
                 <div class="real-card-meta">
-                  <span style="color:#aaa;">(Format)</span><b style="color:#fff;">Ink lab</b>
-                  <span class="real-card-sub" style="color:#888;">Generative Noise</span>
+                  <span style="color:#aaa;">(Policy)</span><b style="color:#fff;">Risk Ratchet</b>
+                  <span class="real-card-sub" style="color:#888;">Asymmetric Policy Taper</span>
                 </div>
-                <span class="real-card-tag" style="border-color:rgba(255,255,255,0.4);">09 Lab</span>
+                <span class="real-card-tag" style="border-color:rgba(255,255,255,0.4);">09 Ratchet</span>
               </div>
               <div class="real-stage">
                 <div class="lab-stage-mini">
                   <div class="lab-noise-mini"></div>
-                  <span style="position:relative;z-index:2;font-size:20px;font-weight:700;letter-spacing:-0.03em;">Generative</span>
+                  <span style="position:relative;z-index:2;font-size:20px;font-weight:700;letter-spacing:-0.03em;">Policy</span>
                 </div>
               </div>
               <div style="font-size:7px;opacity:0.5;font-family:var(--lf-mono);color:#aaa;">Fractal turbulence frequency</div>
@@ -486,10 +486,10 @@ export const ScatterCanvas: React.FC<ScatterCanvasProps> = ({ simpleMode }) => {
             <div class="face" style="background:#0c0e17;color:#eceaf7;">
               <div class="real-card-head">
                 <div class="real-card-meta">
-                  <span style="color:#888;">(Format)</span><b style="color:#fff;">Monumental footer</b>
+                  <span style="color:#888;">(Enforcement)</span><b style="color:#fff;">Solana Devnet</b>
                   <span class="real-card-sub" style="color:#aaa;">Devnet Slot Ticker</span>
                 </div>
-                <span class="real-card-tag" style="border-color:rgba(255,255,255,0.3);color:#8fa2ff;">10 Footer</span>
+                <span class="real-card-tag" style="border-color:rgba(255,255,255,0.3);color:#8fa2ff;">10 Solana</span>
               </div>
               <div class="real-stage">
                 <div class="footer-stage-mini">
@@ -497,7 +497,7 @@ export const ScatterCanvas: React.FC<ScatterCanvasProps> = ({ simpleMode }) => {
                   <div class="footer-slot-mini" id="mini-footer-slot">[DEVNET SLOT: 324189000]</div>
                 </div>
               </div>
-              <div style="font-size:7px;opacity:0.5;font-family:var(--lf-mono);color:#888;">Protocol architecture</div>
+              <div style="font-size:7px;opacity:0.5;font-family:var(--lf-mono);color:#888;">Anchor onchain execution</div>
             </div>
           `;
 
@@ -898,11 +898,9 @@ export const ScatterCanvas: React.FC<ScatterCanvasProps> = ({ simpleMode }) => {
   return (
     <section className="lab" id="scatter-lab" data-note="Scatter canvas">
       <div className="lab-head">
-        <h2>Protocol Instruments</h2>
+        <h2>Risk does not merely signal. It gates.</h2>
         <p>
-          {simpleMode
-            ? "10 live protocol components bouncing with elastic collision physics. Click anywhere to spawn risk models, oracle feeds, and liquidation curves."
-            : "Interactive physics sandbox showcasing Circuit's live on-chain components: Dutch auction monitors, risk ratchets, Pyth confidence bounds, and Meteora bonding curves. Click to spawn cards."}
+          A risk state becomes meaningful when it changes what the protocol can execute. SAFE: Normal permitted activity under current policy. RESTRICTED: Exposure and action limits tighten. DEFENSIVE: Risk-increasing actions are blocked or materially constrained according to policy. EMERGENCY: Recovery and permitted exit actions remain available while new risk is restricted.
         </p>
       </div>
       <div

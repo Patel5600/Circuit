@@ -26,11 +26,17 @@ export const MonumentalFooter: React.FC<MonumentalFooterProps> = ({ liveSlot }) 
       </div>
 
       <div className="lf-footer-meta">
-        <p>
-          CIRCUIT PROTOCOL // AUTONOMOUS INVARIANT RISK ENGINE // SOLANA DEVNET SLOT: {liveSlot > 0 ? liveSlot : 324189004}
+        <p style={{ fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+          ONCHAIN CAPITAL-PERMISSION INFRASTRUCTURE FOR TOKENIZED EQUITIES
         </p>
         <p>
-          AI provides intent. Circuit provides authority. Solana provides enforcement.
+          Circuit converts changing market conditions into enforceable capital permissions for credit, liquidity, and autonomous execution.
+        </p>
+        <p style={{ fontFamily: "var(--lf-mono, monospace)", fontSize: "13px", opacity: 0.85, letterSpacing: "0.04em", margin: "6px 0" }}>
+          Market → Risk → Permission → Execution
+        </p>
+        <p style={{ fontFamily: "var(--lf-mono, monospace)", fontSize: "11px", opacity: 0.65 }}>
+          SOLANA DEVNET · RUST / ANCHOR · PYTH · METEORA DBC · OPEN SOURCE · SLOT: {liveSlot > 0 ? liveSlot : 324189004}
         </p>
 
         {/* Prominent GitHub Repository Action Dock */}

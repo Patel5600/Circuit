@@ -134,10 +134,19 @@ export const HeroInkTrail: React.FC<HeroInkTrailProps> = ({ simpleMode, liveSlot
         <canvas ref={canvasRef} className="lf-hero__canvas" />
       </div>
       <div className="lf-hero__txt">
-        <small>CAPITAL PERMISSION LAYER</small>
+        <small>ONCHAIN CAPITAL PERMISSIONS</small>
         <h1>CIRCUIT</h1>
-        <p>
-          Programmable capital needs programmable permissions. Tokenized equities let agents and protocols move capital automatically. Circuit makes that capital conditional on live market state. Market -&gt; Risk -&gt; Permission -&gt; Execution. Humans decide. Agents execute. Circuit enforces.
+        <p style={{ fontWeight: 600, fontSize: "clamp(15px, 1.4vw, 20px)", margin: "0 0 6px 0" }}>
+          Programmable capital permissions for tokenized equities.
+        </p>
+        <p style={{ marginTop: 0 }}>
+          Circuit converts live market conditions into enforceable onchain permissions for tokenized equities, credit protocols, liquidity venues, and autonomous agents.
+        </p>
+        <p style={{ fontFamily: "var(--lf-mono, monospace)", fontSize: "0.85rem", opacity: 0.85, margin: "6px 0 2px" }}>
+          Market → Risk → Permission → Execution
+        </p>
+        <p style={{ fontFamily: "var(--lf-mono, monospace)", fontSize: "0.75rem", opacity: 0.7, margin: "0 0 16px" }}>
+          SOLANA · PYTH · TOKENIZED EQUITIES · METEORA DBC · AUTONOMOUS EXECUTION
         </p>
         <div className="lf-hero__cta">
           <Link to="/app" className="lf-pill lf-pill--fill" data-snap="">Launch Terminal</Link>

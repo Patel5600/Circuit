@@ -28,28 +28,28 @@ function toRandomCase(text: string, seed = 2026): string {
 
 const RAW_MECHANISMS = [
   {
-    name: "Market State",
-    desc: "High-frequency Pyth oracle streaming, session validation, confidence ratios, and custody telemetry.",
+    name: "01 — OBSERVE",
+    desc: "Validate the current market and oracle conditions.",
     shapeType: "circle" as const,
   },
   {
-    name: "Risk Engine",
-    desc: "Deterministic 4-state risk ratchet with asymmetric fast tightening and monotonic hysteresis recovery.",
+    name: "02 — EVALUATE",
+    desc: "Compute the applicable risk state and capital policy.",
     shapeType: "rounded" as const,
   },
   {
-    name: "Risk Envelope",
-    desc: "Short-lived onchain capability token binding action, venue, max notional, and LTV ceiling to slot TTL.",
+    name: "03 — AUTHORIZE",
+    desc: "Evaluate the requested action against authority, position, market, and policy constraints.",
     shapeType: "vertical" as const,
   },
   {
-    name: "Permission Engine",
-    desc: "Unified 7-attribute evaluation governing humans and agents under identical solvency constraints.",
+    name: "04 — EXECUTE",
+    desc: "Allow the authorized execution path to consume the applicable permission.",
     shapeType: "horizontal" as const,
   },
   {
-    name: "Enforcement",
-    desc: "Atomic Solana transaction execution, slippage verification, and rent-reclaiming lifecycle receipts.",
+    name: "05 — RECOVER",
+    desc: "As risk tightens, risk-increasing actions contract while permitted recovery and exit actions remain available.",
     shapeType: "full" as const,
   },
 ];
@@ -77,11 +77,11 @@ export const ScrollMorphSection: React.FC<ScrollMorphSectionProps> = ({ simpleMo
 
     // 5 Architectural Formats with responsive geometry (format 5 expands to full frame W x H)
     const KF = [
-      { p: 0, w0: 320, h0: 320, r: 160, rot: -6, ts: 1, name: "Market State", w: 0, h: 0 },
-      { p: 0.22, w0: 540, h0: 180, r: 90, rot: 4, ts: 1, name: "Risk Engine", w: 0, h: 0 },
-      { p: 0.45, w0: 280, h0: 410, r: 16, rot: -4, ts: 1, name: "Risk Envelope", w: 0, h: 0 },
-      { p: 0.68, w0: 480, h0: 300, r: 16, rot: 2, ts: 1, name: "Permission Engine", w: 0, h: 0 },
-      { p: 0.92, w0: 0, h0: 0, r: 0, rot: 0, ts: 1.15, name: "Enforcement", w: 0, h: 0 },
+      { p: 0, w0: 320, h0: 320, r: 160, rot: -6, ts: 1, name: "01 — OBSERVE", w: 0, h: 0 },
+      { p: 0.22, w0: 540, h0: 180, r: 90, rot: 4, ts: 1, name: "02 — EVALUATE", w: 0, h: 0 },
+      { p: 0.45, w0: 280, h0: 410, r: 16, rot: -4, ts: 1, name: "03 — AUTHORIZE", w: 0, h: 0 },
+      { p: 0.68, w0: 480, h0: 300, r: 16, rot: 2, ts: 1, name: "04 — EXECUTE", w: 0, h: 0 },
+      { p: 0.92, w0: 0, h0: 0, r: 0, rot: 0, ts: 1.15, name: "05 — RECOVER", w: 0, h: 0 },
     ];
 
     const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -201,11 +201,11 @@ export const ScrollMorphSection: React.FC<ScrollMorphSectionProps> = ({ simpleMo
   return (
     <section className="lab" data-note="Scroll morph">
       <div className="lab-head">
-        <h2>Architectural Formats</h2>
+        <h2>From market observation to enforced action.</h2>
         <p>
           {simpleMode
-            ? "Circuit's five core protocol mechanisms: Market State, Risk Engine, Risk Envelope, Permission Engine, and Enforcement."
-            : "The section pins while one shape travels through five protocol formats: Market State, Risk Engine, Risk Envelope, Permission Engine, and Enforcement full frame."}
+            ? "The five protocol stages: Observe, Evaluate, Authorize, Execute, and Recover."
+            : "The section pins while one shape travels through the five protocol stages: Observe, Evaluate, Authorize, Execute, and Recover full frame."}
         </p>
       </div>
       <div className="sm-track" id="sm" ref={trackRef}>
@@ -222,16 +222,16 @@ export const ScrollMorphSection: React.FC<ScrollMorphSectionProps> = ({ simpleMo
               <i className="ink w sm-w" />
               <div className="sm-txt">
                 <small id="sm-n">(1)</small>
-                <strong id="sm-cap">Market State</strong>
+                <strong id="sm-cap">01 — OBSERVE</strong>
               </div>
             </div>
 
             <ol className="sm-rail" id="sm-rail" aria-label="Protocol execution formats">
-              <li aria-current="true">(1) Market State</li>
-              <li>(2) Risk Engine</li>
-              <li>(3) Risk Envelope</li>
-              <li>(4) Permission Engine</li>
-              <li>(5) Enforcement</li>
+              <li aria-current="true">01 — OBSERVE</li>
+              <li>02 — EVALUATE</li>
+              <li>03 — AUTHORIZE</li>
+              <li>04 — EXECUTE</li>
+              <li>05 — RECOVER</li>
             </ol>
             <i className="sm-bar" />
           </div>

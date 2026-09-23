@@ -21,14 +21,14 @@ export const InertiaRibbonSection: React.FC<InertiaRibbonSectionProps> = ({ simp
     const STEP = 310;
     const CW = 280;
     const ITEMS: Array<[string, string, number, string]> = [
-      ["Dutch Auction", "140px 140px 0 0", 0, "Liquidation"],
-      ["Agents", "999px", 1, "Execution"],
-      ["Risk Ratchet", "0", 0, "LTV Taper"],
-      ["Pyth Oracles", "0 0 140px 140px", 1, "P ± σ Pricing"],
-      ["Meteora DBC", "50%", 0, "Curve Depth"],
-      ["Safe State", "140px 0 140px 0", 1, "Circuit Breaker"],
-      ["12 Equities", "0 140px 0 0", 0, "Collateral"],
-      ["70% Max LTV", "28px", 1, "Credit Line"],
+      ["Credit", "140px 140px 0 0", 0, "Execution Surface"],
+      ["Autonomous Agents", "999px", 1, "Bounded Authority"],
+      ["Meteora DBC", "0", 0, "Integrated Venue"],
+      ["Risk Envelope", "0 0 140px 140px", 1, "Onchain Capability"],
+      ["Pyth Oracles", "50%", 0, "Market Inputs"],
+      ["MarketGuard", "140px 0 140px 0", 1, "Observation"],
+      ["Risk Ratchet", "0 140px 0 0", 0, "Policy Taper"],
+      ["Solana Runtime", "28px", 1, "Enforcement"],
     ];
 
     const total = STEP * ITEMS.length;
@@ -140,9 +140,9 @@ export const InertiaRibbonSection: React.FC<InertiaRibbonSectionProps> = ({ simp
   return (
     <section className="lab">
       <div className="lab-head">
-        <h2>Execution Primitives</h2>
+        <h2>One permission model. Multiple execution surfaces.</h2>
         <p>
-          Continuous momentum across Circuit's on-chain architecture: Dutch auctions, autonomous execution agents, and dynamic risk ratchets. Drag horizontally to inspect protocol primitives.
+          Credit: Borrowing and collateral actions remain bounded by current market state, position conditions, and capital policy. Autonomous Agents: Agents operate with explicit authority, limits, risk budgets, and expiry without receiving unrestricted control of capital. Meteora DBC: Liquidity actions are evaluated against the same risk-aware permission model before execution. Execution is modular. Authority is not.
         </p>
       </div>
       <div className="stage guides" data-note="Inertia ribbon">

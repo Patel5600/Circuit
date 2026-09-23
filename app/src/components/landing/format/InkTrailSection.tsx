@@ -135,15 +135,22 @@ export const InkTrailSection: React.FC<InkTrailSectionProps> = ({ simpleMode, is
           <canvas id="goo" ref={canvasRef} />
         </div>
         <div className="goo-txt goo-txt--hero">
-          <span className="goo-hero-tag">CAPITAL PERMISSION LAYER</span>
+          <span className="goo-hero-tag">ONCHAIN CAPITAL PERMISSIONS</span>
           <h1 className="goo-hero-title">
             CIRCUIT
           </h1>
-          <p className="goo-hero-def">
-            {simpleMode
-              ? "Programmable capital needs programmable permissions. Tokenized equities let agents and protocols move capital automatically. Circuit makes that capital conditional on live market state. Market -> Risk -> Permission -> Execution. Humans decide. Agents execute. Circuit enforces."
-              : "Programmable capital needs programmable permissions. Tokenized equities let agents and protocols move capital automatically. Circuit makes that capital conditional on live market state. Market -> Risk -> Permission -> Execution. Humans decide. Agents execute. Circuit enforces."}
+          <p className="goo-hero-def" style={{ fontWeight: 600, fontSize: "clamp(15px, 1.4vw, 20px)", margin: "0 0 6px 0" }}>
+            Programmable capital permissions for tokenized equities.
           </p>
+          <p className="goo-hero-def" style={{ marginTop: 0 }}>
+            Circuit converts live market conditions into enforceable onchain permissions for tokenized equities, credit protocols, liquidity venues, and autonomous agents.
+          </p>
+          <span className="goo-hero-tag" style={{ opacity: 0.85, marginTop: "6px" }}>
+            Market → Risk → Permission → Execution
+          </span>
+          <span className="goo-hero-tag" style={{ opacity: 0.7, fontSize: "clamp(9px, 0.85vw, 11px)" }}>
+            SOLANA · PYTH · TOKENIZED EQUITIES · METEORA DBC · AUTONOMOUS EXECUTION
+          </span>
         </div>
       </section>
     );
@@ -152,11 +159,9 @@ export const InkTrailSection: React.FC<InkTrailSectionProps> = ({ simpleMode, is
   return (
     <section className="lab" data-note="Ink trail">
       <div className="lab-head">
-        <h2>Continuous Liquid Credit</h2>
+        <h2>Capital Authorization</h2>
         <p>
-          {simpleMode
-            ? "Circuit Tokenized Equity Credit: Non-custodial lending pools over US equities on Solana Devnet."
-            : "Continuous liquidity and debt settlement: Over-collateralized borrowing against tokenized stocks with automated Dutch auction liquidations and autonomous risk envelopes."}
+          Circuit converts changing market conditions into enforceable capital permissions for tokenized equities and autonomous execution.
         </p>
       </div>
       <div className="stage goo-stage" id="goo-stage" ref={boxRef} data-note="Ink trail stage">
@@ -164,7 +169,7 @@ export const InkTrailSection: React.FC<InkTrailSectionProps> = ({ simpleMode, is
           <canvas id="goo" ref={canvasRef} />
         </div>
         <p className="goo-txt">
-          Circuit<br />Credit
+          Circuit<br />Kernel
         </p>
       </div>
     </section>

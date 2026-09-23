@@ -24,12 +24,12 @@ function toRandomCase(text: string, seed = 2026): string {
 export const ColourRevealSection: React.FC<ColourRevealSectionProps> = ({ simpleMode }) => {
   const revealRef = useRef<HTMLDivElement>(null);
 
-  // Paragraphs with deep Circuit technical explanation in randomized case
+  // Paragraphs explaining the Circuit Risk Kernel pipeline
   const paragraphs = useMemo(() => {
     const raw = [
-      "Circuit deploys continuous Dutch auctions for non-recourse debt liquidations, decaying execution prices along smooth deterministic curves to eliminate toxic MEV frontrunning and prevent cascading fire-sales across tokenized stocks.",
-      "Autonomous Agents allocate capital strictly within user-signed cryptographic risk envelopes, bounded by programmatic drawdown limits, maximum allowable slippage, and instant one-click authority revocation.",
-      "The dynamic Risk Ratchet swiftly compresses collateral LTV from 70% down to 50% during volatility shocks, while dual-bound Pyth oracles ingest sub-second confidence intervals (P ± σ) to enter Safe State and neutralize latency arbitrage across tokenized stocks.",
+      "A market condition enters Circuit's risk pipeline and becomes a deterministic permission decision.",
+      "Market State → MarketGuard → Risk Ratchet → Capital Policy → Permission Engine",
+      "Circuit connects market observation to capital authorization without making the frontend the final authority.",
     ];
 
     return raw.map((p, i) => toRandomCase(p, 1000 + i * 333));
@@ -120,11 +120,9 @@ export const ColourRevealSection: React.FC<ColourRevealSectionProps> = ({ simple
   return (
     <section className="lab" data-note="Colour reveal">
       <div className="lab-head">
-        <h2>Collateral Universe</h2>
+        <h2>The Risk Kernel</h2>
         <p>
-          {simpleMode
-            ? "Move your cursor across the stage to reveal Circuit's deep protocol mechanisms in randomized case."
-            : "Continuous Dutch auctions, cryptographic risk envelopes, and asymmetric LTV tapering across tokenized stocks. Move cursor to unveil protocol architecture."}
+          A market condition enters Circuit's risk pipeline and becomes a deterministic permission decision. Move cursor across the stage to inspect the pipeline.
         </p>
       </div>
       <div className="stage reveal-stage" data-note="Colour reveal stage">
@@ -139,14 +137,14 @@ export const ColourRevealSection: React.FC<ColourRevealSectionProps> = ({ simple
             <i className="ink" style={{ "--ox": "8%", "--oy": "-6%" } as React.CSSProperties} />
           </div>
 
-          {/* Layer 3: Protocol lore in randomized case — revealed strictly within cursor spotlight */}
+          {/* Layer 3: Risk Kernel pipeline text — revealed strictly within cursor spotlight */}
           <div className="reveal-para-box">
             {paragraphs.map((para, idx) => (
               <p key={idx}>{para}</p>
             ))}
           </div>
 
-          <span className="cap">MOVE CURSOR TO REVEAL PROTOCOL LORE →</span>
+          <span className="cap">MOVE CURSOR TO INSPECT THE RISK PIPELINE →</span>
         </div>
       </div>
     </section>

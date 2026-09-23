@@ -159,17 +159,23 @@ export const DialFieldHero: React.FC<DialFieldHeroProps> = ({ simpleMode }) => {
   }, []);
 
   return (
-    <section className="hero2" id="hero" ref={sectionRef} data-note="Dial field (Full screen)">
+    <section className="hero2" id="dial-hero" ref={sectionRef} data-note="Dial field (Full screen)">
       <canvas ref={canvasRef} id="dials" aria-hidden="true" />
       <div className="hero2-txt">
-        <small>
-          {simpleMode
-            ? "(Circuit Protocol) Pyth Dual-Bound Oracles & Sub-Second Epoch Synchronization"
-            : "(Circuit Protocol) Dual-Bound (P ± σ) Pyth Oracles • Meteora DBC Liquidity"}
+        <small style={{ textTransform: "uppercase", letterSpacing: "0.1em", opacity: 0.85 }}>
+          Circuit evaluates live market and position conditions before capital moves
         </small>
         <h1>
-          Dynamic Risk<br />Precision
+          Market state<br />becomes permission.
         </h1>
+        <div style={{ maxWidth: "680px", marginTop: "14px", fontSize: "clamp(12px, 1.1vw, 15px)", lineHeight: 1.5, opacity: 0.9 }}>
+          <p style={{ margin: "0 0 6px 0" }}>
+            Inputs include: validated oracle state · price freshness · oracle confidence · market session state · collateral value · debt · position LTV · actor authority · action limits · risk state · policy constraints.
+          </p>
+          <p style={{ margin: 0, fontWeight: 500 }}>
+            The result is not merely a risk signal. It is an enforceable capital boundary.
+          </p>
+        </div>
       </div>
     </section>
   );

@@ -157,53 +157,26 @@ export const ClockAndTiltedStack: React.FC<ClockAndTiltedStackProps> = ({ simple
     if (!track) return;
 
     const words = [
-      // 1. Core Architecture & Protocol Foundation
-      "CIRCUIT PROTOCOL",
-      "TOKENIZED STOCKS VAULT",
-      "NON-RECOURSE DEBT",
-      "SOLANA DEVNET EXECUTION",
-      "CHECKED RUST ARITHMETIC",
-      "ANCHOR PDA AUTHORITY",
-
-      // 2. Liquidity & Borrow Products
-      "OVER-COLLATERALIZED BORROWING",
-      "INSTANT USDC LIQUIDITY",
-      "DYNAMIC BONDING CURVES",
-      "METEORA DBC INTEGRATION",
-      "CROSS-MARGIN POSITIONING",
-      "NON-CUSTODIAL SETTLEMENT",
-
-      // 3. Autonomous Execution & Agent Flow
-      "AUTONOMOUS AGENTS",
-      "CRYPTOGRAPHIC RISK ENVELOPES",
-      "PRE-AUTHORIZED DRAWDOWN LIMITS",
-      "ONE-CLICK AUTHORITY REVOCATION",
-      "PROGRAMMATIC REBALANCING",
-      "PERMISSIONED PDA BOUNDARIES",
-
-      // 4. Telemetry, Oracles & Confidence Bands
-      "PYTH PULL ORACLES",
-      "SUB-SECOND CONFIDENCE BANDS",
-      "DUAL-BOUND PRICE VERIFICATION",
-      "ZERO LATENCY ARBITRAGE",
-      "REAL-TIME HEALTH METRICS",
-      "DYNAMIC VOLATILITY MONITOR",
-
-      // 5. Risk Ratchet & Protocol Solvency
-      "DYNAMIC RISK RATCHET",
-      "ASYMMETRIC LTV COMPRESSION",
-      "NORMAL REGIME 70% LTV",
-      "DEFENSIVE REGIME 50% LTV",
-      "EMERGENCY SAFE STATE",
-      "CAPITAL RECOVERY GUARANTEE",
-
-      // 6. Liquidation & Dutch Auction Settlement
-      "CONTINUOUS DUTCH AUCTIONS",
-      "DETERMINISTIC PRICE DECAY",
-      "ZERO MEV FRONTRUNNING",
-      "ORDERLY DEBT CLEARING",
-      "FLASH-CRASH RESISTANT",
-      "INSTITUTIONAL SOLVENCY ENGINE",
+      "CIRCUIT RISK KERNEL",
+      "MARKET STATE VECTOR",
+      "PYTH ORACLE VALIDATION",
+      "RISK RATCHET",
+      "DYNAMIC CAPITAL POLICY",
+      "POSITION-AWARE PERMISSIONS",
+      "RISK ENVELOPES",
+      "BOUNDED AGENT AUTHORITY",
+      "EXPIRING AUTHORIZATION",
+      "SINGLE-USE CAPABILITIES",
+      "RISK EPOCH VALIDATION",
+      "CPI-VERIFIABLE PERMISSIONS",
+      "CREDIT EXECUTION",
+      "METEORA DBC EXECUTION",
+      "ONCHAIN POLICY",
+      "ONCHAIN DECISION STATE",
+      "REAL-TIME PROTOCOL STATE",
+      "SOLANA DEVNET",
+      "RUST / ANCHOR",
+      "OPEN SOURCE",
     ];
     const set = words.map(w => `<p>${w}</p>`).join("");
     track.innerHTML = set + set + set;
@@ -255,11 +228,9 @@ export const ClockAndTiltedStack: React.FC<ClockAndTiltedStackProps> = ({ simple
   return (
     <section className="lab" data-note="Clock dial + Tilted type stack">
       <div className="lab-head">
-        <h2>Slot Clock &amp; Execution Stack</h2>
+        <h2>Capital is conditional.</h2>
         <p>
-          {simpleMode
-            ? "Left: Epoch slot synchronization. Right: High-velocity protocol primitives sliding with scroll inertia."
-            : "Left: Real-time Solana block time and Pyth oracle update slots. Right: Continuous momentum word loop inside a -8° skewed frame with scroll physics."}
+          Capital authority is not a permanent boolean. Effective permission depends on market state + position state + capital policy + actor authority + action limits. As conditions change, the permitted capital boundary changes with them. Permission is evaluated against current state.
         </p>
       </div>
 
@@ -269,7 +240,7 @@ export const ClockAndTiltedStack: React.FC<ClockAndTiltedStackProps> = ({ simple
           <div className="dial-wrap">
             <div className="dial" id="dial" ref={dialRef}>
               <span className="meta">
-                (Epoch)<b>Slot Clock</b>
+                (State Evaluator)<b>Permission Clock</b>
               </span>
             </div>
             <output className="readout" id="dial-out" ref={outRef} />
