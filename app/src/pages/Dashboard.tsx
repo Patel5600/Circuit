@@ -254,22 +254,23 @@ export default function Dashboard() {
             />
           </div>
 
-          {/* Row 4: Risk Topology Graph | Agent Capital Control */}
-          <div className="dashboard-row--split">
-            <div ref={topologyRef}>
-              <RiskTopologyGraph
-                isMarketOpen={Boolean(activeDecision.market.sessionOpen)}
-                isOracleFresh={activeDecision.oracle.freshness === "LIVE" || activeDecision.oracle.freshness === "RECENT"}
-                isConfidenceTight={Boolean(activeDecision.oracle.healthy)}
-                healthFactor={healthFactor}
-                borrowAllowed={Boolean(activeDecision.permission.allowed)}
-                blockedReason={
-                  activeDecision.permission.message ||
-                  humanizeReasonCode(activeDecision.permission.reasonCode)
-                }
-              />
-            </div>
+          {/* Row 4: Risk Topology Graph (Full Width) */}
+          <div ref={topologyRef} style={{ width: "100%" }}>
+            <RiskTopologyGraph
+              isMarketOpen={Boolean(activeDecision.market.sessionOpen)}
+              isOracleFresh={activeDecision.oracle.freshness === "LIVE" || activeDecision.oracle.freshness === "RECENT"}
+              isConfidenceTight={Boolean(activeDecision.oracle.healthy)}
+              healthFactor={healthFactor}
+              borrowAllowed={Boolean(activeDecision.permission.allowed)}
+              blockedReason={
+                activeDecision.permission.message ||
+                humanizeReasonCode(activeDecision.permission.reasonCode)
+              }
+            />
+          </div>
 
+          {/* Row 5: Agent + Activities Section */}
+          <div className="dashboard-row--split" style={{ alignItems: "stretch" }}>
             <div>
               <AgentCapitalControl
                 strategyName={domain.controlMode === "MANUAL" ? null : (domain.agentAuthority.strategyName || "Circuit Sovereign Sentinel")}
@@ -287,15 +288,14 @@ export default function Dashboard() {
                 }}
               />
             </div>
-          </div>
 
-          {/* Row 5: Recent Activity Timeline (Full width) */}
-          <div>
-            <ActivityTimeline
-              items={(activityItems ?? []).slice(0, 8)}
-              collateralSymbol={display.symbol}
-              onItemClick={() => navigate("/app/activity")}
-            />
+            <div>
+              <ActivityTimeline
+                items={(activityItems ?? []).slice(0, 8)}
+                collateralSymbol={display.symbol}
+                onItemClick={() => navigate("/app/activity")}
+              />
+            </div>
           </div>
         </div>
       )}
