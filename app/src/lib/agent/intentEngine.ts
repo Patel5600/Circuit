@@ -353,6 +353,36 @@ export function classifyIntent(
     };
   }
 
+  // 8b. Durable Intent & Conditional Execution ("when borrow allowed borrow 1000", "borrow automatically when allowed", "keep ltv below 35%")
+  const isConditionalDirective =
+    /\b(?:when\s+(?:circuit\s+allows?|borrow\s+is\s+allowed|borrowing\s+is\s+allowed|borrow\s+becomes\s+allowed|permitted|allowed)|wait\s+until|automatically\s+borrow|auto\s+borrow|borrow.*automatically|repay.*automatically|keep.*ltv|if\s+ltv)\b/i.test(lower);
+
+  if (isConditionalDirective) {
+    const asset = mentionedAssets[0]?.market || context.activeAsset || DEPLOYED_MARKETS[0];
+    const amount = parseAmount(lower) || 1000;
+    const action = parseActionVerb(lower) || "borrow";
+
+    // Extract LTV limit if present (e.g. "35% LTV", "below 35% LTV", "ltv <= 35%")
+    const ltvMatch = lower.match(/(?:below|<=|<|under|exceeds?|not\s+exceed)\s*([\d.]+)\s*%/i) ||
+                     lower.match(/([\d.]+)\s*%\s*ltv/i);
+    const targetLtvBps = ltvMatch ? Math.round(parseFloat(ltvMatch[1]) * 100) : 3500; // default 35%
+
+    const isContinuous = /\b(?:keep|maintain|always|continue|continuously)\b/i.test(lower);
+
+    return {
+      type: "DURABLE_INTENT_CREATE",
+      rawText: trimmed,
+      asset,
+      action,
+      amount,
+      targetLtvBps,
+      isContinuous,
+      conditionField: "PERMISSION_EQUALS",
+      triggerDescription: `WAIT_UNTIL: ${action.toUpperCase()} permission == ALLOWED`,
+      confidence: "HIGH",
+    };
+  }
+
   // 9. Capabilities query ("what can I do here?", "what are my options?", "help")
   if (/\b(?:what can i do|what are my options|available actions|capabilities|what is possible|how do i start|help)\b/.test(lower)) {
     return {

@@ -19,6 +19,8 @@ import { classifyIntent } from "./intentEngine";
 import { resolveAssetEntity } from "./entityResolver";
 import { AgentHarnessRateLimiter } from "./rateLimiter";
 import { evaluatePermission, ProtocolAction } from "../permission-engine";
+import { createDurableIntent } from "./intent/store";
+import type { DurableIntent } from "./intent/types";
 
 export interface ProtocolSnapshot {
   walletAddress: string | null;
@@ -432,6 +434,114 @@ export class AgentHarnessCoordinator {
         replyText = isAllowed
           ? `Prepared proposal to **${action.toUpperCase()} $${amount} USDC** against **${targetMarket.tokenSymbol}**. Click Approve & Sign below to confirm with your Solana wallet.`
           : `**${action.toUpperCase()} BLOCKED:** ${reason}`;
+        break;
+      }
+
+      case "DURABLE_INTENT_CREATE": {
+        const action = intent.action || "borrow";
+        const targetMarket = intent.asset || activeMarket;
+        const amount = intent.amount || 1000;
+        const maxLtvBps = intent.targetLtvBps || 3500;
+        const owner = snapshot.walletAddress || "11111111111111111111111111111111";
+        const intentId = `intent_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+
+        const durableIntent: DurableIntent = {
+          id: intentId,
+          owner,
+          agentId: "F5JmuDsKh9oswAhR9rJSfL2PGU1UpQF2cN3n7NjZrFAT", // Circuit Agent Devnet key
+          objective: intent.rawText,
+          triggerDescription: intent.triggerDescription || `WAIT_UNTIL: ${action.toUpperCase()} permission == ALLOWED`,
+          conditions: [
+            {
+              id: "c1",
+              field: "PERMISSION_EQUALS",
+              targetAction: action,
+              threshold: "ALLOWED",
+              description: `Circuit permission allows ${action.toUpperCase()}`,
+            },
+            {
+              id: "c2",
+              field: "LTV_BELOW",
+              threshold: maxLtvBps,
+              description: `Post-action LTV <= ${(maxLtvBps / 100).toFixed(1)}%`,
+            },
+            {
+              id: "c3",
+              field: "LIQUIDITY_ABOVE",
+              threshold: amount,
+              description: `Protocol vault reserves >= $${amount} USDC`,
+            },
+            {
+              id: "c4",
+              field: "ORACLE_FRESH",
+              threshold: true,
+              description: "Pyth oracle price feed fresh",
+            },
+          ],
+          action,
+          assetScope: [targetMarket.symbol],
+          amountLimits: {
+            maxAmountUsd: amount,
+            targetAmountUsd: amount,
+          },
+          riskLimits: {
+            maxLtvBps,
+            minHealthFactor: 1.15,
+          },
+          authoritySnapshot: {
+            pda: `auth_${owner.slice(0, 4)}_${targetMarket.symbol}`,
+            agentWallet: "F5JmuDsKh9oswAhR9rJSfL2PGU1UpQF2cN3n7NjZrFAT",
+            ownerWallet: owner,
+            assetMint: targetMarket.mint,
+            maxBorrowLimit: Math.max(amount, 2000),
+            maxWithdrawLimit: 0,
+            currentBorrowed: 0,
+            remainingBudgetUsd: Math.max(amount, 2000),
+            expiryTs: Math.floor(Date.now() / 1000) + 30 * 86400,
+            nonce: 0,
+            valid: true,
+          },
+          policyVersion: 1,
+          status: "ARMED",
+          createdAt: Date.now(),
+          expiresAt: Date.now() + 30 * 86400 * 1000,
+          executionCount: 0,
+          maxExecutions: intent.isContinuous ? 100 : 1,
+          retryPolicy: { maxRetries: 3, backoffMs: 2000 },
+          failureCount: 0,
+          nonce: 0,
+          isContinuous: Boolean(intent.isContinuous),
+        };
+
+        // Persist to store and sync to backend
+        createDurableIntent(durableIntent);
+
+        replyText =
+          `**Durable Execution Intent Armed.**\n\n` +
+          `• **Objective:** ${intent.rawText}\n` +
+          `• **Status:** ARMED · WATCHING onchain protocol state\n` +
+          `• **Waiting For:** ${action.toUpperCase()} permission = ALLOWED\n` +
+          `• **Guards:** Post-action LTV ≤ ${(maxLtvBps / 100).toFixed(1)}% · Oracle Fresh · Liquidity ≥ $${amount.toLocaleString()} USDC\n` +
+          `• **Max Amount:** $${amount.toLocaleString()} USDC against ${targetMarket.tokenSymbol}\n` +
+          `• **Authority:** Delegated Agent Signer (Zero human clicks required)\n\n` +
+          `The agent is now continuously observing onchain state. The moment conditions are satisfied, it will automatically verify the live state, simulate, sign with delegated authority, and confirm the transaction on Solana.`;
+
+        // Render card block
+        blocks.push({
+          type: "PROPOSAL_CARD",
+          id: intentId,
+          action,
+          symbol: targetMarket.symbol,
+          amountUsd: amount,
+          market: targetMarket,
+          riskState: snapshot.ratchetState,
+          permission: "ALLOWED",
+          reason: `Autonomous intent armed: auto-executes when permission is ALLOWED`,
+          borrowCapacityUsd: snapshot.availableCreditUsd,
+          agentLimitUsd: amount,
+          estimatedHfAfter: null,
+          timestamp: Date.now(),
+        });
         break;
       }
 

@@ -1,40 +1,46 @@
 /**
- * Circuit Protocol — Server-Side Task Store
+ * Circuit Protocol — Server-Side Task & Durable Intent Store
  *
- * In-memory Map shared across API handlers within the same Vercel instance.
- * Populated by /api/automation/sync calls from the client browser.
- * Survives hot reloads but resets on cold starts.
+ * In-memory Map shared across API handlers within the same process.
+ * Stores both legacy AutomationTasks and modern condition-aware DurableIntents.
  *
- * Upgrade path: set VERCEL_KV_URL to swap to Vercel KV (Redis) for
- * fully durable persistence without code changes.
+ * Provides concurrency control via taskId/intentId execution leases to prevent
+ * duplicate execution, race conditions, and replay attacks.
  */
 
 import type { AutomationTask } from "../../app/src/lib/automation/types";
+import type { DurableIntent, MachineReadableDecision } from "../../app/src/lib/agent/intent/types";
 
-// Global in-memory store shared between handlers in same process
+// Legacy task store
 const taskStore = new Map<string, AutomationTask>();
 const executionLog: { id: string; ts: number; owner: string; result: unknown }[] = [];
 const MAX_EXEC_LOG = 500;
 
-// Concurrency control for idempotent task execution
-const runningTaskLocks = new Set<string>();
+// Modern Durable Intent Store
+const intentStore = new Map<string, DurableIntent>();
+const decisionLog: MachineReadableDecision[] = [];
+const MAX_DECISION_LOG = 1000;
 
-export function acquireTaskLock(taskId: string): boolean {
-  if (runningTaskLocks.has(taskId)) return false;
-  runningTaskLocks.add(taskId);
+// Concurrency control for idempotent execution
+const runningLocks = new Set<string>();
+
+export function acquireTaskLock(id: string): boolean {
+  if (runningLocks.has(id)) return false;
+  runningLocks.add(id);
   return true;
 }
 
-export function releaseTaskLock(taskId: string): void {
-  runningTaskLocks.delete(taskId);
+export function releaseTaskLock(id: string): void {
+  runningLocks.delete(id);
 }
 
-export function isTaskLocked(taskId: string): boolean {
-  return runningTaskLocks.has(taskId);
+export function isTaskLocked(id: string): boolean {
+  return runningLocks.has(id);
 }
+
+// ── Legacy Task Methods ───────────────────────────────────────────────────
 
 export function syncTasks(owner: string, tasks: AutomationTask[]): void {
-  // Remove existing tasks for this owner then insert fresh
   for (const [id, t] of taskStore.entries()) {
     if (t.owner === owner) taskStore.delete(id);
   }
@@ -92,4 +98,52 @@ export function logExecution(owner: string, execId: string, result: unknown): vo
 export function getExecutionLogs(owner?: string): Array<{ id: string; ts: number; owner: string; result: unknown }> {
   if (!owner) return executionLog;
   return executionLog.filter(l => l.owner === owner);
+}
+
+// ── Modern Durable Intent Methods ─────────────────────────────────────────
+
+export function createDurableIntentServer(intent: DurableIntent): DurableIntent {
+  intentStore.set(intent.id, intent);
+  return intent;
+}
+
+export function getDurableIntentServer(id: string): DurableIntent | undefined {
+  return intentStore.get(id);
+}
+
+export function getAllActiveDurableIntents(): DurableIntent[] {
+  return Array.from(intentStore.values()).filter(i =>
+    i.status === "ARMED" || i.status === "WATCHING" || i.status === "TRIGGERED" || i.status === "WAITING"
+  );
+}
+
+export function getDurableIntentsByOwner(owner: string): DurableIntent[] {
+  return Array.from(intentStore.values()).filter(i => i.owner === owner);
+}
+
+export function updateDurableIntentServer(id: string, patch: Partial<DurableIntent>): DurableIntent | undefined {
+  const existing = intentStore.get(id);
+  if (existing) {
+    const updated = { ...existing, ...patch };
+    intentStore.set(id, updated);
+    return updated;
+  }
+  return undefined;
+}
+
+export function deleteDurableIntentServer(id: string, owner?: string): boolean {
+  const existing = intentStore.get(id);
+  if (!existing) return false;
+  if (owner && existing.owner !== owner) return false;
+  return intentStore.delete(id);
+}
+
+export function logDecisionRecord(decision: MachineReadableDecision): void {
+  decisionLog.unshift(decision);
+  if (decisionLog.length > MAX_DECISION_LOG) decisionLog.length = MAX_DECISION_LOG;
+}
+
+export function getDecisionRecords(intentId?: string): MachineReadableDecision[] {
+  if (!intentId) return decisionLog;
+  return decisionLog.filter(d => d.intentId === intentId);
 }

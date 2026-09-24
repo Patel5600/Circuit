@@ -21,6 +21,7 @@ import { DEPLOYED_MARKETS, DeployedMarket } from "../data/markets-registry";
 import { TasksPanel } from "../components/autonomous/TasksPanel";
 import { WatchesPanel } from "../components/autonomous/WatchesPanel";
 import { StrategiesPanel } from "../components/autonomous/StrategiesPanel";
+import { LiveAgentConsole } from "../components/autonomous/LiveAgentConsole";
 import { ExecutionFeed } from "../components/autonomous/ExecutionFeed";
 import { PolicyPreview } from "../components/autonomous/PolicyPreview";
 import { loadTasks, loadExecutions, syncToServer, parseTaskProposal, subscribeTasks } from "../lib/automation/store";
@@ -3077,8 +3078,14 @@ export default function Autonomous() {
 
         {/* TAB 4: AUTO MANAGE */}
         {activeTab === "AUTO MANAGE" && (
-          <div style={{ flex: 1, overflowY: "auto", background: "var(--surface-0)", padding: 0 }}>
-            <StrategiesPanel owner={wallet.address || ""} onAddStrategy={() => startAction("Auto manage: keep my health factor above 1.8, auto-repaying up to $200")} />
+          <div style={{ flex: 1, overflowY: "auto", background: "var(--surface-0)", padding: 20 }}>
+            <div style={{ maxWidth: 1000, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
+              <LiveAgentConsole
+                ownerAddress={wallet.address || ""}
+                onOpenAuthorityModal={() => setActiveTab("PERMISSIONS")}
+              />
+              <StrategiesPanel owner={wallet.address || ""} onAddStrategy={() => startAction("Auto manage: keep my health factor above 1.8, auto-repaying up to $200")} />
+            </div>
           </div>
         )}
 

@@ -44,6 +44,7 @@ export type IntentType =
   | "DBC_LIQUIDITY_PLAN"  // "provide liquidity to nvda pool within $100"
   | "DBC_EXIT_PLAN"       // "exit nvda liquidity position", "recover liquidity"
   | "DBC_STRATEGY_CREATE" // "keep dbc exposure below 10% of risk budget"
+  | "DURABLE_INTENT_CREATE" // "when borrow allowed, borrow 1000 automatically, LTV <= 35%"
   | "GENERAL_CHAT";       // general questions routed to AI gateway
 
 export interface StructuredIntent {
@@ -53,6 +54,10 @@ export interface StructuredIntent {
   asset?: DeployedMarket | null;
   amount?: number;
   timeframe?: "24h" | "7d";
+  targetLtvBps?: number;
+  isContinuous?: boolean;
+  conditionField?: string;
+  triggerDescription?: string;
   secondaryAsset?: DeployedMarket;
   condition?: string;
   subIntents?: StructuredIntent[];
@@ -60,6 +65,7 @@ export interface StructuredIntent {
   explanationTopics?: string[];
   requestedSymbols?: string[];
 }
+
 
 export type MessageBlockType =
   | "MARKET_CARD"
