@@ -223,28 +223,47 @@ export default function Markets() {
         {/* 3. Terminal Summary Stats Bar */}
         <div className="markets-summary-bar">
           <div className="markets-summary-item">
-            <div className="markets-summary-label">Total Equities</div>
+            <div className="markets-summary-label">
+              <span className="markets-summary-dot" style={{ background: "var(--text-3)" }} />
+              Total Equities
+            </div>
             <div className="markets-summary-value">{summaryCounts.total} ASSETS</div>
           </div>
 
           <div className="markets-summary-item">
-            <div className="markets-summary-label">Collateral Deployed</div>
-            <div className="markets-summary-value">{summaryCounts.live} MARKETS</div>
+            <div className="markets-summary-label">
+              <span className="markets-summary-dot" style={{ background: "var(--mint, #7fc39a)" }} />
+              Collateral Deployed
+            </div>
+            <div className="markets-summary-value" style={{ color: "var(--mint, #7fc39a)" }}>
+              {summaryCounts.live} MARKETS
+            </div>
           </div>
 
           <div className="markets-summary-item">
-            <div className="markets-summary-label">Recent Updates</div>
+            <div className="markets-summary-label">
+              <span className="markets-summary-dot" style={{ background: "var(--accent, #cfad74)" }} />
+              Recent Updates
+            </div>
             <div className="markets-summary-value">{summaryCounts.recent} ACTIVE</div>
           </div>
 
           <div className="markets-summary-item">
-            <div className="markets-summary-label">Discovery Pipeline</div>
+            <div className="markets-summary-label">
+              <span className="markets-summary-dot" style={{ background: "var(--text-3)" }} />
+              Discovery Pipeline
+            </div>
             <div className="markets-summary-value">{summaryCounts.soon} EQUITIES</div>
           </div>
 
-          <div className="markets-summary-item">
-            <div className="markets-summary-label">Meteora DBC</div>
-            <div className="markets-summary-value">{summaryCounts.dbc} POOLS</div>
+          <div className="markets-summary-item" style={{ borderColor: "rgba(129, 140, 248, 0.3)" }}>
+            <div className="markets-summary-label" style={{ color: "#a5b4fc" }}>
+              <span className="markets-summary-dot" style={{ background: "#818cf8" }} />
+              Meteora DBC
+            </div>
+            <div className="markets-summary-value" style={{ color: "#818cf8" }}>
+              {summaryCounts.dbc} POOLS
+            </div>
           </div>
         </div>
 
