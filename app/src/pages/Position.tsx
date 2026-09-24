@@ -665,6 +665,28 @@ export default function Position() {
                             <div className="row g-6" style={{ justifyContent: "flex-end" }} onClick={(e) => e.stopPropagation()}>
                               <button
                                 type="button"
+                                className="btn btn--accent btn--sm"
+                                style={{ height: 28, padding: "0 8px", fontSize: 11 }}
+                                onClick={() => {
+                                  const m = getDeployedMarket(pos.symbol);
+                                  if (m) openAction({ type: "borrow", market: m });
+                                }}
+                              >
+                                Borrow
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn--secondary btn--sm"
+                                style={{ height: 28, padding: "0 8px", fontSize: 11 }}
+                                onClick={() => {
+                                  const m = getDeployedMarket(pos.symbol);
+                                  if (m) openAction({ type: "repay", market: m });
+                                }}
+                              >
+                                Repay
+                              </button>
+                              <button
+                                type="button"
                                 className="btn btn--secondary btn--sm"
                                 style={{ height: 28, padding: "0 8px", fontSize: 11 }}
                                 onClick={() => handleDepositClick(pos)}

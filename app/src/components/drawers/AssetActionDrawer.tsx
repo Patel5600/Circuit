@@ -418,6 +418,21 @@ function AssetActionDrawerContent({ intent }: { intent: ActionIntent }) {
                   value={`$${formatMoney(availableBorrowUi)} ${quoteSymbol}`}
                   hint={`Under Risk Ratchet ${domainRisk.ratchetState}`}
                 />
+                <DataRow
+                  label="Vault Liquidity"
+                  value={`$${formatMoney(toUi(s.vaultLiquidity))} ${quoteSymbol}`}
+                  hint="Real USDC liquidity in protocol vault"
+                />
+                {collateralUi === 0 && (
+                  <Notice tone="neutral" title="Collateral Required">
+                    Deposit {tokenSymbol} collateral to activate borrowing power.
+                  </Notice>
+                )}
+                {parsedAmount > toUi(s.vaultLiquidity) && (
+                  <Notice tone="danger" title="Insufficient Vault Liquidity">
+                    Requested amount (${formatMoney(parsedAmount)}) exceeds protocol vault balance (${formatMoney(toUi(s.vaultLiquidity))}).
+                  </Notice>
+                )}
               </>
             )}
 
@@ -462,6 +477,11 @@ function AssetActionDrawerContent({ intent }: { intent: ActionIntent }) {
                   }
                   hint="Repaying debt restores collateral borrowing capacity"
                 />
+                {debtUi === 0 && (
+                  <Notice tone="neutral" title="No Active Debt">
+                    Repayment is unconditionally enabled across all market conditions and becomes active once debt is drawn against your collateral.
+                  </Notice>
+                )}
               </>
             )}
 
@@ -581,8 +601,9 @@ function AssetActionDrawerContent({ intent }: { intent: ActionIntent }) {
               !parsedAmount ||
               parsedAmount <= 0 ||
               isExecuting ||
-              (action === "borrow" && isBorrowBlocked) ||
-              (action === "withdraw" && isWithdrawBlocked)
+              (action === "borrow" && (isBorrowBlocked || parsedAmount > toUi(s.vaultLiquidity))) ||
+              (action === "withdraw" && isWithdrawBlocked) ||
+              (action === "repay" && debtUi === 0)
             }
             onClick={handleExecute}
             style={{ height: 44, fontSize: 14, fontWeight: 700 }}
@@ -594,10 +615,10 @@ function AssetActionDrawerContent({ intent }: { intent: ActionIntent }) {
               : action === "deposit"
               ? `Deposit ${tokenSymbol}`
               : action === "borrow"
-              ? `Borrow ${quoteSymbol}`
+              ? (parsedAmount > toUi(s.vaultLiquidity) ? "Insufficient Vault Liquidity" : `Borrow ${quoteSymbol}`)
               : action === "withdraw"
               ? `Withdraw ${tokenSymbol}`
-              : `Repay ${quoteSymbol}`}
+              : (debtUi === 0 ? "No Active Debt" : `Repay ${quoteSymbol}`)}
           </button>
         </div>
       </div>

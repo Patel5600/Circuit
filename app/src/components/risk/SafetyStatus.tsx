@@ -53,10 +53,10 @@ export function buildSafetyChecks(
   });
 
   checks.push({
-    name: "Stock market",
-    detail: session ? session.label : "Checking session",
-    ok: Boolean(session?.open),
-    status: session?.open ? "Open" : "Closed",
+    name: "Reference market",
+    detail: session ? `${session.label} · Secondary token trading continues 24/7` : "Checking session",
+    ok: true,
+    status: session?.open ? "Open" : "Off-Hours",
   });
 
   const custodyOk = asset ? asset.custodyState !== "impaired" : false;
