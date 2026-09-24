@@ -9,6 +9,10 @@
  */
 
 import { ProtocolAction, PermissionReasonCode, RiskRatchetState } from "../permission-engine";
+import { ReferenceMarketState, OnchainMarketState, OracleState, CircuitPermissionState } from "../market-data/types";
+import type { LiveStateInput } from "./evaluator";
+
+export type { ReferenceMarketState, OnchainMarketState, OracleState, CircuitPermissionState, LiveStateInput };
 
 export type ExecutionMode =
   | { mode: "MANUAL" }
@@ -49,12 +53,18 @@ export interface DecisionSnapshot {
     ageSeconds: number;
     ageSlots: number;
     freshness: OracleFreshness;
+    oracleState?: OracleState;
+    lastValidPrice?: number | null;
+    lastValidPublishTime?: number | null;
     healthy: boolean;
   };
 
   market: {
     expectedSessionState: string;
-    securityState: "NORMAL" | "HALTED_INFERRED" | "CLOSED" | "ORACLE_UNAVAILABLE";
+    referenceState?: ReferenceMarketState;
+    onchainState?: OnchainMarketState;
+    marketGuardState?: string;
+    securityState: "NORMAL" | "RESTRICTED" | "HALTED_INFERRED" | "CLOSED" | "ORACLE_UNAVAILABLE";
     sessionOpen: boolean;
     haltInference: HaltInferenceState;
     dataState: StateCategory;

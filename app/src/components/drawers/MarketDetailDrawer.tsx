@@ -56,14 +56,14 @@ export function MarketDetailDrawer({
   const ageSeconds: number | null = snapshot?.oracleTimestamp ? Math.max(0, Math.floor(Date.now() / 1000) - snapshot.oracleTimestamp) : null;
   const isSessionOpen = underlyingSession === "REGULAR";
   const isFeedStale = oracleStatus === "STALE" || (ageSeconds != null && ageSeconds > 60);
-  const derivedSecurityState: "NORMAL" | "CLOSED" | "HALTED_INFERRED" | "ORACLE_UNAVAILABLE" | "UNKNOWN" =
+  const derivedSecurityState: "NORMAL" | "RESTRICTED" | "HALTED_INFERRED" | "ORACLE_UNAVAILABLE" | "UNKNOWN" =
     snapshot?.securityState ??
     ((market as any)?.securityState
       ? (market as any).securityState
       : (market as any)?.haltState === "halted_inferred"
       ? "HALTED_INFERRED"
       : !isSessionOpen
-      ? "CLOSED"
+      ? "RESTRICTED"
       : isFeedStale && oracleStatus !== "UNAVAILABLE"
       ? "HALTED_INFERRED"
       : oracleStatus === "UNAVAILABLE"
@@ -286,14 +286,21 @@ export function MarketDetailDrawer({
                 ? "NORMAL"
                 : derivedSecurityState === "UNKNOWN"
                 ? "SYNCING"
-                : "CLOSED"}
+                : "RESTRICTED"}
             </Pill>
           </div>
 
           <div className="row between g-8" style={{ alignItems: "center" }}>
-            <span className="t-label">Expected Session</span>
+            <span className="t-label">Reference Market</span>
             <span className="mono" style={{ fontSize: 12 }}>
-              {isSessionOpen ? "OPEN (Active Reference Session)" : "CLOSED (Deterministic Calendar)"}
+              {isSessionOpen ? "OPEN (Active NYSE Session)" : "CLOSED (NYSE Reference Calendar)"}
+            </span>
+          </div>
+
+          <div className="row between g-8" style={{ alignItems: "center" }}>
+            <span className="t-label">Onchain Availability</span>
+            <span className="mono" style={{ fontSize: 12, color: "var(--mint, #7fc39a)" }}>
+              OPEN · 24/7 (Secondary Trading)
             </span>
           </div>
 

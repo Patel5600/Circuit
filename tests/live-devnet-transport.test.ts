@@ -101,7 +101,7 @@ describe("Circuit Protocol — Live Devnet Smoke & Transport Verification", func
     const priceUpdate = decodePriceUpdateV2(new Uint8Array(pythInfo!.data));
     expect(priceUpdate).to.not.be.null;
     expect(priceUpdate!.isFull).to.be.true;
-    expect(priceUpdate!.price).to.be.greaterThan(0n);
+    expect(priceUpdate!.price > 0n).to.be.true;
 
     const realPrice = Number(priceUpdate!.price) * Math.pow(10, priceUpdate!.exponent);
     console.log(`      [Live Devnet] Decoded ${nvdaMarket.symbol} Pyth price: $${realPrice.toFixed(2)} USD (Expo: ${priceUpdate!.exponent})`);

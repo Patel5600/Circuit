@@ -14,12 +14,16 @@ import {
   OracleFreshness,
   HaltInferenceState,
   StateCategory,
+  ReferenceMarketState,
+  OnchainMarketState,
+  OracleState,
 } from "./types";
 import {
   ProtocolAction,
   PermissionReasonCode,
   RiskRatchetState,
 } from "../permission-engine";
+import { classifyOracleState } from "../market-data/stream";
 
 export interface LiveStateInput {
   slot: number | null;
@@ -28,21 +32,27 @@ export interface LiveStateInput {
   // Protocol state
   protocolPaused: boolean;
   assetEnabled: boolean;
-  assetMint: string;
+  assetMint?: string;
   assetSymbol: string;
+  debtAssetSymbol?: string;
 
   // Oracle state
   oraclePrice: number;
-  oracleExpo: number;
-  oracleConf: number;
+  oracleExpo?: number;
+  oracleConf?: number;
   oracleConfBps: number;
   oraclePublishTime: number;
   globalOracleHealthy?: boolean;
+  oracleState?: OracleState;
+  lastValidPrice?: number | null;
+  lastValidPublishTime?: number | null;
 
   // Market & Session state
   isMarketOpen: boolean;
   sessionLabel?: string;
-  securityHaltState?: "normal" | "halted_inferred" | "closed" | "oracle_unavailable";
+  securityHaltState?: "normal" | "halted_inferred" | "closed" | "oracle_unavailable" | "restricted";
+  referenceMarketState?: ReferenceMarketState;
+  onchainMarketState?: OnchainMarketState;
 
   // Risk state
   ratchetState: RiskRatchetState;
@@ -102,24 +112,36 @@ export function evaluateAction(
   }
 
   const globalOracleHealthy = state.globalOracleHealthy ?? true;
+  const hasValidPrice = state.oraclePrice > 0 && (state.oraclePublishTime > 0 || (state.lastValidPrice ?? 0) > 0);
+  const derivedOracleState: OracleState = state.oracleState ?? classifyOracleState(
+    ageSeconds,
+    hasValidPrice,
+    state.oracleConfBps,
+    globalOracleHealthy
+  );
+
   const oracleHealthy =
     freshness !== "UNAVAILABLE" &&
     freshness !== "STALE" &&
     state.oracleConfBps <= 100 &&
     globalOracleHealthy;
 
-  // 2. Halt State & Session Inference
+  // 2. Canonical Independent Market States
+  const refMarketState: ReferenceMarketState = state.referenceMarketState ?? (state.isMarketOpen ? "OPEN" : "CLOSED");
+  const onchainMarketState: OnchainMarketState = state.onchainMarketState ?? "OPEN";
+
+  // 3. Halt State & Session Inference
   let haltInference: HaltInferenceState = "OPEN_NORMAL";
-  let expectedSessionState = state.sessionLabel ?? (state.isMarketOpen ? "Regular Session" : "Closed");
+  let expectedSessionState = state.sessionLabel ?? (refMarketState === "OPEN" ? "Regular Session" : "Closed");
 
   if (!globalOracleHealthy) {
     haltInference = "ORACLE_UNAVAILABLE";
-  } else if (!state.isMarketOpen) {
-    haltInference = "CLOSED";
   } else if (state.oraclePrice <= 0 || freshness === "UNAVAILABLE") {
     haltInference = "ORACLE_UNAVAILABLE";
-  } else if (state.isMarketOpen && ageSeconds > 60 && state.oraclePublishTime > 0) {
+  } else if (refMarketState === "OPEN" && ageSeconds > 60 && state.oraclePublishTime > 0) {
     haltInference = "HALTED_INFERRED";
+  } else if (refMarketState === "CLOSED") {
+    haltInference = "CLOSED";
   } else {
     haltInference = "OPEN_NORMAL";
   }
@@ -150,7 +172,7 @@ export function evaluateAction(
     state.ratchetState !== "EMERGENCY" &&
     haltInference !== "HALTED_INFERRED" &&
     haltInference !== "ORACLE_UNAVAILABLE" &&
-    state.isMarketOpen;
+    refMarketState === "OPEN";
 
   const withdrawAllowedByPolicy =
     !state.protocolPaused &&
@@ -259,10 +281,10 @@ export function evaluateAction(
       verdictCode = "CONFIDENCE_TOO_WIDE";
       verdictReason = `Oracle uncertainty interval (${state.oracleConfBps} bps) exceeds asset bound (100 bps).`;
       source = "ORACLE";
-    } else if (!state.isMarketOpen) {
+    } else if (refMarketState === "CLOSED") {
       verdictStatus = "BLOCK";
-      verdictCode = "MARKET_CLOSED";
-      verdictReason = "Reference equity market (NYSE) is closed. Credit creation locked.";
+      verdictCode = "RISK_STATE_RESTRICTED";
+      verdictReason = "Reference market is closed. Onchain trading remains available. Risk-increasing actions are restricted while oracle freshness is outside policy.";
       source = "CAPITAL_POLICY";
     } else if (action === "borrow" && (state.ratchetState === "DEFENSIVE" || state.ratchetState === "EMERGENCY")) {
       verdictStatus = "BLOCK";
@@ -320,26 +342,38 @@ export function evaluateAction(
   }
 
   return {
-    assetMint: state.assetMint,
+    assetMint: state.assetMint ?? "",
     assetSymbol: state.assetSymbol,
     slot: state.slot,
     blockTime: state.blockTime,
     executionMode,
     oracle: {
       price: state.oraclePrice,
-      expo: state.oracleExpo,
-      confidence: state.oracleConf,
+      expo: state.oracleExpo ?? -8,
+      confidence: state.oracleConf ?? 0,
       confBps: state.oracleConfBps,
       publishTime: state.oraclePublishTime,
       ageSeconds,
       ageSlots,
       freshness,
+      oracleState: derivedOracleState,
+      lastValidPrice: state.lastValidPrice ?? (state.oraclePrice > 0 ? state.oraclePrice : null),
+      lastValidPublishTime: state.lastValidPublishTime ?? (state.oraclePublishTime > 0 ? state.oraclePublishTime : null),
       healthy: oracleHealthy,
     },
     market: {
       expectedSessionState,
-      securityState: haltInference === "HALTED_INFERRED" ? "HALTED_INFERRED" : haltInference === "CLOSED" ? "CLOSED" : haltInference === "ORACLE_UNAVAILABLE" ? "ORACLE_UNAVAILABLE" : "NORMAL",
-      sessionOpen: state.isMarketOpen,
+      referenceState: refMarketState,
+      onchainState: onchainMarketState,
+      marketGuardState: state.ratchetState === "RESTRICTED" || refMarketState === "CLOSED" ? "RESTRICTED" : state.ratchetState,
+      securityState: haltInference === "HALTED_INFERRED"
+        ? "HALTED_INFERRED"
+        : haltInference === "ORACLE_UNAVAILABLE"
+        ? "ORACLE_UNAVAILABLE"
+        : refMarketState === "CLOSED"
+        ? "RESTRICTED"
+        : "NORMAL",
+      sessionOpen: refMarketState === "OPEN",
       haltInference,
       dataState: freshness === "UNAVAILABLE" ? "UNAVAILABLE" : freshness === "STALE" ? "STALE" : "ALLOW",
     },

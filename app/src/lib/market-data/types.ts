@@ -1,12 +1,21 @@
 import { PublicKey } from "@solana/web3.js";
 
 /**
- * 5 Independent Semantic Market Dimensions
+ * 4 Canonical Independent Semantic Domains:
+ * REFERENCE_MARKET ≠ ONCHAIN_MARKET ≠ ORACLE_STATE ≠ CIRCUIT_POLICY
  */
+export type ReferenceMarketState = "OPEN" | "CLOSED" | "HALTED" | "UNKNOWN";
+export type OnchainMarketState = "OPEN" | "CLOSED" | "ILLIQUID" | "UNKNOWN" | "TRADEABLE" | "NO_LIQUIDITY" | "UNAVAILABLE";
+export type OracleState = "FRESH" | "STALE" | "INVALID" | "UNAVAILABLE";
+export type CircuitPermissionState = "SAFE" | "RESTRICTED" | "DEFENSIVE" | "EMERGENCY" | "BLOCKED";
+
 export type UnderlyingSession = "REGULAR" | "PRE_MARKET" | "POST_MARKET" | "OVERNIGHT" | "CLOSED";
 export type OracleStatus = "LIVE" | "RECENT" | "STALE" | "UNAVAILABLE";
-export type MarketSecurityState = "NORMAL" | "HALTED_INFERRED" | "CLOSED" | "ORACLE_UNAVAILABLE" | "UNKNOWN";
-export type OnchainMarketState = "OPEN" | "TRADEABLE" | "NO_LIQUIDITY" | "UNAVAILABLE" | "UNKNOWN";
+/**
+ * MarketGuard Risk State (Circuit on-chain policy layer).
+ * INVARIANT: MarketGuard is NEVER "CLOSED". If reference market is closed, MarketGuard is RESTRICTED or SAFE.
+ */
+export type MarketSecurityState = "SAFE" | "RESTRICTED" | "DEFENSIVE" | "EMERGENCY" | "NORMAL" | "HALTED_INFERRED" | "ORACLE_UNAVAILABLE" | "UNKNOWN";
 export type CollateralStatus = "AVAILABLE" | "COMING_SOON" | "UNSUPPORTED";
 export type CreditPermissionStatus = "AVAILABLE" | "RESTRICTED" | "BLOCKED";
 
@@ -69,6 +78,17 @@ export interface MarketSnapshot {
   oracleConfidenceUsd: number;
   oracleConfBps: number; // e.g. 18 bps = 0.18% of price
   
+  // 4 Canonical Independent State Domains
+  referenceMarketState: ReferenceMarketState;
+  onchainMarketState: OnchainMarketState;
+  oracleState: OracleState;
+  circuitRiskState: CircuitPermissionState;
+
+  // Preserved Truthful Oracle Observation
+  lastValidPrice: number | null;
+  lastValidPublishTime: number | null;
+  oracleAgeSeconds: number | null;
+
   // 2. Underlying Equity Session
   underlyingSession: UnderlyingSession;
   sessionDescription?: string;

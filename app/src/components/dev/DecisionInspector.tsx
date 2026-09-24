@@ -7,7 +7,7 @@
 
 import React, { useState } from "react";
 import { useCircuitDomain } from "../../lib/domain/context";
-import { formatMoney, humanizeReasonCode } from "../../lib/format";
+import { formatMoney, humanizeReasonCode, stripUnderscores } from "../../lib/format";
 
 export function DecisionInspector() {
   const [isOpen, setIsOpen] = useState(false);
@@ -17,6 +17,23 @@ export function DecisionInspector() {
   const walletAddr = domain.wallet.address
     ? `${domain.wallet.address.slice(0, 4)}...${domain.wallet.address.slice(-4)}`
     : "Disconnected";
+
+  const oracleState = snap.oracle.oracleState ?? (snap.oracle.freshness === "LIVE" ? "FRESH" : snap.oracle.freshness === "STALE" ? "STALE" : snap.oracle.freshness === "UNAVAILABLE" ? "UNAVAILABLE" : "FRESH");
+
+  let pillLabel = "DECISION KERNEL · LIVE";
+  if (oracleState === "STALE") {
+    pillLabel = "DECISION KERNEL · ORACLE STALE";
+  } else if (oracleState === "UNAVAILABLE") {
+    pillLabel = "DECISION KERNEL · ORACLE UNAVAILABLE";
+  } else if (oracleState === "INVALID") {
+    pillLabel = "DECISION KERNEL · ORACLE INVALID";
+  } else if (snap.verdict.status === "BLOCK" && snap.market.referenceState === "CLOSED") {
+    pillLabel = "DECISION KERNEL · SESSION RESTRICTED";
+  } else if (snap.verdict.status === "ALLOW") {
+    pillLabel = "DECISION KERNEL · LIVE";
+  } else {
+    pillLabel = `DECISION KERNEL · ${stripUnderscores(snap.verdict.code).toUpperCase()}`;
+  }
 
   if (!isOpen) {
     return (
@@ -51,7 +68,7 @@ export function DecisionInspector() {
             background: snap.verdict.status === "ALLOW" ? "var(--success, #22c55e)" : "var(--warning, #eab308)",
           }}
         />
-        <span>DECISION KERNEL ({snap.verdict.code})</span>
+        <span>{pillLabel}</span>
       </button>
     );
   }
@@ -153,16 +170,17 @@ export function DecisionInspector() {
         {/* Section: Oracle & Market State */}
         <div>
           <div style={{ color: "var(--text-3)", fontWeight: 700, marginBottom: 4, textTransform: "uppercase" }}>
-            Oracle &amp; Market State
+            Four Independent Semantic Dimensions
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
+            <div>Reference: <strong style={{ color: (snap.market.referenceState ?? (snap.market.sessionOpen ? "OPEN" : "CLOSED")) === "OPEN" ? "var(--success)" : "var(--text-2)" }}>{snap.market.referenceState ?? (snap.market.sessionOpen ? "OPEN" : "CLOSED")}</strong></div>
+            <div>Onchain: <strong style={{ color: "var(--mint, #7fc39a)" }}>{snap.market.onchainState ? stripUnderscores(snap.market.onchainState) : "OPEN · 24/7"}</strong></div>
+            <div>Oracle: <strong style={{ color: oracleState === "FRESH" ? "var(--success)" : "var(--warning)" }}>{oracleState} ({snap.oracle.ageSeconds}s)</strong></div>
+            <div>MarketGuard: <strong style={{ color: (snap.market.marketGuardState ?? snap.risk.state) === "SAFE" ? "var(--success)" : "var(--warning)" }}>{stripUnderscores(snap.market.marketGuardState ?? snap.risk.state)}</strong></div>
             <div>Price: <strong>${formatMoney(snap.oracle.price)}</strong></div>
-            <div>Freshness: <strong style={{ color: snap.oracle.freshness === "LIVE" ? "var(--success)" : "var(--warning)" }}>{snap.oracle.freshness}</strong></div>
-            <div>Age: <strong>{snap.oracle.ageSeconds}s ({snap.oracle.ageSlots} slots)</strong></div>
             <div>Confidence: <strong>{snap.oracle.confBps} bps</strong></div>
             <div>Session: <strong>{snap.market.sessionOpen ? "OPEN" : "CLOSED"}</strong></div>
-            <div>Security State: <strong style={{ color: snap.market.securityState === "NORMAL" ? "var(--success)" : "var(--warning)" }}>{snap.market.securityState}</strong></div>
-            <div>Halt Inference: <strong>{snap.market.haltInference}</strong></div>
+            <div>Security State: <strong style={{ color: snap.market.securityState === "NORMAL" ? "var(--success)" : "var(--warning)" }}>{stripUnderscores(snap.market.securityState)}</strong></div>
           </div>
         </div>
 

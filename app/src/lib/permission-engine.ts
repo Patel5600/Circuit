@@ -58,6 +58,7 @@ export type PermissionReasonCode =
   | "MARKET_CLOSED"
   | "RISK_STATE_RESTRICTED"
   | "BORROW_DISABLED"
+  | "BORROW_DISABLED_BY_RISK_STATE"
   | "WITHDRAW_DISABLED"
   | "AGENT_UNAUTHORIZED"
   | "AGENT_EXPIRED"
@@ -130,6 +131,9 @@ export interface PermissionEvaluationParams {
   feedStalenessSeconds?: number;
   sessionExpectedOpen?: boolean;
   globalOracleHealthy?: boolean;
+  referenceMarketState?: "OPEN" | "CLOSED" | "HALTED" | "UNKNOWN";
+  onchainMarketState?: "OPEN" | "CLOSED" | "ILLIQUID" | "UNKNOWN" | "TRADEABLE";
+  oracleState?: "FRESH" | "STALE" | "INVALID" | "UNAVAILABLE";
 
   // Agent-specific parameters (ignored for HUMAN)
   agentAuthority?: {
@@ -283,6 +287,20 @@ function evaluatePermissionInternal(params: PermissionEvaluationParams): Permiss
         0
       );
     }
+  }
+
+  if (params.referenceMarketState === "CLOSED" && (action === "borrow" || (action === "withdraw" && currentDebtUsd > 0))) {
+    return makeResult(
+      false,
+      "RISK_STATE_RESTRICTED",
+      "Reference market is closed. Onchain trading remains available. Risk-increasing actions are restricted while oracle freshness is outside policy.",
+      riskState === "SAFE" ? "RESTRICTED" : riskState,
+      0,
+      0,
+      null,
+      0,
+      0
+    );
   }
 
   if (haltState === "closed" && (action === "borrow" || (action === "withdraw" && currentDebtUsd > 0))) {

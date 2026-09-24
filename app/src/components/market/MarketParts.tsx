@@ -100,6 +100,11 @@ export interface MarketRow {
   haltState?: "open_normal" | "closed" | "halted_inferred";
   feedStalenessSeconds?: number;
   globalOracleHealthy?: boolean;
+  referenceMarketState?: "OPEN" | "CLOSED" | "HALTED" | "UNKNOWN";
+  onchainMarketState?: string;
+  oracleState?: "FRESH" | "STALE" | "INVALID" | "UNAVAILABLE";
+  circuitRiskState?: "SAFE" | "RESTRICTED" | "DEFENSIVE" | "EMERGENCY" | "BLOCKED";
+  oracleAgeSeconds?: number | null;
 }
 
 /**
@@ -129,21 +134,39 @@ export function MarketCard({
   const change = row.change24hPercent ?? 0;
   const isPos = change >= 0;
   const sessionOpen = row.underlyingSession === "REGULAR";
+  const refMarketState = row.referenceMarketState ?? (sessionOpen ? "OPEN" : "CLOSED");
   const securityState =
     row.securityState ??
     (row.haltState === "halted_inferred"
       ? "HALTED_INFERRED"
-      : row.haltState === "closed"
-      ? "CLOSED"
-      : sessionOpen
-      ? "NORMAL"
-      : "CLOSED");
+      : row.haltState === "closed" || !sessionOpen
+      ? "RESTRICTED"
+      : "NORMAL");
   const haltState =
     securityState === "HALTED_INFERRED"
       ? "halted_inferred"
-      : securityState === "CLOSED"
+      : securityState === "RESTRICTED"
       ? "closed"
       : "open_normal";
+
+  const oracleAge = row.oracleAgeSeconds ?? (oracle ? oracle.ageSeconds : null);
+  const oracleDisplay = row.oracleState
+    ? `${row.oracleState}${oracleAge !== null ? ` · ${formatAge(oracleAge)}` : ""}`
+    : row.freshness
+    ? `${row.freshness}${oracleAge !== null ? ` · ${formatAge(oracleAge)}` : ""}`
+    : "LIVE";
+
+  const marketGuardDisplay =
+    row.circuitRiskState ??
+    (securityState === "HALTED_INFERRED"
+      ? "DEFENSIVE"
+      : securityState === "ORACLE_UNAVAILABLE"
+      ? "DEFENSIVE"
+      : refMarketState === "CLOSED"
+      ? "RESTRICTED"
+      : securityState === "NORMAL"
+      ? "SAFE"
+      : securityState);
 
   // Real mini sparkline
   const points = row.sparkline ?? [];
@@ -269,12 +292,12 @@ export function MarketCard({
         )}
       </div>
 
-      {/* 3. 4 Independent Semantic Dimensions */}
+      {/* 3. 5 Independent Semantic Dimensions */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: "8px 12px",
+          gridTemplateColumns: "repeat(auto-fit, minmax(75px, 1fr))",
+          gap: "8px 10px",
           background: "var(--surface-2, #12151d)",
           padding: "10px 12px",
           borderRadius: "var(--r-sm)",
@@ -283,58 +306,66 @@ export function MarketCard({
           marginBottom: 14,
         }}
       >
-        {/* Oracle */}
+        {/* Dimension 1: Reference */}
         <div>
-          <div style={{ color: "var(--text-3)", fontSize: 10, fontFamily: "var(--mono)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Oracle</div>
-          <div style={{ fontWeight: 600, color: "var(--text)", fontFamily: "var(--mono)", fontSize: 11.5, marginTop: 2 }}>
-            {row.freshness ?? "LIVE"}
+          <div style={{ color: "var(--text-3)", fontSize: 10, fontFamily: "var(--mono)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Reference</div>
+          <div style={{
+            fontWeight: 700,
+            color: refMarketState === "OPEN" ? "var(--mint, #7fc39a)" : "var(--text-2)",
+            fontFamily: "var(--mono)",
+            fontSize: 11,
+            marginTop: 2
+          }}>
+            {refMarketState}
           </div>
         </div>
 
-        {/* MarketGuard Status */}
+        {/* Dimension 2: Onchain */}
+        <div>
+          <div style={{ color: "var(--text-3)", fontSize: 10, fontFamily: "var(--mono)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Onchain</div>
+          <div style={{ fontWeight: 600, color: "var(--mint, #7fc39a)", fontFamily: "var(--mono)", fontSize: 11, marginTop: 2 }}>
+            OPEN · 24/7
+          </div>
+        </div>
+
+        {/* Dimension 3: Oracle */}
+        <div>
+          <div style={{ color: "var(--text-3)", fontSize: 10, fontFamily: "var(--mono)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Oracle</div>
+          <div style={{
+            fontWeight: 600,
+            color: (row.oracleState === "FRESH" || row.freshness === "LIVE") ? "var(--mint, #7fc39a)" : "var(--warning, #e69d45)",
+            fontFamily: "var(--mono)",
+            fontSize: 11,
+            marginTop: 2
+          }}>
+            {oracleDisplay}
+          </div>
+        </div>
+
+        {/* Dimension 4: MarketGuard */}
         <div>
           <div style={{ color: "var(--text-3)", fontSize: 10, fontFamily: "var(--mono)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>MarketGuard</div>
           <div style={{
             fontWeight: 700,
             color:
-              securityState === "HALTED_INFERRED"
-                ? "var(--warning, #e69d45)"
-                : securityState === "ORACLE_UNAVAILABLE"
-                ? "var(--warning, #cfad74)"
-                : securityState === "NORMAL"
+              marketGuardDisplay === "SAFE"
                 ? "var(--mint, #7fc39a)"
-                : securityState === "UNKNOWN"
-                ? "var(--text-3)"
-                : "var(--text-2)",
+                : marketGuardDisplay === "RESTRICTED"
+                ? "var(--text-2)"
+                : "var(--warning, #e69d45)",
             fontFamily: "var(--mono)",
             fontSize: 11,
             marginTop: 2
           }}>
-            {securityState === "HALTED_INFERRED"
-              ? "HALT INFERRED"
-              : securityState === "ORACLE_UNAVAILABLE"
-              ? "ORACLE SYNC"
-              : securityState === "NORMAL"
-              ? "NORMAL"
-              : securityState === "UNKNOWN"
-              ? "SYNCING"
-              : "CLOSED"}
+            {marketGuardDisplay}
           </div>
         </div>
 
-        {/* On-chain Market */}
-        <div>
-          <div style={{ color: "var(--text-3)", fontSize: 10, fontFamily: "var(--mono)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Onchain</div>
-          <div style={{ fontWeight: 600, color: "var(--text)", fontFamily: "var(--mono)", fontSize: 11.5, marginTop: 2 }}>
-            24/7 TRADEABLE
-          </div>
-        </div>
-
-        {/* Collateral Limit */}
+        {/* Dimension 5: Borrow Limit */}
         <div>
           <div style={{ color: "var(--text-3)", fontSize: 10, fontFamily: "var(--mono)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Borrow Limit</div>
-          <div style={{ fontWeight: 600, color: "var(--text)", fontFamily: "var(--mono)", fontSize: 11.5, marginTop: 2 }}>
-            {row.ltvBps !== null ? formatPercent(row.ltvBps) : "60%"} LTV
+          <div style={{ fontWeight: 600, color: "var(--text)", fontFamily: "var(--mono)", fontSize: 11, marginTop: 2 }}>
+            {row.ltvBps !== null ? formatPercent(row.ltvBps) : "70%"} LTV
           </div>
         </div>
       </div>
@@ -360,24 +391,25 @@ export function MarketCard({
         </div>
       )}
 
-      {/* Calm Closed Market Subtext */}
-      {securityState === "CLOSED" && (
+      {/* Reference Market Closed Explanatory Banner */}
+      {refMarketState === "CLOSED" && (
         <div
           style={{
             display: "flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "6px 8px",
+            alignItems: "flex-start",
+            gap: 8,
+            padding: "8px 10px",
             borderRadius: "var(--r-sm)",
             background: "var(--surface-3, #151821)",
             border: "1px solid var(--border-subtle, #1e222d)",
             fontSize: 10.5,
-            color: "var(--text-3)",
+            color: "var(--text-2)",
             marginBottom: 12,
+            lineHeight: 1.4,
           }}
         >
-          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--text-3)" }} />
-          <span>Reference market closed · Secondary token trading continues 24/7</span>
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--mint, #7fc39a)", marginTop: 4, flexShrink: 0 }} />
+          <span>Reference market is closed. Onchain trading remains available. Risk-increasing actions are restricted while oracle freshness is outside policy.</span>
         </div>
       )}
 
@@ -387,15 +419,15 @@ export function MarketCard({
           type="button"
           className="btn btn--primary btn--sm grow"
           onClick={onSelect}
-          disabled={!row.live || securityState === "HALTED_INFERRED" || securityState === "CLOSED" || securityState === "ORACLE_UNAVAILABLE"}
+          disabled={!row.live || securityState === "HALTED_INFERRED" || securityState === "ORACLE_UNAVAILABLE"}
           style={{ fontWeight: 600, fontSize: 12.5 }}
         >
           {securityState === "HALTED_INFERRED"
             ? "Borrow Paused (Halt Inferred)"
             : securityState === "ORACLE_UNAVAILABLE"
             ? "Oracle Syncing"
-            : securityState === "CLOSED"
-            ? "Market Closed"
+            : refMarketState === "CLOSED"
+            ? "Borrow Paused (Session Closed)"
             : !row.live
             ? "Discovery"
             : `Borrow ${isSol ? "SOL" : (row.quoteSymbol || "USDC")}`}

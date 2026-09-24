@@ -16,6 +16,9 @@ import {
   CollateralStatus,
   HistoricalPoint,
   Candle,
+  ReferenceMarketState,
+  OracleState,
+  CircuitPermissionState,
 } from "./types";
 import { MarketHistoryProvider, buildIntradayCurve, buildCandleSeries } from "./historical";
 
@@ -108,6 +111,32 @@ export function classifyFreshness(ageSeconds: number): DataFreshness {
 }
 
 /**
+ * Resolves the reference market state (NYSE/Nasdaq equity calendar).
+ * REFERENCE_MARKET ≠ ONCHAIN_MARKET.
+ */
+export function getReferenceMarketState(unixSeconds?: number): ReferenceMarketState {
+  const ts = unixSeconds ?? Math.floor(Date.now() / 1000);
+  const detailed = getDetailedMarketSession(ts);
+  return detailed.isOpen ? "OPEN" : "CLOSED";
+}
+
+/**
+ * Classifies oracle state across freshness, confidence bounds, and availability.
+ * Invariant: Never report STALE as UNAVAILABLE if last valid observation exists.
+ */
+export function classifyOracleState(
+  ageSeconds: number,
+  hasPrice: boolean,
+  confBps = 0,
+  globalHealthy = true
+): OracleState {
+  if (!hasPrice || !globalHealthy) return "UNAVAILABLE";
+  if (confBps > 100) return "INVALID";
+  if (ageSeconds <= 60) return "FRESH";
+  return "STALE";
+}
+
+/**
  * Unified Market Data Service & Coordinator Hook
  * Single coordinated fetch/update cycle across all 24 tokenized equities.
  */
@@ -115,6 +144,7 @@ function buildInitialSnapshots(): Record<string, MarketSnapshot> {
   const initial: Record<string, MarketSnapshot> = {};
   const now = Date.now();
   const sessionDetail = getDetailedMarketSession(Math.floor(now / 1000));
+  const refMarketState: ReferenceMarketState = sessionDetail.isOpen ? "OPEN" : "CLOSED";
   for (const asset of CANONICAL_ASSET_REGISTRY) {
     const price = asset.initialPriceUsd;
     initial[asset.symbol] = {
@@ -130,12 +160,19 @@ function buildInitialSnapshots(): Record<string, MarketSnapshot> {
       oracleTimestamp: 0,
       oracleConfidenceUsd: 0,
       oracleConfBps: 0,
+      referenceMarketState: refMarketState,
+      onchainMarketState: asset.collateralSupported ? "OPEN" : "CLOSED",
+      oracleState: "UNAVAILABLE",
+      circuitRiskState: refMarketState === "OPEN" ? "SAFE" : "RESTRICTED",
+      lastValidPrice: null,
+      lastValidPublishTime: null,
+      oracleAgeSeconds: null,
       underlyingSession: sessionDetail.session,
       sessionDescription: sessionDetail.label,
       onchainAvailability: asset.collateralSupported ? "TRADEABLE" : "UNAVAILABLE",
       collateralStatus: asset.collateralSupported ? "AVAILABLE" : "COMING_SOON",
-      securityState: sessionDetail.isOpen ? "UNKNOWN" : "CLOSED",
-      haltReason: sessionDetail.isOpen ? "Initializing market feed" : "Reference equity session is closed (NYSE calendar)",
+      securityState: sessionDetail.isOpen ? "UNKNOWN" : "RESTRICTED",
+      haltReason: sessionDetail.isOpen ? "Initializing market feed" : "Reference equity session is closed (NYSE calendar). Risk-increasing actions restricted while onchain trading remains available.",
       referencePrice24h: null,
       change24hUsd: null,
       change24hPercent: null,
@@ -392,27 +429,51 @@ export function useMarketDataService() {
         }
         previousPricesRef.current[asset.id] = activePriceUsd;
 
-        // 7. Separate 5 Independent Semantic Dimensions & Deterministic Security State
+        // 7. Separate 4 Independent Semantic Dimensions & Deterministic Security State
         const collateralStatus: CollateralStatus = asset.collateralSupported ? "AVAILABLE" : "COMING_SOON";
         const onchainAvailability: OnchainMarketState = asset.collateralSupported ? "TRADEABLE" : "UNAVAILABLE";
+        const onchainMarketState: OnchainMarketState = asset.collateralSupported ? "OPEN" : "CLOSED";
+        const referenceMarketState: ReferenceMarketState = sessionDetail.isOpen ? "OPEN" : "CLOSED";
+
+        const hasValidPrice = activePriceUsd !== null && activePriceUsd > 0 && activePublishTime > 0;
+        const lastValidPrice = hasValidPrice ? activePriceUsd : null;
+        const lastValidPublishTime = hasValidPrice ? activePublishTime : null;
+        const oracleAgeSeconds = activePublishTime > 0 ? Math.max(0, nowSeconds - activePublishTime) : null;
+
+        const oracleState: OracleState = classifyOracleState(
+          oracleAgeSeconds ?? 999999,
+          hasValidPrice,
+          activeConfBps,
+          globalOracleHealthy
+        );
 
         let securityState: MarketSecurityState = "NORMAL";
+        let circuitRiskState: CircuitPermissionState = "SAFE";
         let haltReason: string | undefined = undefined;
 
-        if (activeOracleStatus === "UNAVAILABLE" || activePriceUsd <= 0 || activePublishTime <= 0) {
+        if (oracleState === "UNAVAILABLE") {
           securityState = "ORACLE_UNAVAILABLE";
+          circuitRiskState = "BLOCKED";
           haltReason = "Price feed data unavailable or delayed";
-        } else if (!sessionDetail.isOpen) {
-          securityState = "CLOSED";
+        } else if (oracleState === "INVALID") {
+          securityState = "DEFENSIVE";
+          circuitRiskState = "DEFENSIVE";
+          haltReason = "Oracle confidence spread exceeds policy threshold";
+        } else if (referenceMarketState === "CLOSED") {
+          securityState = "RESTRICTED";
+          circuitRiskState = "RESTRICTED";
           haltReason = `Reference market closed · ${sessionDetail.nextTransitionLabel}`;
         } else if (!globalOracleHealthy) {
           securityState = "ORACLE_UNAVAILABLE";
+          circuitRiskState = "BLOCKED";
           haltReason = "Global oracle service delayed across feeds";
-        } else if (activePublishTime > 0 && (nowSeconds - activePublishTime) > 60) {
+        } else if (oracleState === "STALE") {
           securityState = "HALTED_INFERRED";
+          circuitRiskState = "RESTRICTED";
           haltReason = "Inferred from feed freshness and session expectations; exchange halt confirmation is not available.";
         } else {
           securityState = "NORMAL";
+          circuitRiskState = "SAFE";
           haltReason = undefined;
         }
 
@@ -429,6 +490,13 @@ export function useMarketDataService() {
           oracleTimestamp: activePublishTime,
           oracleConfidenceUsd: activeConfidenceUsd,
           oracleConfBps: activeConfBps,
+          referenceMarketState,
+          onchainMarketState,
+          oracleState,
+          circuitRiskState,
+          lastValidPrice,
+          lastValidPublishTime,
+          oracleAgeSeconds,
           underlyingSession: sessionDetail.session,
           sessionDescription: sessionDetail.label,
           onchainAvailability,

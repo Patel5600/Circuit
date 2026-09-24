@@ -81,8 +81,9 @@ describe("Circuit Market-State Semantics & Orthogonal Dimensions Suite", () => {
 
       const decision = evaluateAction(manualMode, "borrow", 500, closedState);
       expect(decision.market.haltInference).to.equal("CLOSED");
-      expect(decision.market.securityState).to.equal("CLOSED");
-      expect(decision.verdict.code).to.equal("MARKET_CLOSED");
+      expect(decision.market.securityState).to.equal("RESTRICTED");
+      expect(decision.market.referenceState).to.equal("CLOSED");
+      expect(decision.verdict.code).to.equal("RISK_STATE_RESTRICTED");
       expect(decision.verdict.status).to.equal("BLOCK");
       expect(decision.verdict.reason).to.include("closed");
     });

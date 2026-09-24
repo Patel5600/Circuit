@@ -750,7 +750,17 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
         pData?.publishTime ??
         (cached?.snapshot.update ? Number(cached.snapshot.update.publishTime) : 0) ??
         pos?.publishTime ??
-        (oraclePrice > 0 ? Math.floor(Date.now() / 1000) : 0);
+        ((mkt as any)?.lastValidPublishTime ? Number((mkt as any).lastValidPublishTime) : 0);
+
+      const lastValidPrice =
+        (mkt as any)?.lastValidPrice ??
+        (pos?.priceUsd && pos.priceUsd > 0 ? pos.priceUsd : (oraclePrice > 0 ? oraclePrice : null));
+      const lastValidPublishTime =
+        (mkt as any)?.lastValidPublishTime ??
+        (pos?.publishTime && pos.publishTime > 0 ? pos.publishTime : (oraclePublishTime > 0 ? oraclePublishTime : null));
+      const referenceMarketState = (mkt as any)?.referenceMarketState ?? (riskState.isMarketOpen ? "OPEN" : "CLOSED");
+      const onchainMarketState = (mkt as any)?.onchainMarketState ?? "OPEN";
+      const oracleState = (mkt as any)?.oracleState;
 
       return evaluateAction(
         isAgent
@@ -776,6 +786,11 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
           oraclePublishTime,
           globalOracleHealthy: !riskState.isStaleOracle,
           isMarketOpen: riskState.isMarketOpen,
+          referenceMarketState,
+          onchainMarketState,
+          oracleState,
+          lastValidPrice,
+          lastValidPublishTime,
           ratchetState: riskState.ratchetState,
           baseLtvBps: portfolioState.weightedBaseLtvBps || 7000,
           collateralUsd: collatUsd,

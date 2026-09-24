@@ -54,11 +54,11 @@ export default function Markets() {
       const priceUsd = snap?.priceUsd ?? (isCurrent && s.oracle?.priceUsd ? s.oracle.priceUsd : asset.initialPriceUsd);
 
       const securityState: MarketSecurityState =
-        snap?.securityState ?? (currentSession.isOpen ? "UNKNOWN" : "CLOSED");
+        snap?.securityState ?? (currentSession.isOpen ? "UNKNOWN" : "RESTRICTED");
       const haltState =
         securityState === "HALTED_INFERRED"
           ? "halted_inferred"
-          : securityState === "CLOSED"
+          : securityState === "RESTRICTED"
           ? "closed"
           : "open_normal";
 
@@ -88,6 +88,11 @@ export default function Markets() {
         mint: asset.mint,
         pythFeedId: asset.oracleFeedId,
         haltState,
+        referenceMarketState: snap?.referenceMarketState ?? (currentSession.isOpen ? "OPEN" : "CLOSED"),
+        onchainMarketState: snap?.onchainMarketState ?? (asset.collateralSupported ? "OPEN" : "CLOSED"),
+        oracleState: snap?.oracleState,
+        circuitRiskState: snap?.circuitRiskState,
+        oracleAgeSeconds: snap?.oracleAgeSeconds,
       };
     });
   }, [snapshots, s.market, s.oracle]);
