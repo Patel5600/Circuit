@@ -13,6 +13,7 @@
 import React from "react";
 import { LiveStrategyGraph, StrategyNodeId } from "./LiveStrategyGraph";
 import { DeployedMarket } from "../../data/markets-registry";
+import { AgentCapitalControl } from "../kit4/AgentCapitalControl";
 
 interface LiveAgentStatePanelProps {
   objective: string;
@@ -120,6 +121,15 @@ export function LiveAgentStatePanel({
           Capabilities ?
         </button>
       </div>
+
+      {/* Kit 4 Agent Capital Control */}
+      <AgentCapitalControl
+        strategyName={strategyName}
+        isArmed={Boolean(agentAuthority && agentAuthority.effectiveAuthority !== "NONE")}
+        borrowAllowed={permissionAllowed && riskState === "SAFE"}
+        availableCapacityUsd={availableCreditUsd}
+        onArmAuthority={onOpenCapabilityInspector}
+      />
 
       {/* 2. Current Objective */}
       <div

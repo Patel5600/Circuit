@@ -20,6 +20,7 @@ import { TransactionModal } from "../components/transactions/TransactionModal";
 import { RiskTopology3D } from "../components/risk/RiskTopology3D";
 import { RiskSensitivityMatrix } from "../components/risk/RiskSensitivityMatrix";
 import { MarketSelector } from "../components/market/MarketSelector";
+import { BorrowingPower } from "../components/kit4/BorrowingPower";
 import { useProtocolState } from "../hooks/useProtocolState";
 import { useTransaction } from "../hooks/useTransaction";
 import { useMarket } from "../context/MarketContext";
@@ -509,6 +510,20 @@ export default function Borrow() {
             )}
           </div>
         </Card>
+
+        {/* Kit 4 Borrowing Power Component */}
+        <BorrowingPower
+          availableCapacityUsd={toUi(max)}
+          totalCapacityUsd={toUi(s.risk?.capacityNative ?? 0n) || (toUi(s.risk?.collateralValueNative ?? 0n) * 0.7)}
+          currentDebtUsd={toUi(debt)}
+          collateralUsd={toUi(s.risk?.collateralValueNative ?? 0n)}
+          borrowAllowed={permResult.allowed && (decisionResult.capitalPolicy.borrowAllowed ?? true) && !s.protocol?.paused}
+          restrictionReason={permResult.message ? permResult.message.replace(/_/g, " ") : decisionResult.verdict.reason}
+          currencySymbol={quoteSymbol}
+          onBorrow={(borrowAmt) => {
+            setAmount(borrowAmt.toString());
+          }}
+        />
 
         {/* Step 1 - Market & Collateral Selection */}
         <Step

@@ -21,6 +21,7 @@ import { toUi } from "../lib/protocol";
 import { detectActivityPatterns } from "../lib/activity/pattern-engine";
 import { ActivityEvent, DetectedPattern } from "../lib/domain/types";
 import { TransactionDetailDrawer } from "../components/drawers/TransactionDetailDrawer";
+import { ActivityTimeline } from "../components/kit4/ActivityTimeline";
 
 const KIND_META: Record<
   ActivityKind,
@@ -369,86 +370,12 @@ export default function Activity() {
             </div>
           </div>
 
-          {/* CHRONOLOGICAL GROUPS */}
-          {grouped.today.length > 0 && (
-            <div className="stack g-8">
-              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-3)", paddingLeft: 4 }}>
-                TODAY
-              </div>
-              <Card flush>
-                <ul>
-                  {grouped.today.map((it) => (
-                    <ActivityRow
-                      key={it.signature}
-                      item={it}
-                      collateralSymbol={display.symbol}
-                      onClick={() => handleRowClick(it)}
-                    />
-                  ))}
-                </ul>
-              </Card>
-            </div>
-          )}
-
-          {grouped.yesterday.length > 0 && (
-            <div className="stack g-8">
-              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-3)", paddingLeft: 4 }}>
-                YESTERDAY
-              </div>
-              <Card flush>
-                <ul>
-                  {grouped.yesterday.map((it) => (
-                    <ActivityRow
-                      key={it.signature}
-                      item={it}
-                      collateralSymbol={display.symbol}
-                      onClick={() => handleRowClick(it)}
-                    />
-                  ))}
-                </ul>
-              </Card>
-            </div>
-          )}
-
-          {grouped.thisWeek.length > 0 && (
-            <div className="stack g-8">
-              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-3)", paddingLeft: 4 }}>
-                THIS WEEK
-              </div>
-              <Card flush>
-                <ul>
-                  {grouped.thisWeek.map((it) => (
-                    <ActivityRow
-                      key={it.signature}
-                      item={it}
-                      collateralSymbol={display.symbol}
-                      onClick={() => handleRowClick(it)}
-                    />
-                  ))}
-                </ul>
-              </Card>
-            </div>
-          )}
-
-          {grouped.older.length > 0 && (
-            <div className="stack g-8">
-              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-3)", paddingLeft: 4 }}>
-                OLDER
-              </div>
-              <Card flush>
-                <ul>
-                  {grouped.older.map((it) => (
-                    <ActivityRow
-                      key={it.signature}
-                      item={it}
-                      collateralSymbol={display.symbol}
-                      onClick={() => handleRowClick(it)}
-                    />
-                  ))}
-                </ul>
-              </Card>
-            </div>
-          )}
+          {/* KIT 4 ACTIVITY TIMELINE */}
+          <ActivityTimeline
+            items={items.filter((it) => actorFilter === "ALL" || it.actor === actorFilter)}
+            collateralSymbol={display.symbol}
+            onItemClick={handleRowClick}
+          />
         </div>
       )}
 

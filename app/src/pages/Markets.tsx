@@ -19,6 +19,7 @@ import { getDetailedMarketSession, classifyOracleStatus } from "../lib/market-da
 import { AssetLogo } from "../components/brand/AssetLogo";
 import { DbcPoolStatusPill } from "../components/dbc/DbcPoolStatusPill";
 import { getRegisteredDbcSymbols } from "../lib/meteora/registry";
+import { MarketConditionRow } from "../components/kit4/MarketConditionRow";
 
 type FilterTab = "all" | "live" | "gainers" | "losers" | "collateral" | "recent" | "soon" | "dbc";
 type SortOption = "default" | "gainers" | "losers" | "price_high" | "price_low" | "ltv";
@@ -32,6 +33,7 @@ export default function Markets() {
 
   const [filter, setFilter] = useState<FilterTab>("all");
   const [sortOption, setSortOption] = useState<SortOption>("default");
+  const [viewMode, setViewMode] = useState<"conditions" | "grid">("conditions");
   const [query, setQuery] = useState("");
   const [activeDrawerSnapshot, setActiveDrawerSnapshot] = useState<MarketSnapshot | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -220,56 +222,40 @@ export default function Markets() {
           />
         )}
 
-        {/* 3. Terminal Summary Stats Bar */}
-        <div className="markets-summary-bar">
-          <div className="markets-summary-item">
-            <div className="markets-summary-label">
-              <span className="markets-summary-dot" style={{ background: "var(--text-3)" }} />
-              Total Equities
-            </div>
-            <div className="markets-summary-value">{summaryCounts.total} ASSETS</div>
+        {/* 3. Kit 4 Terminal Summary Stats Bar */}
+        <div className="stats" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+          <div className="stat">
+            <span className="meta">(Assets) <b>Total Equities</b></span>
+            <b style={{ display: "block", fontSize: 18, marginTop: 4 }}>{summaryCounts.total} ASSETS</b>
+            <span style={{ fontSize: 11, color: "var(--mute)", fontFamily: "var(--mono)" }}>Canonical registry</span>
           </div>
 
-          <div className="markets-summary-item">
-            <div className="markets-summary-label">
-              <span className="markets-summary-dot" style={{ background: "var(--mint, #7fc39a)" }} />
-              Collateral Deployed
-            </div>
-            <div className="markets-summary-value" style={{ color: "var(--mint, #7fc39a)" }}>
+          <div className="stat">
+            <span className="meta">(Collateral) <b>Deployed Markets</b></span>
+            <b style={{ display: "block", fontSize: 18, marginTop: 4, color: "var(--ok)" }}>
               {summaryCounts.live} MARKETS
-            </div>
+            </b>
+            <span style={{ fontSize: 11, color: "var(--mute)", fontFamily: "var(--mono)" }}>Active loan facility</span>
           </div>
 
-          <div className="markets-summary-item">
-            <div className="markets-summary-label">
-              <span className="markets-summary-dot" style={{ background: "var(--accent, #cfad74)" }} />
-              Recent Updates
-            </div>
-            <div className="markets-summary-value">{summaryCounts.recent} ACTIVE</div>
+          <div className="stat">
+            <span className="meta">(Oracles) <b>Recent Feeds</b></span>
+            <b style={{ display: "block", fontSize: 18, marginTop: 4 }}>{summaryCounts.recent} ACTIVE</b>
+            <span style={{ fontSize: 11, color: "var(--mute)", fontFamily: "var(--mono)" }}>Pyth real-time stream</span>
           </div>
 
-          <div className="markets-summary-item">
-            <div className="markets-summary-label">
-              <span className="markets-summary-dot" style={{ background: "var(--text-3)" }} />
-              Discovery Pipeline
-            </div>
-            <div className="markets-summary-value">{summaryCounts.soon} EQUITIES</div>
-          </div>
-
-          <div className="markets-summary-item" style={{ borderColor: "rgba(129, 140, 248, 0.3)" }}>
-            <div className="markets-summary-label" style={{ color: "#a5b4fc" }}>
-              <span className="markets-summary-dot" style={{ background: "#818cf8" }} />
-              Meteora DBC
-            </div>
-            <div className="markets-summary-value" style={{ color: "#818cf8" }}>
+          <div className="stat">
+            <span className="meta">(Liquidity) <b>Meteora DBC</b></span>
+            <b style={{ display: "block", fontSize: 18, marginTop: 4, color: "var(--note)" }}>
               {summaryCounts.dbc} POOLS
-            </div>
+            </b>
+            <span style={{ fontSize: 11, color: "var(--mute)", fontFamily: "var(--mono)" }}>Dynamic curves</span>
           </div>
         </div>
 
-        {/* 4. Controls Toolbar: Search, Filters, Sorting */}
-        <div className="markets-controls-wrap">
-          <div className="markets-controls-top">
+        {/* 4. Controls Toolbar: Search, Filters, Sorting, View Toggle */}
+        <div className="card" style={{ padding: "16px 20px" }}>
+          <div className="row between g-14 wrap" style={{ alignItems: "center" }}>
             {/* Search */}
             <div style={{ flex: "1 1 280px", minWidth: 220 }}>
               <div style={{ position: "relative" }}>
@@ -280,7 +266,7 @@ export default function Markets() {
                   placeholder="Search ticker, company, quote (e.g. NVDA, AAPL, SOL, USDC)..."
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  style={{ width: "100%", paddingLeft: 32 }}
+                  style={{ width: "100%", paddingLeft: 32, fontFamily: "var(--mono)", fontSize: 12.5 }}
                 />
                 <span
                   style={{
@@ -288,7 +274,7 @@ export default function Markets() {
                     left: 10,
                     top: "50%",
                     transform: "translateY(-50%)",
-                    color: "var(--text-3)",
+                    color: "var(--dim)",
                     pointerEvents: "none",
                   }}
                 >
@@ -297,16 +283,33 @@ export default function Markets() {
               </div>
             </div>
 
-            {/* Sorting Dropdown */}
-            <div style={{ flex: "0 0 auto" }}>
+            {/* View Mode Toggle and Sorting */}
+            <div className="row g-10" style={{ alignItems: "center" }}>
+              <div className="seg" role="group" aria-label="View mode">
+                <button
+                  type="button"
+                  className={viewMode === "conditions" ? "active" : ""}
+                  onClick={() => setViewMode("conditions")}
+                >
+                  Conditions
+                </button>
+                <button
+                  type="button"
+                  className={viewMode === "grid" ? "active" : ""}
+                  onClick={() => setViewMode("grid")}
+                >
+                  Grid
+                </button>
+              </div>
+
               <select
                 value={sortOption}
                 onChange={(e) => setSortOption(e.target.value as SortOption)}
                 style={{
-                  background: "var(--surface-2, #12151d)",
-                  color: "var(--text)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "var(--r-sm)",
+                  background: "var(--bg)",
+                  color: "var(--ink)",
+                  border: "1px solid var(--line2)",
+                  borderRadius: 4,
                   padding: "7px 12px",
                   fontSize: 12,
                   fontFamily: "var(--mono)",
@@ -323,7 +326,7 @@ export default function Markets() {
           </div>
 
           {/* Filter Tabs Strip */}
-          <div className="markets-filters-strip">
+          <div className="row g-8 wrap" style={{ marginTop: 14, borderTop: "1px dashed var(--line)", paddingTop: 12 }}>
             {(
               [
                 { key: "all", label: `All (${summaryCounts.total})` },
@@ -338,15 +341,15 @@ export default function Markets() {
               <button
                 key={t.key}
                 type="button"
-                className="btn btn--sm"
+                className={`pill sm ${filter === t.key ? "active" : ""}`}
                 onClick={() => setFilter(t.key)}
                 style={{
-                  background: filter === t.key ? "var(--surface-3, #1e222d)" : "transparent",
-                  borderColor: filter === t.key ? "var(--text)" : "var(--border)",
-                  color: filter === t.key ? "var(--text)" : "var(--text-2)",
-                  fontSize: 12,
-                  fontWeight: filter === t.key ? 700 : 500,
-                  whiteSpace: "nowrap",
+                  background: filter === t.key ? "var(--ink)" : "transparent",
+                  color: filter === t.key ? "var(--bg)" : "var(--mute)",
+                  borderColor: filter === t.key ? "var(--ink)" : "var(--line2)",
+                  fontSize: 11.5,
+                  fontWeight: filter === t.key ? 600 : 400,
+                  cursor: "pointer",
                 }}
               >
                 {t.label}
@@ -355,34 +358,54 @@ export default function Markets() {
           </div>
         </div>
 
-        {/* 5. Adaptive Market Card Grid */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(310px, 1fr))",
-            gap: 16,
-          }}
-        >
-          {processedRows.map((row) => (
-            <MarketCard
-              key={`${row.symbol}-${row.quoteSymbol}`}
-              row={row}
-              oracle={s.market?.mint === row.mint ? s.oracle : null}
-              asset={s.market?.mint === row.mint ? s.asset : null}
-              session={s.session}
-              loading={loading && !row.priceUsd}
-              onSelect={() => handlePickMarket(row)}
-              onOpenDetail={() => handleOpenDetail(row)}
-            />
-          ))}
-        </div>
+        {/* 5. Main Content: Kit 4 Condition Rows or Card Grid */}
+        {viewMode === "conditions" ? (
+          <div className="card mc" style={{ padding: "20px 22px" }} data-note="Market conditions">
+            <div className="mc-h">
+              <span className="meta">(Circuit)<b>Market conditions & telemetry</b></span>
+              <span className="tag ok">CONTINUOUS OBSERVABILITY</span>
+            </div>
+            {processedRows.map((row) => (
+              <MarketConditionRow
+                key={`${row.symbol}-${row.quoteSymbol}`}
+                row={row}
+                onSelect={() => handleOpenDetail(row)}
+                onActionClick={(act, r) => {
+                  if (act === "borrow") handlePickMarket(r);
+                  else handleOpenDetail(r);
+                }}
+              />
+            ))}
+          </div>
+        ) : (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(310px, 1fr))",
+              gap: 16,
+            }}
+          >
+            {processedRows.map((row) => (
+              <MarketCard
+                key={`${row.symbol}-${row.quoteSymbol}`}
+                row={row}
+                oracle={s.market?.mint === row.mint ? s.oracle : null}
+                asset={s.market?.mint === row.mint ? s.asset : null}
+                session={s.session}
+                loading={loading && !row.priceUsd}
+                onSelect={() => handlePickMarket(row)}
+                onOpenDetail={() => handleOpenDetail(row)}
+              />
+            ))}
+          </div>
+        )}
 
         {processedRows.length === 0 && (
-          <Card>
-            <p className="t-sm muted center" style={{ padding: "20px 0" }}>
+          <div className="card" style={{ padding: "32px 20px", textAlign: "center" }}>
+            <p className="t-sm muted" style={{ margin: 0, fontFamily: "var(--mono)" }}>
               No markets match your search filter "{query}".
             </p>
-          </Card>
+          </div>
         )}
       </div>
 

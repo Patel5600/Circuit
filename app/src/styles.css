@@ -1,13 +1,7 @@
+@import "./styles/kit4.css";
+
 /* ==========================================================================
    circuit design system
-
-   Monochrome by default. The palette is black, white and graphite; hue only
-   appears where it carries meaning, and even then at low saturation. There is
-   deliberately no blue accent - the previous build read as a blue dashboard
-   rather than as an instrument.
-
-   Status is always carried by an icon or a label as well as colour, never by
-   colour alone.
    ========================================================================== */
 
 :root {
@@ -385,120 +379,109 @@ svg {
   }
 }
 
-/* Buttons â€” Capsule with Soft Liquid Glass Design System ------------------- */
+/* Buttons — Kit 4 Design System --------------------------------------------- */
 
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 40px;
   height: 40px;
   padding: 0 20px;
-  border-radius: 9999px !important;
-  border: 1px solid transparent;
-  font-size: 13.5px;
-  font-weight: 600;
+  border: 1px solid var(--ink);
+  border-radius: 4px;
+  background: var(--ink);
+  color: var(--bg);
+  font-family: var(--font);
+  font-weight: 500;
+  font-size: 14px;
   white-space: nowrap;
   cursor: pointer;
   box-sizing: border-box;
   text-decoration: none;
-  transition: all var(--t-fast);
-  position: relative;
-  overflow: hidden;
-  isolation: isolate;
+  transition: transform .2s var(--ease), opacity .2s, background .2s, color .2s, border-color .2s;
+}
+.btn:hover:not(:disabled) {
+  opacity: 0.92;
 }
 .btn:active:not(:disabled) {
-  transform: translateY(1px);
+  transform: scale(0.97);
 }
+.btn.dis,
 .btn:disabled {
+  opacity: 0.35;
+  pointer-events: none;
   cursor: not-allowed;
-  opacity: 0.55;
 }
 
-.btn--primary {
-  background: var(--text);
-  color: var(--surface-0);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.4);
-}
-.btn--primary:hover:not(:disabled) {
-  background: #ffffff;
-  color: #08080a;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.6);
-}
-
+.btn--primary,
 .btn--accent {
-  background: var(--accent);
-  color: #08080a;
-  border: 1px solid transparent;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  background: var(--ink);
+  color: var(--bg);
+  border: 1px solid var(--ink);
+  border-radius: 4px;
 }
+.btn--primary:hover:not(:disabled),
 .btn--accent:hover:not(:disabled) {
-  background: #ffffff;
-  color: #08080a;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  opacity: 0.92;
 }
 
+.btn.secondary,
 .btn--secondary {
-  background: var(--glass-bg) !important;
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--glass-border) !important;
-  box-shadow: var(--glass-shadow) !important;
-  color: var(--text) !important;
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 4px;
 }
+.btn.secondary:hover:not(:disabled),
 .btn--secondary:hover:not(:disabled) {
-  background: var(--glass-bg-hover) !important;
-  border-color: var(--glass-border-hover) !important;
-  box-shadow: var(--glass-shadow-hover) !important;
-  color: var(--text) !important;
-  transform: translateY(-1px);
+  background: var(--line2);
+  border-color: var(--ink);
+  color: var(--ink);
 }
+.btn.secondary:active:not(:disabled),
 .btn--secondary:active:not(:disabled) {
-  background: var(--glass-bg-active) !important;
-  transform: translateY(0);
+  transform: scale(0.97);
 }
 
 .btn--ghost {
-  background: var(--glass-bg) !important;
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--glass-border) !important;
-  box-shadow: var(--glass-shadow) !important;
-  color: var(--text-2) !important;
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid transparent;
+  border-radius: 4px;
 }
 .btn--ghost:hover:not(:disabled) {
-  background: var(--glass-bg-hover) !important;
-  border-color: var(--glass-border-hover) !important;
-  color: var(--text) !important;
-  box-shadow: var(--glass-shadow-hover) !important;
-  transform: translateY(-1px);
+  background: var(--line2);
+  color: var(--ink);
 }
 .btn--ghost:active:not(:disabled) {
-  background: var(--glass-bg-active) !important;
-  transform: translateY(0);
+  transform: scale(0.97);
 }
 
 .btn--danger {
-  background: var(--danger-dim);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--danger);
-  color: var(--danger);
+  background: var(--bad);
+  color: #ffffff;
+  border: 1px solid var(--bad);
+  border-radius: 4px;
 }
 .btn--danger:hover:not(:disabled) {
-  background: var(--danger);
-  color: #ffffff;
-  transform: translateY(-1px);
+  opacity: 0.9;
+}
+.btn--danger:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
+.btn.sm,
 .btn--sm {
-  min-height: 34px;
-  height: 34px;
-  padding: 0 14px;
+  min-height: 30px;
+  height: 30px;
+  padding: 0 12px;
   font-size: 12px;
+  border-radius: 4px;
+}
+
+.btn--block {
+  width: 100%;
 }
 
 /* Header & Application Capsule System --------------------------------------- */
