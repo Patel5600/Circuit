@@ -1,0 +1,1249 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>circuit — kit 4 · product components in the Format system</title>
+<style>
+/* =====================================================================
+   TOKENS — the format.obys.agency system (kits 1–3), carrying circuit's
+   functional colors (ok/warn/bad) as small, restrained accents only.
+   ===================================================================== */
+:root {
+  --bg: #e6e6e3; --paper: #fff; --ink: #000; --mute: #7d7d79; --dim: #adada8;
+  --line: rgba(0,0,0,.38); --line2: rgba(0,0,0,.16);
+  --note: #3d5afe; --note-ink: #fff;
+  --ok: #1f7a3d; --warn: #a15a00; --bad: #b3261e;
+  --font: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --ease: cubic-bezier(.2, .8, .2, 1);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1c1c1a; --paper: #131311; --ink: #f2f2ee; --mute: #97978f; --dim: #5c5c56;
+    --line: rgba(255,255,255,.32); --line2: rgba(255,255,255,.14);
+    --note: #8fa2ff; --ok: #4ade80; --warn: #ffb84d; --bad: #ff6b5e; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1c1c1a; --paper: #131311; --ink: #f2f2ee; --mute: #97978f; --dim: #5c5c56;
+  --line: rgba(255,255,255,.32); --line2: rgba(255,255,255,.14);
+  --note: #8fa2ff; --ok: #4ade80; --warn: #ffb84d; --bad: #ff6b5e; color-scheme: dark;
+}
+
+/* =====================================================================
+   BASE
+   ===================================================================== */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body { background: var(--bg); color: var(--ink); font: 400 15px/1.45 var(--font); -webkit-font-smoothing: antialiased; overflow-x: clip; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+a { color: inherit; text-decoration: none; }
+:focus-visible { outline: 2px solid var(--note); outline-offset: 3px; }
+[hidden] { display: none !important; }
+
+.guides {
+  background:
+    repeating-linear-gradient(90deg, var(--line) 0 6px, transparent 6px 12px) center / 100% 1px no-repeat,
+    repeating-linear-gradient(180deg, var(--line) 0 6px, transparent 6px 12px) center / 1px 100% no-repeat;
+}
+.pill { border: 1px solid currentColor; border-radius: 999px; padding: 7px 16px; font-size: 13px; transition: background .2s, color .2s; }
+.pill:hover, .pill[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.pill.sm { padding: 5px 13px; font-size: 12px; }
+.meta { display: block; font-size: 8px; line-height: 1.25; color: var(--dim); }
+.meta b { display: block; font-size: 9.5px; font-weight: 500; color: var(--ink); letter-spacing: -.01em; }
+.mono { font-family: var(--mono); }
+.tag { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border: 1px solid currentColor; border-radius: 999px; font: 600 10.5px var(--mono); letter-spacing: .08em; }
+.tag.ok { color: var(--ok); } .tag.warn { color: var(--warn); } .tag.bad { color: var(--bad); }
+.ink { position: absolute; inset: -40%; pointer-events: none; transform: translate(var(--ox, 0%), var(--oy, 0%)); filter: url(#ink-b); }
+.rng { -webkit-appearance: none; appearance: none; width: 100%; height: 2px; border-radius: 2px; background: linear-gradient(90deg, var(--ink) var(--v, 0%), var(--line2) var(--v, 0%)); outline-offset: 8px; }
+.rng::-webkit-slider-thumb { -webkit-appearance: none; width: 17px; height: 17px; border-radius: 50%; background: var(--paper); border: 2px solid var(--ink); cursor: grab; }
+.rng::-moz-range-thumb { width: 13px; height: 13px; border-radius: 50%; background: var(--paper); border: 2px solid var(--ink); cursor: grab; }
+.card { position: relative; background: var(--paper); border: 1px solid var(--line2); border-radius: 14px; box-shadow: 0 1px 2px rgba(0,0,0,.05); }
+
+/* =====================================================================
+   SHELL
+   ===================================================================== */
+.bar { position: sticky; top: 12px; z-index: 900; margin: 12px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; background: var(--paper); color: var(--ink); padding: 9px 16px; font-size: 14px; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.bar a, .bar button { color: inherit; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+.bar button { padding: 0 4px; }
+.bar button[aria-pressed="true"] { background: var(--ink); color: var(--bg); text-decoration: none; padding: 2px 8px; border-radius: 4px; }
+
+.hero { max-width: 1180px; margin: 0 auto; padding: 8vh 24px 5vh; }
+.hero h1 { font-weight: 400; font-size: clamp(38px, 7vw, 96px); line-height: .9; letter-spacing: -.05em; }
+.hero p { margin-top: 24px; max-width: 56ch; color: var(--mute); font-size: 15px; }
+
+.lab { max-width: 1180px; margin: 0 auto; padding: 0 24px 130px; }
+.lab-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 420px); gap: 14px 40px; padding-top: 22px; margin-bottom: 30px; border-top: 1px dashed var(--line); }
+.lab-head h2 { font-weight: 400; font-size: clamp(24px, 3vw, 38px); line-height: 1; letter-spacing: -.035em; }
+.lab-head p { font-size: 13px; color: var(--mute); }
+@media (max-width: 760px) { .lab-head { grid-template-columns: 1fr; } }
+.stage { position: relative; border: 1px dashed var(--line); padding: clamp(14px, 2.4vw, 30px); }
+[data-note] { position: relative; }
+.notes [data-note] { outline: 1px dashed var(--note); outline-offset: 8px; }
+.notes [data-note]::before { content: attr(data-note); position: absolute; left: -8px; top: -8px; transform: translateY(-100%); z-index: 5; background: var(--note); color: var(--note-ink); font: 500 10px var(--mono); line-height: 1; padding: 4px 6px; white-space: nowrap; pointer-events: none; }
+footer { max-width: 68ch; margin: 40px auto 90px; padding: 0 24px; font-size: 13px; color: var(--mute); }
+
+/* =====================================================================
+   01 COMMAND BAR
+   ===================================================================== */
+.tb { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; }
+.tb-l, .tb-r { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.brand { display: inline-flex; align-items: center; gap: 9px; font-weight: 500; font-size: 19px; letter-spacing: -.03em; }
+.brand svg { width: 24px; height: 24px; fill: none; stroke: var(--ink); stroke-width: 1.6; stroke-linecap: round; }
+.cmdchip { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; border: 1px solid var(--line2); border-radius: 4px; font: 600 11px var(--mono); letter-spacing: .1em; color: var(--mute); transition: border-color .2s, color .2s; }
+.cmdchip:hover { border-color: var(--ink); color: var(--ink); }
+kbd { font: 600 10.5px var(--mono); padding: 2px 6px; border: 1px solid var(--line2); border-radius: 4px; color: var(--mute); }
+.seg { position: relative; display: inline-grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 3px; border: 1px solid var(--line2); border-radius: 999px; --i: 0; --n: 2; }
+.seg .thumb { position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc((100% - 6px) / var(--n)); border-radius: 999px; background: var(--ink); transform: translateX(calc(var(--i) * 100%)); transition: transform .45s cubic-bezier(.3,1.4,.4,1); }
+.seg button { position: relative; z-index: 1; padding: 8px 18px; font: 600 11.5px var(--mono); letter-spacing: .06em; color: var(--mute); transition: color .3s; }
+.seg button[aria-checked="true"] { color: var(--bg); }
+.themebtn { display: inline-flex; align-items: center; gap: 8px; font: 500 13px var(--font); }
+.ic-swap { position: relative; width: 16px; height: 16px; }
+.ic-swap svg { position: absolute; inset: 0; width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; transition: transform .6s cubic-bezier(.3,1.4,.4,1), opacity .3s; }
+.ic-swap .sun { transform: rotate(-90deg) scale(0); opacity: 0; }
+[data-theme="dark"] .ic-swap .moon { transform: rotate(90deg) scale(0); opacity: 0; }
+[data-theme="dark"] .ic-swap .sun { transform: none; opacity: 1; }
+.anchor { position: relative; }
+.pchip { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; border: 1px solid var(--line2); border-radius: 999px; font: 500 12.5px var(--mono); transition: border-color .2s; }
+.pchip:hover { border-color: var(--ink); }
+.dotp { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); flex: none; animation: pulse 2s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .35; } }
+.pop { position: absolute; right: 0; top: calc(100% + 8px); z-index: 40; min-width: 220px; padding: 6px; background: var(--paper); border: 1px solid var(--line2); border-radius: 4px; box-shadow: 0 20px 40px -16px rgba(0,0,0,.35); transform-origin: top right; opacity: 0; visibility: hidden; transform: translateY(-6px) scale(.96); transition: opacity .2s, transform .3s var(--ease), visibility 0s .3s; }
+.anchor.open > .pop { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
+.pop button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; text-align: left; font-size: 13px; }
+.pop button:hover { background: var(--bg); }
+.pop hr { border: 0; height: 1px; background: var(--line2); margin: 5px 3px; }
+.pop .kv { display: flex; justify-content: space-between; padding: 7px 10px; font: 500 11.5px var(--mono); color: var(--mute); }
+.pop .kv b { color: var(--ink); font-weight: 600; }
+.prof { display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 14px; border: 1px solid var(--line2); border-radius: 4px; font-weight: 500; font-size: 13px; }
+.demo-note { margin-top: 16px; font: 500 12px var(--mono); color: var(--mute); }
+
+/* =====================================================================
+   02 COMMAND PALETTE
+   ===================================================================== */
+.cp { position: fixed; inset: 0; z-index: 1000; display: grid; justify-items: center; align-items: start; padding-top: 13vh; }
+.cp-bd { position: absolute; inset: 0; background: rgba(10,10,8,.4); backdrop-filter: blur(4px); opacity: 0; transition: opacity .25s; }
+.cp.show .cp-bd { opacity: 1; }
+.cp-box { position: relative; width: min(620px, 92vw); overflow: hidden; background: var(--paper); border: 1px solid var(--line2); border-radius: 4px; box-shadow: 0 40px 90px -30px rgba(0,0,0,.45); transform: translateY(-14px) scale(.97); opacity: 0; transition: transform .35s var(--ease), opacity .2s; }
+.cp.show .cp-box { transform: none; opacity: 1; }
+.cp-in { display: flex; align-items: center; gap: 12px; padding: 16px 18px; border-bottom: 1px dashed var(--line); }
+.cp-in svg { width: 17px; height: 17px; fill: none; stroke: var(--mute); stroke-width: 1.6; flex: none; }
+.cp-in input { flex: 1; border: 0; outline: 0; background: none; font: 500 15px var(--font); color: var(--ink); }
+.cp-list { max-height: min(54vh, 400px); overflow: auto; padding: 6px; }
+.cp-g { padding: 12px 10px 5px; }
+.cp-it { position: relative; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 4px; cursor: pointer; font-size: 14px; }
+.cp-it[aria-selected="true"] { background: var(--bg); }
+.cp-it[aria-selected="true"]::before { content: ""; position: absolute; left: 0; top: 9px; bottom: 9px; width: 2px; background: var(--ink); }
+.cp-it mark { background: none; color: var(--ink); font-weight: 700; box-shadow: inset 0 -2px 0 var(--note); }
+.cp-it kbd { margin-left: auto; }
+.cp-empty { padding: 30px; text-align: center; color: var(--mute); }
+.cp-ft { display: flex; gap: 16px; padding: 9px 16px; border-top: 1px dashed var(--line); font: 500 10.5px var(--mono); color: var(--mute); }
+.cp-ft span { display: inline-flex; gap: 5px; align-items: center; }
+
+/* =====================================================================
+   03 SIDEBAR
+   ===================================================================== */
+.sb-demo { display: grid; grid-template-columns: auto minmax(0, 1fr); min-height: 500px; padding: 0; }
+.sb { --w: 250px; position: relative; display: flex; flex-direction: column; width: var(--w); padding: 16px 12px; border-right: 1px dashed var(--line); transition: width .45s var(--ease); }
+.sb[data-collapsed="true"] { --w: 74px; }
+.sb-top { display: flex; align-items: center; justify-content: space-between; height: 36px; padding: 0 6px 0 8px; margin-bottom: 10px; }
+.sb[data-collapsed="true"] .sb-top { justify-content: center; padding: 0; }
+.sb[data-collapsed="true"] .sb-top .meta { display: none; }
+.sb-tg { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--line2); border-radius: 4px; transition: transform .45s var(--ease); }
+.sb[data-collapsed="true"] .sb-tg { transform: rotate(180deg); }
+.sb-tg svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.sb-nav { position: relative; display: grid; gap: 2px; }
+.sb-ind { position: absolute; left: 0; right: 0; top: 0; border-radius: 4px; box-shadow: inset 2px 0 0 var(--ink); background: var(--bg); transition: transform .5s cubic-bezier(.3,1.25,.4,1), height .3s; pointer-events: none; }
+.sb-nav a { position: relative; z-index: 1; display: flex; align-items: center; gap: 13px; height: 42px; padding: 0 14px; border-radius: 4px; color: var(--mute); font-size: 14.5px; white-space: nowrap; transition: color .2s; }
+.sb-nav a:hover, .sb-nav a.on { color: var(--ink); }
+.sb-nav a.on { font-weight: 500; }
+.sb-nav a svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; flex: none; }
+.sb[data-collapsed="true"] .sb-nav a { padding: 0; justify-content: center; }
+.sb[data-collapsed="true"] .sb-nav a span:not(.flag) { display: none; }
+.sb-nav .flag { width: 6px; height: 6px; margin-left: auto; border-radius: 50%; background: var(--warn); }
+.sb[data-collapsed="true"] .flag { position: absolute; top: 8px; right: 12px; margin: 0; }
+.sb-sep { height: 1px; background: var(--line2); margin: 8px 2px; }
+.sb[data-collapsed="true"] a:hover::after { content: attr(data-n); position: absolute; left: calc(100% + 10px); top: 50%; transform: translateY(-50%); padding: 5px 9px; background: var(--ink); color: var(--bg); font-size: 11.5px; border-radius: 4px; white-space: nowrap; z-index: 20; }
+.sb-prof { display: flex; align-items: center; gap: 10px; margin-top: auto; padding: 10px; border: 1px solid var(--line2); border-radius: 4px; overflow: hidden; }
+.sb-prof svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.6; flex: none; }
+.sb-prof .pt { display: grid; line-height: 1.2; white-space: nowrap; }
+.sb-prof small { font: 500 10.5px var(--mono); color: var(--mute); }
+.sb[data-collapsed="true"] .sb-prof .pt { display: none; }
+.sb-page { padding: 26px clamp(16px, 3vw, 34px); }
+.sb-page h3 { font-weight: 400; font-size: 30px; letter-spacing: -.03em; margin: 10px 0 20px; }
+.sb-page .rows { display: grid; gap: 10px; }
+.sb-page .rows > * { animation: rise .5s var(--ease) both; animation-delay: calc(var(--k) * 60ms); border: 1px dashed var(--line); border-radius: 4px; background: var(--bg); }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+@media (max-width: 720px) { .sb-demo { grid-template-columns: 1fr; } .sb { width: 100%; border-right: 0; border-bottom: 1px dashed var(--line); } .sb[data-collapsed="true"] { --w: 100%; } }
+
+/* =====================================================================
+   04 RISK GATE DIAL
+   ===================================================================== */
+.gate { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: clamp(20px, 4vw, 48px); align-items: center; }
+.gd-wrap { position: relative; }
+.gd svg { width: 100%; height: auto; overflow: visible; }
+.gd .arc-bg { fill: none; stroke: var(--line2); stroke-width: 10; stroke-linecap: round; }
+.gd .arc-fg { fill: none; stroke: var(--ink); stroke-width: 10; stroke-linecap: round; transition: stroke-dasharray .8s var(--ease), stroke .5s; }
+.gd .tick { stroke: var(--line); stroke-width: 1.5; }
+.gd .tk-lbl { font: 600 9px var(--mono); fill: var(--dim); letter-spacing: .05em; }
+.gd .needle { stroke: var(--ink); stroke-width: 2.5; stroke-linecap: round; transform-box: fill-box; transform-origin: center; transition: transform .8s cubic-bezier(.3,1.3,.4,1); }
+.gd .hub { fill: var(--paper); stroke: var(--ink); stroke-width: 2; }
+.gd .ink-fill { opacity: 0; transition: opacity .5s; }
+.gd[data-crit="true"] .ink-fill { opacity: .5; }
+.gd-read { position: absolute; left: 0; right: 0; bottom: 6%; text-align: center; }
+.gd-read span.meta { font-size: 10px; }
+.gd-state { font-weight: 400; font-size: clamp(26px, 3.4vw, 36px); letter-spacing: -.03em; margin-top: 2px; }
+.gate-r p.desc { color: var(--mute); font-size: 14.5px; max-width: 46ch; margin: 14px 0 16px; }
+.reasons { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; min-height: 30px; }
+.reasons span { padding: 4px 11px; border: 1px solid var(--line2); border-radius: 999px; font: 600 10.5px var(--mono); color: var(--mute); animation: rise .5s var(--ease) both; animation-delay: calc(var(--k) * 70ms); }
+@media (max-width: 760px) { .gate { grid-template-columns: 1fr; } .gd-wrap { max-width: 320px; margin: 0 auto; } }
+
+/* =====================================================================
+   05 METRIC DIALS
+   ===================================================================== */
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.stat { padding: 20px; min-height: 150px; overflow: hidden; }
+.stat .skel { position: absolute; left: 20px; right: 20px; top: 54px; display: grid; gap: 10px; opacity: 0; transition: opacity .3s; }
+.stat.loading .skel { opacity: 1; }
+.sk { border-radius: 4px; background: linear-gradient(90deg, var(--bg) 30%, var(--line2) 50%, var(--bg) 70%) 100% 0 / 300% 100%; animation: sheen 1.5s linear infinite; }
+@keyframes sheen { to { background-position: 0 0; } }
+.sk.h1 { height: 34px; width: 60%; } .sk.h2 { height: 12px; width: 36%; }
+.stat .body { transition: opacity .5s, transform .6s var(--ease); }
+.stat.loading .body { opacity: 0; transform: translateY(8px); }
+.big { display: flex; font-weight: 400; font-size: clamp(26px, 3vw, 34px); letter-spacing: -.03em; line-height: 1; font-variant-numeric: tabular-nums; }
+.dg { display: inline-block; height: 1em; overflow: hidden; }
+.dg .col { display: flex; flex-direction: column; transition: transform 1s var(--ease); transition-delay: calc(var(--k) * 40ms); }
+.dg i, .st { font-style: normal; height: 1em; line-height: 1; display: block; }
+.st { display: inline-block; height: 1em; }
+.sub { display: flex; align-items: center; gap: 9px; margin-top: 12px; font-size: 12.5px; color: var(--mute); }
+.delta { font: 600 11px var(--mono); }
+.delta.up { color: var(--ok); } .delta.dn { color: var(--bad); }
+.spark { position: absolute; right: 16px; top: 20px; width: 84px; height: 34px; overflow: visible; }
+.spark path { fill: none; stroke: var(--ink); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 200; stroke-dashoffset: 200; }
+.stat:not(.loading) .spark path { animation: draw 1.2s .3s var(--ease) forwards; }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+.dial-mini { position: absolute; right: 18px; top: 42px; width: 58px; height: 58px; transform: rotate(-90deg); }
+.dial-mini circle { fill: none; stroke-width: 6; }
+.dial-mini .bgc { stroke: var(--line2); }
+.dial-mini .fgc { stroke: var(--ink); transition: stroke-dashoffset 1s var(--ease); }
+.util { height: 4px; margin-top: 12px; border-radius: 4px; background: var(--line2); overflow: hidden; }
+.util i { display: block; height: 100%; width: 0; background: var(--ink); transition: width 1s var(--ease); }
+@media (max-width: 800px) { .stats { grid-template-columns: 1fr; } }
+
+/* =====================================================================
+   06 BORROWING POWER
+   ===================================================================== */
+.bp { max-width: 680px; margin: 0 auto; }
+.bp-big { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 12px; margin: 14px 0 18px; }
+.bp-big b { font-weight: 400; font-size: 34px; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.bp-big span { color: var(--mute); font-size: 13px; }
+.bp-bar { position: relative; display: flex; height: 24px; background: var(--bg); }
+.bp-bar .s { position: relative; height: 100%; width: 0; transition: width .9s var(--ease); }
+.bp-bar .used { background: var(--ink); }
+.bp-bar .av { background: repeating-linear-gradient(135deg, var(--paper) 0 8px, var(--bg) 8px 16px); box-shadow: inset 0 0 0 1px var(--line2); }
+.bp-bar .av.gated { background: repeating-linear-gradient(135deg, var(--ink) 0 2px, var(--paper) 2px 9px); }
+.bp-mk { position: absolute; top: -6px; bottom: -6px; width: 2px; margin-left: -1px; background: var(--ink); transition: left .3s var(--ease); }
+.bp-mk.over { background: var(--bad); }
+.bp-mk::after { content: attr(data-v); position: absolute; left: 50%; top: -20px; transform: translateX(-50%); font: 600 10px var(--mono); white-space: nowrap; color: inherit; }
+.bp-leg { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 12px 0 24px; font-size: 12px; color: var(--mute); }
+.bp-leg i { display: inline-block; width: 11px; height: 11px; margin-right: 7px; vertical-align: -1.5px; }
+.bp-try { display: grid; gap: 10px; margin-bottom: 16px; }
+.bp-try label { display: flex; justify-content: space-between; font-size: 13.5px; color: var(--mute); }
+.bp-try output { font: 600 13px var(--mono); color: var(--ink); }
+.bp-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 20px; border: 1px solid var(--ink); border-radius: 4px; background: var(--ink); color: var(--bg); font-weight: 500; font-size: 14px; transition: transform .2s, opacity .2s; }
+.btn:active { transform: scale(.97); }
+.btn.dis { opacity: .35; pointer-events: none; }
+.bp-why { font-size: 13px; color: var(--mute); }
+.bp-why.bad { color: var(--bad); }
+
+/* =====================================================================
+   07 LIQUIDATION LADDER
+   ===================================================================== */
+.lad { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 270px); gap: 26px; align-items: center; }
+.lad-w { position: relative; height: 360px; margin-left: 48px; touch-action: none; }
+.lad-z { position: absolute; left: 0; right: 0; transition: top .5s var(--ease), height .5s var(--ease); }
+.lad-z.ok { background: var(--paper); }
+.lad-z.watch { background: repeating-linear-gradient(135deg, var(--line2) 0 5px, transparent 5px 11px); }
+.lad-z.risk { background: repeating-linear-gradient(135deg, var(--dim) 0 4px, transparent 4px 9px); }
+.lad-z.liq { background: repeating-linear-gradient(135deg, var(--ink) 0 3px, transparent 3px 8px); }
+.lad-t { position: absolute; left: -48px; width: 40px; text-align: right; font: 500 10.5px var(--mono); color: var(--dim); transform: translateY(-50%); }
+.lad-tick { position: absolute; left: 0; right: 0; height: 1px; background: var(--line2); }
+.lad-line { position: absolute; left: -8px; right: -8px; height: 2px; background: var(--ink); transition: top .5s var(--ease); }
+.lad-line span { position: absolute; right: 0; top: -20px; font: 600 10px var(--mono); letter-spacing: .08em; }
+.lad-h { position: absolute; left: -8px; right: -8px; height: 34px; margin-top: -17px; display: flex; align-items: center; justify-content: center; border-radius: 4px; background: var(--paper); border: 1.5px solid var(--ink); font: 700 13px var(--mono); cursor: grab; box-shadow: 0 8px 20px -8px rgba(0,0,0,.3); }
+.lad-h.drag { cursor: grabbing; }
+.lad-h.liq { background: var(--ink); color: var(--bg); animation: shake .5s; }
+@keyframes shake { 20%,60% { transform: translateX(-5px); } 40%,80% { transform: translateX(5px); } }
+.lad-r { display: grid; gap: 12px; }
+.lad-r .row { display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 10px; border-bottom: 1px dashed var(--line); font-size: 13px; color: var(--mute); }
+.lad-r .row b { color: var(--ink); font-size: 20px; font-weight: 400; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+@media (max-width: 720px) { .lad { grid-template-columns: 1fr; } }
+
+/* =====================================================================
+   08 MARKET CONDITIONS (micro-spec, grows on hover/focus like kit1)
+   ===================================================================== */
+.mc-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.mc-row { --fs: 11px; position: relative; display: grid; grid-template-columns: minmax(140px, 1fr) minmax(0, 2fr) auto; align-items: center; gap: 16px; padding: 15px 4px; border-top: 1px dashed var(--line); transition: background .2s; }
+.mc-row:hover, .mc-row:focus-within { --fs: 13px; }
+.mc-row .name { font-weight: 500; font-size: 14px; }
+.mc-row .name small { display: block; margin-top: 3px; font: 500 var(--fs) var(--mono); color: var(--mute); transition: font-size .3s; }
+.mc-row .det { font: 500 12.5px var(--mono); color: var(--mute); }
+.mc-row .det b { color: var(--ink); }
+.mc.loading .real { opacity: 0; transform: translateY(6px); }
+.mc-row .real { display: contents; }
+.mc-row .real > * { transition: opacity .45s, transform .5s var(--ease); }
+.mc-row .skl { position: absolute; inset: 15px 4px; display: none; grid-template-columns: minmax(140px, 1fr) minmax(0, 2fr) 80px; gap: 16px; align-items: center; }
+.mc.loading .skl { display: grid; } .mc.loading .sk { height: 20px; }
+.day24 { position: relative; height: 8px; margin-top: 8px; background: var(--bg); }
+.day24 .ses { position: absolute; top: 0; bottom: 0; left: 39.583%; width: 27.083%; background: var(--line2); }
+.day24 .now { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--ink); }
+.meter { height: 6px; margin-top: 8px; background: var(--bg); overflow: hidden; }
+.meter i { display: block; height: 100%; width: 0; background: var(--ink); transition: width .8s linear; }
+.band { position: relative; height: 20px; margin-top: 6px; }
+.band::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: var(--line2); }
+.band i { position: absolute; top: 3px; bottom: 3px; left: 50%; background: var(--line2); border: 1px solid var(--dim); transform: translateX(-50%); width: 10%; transition: width .7s var(--ease); }
+.band i.wide { background: repeating-linear-gradient(135deg, var(--dim) 0 3px, transparent 3px 7px); }
+.band em { position: absolute; left: 50%; top: 0; bottom: 0; width: 1.5px; background: var(--ink); }
+.depth { display: flex; align-items: flex-end; gap: 3px; height: 20px; margin-top: 6px; }
+.depth i { flex: 1; max-width: 12px; background: var(--ink); opacity: .6; transition: height .6s var(--ease); }
+.mc-foot { margin-top: 4px; padding-top: 14px; border-top: 1px dashed var(--line); font: 500 11px var(--mono); color: var(--dim); }
+@media (max-width: 700px) { .mc-row { grid-template-columns: 1fr auto; } .mc-row .det { grid-column: 1 / -1; grid-row: 2; } }
+
+/* =====================================================================
+   09 RISK TOPOLOGY
+   ===================================================================== */
+.topo svg { width: 100%; height: auto; overflow: visible; display: block; }
+.topo .edge { fill: none; stroke: var(--line); stroke-width: 1.5; opacity: .6; transition: stroke .4s, opacity .3s; }
+.topo .edge.bad { stroke: var(--bad); stroke-dasharray: 3 6; }
+.topo .flow { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linecap: round; stroke-dasharray: 3 15; animation: flow 1s linear infinite; transition: opacity .3s; }
+.topo .flow.off { opacity: 0; }
+@keyframes flow { to { stroke-dashoffset: -18; } }
+.topo.dim .edge:not(.hl), .topo.dim .flow:not(.hl) { opacity: .08; }
+.topo .nd { cursor: pointer; outline: none; }
+.topo .nd circle.face { fill: var(--paper); stroke: var(--line2); stroke-width: 1.5; transition: stroke .3s; }
+.topo .nd:hover circle.face, .topo .nd:focus-visible circle.face { stroke: var(--ink); }
+.topo .nd.bad circle.face { stroke: var(--bad); }
+.topo .nd .dt { fill: var(--ok); transition: fill .3s; }
+.topo .nd.bad .dt { fill: var(--bad); }
+.topo .nd text { fill: var(--ink); font: 500 12.5px var(--font); pointer-events: none; }
+.topo .nd .v { font: 600 10px var(--mono); fill: var(--mute); letter-spacing: .04em; }
+.topo .nd.bad .v { fill: var(--bad); } .topo .nd.ok .v { fill: var(--ok); }
+.topo .hint { font: 500 10.5px var(--mono); fill: var(--dim); }
+.topo-why { display: flex; gap: 12px; align-items: flex-start; margin-top: 8px; padding: 14px 16px; border: 1px dashed var(--line); font-size: 13.5px; }
+.topo-why p { color: var(--mute); } .topo-why p b { color: var(--ink); }
+
+/* =====================================================================
+   10 AGENT CAPITAL CONTROL
+   ===================================================================== */
+.ag { max-width: 880px; margin: 0 auto; }
+.ag-h { display: flex; justify-content: space-between; align-items: center; }
+.ag-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 26px; margin-top: 20px; font-size: 14px; color: var(--mute); }
+.ag-row b { color: var(--ink); font-weight: 500; }
+.ag-row .st { font-weight: 600; }
+.ag-row .st.ok { color: var(--ok); } .ag-row .st.bad { color: var(--bad); }
+.ag-why { margin-top: 10px; font-size: 13px; color: var(--mute); min-height: 1.4em; }
+.ag-p { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .5s var(--ease); }
+.ag-p.open { grid-template-rows: 1fr; }
+.ag-p > div { overflow: hidden; }
+.ag-in { display: grid; gap: 20px; padding-top: 22px; margin-top: 18px; border-top: 1px dashed var(--line); }
+.ag-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; }
+.ag-fields label { display: grid; gap: 10px; font-size: 13px; color: var(--mute); }
+.ag-fields label span { display: flex; justify-content: space-between; }
+.ag-fields output { font: 600 12.5px var(--mono); color: var(--ink); }
+.ag-chips { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: 13px; color: var(--mute); }
+.ag-act { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.hold { --hp: 0; position: relative; overflow: hidden; height: 42px; padding: 0 22px; border: 1px solid var(--ink); border-radius: 4px; font-weight: 500; user-select: none; -webkit-user-select: none; touch-action: none; }
+.hold::before { content: ""; position: absolute; inset: 0; background: var(--ink); transform: scaleX(var(--hp)); transform-origin: left; transition: transform .05s linear; }
+.hold span { position: relative; mix-blend-mode: difference; color: #fff; }
+.hold[aria-disabled="true"] { opacity: .4; cursor: not-allowed; }
+.hold.armed::before { transform: scaleX(1); }
+.env { margin-top: 4px; }
+.env .bar { position: relative; height: 8px; margin-top: 8px; background: var(--bg); overflow: hidden; }
+.env .bar i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--ink); transition: width .8s var(--ease); }
+.env .bar i.g { background: repeating-linear-gradient(135deg, var(--dim) 0 4px, transparent 4px 9px); }
+.env small { font: 500 11.5px var(--mono); color: var(--mute); }
+@media (max-width: 720px) { .ag-fields { grid-template-columns: 1fr; } }
+
+/* =====================================================================
+   11 TX TOASTS
+   ===================================================================== */
+.toasts { position: fixed; top: 78px; right: 16px; z-index: 1100; display: grid; gap: 10px; width: min(340px, calc(100vw - 32px)); pointer-events: none; }
+.toast { position: relative; pointer-events: auto; overflow: hidden; display: grid; gap: 12px; padding: 14px 16px 15px; background: var(--paper); border: 1px solid var(--line2); border-radius: 4px; box-shadow: 0 20px 44px -18px rgba(0,0,0,.4); animation: tin .5s cubic-bezier(.3,1.3,.4,1); }
+.toast.out { animation: tout .3s ease forwards; }
+@keyframes tin { from { opacity: 0; transform: translateX(36px); } }
+@keyframes tout { to { opacity: 0; transform: translateX(36px); } }
+.toast .t-h { display: flex; gap: 11px; align-items: flex-start; }
+.toast .t-i { display: grid; place-items: center; width: 24px; height: 24px; flex: none; border-radius: 50%; border: 1.5px solid var(--line2); color: var(--mute); }
+.toast .t-i svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; }
+.toast.ok .t-i { border-color: var(--ok); color: var(--ok); } .toast.bad .t-i { border-color: var(--bad); color: var(--bad); }
+.toast .t-t { font-weight: 500; font-size: 14px; } .toast .t-b { margin-top: 2px; font-size: 12.5px; color: var(--mute); }
+.toast .t-x { margin-left: auto; color: var(--mute); }
+.steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.steps div { display: grid; gap: 6px; font: 600 9px var(--mono); letter-spacing: .05em; text-transform: uppercase; color: var(--dim); }
+.steps i { position: relative; display: block; height: 3px; background: var(--line2); overflow: hidden; }
+.steps i::after { content: ""; position: absolute; inset: 0; background: var(--ink); transform: scaleX(0); transform-origin: left; transition: transform .55s var(--ease); }
+.steps .on { color: var(--ink); } .steps .on i::after { transform: none; }
+.toast .life { position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: var(--line2); transform-origin: left; animation: life linear forwards; animation-duration: var(--ttl, 4s); }
+@keyframes life { to { transform: scaleX(0); } }
+.tx-demo { display: flex; flex-wrap: wrap; gap: 10px; }
+
+/* =====================================================================
+   12 ACTIVITY TIMELINE
+   ===================================================================== */
+.act { max-width: 720px; margin: 0 auto; }
+.act-h { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 24px; }
+.act-f { display: flex; gap: 8px; flex-wrap: wrap; }
+.act-f button { padding: 5px 13px; border: 1px solid var(--line2); border-radius: 999px; font: 600 11px var(--mono); transition: background .2s, color .2s; }
+.act-f button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.tl { position: relative; padding-left: 42px; --p: 0; }
+.tl::before { content: ""; position: absolute; left: 14px; top: 6px; bottom: 6px; width: 1px; background: var(--line2); }
+.tl::after { content: ""; position: absolute; left: 14px; top: 6px; width: 1px; height: calc((100% - 12px) * var(--p)); background: var(--ink); }
+.ev { position: relative; padding: 0 0 24px; opacity: .3; transform: translateX(-6px); transition: opacity .6s, transform .7s var(--ease); }
+.ev.lit { opacity: 1; transform: none; }
+.ev::before { content: ""; position: absolute; left: -35px; top: 4px; width: 12px; height: 12px; border-radius: 50%; background: var(--paper); border: 1.5px solid var(--line2); transition: border-color .4s, background .4s; }
+.ev.lit::before { border-color: var(--ink); background: var(--ink); }
+.ev .row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.ev b { font-weight: 500; font-size: 14.5px; }
+.ev .metaline { font: 500 11px var(--mono); color: var(--dim); }
+.ev p { margin-top: 3px; font-size: 13px; color: var(--mute); }
+
+/* =====================================================================
+   DOCK — simulator, drives every component above from one Risk store
+   ===================================================================== */
+.dock { position: fixed; left: 50%; bottom: 14px; z-index: 800; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; max-width: calc(100vw - 20px); overflow-x: auto; padding: 9px 13px; background: var(--paper); border: 1px solid var(--line2); border-radius: 4px; box-shadow: 0 20px 44px -16px rgba(0,0,0,.4); scrollbar-width: none; }
+.dock::-webkit-scrollbar { display: none; }
+.dock .g { display: grid; gap: 4px; flex: none; }
+.dock .g .meta { font-size: 8px; }
+.dock .sg { display: inline-flex; border: 1px solid var(--line2); border-radius: 4px; }
+.dock .sg button { padding: 4px 9px; font: 600 10.5px var(--mono); color: var(--mute); transition: background .2s, color .2s; }
+.dock .sg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.dock .rw { width: 110px; }
+.dock .dv { width: 1px; align-self: stretch; background: var(--line2); flex: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+.wipe { position: fixed; inset: 0; z-index: 1200; pointer-events: none; clip-path: circle(0 at var(--x) var(--y)); transition: clip-path .8s cubic-bezier(.7,0,.2,1), opacity .35s; }
+.wipe.go { clip-path: circle(150vmax at var(--x) var(--y)); } .wipe.fade { opacity: 0; }
+</style>
+<script>document.documentElement.classList.add('js')</script>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="ink-b" x="0%" y="0%" width="100%" height="100%" color-interpolation-filters="sRGB">
+    <feTurbulence type="fractalNoise" baseFrequency=".01 .016" numOctaves="3" seed="4"/>
+    <feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 14 -7.2"/>
+  </filter>
+</svg>
+
+<header class="bar">
+  <span>circuit — kit 4, in the system of <a href="https://format.obys.agency" target="_blank" rel="noopener">format.obys.agency</a></span>
+  <span><button data-toggle="notes" aria-pressed="false">Notes mode</button></span>
+</header>
+
+<main>
+  <section class="hero"><h1>Twelve parts<br>of the product.</h1>
+    <p>Circuit's real dashboard — risk gate, borrowing power, health, market conditions, agent authority — rebuilt in the format.obys.agency system: paper cards, dashed guides, Helvetica, one ink texture. One shared risk store drives every component; use the dock at the bottom to break things.</p>
+  </section>
+
+  <!-- ============================ 01 COMMAND BAR ============================ -->
+  <section class="lab">
+    <div class="lab-head"><h2>01 · Command bar</h2><p>Sliding MANUAL/AGENT switch (arrow keys work), a theme toggle that wipes the page from the click point, and popovers for network and wallet.</p></div>
+    <div class="stage guides" data-note="Command bar">
+      <div class="card tb">
+        <div class="tb-l"><span class="brand"><svg viewBox="0 0 24 24"><circle cx="4" cy="12" r="2.2"/><path d="M6.2 12H12"/><path d="M12 12h5.8" stroke-opacity=".4"/><circle cx="20" cy="12" r="2.2"/></svg>circuit</span>
+          <button class="cmdchip" data-cmd>COMMAND <kbd>⌘K</kbd></button></div>
+        <div class="seg" id="mode" role="radiogroup" aria-label="Mode"><i class="thumb"></i>
+          <button role="radio" aria-checked="true" data-v="manual" tabindex="0">MANUAL</button>
+          <button role="radio" aria-checked="false" data-v="agent" tabindex="-1">AGENT</button></div>
+        <div class="tb-r">
+          <button class="themebtn" data-theme-btn><span class="ic-swap"><svg class="moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg><svg class="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.4 1.4M17.6 17.6L19 19M5 19l1.4-1.4M17.6 6.4L19 5"/></svg></span><span class="theme-lbl">DARK</span></button>
+          <div class="anchor" id="net-a"><button class="pchip" id="net-b" aria-haspopup="true" aria-expanded="false"><i class="dotp"></i>Devnet</button>
+            <div class="pop" role="dialog" aria-label="Network"><div class="kv"><span>Cluster</span><b>devnet</b></div><div class="kv"><span>RPC latency</span><b id="net-lat">41 ms</b></div><div class="kv"><span>Slot</span><b id="net-slot">312,048,113</b></div><hr><div class="kv"><span>Sample values</span><b>simulated</b></div></div></div>
+          <div class="anchor" id="wal-a"><button class="pchip" id="wal-b" aria-haspopup="menu" aria-expanded="false">7Vdx...SEoJ</button>
+            <div class="pop" role="menu"><button role="menuitem" data-w="copy">Copy address</button><button role="menuitem" data-w="faucet">Request faucet</button><button role="menuitem" data-w="explorer">View on explorer</button><hr><button role="menuitem" data-w="disconnect">Disconnect</button></div></div>
+          <button class="prof"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>Profile</button>
+        </div>
+      </div>
+      <p class="demo-note" id="mode-note">Mode: manual</p>
+    </div>
+  </section>
+
+  <!-- ============================ 02 COMMAND PALETTE ============================ -->
+  <section class="lab">
+    <div class="lab-head"><h2>02 · Command palette</h2><p>Fuzzy search with matched letters underlined, grouped results, arrow-key navigation, and real actions — switch mode, toggle theme, fire a borrow, jump anywhere.</p></div>
+    <div class="stage guides" style="display:flex;flex-wrap:wrap;gap:16px;align-items:center">
+      <button class="btn" data-cmd>Open palette <kbd style="margin-left:8px;background:none">⌘K</kbd></button>
+      <span class="demo-note" style="margin:0" id="cp-last">Nothing run yet. Ctrl+K also works.</span>
+    </div>
+  </section>
+
+  <!-- ============================ 03 SIDEBAR ============================ -->
+  <section class="lab">
+    <div class="lab-head"><h2>03 · Sidebar</h2><p>A sliding indicator, a collapsible rail with hover tooltips, and a dot on Borrow that appears whenever the risk store says borrowing is constrained.</p></div>
+    <div class="stage" style="padding:0"><div class="card sb-demo">
+      <aside class="sb" id="sb" data-collapsed="false">
+        <div class="sb-top"><span class="meta">Platform</span><button class="sb-tg" id="sb-tg" aria-label="Collapse sidebar" aria-expanded="true"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button></div>
+        <nav class="sb-nav" id="sb-nav" aria-label="Platform"><i class="sb-ind"></i>
+          <a href="#" data-n="Dashboard" class="on" aria-current="page"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1"/><rect x="13.5" y="3.5" width="7" height="7" rx="1"/><rect x="3.5" y="13.5" width="7" height="7" rx="1"/><rect x="13.5" y="13.5" width="7" height="7" rx="1"/></svg><span>Dashboard</span></a>
+          <a href="#" data-n="Markets"><svg viewBox="0 0 24 24"><path d="M5 20V11M12 20V4M19 20v-6"/></svg><span>Markets</span></a>
+          <a href="#" data-n="Position"><svg viewBox="0 0 24 24"><path d="M4 8l8-4 8 4-8 4-8-4z"/><path d="M4 16l8 4 8-4"/></svg><span>Position</span></a>
+          <a href="#" data-n="Borrow"><svg viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M16.5 7.5c-.8-1.2-2.4-2-4.5-2-2.5 0-4 1.2-4 3s1.5 2.6 4 3 4 1.2 4 3-1.5 3-4 3c-2.2 0-3.9-.9-4.7-2.2"/></svg><span>Borrow</span><span class="flag" id="sb-flag" hidden></span></a>
+          <a href="#" data-n="Activity"><svg viewBox="0 0 24 24"><path d="M3 12h4l2.5-7 5 14 2.5-7h4"/></svg><span>Activity</span></a>
+          <div class="sb-sep"></div>
+          <a href="#" data-n="Learn"><svg viewBox="0 0 24 24"><path d="M2 9l10-5 10 5-10 5L2 9z"/></svg><span>Learn</span></a>
+          <a href="#" data-n="Verify"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6l8-3z"/></svg><span>Verify</span></a>
+          <a href="#" data-n="Faucet"><svg viewBox="0 0 24 24"><path d="M12 3c3 4 5 6.5 5 9.2a5 5 0 0 1-10 0C7 9.5 9 7 12 3z"/></svg><span>Faucet</span></a>
+        </nav>
+        <button class="sb-prof"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg><span class="pt"><b>Profile</b><small>RISK POSTURE</small></span></button>
+      </aside>
+      <div class="sb-page" id="sb-page"><span class="meta">Circuit</span><h3>Dashboard</h3>
+        <div class="rows"><div class="sk" style="--k:0;height:64px"></div><div class="sk" style="--k:1;height:110px"></div><div class="sk" style="--k:2;height:64px;width:70%"></div></div></div>
+    </div></div>
+  </section>
+
+  <!-- ============================ 04 RISK GATE DIAL ============================ -->
+  <section class="lab">
+    <div class="lab-head"><h2>04 · Portfolio risk gate</h2><p>A needle across NORMAL → RESTRICTED → CRITICAL. The circle fills with ink only at the critical end. Reasons are listed as they're triggered.</p></div>
+    <div class="stage guides" data-note="Risk gate dial">
+      <div class="gate">
+        <div class="gd-wrap"><div class="gd" id="gd" data-crit="false">
+          <svg viewBox="0 0 240 160" role="img" aria-label="Risk gate dial"><defs><clipPath id="gc"><path d="M20 130 A100 100 0 0 1 220 130 Z"/></clipPath></defs>
+            <path class="arc-bg" d="M20 130 A100 100 0 0 1 220 130"/>
+            <path class="arc-fg" id="gd-arc" d="M20 130 A100 100 0 0 1 220 130" stroke-dasharray="0 400"/>
+            <g clip-path="url(#gc)" class="ink-fill"><i class="ink" style="--ox:0%;--oy:0%"></i></g>
+            <line class="tick" x1="20" y1="130" x2="34" y2="117"/><line class="tick" x1="120" y1="30" x2="120" y2="46"/><line class="tick" x1="220" y1="130" x2="206" y2="117"/>
+            <text class="tk-lbl" x="14" y="146">NORMAL</text><text class="tk-lbl" x="103" y="24">RESTRICTED</text><text class="tk-lbl" x="182" y="146">CRITICAL</text>
+            <line class="needle" id="gd-needle" x1="120" y1="130" x2="120" y2="52"/><circle class="hub" cx="120" cy="130" r="7"/>
+          </svg>
+          <div class="gd-read"><span class="meta">(Circuit)<b>Risk state</b></span><div class="gd-state" id="gd-state">RESTRICTED</div></div>
+        </div></div>
+        <div class="gate-r">
+          <p class="desc" id="gd-desc">Reference equity market closed or elevated uncertainty. Borrowing constrained.</p>
+          <div class="reasons" id="gd-reasons"></div>
+          <button class="pill" data-topology>View Risk Topology →</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ 05 METRIC DIALS ============================ -->
+  <section class="lab">
+    <div class="lab-head"><h2>05 · Metric cards</h2><p>Skeleton to loaded with rolling digits, a hand-drawn sparkline, and a health ring — all reading the same shocked price as the ladder below.</p></div>
+    <div class="stage" data-note="Metric cards">
+      <div class="stats loading" id="stats">
+        <div class="card stat loading" data-k="col"><span class="meta">(Circuit)<b>Collateral value</b></span>
+          <div class="skel"><div class="sk h1"></div><div class="sk h2"></div></div>
+          <svg class="spark" viewBox="0 0 84 34" aria-hidden="true"><path d="M2 26 L12 23 L22 27 L33 17 L44 21 L55 12 L66 16 L82 5"/></svg>
+          <div class="body"><div class="big" data-roll="col"></div><div class="sub"><span class="delta up" id="col-d">+0.0%</span><span>vs. today</span></div></div></div>
+        <div class="card stat loading" data-k="debt"><span class="meta">(Circuit)<b>Borrowed</b></span>
+          <div class="skel"><div class="sk h1"></div><div class="sk h2"></div></div>
+          <div class="body"><div class="big" data-roll="debt"></div><div class="sub"><span id="util-t">33.7% of collateral</span></div><div class="util"><i id="util-b"></i></div></div></div>
+        <div class="card stat loading" data-k="hf"><span class="meta">(Circuit)<b>Health</b></span>
+          <div class="skel"><div class="sk h1"></div><div class="sk h2"></div></div>
+          <svg class="dial-mini" viewBox="0 0 58 58" aria-hidden="true"><circle class="bgc" cx="29" cy="29" r="23"/><circle class="fgc" id="ring-f" cx="29" cy="29" r="23" stroke-dasharray="144.5" stroke-dashoffset="144.5"/></svg>
+          <div class="body"><div class="big" data-roll="hf"></div><div class="sub"><span id="hf-t">Healthy</span></div></div></div>
+      </div>
+      <div style="margin-top:16px"><button class="pill sm" id="stats-replay">Replay loading</button></div>
+    </div>
+  </section>
+
+  <!-- ============================ 06 BORROWING POWER ============================ -->
+  <section class="lab">
+    <div class="lab-head"><h2>06 · Borrowing power</h2><p>Capacity frozen by the market gate is drawn as ink hatching, not hidden. Slide to preview a borrow — the marker turns red past your power.</p></div>
+    <div class="stage guides"><div class="card bp" style="padding:22px" data-note="Borrowing power">
+      <span class="meta">(Circuit)<b>Borrowing power</b></span>
+      <div class="bp-big"><b id="bp-av">$0.00</b><span>available</span><span class="tag warn" id="bp-chip">Constrained</span></div>
+      <div class="bp-bar" id="bp-bar"><i class="s used"></i><i class="s av"></i><i class="bp-mk" id="bp-mk"></i></div>
+      <div class="bp-leg"><span><i style="background:var(--ink)"></i>Borrowed</span><span><i style="background:repeating-linear-gradient(135deg,var(--paper) 0 4px,var(--bg) 4px 8px);box-shadow:inset 0 0 0 1px var(--line2)"></i>Available</span><span><i style="background:repeating-linear-gradient(135deg,var(--ink) 0 2px,var(--paper) 2px 5px)"></i>Gated by market state</span></div>
+      <div class="bp-try"><label for="bp-r">Try a borrow <output id="bp-out">$0</output></label><input class="rng" id="bp-r" type="range" min="0" max="100" value="30"></div>
+      <div class="bp-row"><button class="btn" id="bp-go">Borrow</button><span class="bp-why" id="bp-why"></span></div>
+    </div></div>
+  </section>
+
+  <!-- ============================ 07 LIQUIDATION LADDER ============================ -->
+  <section class="lab">
+    <div class="lab-head"><h2>07 · Liquidation ladder</h2><p>Drag the handle, or use arrow keys, to move the equity price. It shares the price shock with the metric cards, and shakes when it crosses the line.</p></div>
+    <div class="stage guides"><div class="card lad" style="padding:22px" data-note="Liquidation ladder">
+      <div class="lad-w" id="lad">
+        <div class="lad-z ok" id="z-ok"></div><div class="lad-z watch" id="z-watch"></div><div class="lad-z risk" id="z-risk"></div><div class="lad-z liq" id="z-liq"></div>
+        <div class="lad-line" id="lad-line"><span>LIQUIDATION</span></div>
+        <div class="lad-h" id="lad-h" tabindex="0" role="slider" aria-label="Equity price move" aria-valuemin="-70" aria-valuemax="30" aria-valuenow="0">0%</div>
+      </div>
+      <div class="lad-r">
+        <div class="row"><span>Health factor</span><b id="l-hf">—</b></div>
+        <div class="row"><span>LTV</span><b id="l-ltv">—</b></div>
+        <div class="row"><span>Liquidates at</span><b id="l-liq">—</b></div>
+        <div class="row"><span>Headroom</span><b id="l-head">—</b></div>
+        <button class="pill sm" id="l-reset" style="justify-self:start">Reset price</button>
+      </div>
+    </div></div>
+  </section>
+
+  <!-- ============================ 08 MARKET CONDITIONS ============================ -->
+  <section class="lab">
+    <div class="lab-head"><h2>08 · Market conditions</h2><p>Micro-spec rows that grow on hover — the NYSE countdown runs on the real clock (Eastern Time); everything else follows the dock.</p></div>
+    <div class="stage guides"><div class="card mc loading" id="mc" style="padding:20px 22px" data-note="Market conditions">
+      <div class="mc-h"><span class="meta">(Circuit)<b>Market conditions</b></span><span class="tag ok" id="mc-verdict">Borrowing available</span></div>
+      <div class="mc-row"><div class="skl"><i class="sk"></i><i class="sk"></i><i class="sk"></i></div>
+        <div class="real"><div class="name">Reference equity market<small id="mc-sim">NYSE · regular session</small></div>
+        <div class="det"><b id="mc-cd">—</b><div class="day24"><i class="ses"></i><i class="now" id="mc-now"></i></div></div><span class="tag ok" id="mc-m">OPEN</span></div></div>
+      <div class="mc-row"><div class="skl"><i class="sk"></i><i class="sk"></i><i class="sk"></i></div>
+        <div class="real"><div class="name">Oracle freshness<small>update age vs 30s limit</small></div>
+        <div class="det"><b id="mc-age">Updated 3s ago</b><div class="meter"><i id="mc-age-b"></i></div></div><span class="tag ok" id="mc-o">FRESH</span></div></div>
+      <div class="mc-row"><div class="skl"><i class="sk"></i><i class="sk"></i><i class="sk"></i></div>
+        <div class="real"><div class="name">Oracle confidence<small>price ± interval</small></div>
+        <div class="det"><b id="mc-px">$182.40 ± 0.18%</b><div class="band"><i id="mc-band"></i><em></em></div></div><span class="tag ok" id="mc-c">TIGHT</span></div></div>
+      <div class="mc-row"><div class="skl"><i class="sk"></i><i class="sk"></i><i class="sk"></i></div>
+        <div class="real"><div class="name">Custody<small>simulated input</small></div><div class="det" id="mc-cu">Settlement and custody normal</div><span class="tag ok" id="mc-cut">NORMAL</span></div></div>
+      <div class="mc-row"><div class="skl"><i class="sk"></i><i class="sk"></i><i class="sk"></i></div>
+        <div class="real"><div class="name">Liquidity<small>simulated input</small></div><div class="det"><span id="mc-lq">Secondary-market depth is healthy</span><div class="depth" id="mc-depth"></div></div><span class="tag ok" id="mc-l">DEEP</span></div></div>
+      <p class="mc-foot">Sample feed. Custody and liquidity are simulated inputs, not live oracles.</p>
+    </div>
+    <div style="margin-top:16px"><button class="pill sm" id="mc-replay">Replay loading</button></div></div>
+  </section>
+
+  <!-- ============================ 09 RISK TOPOLOGY ============================ -->
+  <section class="lab" id="topology">
+    <div class="lab-head"><h2>09 · Risk topology</h2><p>The full reason borrowing is allowed or blocked, as a graph. Click a node to inject a fault; hover to trace a path through the gate to Borrow authority.</p></div>
+    <div class="stage guides"><div class="card topo" style="padding:18px" data-note="Risk topology">
+      <svg id="topo" viewBox="0 0 880 420" role="group" aria-label="Risk topology graph"></svg>
+      <div class="topo-why" id="topo-why"></div>
+    </div></div>
+  </section>
+
+  <!-- ============================ 10 AGENT CAPITAL CONTROL ============================ -->
+  <section class="lab">
+    <div class="lab-head"><h2>10 · Agent capital control</h2><p>Configure a strategy, then hold to arm authority. Even armed, the agent's Borrow status still obeys the market gate.</p></div>
+    <div class="stage guides"><div class="card ag" style="padding:22px" data-note="Agent capital control">
+      <div class="ag-h"><span class="meta">(Circuit)<b>Agent capital control</b></span><button class="pill sm" id="ag-manage" aria-expanded="false">Manage</button></div>
+      <div class="ag-row"><span>Strategy: <b id="ag-strat">Not Configured</b></span><span>Authority: <em class="tag bad" id="ag-auth" style="font-style:normal">BLOCKED</em></span><span>Borrow: <b class="st bad" id="ag-borrow">BLOCKED</b></span></div>
+      <p class="ag-why" id="ag-why"></p>
+      <div class="ag-p" id="ag-p"><div><div class="ag-in">
+        <div class="ag-fields">
+          <label>Max per borrow <span><output id="ag-o1">$500</output></span><input class="rng" id="ag-r1" type="range" min="100" max="2000" step="50" value="500"></label>
+          <label>Daily cap <span><output id="ag-o2">$1,500</output></span><input class="rng" id="ag-r2" type="range" min="500" max="5000" step="100" value="1500"></label>
+          <label>LTV ceiling <span><output id="ag-o3">40%</output></span><input class="rng" id="ag-r3" type="range" min="10" max="50" step="1" value="40"></label>
+        </div>
+        <div class="ag-chips">Allowed assets <button class="pill sm" aria-pressed="true">NVDAx</button><button class="pill sm" aria-pressed="true">AAPLx</button></div>
+        <div class="env"><small id="env-t">Agent can borrow up to $0 right now</small><div class="bar"><i id="env-b"></i></div></div>
+        <div class="ag-act">
+          <button class="btn" id="ag-save">Save strategy</button>
+          <button class="hold" id="ag-hold" aria-disabled="true" aria-label="Hold to arm agent authority"><span>Hold to arm authority</span></button>
+          <button class="pill sm" id="ag-reset">Reset</button>
+        </div>
+      </div></div></div>
+    </div></div>
+  </section>
+
+  <!-- ============================ 11 TX TOASTS ============================ -->
+  <section class="lab">
+    <div class="lab-head"><h2>11 · Transaction toasts</h2><p>A four-step Solana lifecycle, plus rejection toasts. A borrow checks the risk store first, so a gated one is rejected with the reason, no signature needed.</p></div>
+    <div class="stage guides tx-demo" data-note="Transaction toasts">
+      <button class="btn" id="tx-borrow">Simulate borrow</button>
+      <button class="pill" id="tx-faucet">Simulate faucet airdrop</button>
+      <button class="pill" id="tx-info">Info toast</button>
+    </div>
+  </section>
+
+  <!-- ============================ 12 ACTIVITY TIMELINE ============================ -->
+  <section class="lab">
+    <div class="lab-head"><h2>12 · Activity timeline</h2><p>The line draws as you scroll past it, and each node lights when the line reaches it. Sample data.</p></div>
+    <div class="stage guides"><div class="card act" style="padding:24px" data-note="Activity timeline">
+      <div class="act-h"><span class="meta">(Circuit)<b>Activity</b></span>
+        <div class="act-f" id="act-f" role="group" aria-label="Filter"><button aria-pressed="true" data-f="all">All</button><button aria-pressed="false" data-f="deposit">Deposits</button><button aria-pressed="false" data-f="borrow">Borrows</button><button aria-pressed="false" data-f="rejected">Rejected</button></div></div>
+      <div class="tl" id="tl"></div>
+    </div></div>
+  </section>
+</main>
+
+<footer>The <code>Risk</code> store is a ~20-line pub/sub: one <code>Risk.set()</code> updates the gate dial, metric cards, borrowing power, ladder, market conditions, topology and agent status together. In a Vite + React app this becomes a zustand store; every component here just reads <code>Risk.get()</code> and calls <code>Risk.on()</code>.</footer>
+
+<div class="cp" id="cp" hidden>
+  <div class="cp-bd" data-close></div>
+  <div class="cp-box" role="dialog" aria-modal="true" aria-label="Command palette">
+    <div class="cp-in"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg><input id="cp-q" placeholder="Type a command or search…" autocomplete="off" role="combobox" aria-expanded="true" aria-controls="cp-list"><kbd>esc</kbd></div>
+    <div class="cp-list" id="cp-list" role="listbox"></div>
+    <div class="cp-ft"><span><kbd>↑</kbd><kbd>↓</kbd> move</span><span><kbd>↵</kbd> run</span><span><kbd>esc</kbd> close</span></div>
+  </div>
+</div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<div class="dock" id="dock" aria-label="Risk simulator"></div>
+
+<script>
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const usd = (n, d = 0) => '$' + n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+
+/* ---------- notes mode ---------- */
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-toggle="notes"]'); if (!b) return;
+  const on = document.body.classList.toggle('notes');
+  $$('[data-toggle="notes"]').forEach(x => x.setAttribute('aria-pressed', on));
+});
+
+/* =====================================================================
+   NYSE helpers (regular session Mon–Fri 09:30–16:00 ET; holidays not modelled)
+   ===================================================================== */
+const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const etNow = () => {
+  const f = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
+  const p = Object.fromEntries(f.formatToParts(new Date()).map(x => [x.type, x.value]));
+  return { day: DAYS.indexOf(p.weekday), min: +p.hour * 60 + +p.minute, sec: +p.second };
+};
+const isOpen = (d, m) => d < 5 && m >= 570 && m < 960;
+const nextChange = () => {
+  const { day, min, sec } = etNow(), t = min * 60 + sec;
+  if (isOpen(day, min)) return { open: true, s: 960 * 60 - t };
+  if (day < 5 && min < 570) return { open: false, s: 570 * 60 - t };
+  let dd = day, days = 0; do { dd = (dd + 1) % 7; days++; } while (dd > 4);
+  return { open: false, s: 86400 - t + (days - 1) * 86400 + 570 * 60 };
+};
+const hms = s => `${Math.floor(s / 3600)}h ${String(Math.floor(s % 3600 / 60)).padStart(2, '0')}m ${String(s % 60).padStart(2, '0')}s`;
+
+/* =====================================================================
+   RISK STORE — one small pub/sub every component reads
+   (in Vite + React this becomes a zustand store)
+   ===================================================================== */
+const POS = { collateral: 12480.25, debt: 4200, MAX_LTV: .5, LIQ_TH: .65 };   // PLACEHOLDERS: set to your program's real constants
+const Risk = (() => {
+  const s = { market: isOpen(etNow().day, etNow().min) ? 'open' : 'closed', oracle: 'fresh', conf: 'tight', custody: 'ok', liquidity: 'deep', shock: 0 };
+  const subs = [];
+  const derive = () => {
+    const col = POS.collateral * (1 + s.shock / 100), hf = col * POS.LIQ_TH / POS.debt, ltv = POS.debt / col;
+    const gates = [];
+    if (s.market === 'closed') gates.push({ id: 'market', t: 'Market closed', d: 'Reference equity market closed' });
+    if (s.oracle === 'stale') gates.push({ id: 'oracle', t: 'Stale oracle', d: 'Oracle price is stale' });
+    if (s.conf === 'wide') gates.push({ id: 'conf', t: 'Wide confidence', d: 'Oracle confidence interval is wide' });
+    if (s.custody === 'delayed') gates.push({ id: 'custody', t: 'Custody delayed', d: 'Tokenized equity custody is delayed' });
+    if (s.liquidity === 'thin') gates.push({ id: 'liquidity', t: 'Thin liquidity', d: 'Secondary-market depth is thin' });
+    const critical = hf < 1.15;
+    const state = critical ? 'critical' : gates.length ? 'restricted' : 'normal';
+    const total = col * POS.MAX_LTV;
+    return { ...s, col, hf, ltv, gates, critical, state, total, available: Math.max(0, total - POS.debt), borrowAllowed: state === 'normal', real: isOpen(etNow().day, etNow().min) ? 'open' : 'closed' };
+  };
+  return { get: derive, set(p) { Object.assign(s, p); const d = derive(); subs.forEach(f => f(d)); }, on(f) { subs.push(f); f(derive()); } };
+})();
+
+/* =====================================================================
+   TOASTS
+   ===================================================================== */
+const Toast = (() => {
+  const box = $('#toasts');
+  const sig = () => Array.from({ length: 4 }, () => 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.random() * 57 | 0]).join('') + '…' + Array.from({ length: 4 }, () => 'abcdefghjkmnpqrstuvwxyz23456789'[Math.random() * 31 | 0]).join('');
+  const ICON = { info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.01"/>', x: '<path d="M6 6l12 12M18 6L6 18"/>', bolt: '<path d="M13 3L5 14h6l-1 7 8-11h-6l1-7z"/>', check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>' };
+  const make = (kind, icon, title, body, ttl = 4200, extra = '') => {
+    const el = document.createElement('div');
+    el.className = `toast ${kind}`;
+    el.innerHTML = `<div class="t-h"><span class="t-i"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round">${ICON[icon]}</svg></span><div><div class="t-t">${title}</div><div class="t-b">${body}</div></div><button class="t-x" aria-label="Dismiss"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">${ICON.x}</svg></button></div>${extra}${ttl ? `<i class="life" style="--ttl:${ttl}ms"></i>` : ''}`;
+    box.append(el);
+    const kill = () => { el.classList.add('out'); setTimeout(() => el.remove(), 320); };
+    $('.t-x', el).addEventListener('click', kill);
+    if (ttl) setTimeout(kill, ttl);
+    while (box.children.length > 4) box.firstChild.remove();
+    return { el, kill };
+  };
+  const info = (title, body) => make('', 'info', title, body);
+  const reject = (title, reason) => make('bad', 'x', title, `${reason}. Transaction reverts, no state changed.`, 5200);
+  const tx = (title, body = 'Waiting for signature') => {
+    const names = ['Signed', 'Sent', 'Confirmed', 'Finalized'];
+    const t = make('', 'bolt', title, body, 0, `<div class="steps">${names.map(n => `<div><i></i>${n}</div>`).join('')}</div>`);
+    const st = $$('.steps div', t.el); let i = 0;
+    const adv = () => {
+      if (!t.el.isConnected) return;
+      st.forEach((d, k) => d.classList.toggle('on', k < i));
+      if (i < 4) { $('.t-b', t.el).textContent = i < 3 ? `${names[i]}…` : 'Finalizing…'; i++; setTimeout(adv, still ? 40 : 650); }
+      else { st.forEach(d => d.classList.add('on')); t.el.classList.add('ok'); $('.t-i', t.el).innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${ICON.check}</svg>`; $('.t-t', t.el).textContent = title + ' finalized'; $('.t-b', t.el).textContent = `Sample signature ${sig()}`; setTimeout(t.kill, 4200); }
+    };
+    setTimeout(adv, 60);
+    return t;
+  };
+  return { info, reject, tx };
+})();
+
+const attemptBorrow = amount => {
+  const s = Risk.get();
+  if (!s.borrowAllowed) return Toast.reject('Borrow rejected', s.critical ? 'Health factor is too low' : s.gates[0].d);
+  if (amount != null && amount > s.available) return Toast.reject('Borrow rejected', `Amount exceeds borrowing power by ${usd(amount - s.available)}`);
+  Toast.tx('Borrow' + (amount ? ' ' + usd(amount) : ''));
+};
+
+/* =====================================================================
+   THEME (circular wipe)
+   ===================================================================== */
+const Theme = (() => {
+  const root = document.documentElement;
+  const apply = n => { root.dataset.theme = n; $$('.theme-lbl').forEach(e => e.textContent = n === 'dark' ? 'LIGHT' : 'DARK'); };
+  const toggle = (x, y) => {
+    const next = root.dataset.theme === 'dark' ? 'light' : 'dark';
+    if (still) return apply(next);
+    if (!document.startViewTransition) {
+      const ov = document.createElement('div'); ov.className = 'wipe';
+      ov.style.cssText = `--x:${x}px;--y:${y}px;background:${next === 'dark' ? '#1c1c1a' : '#e6e6e3'}`;
+      document.body.append(ov); requestAnimationFrame(() => requestAnimationFrame(() => ov.classList.add('go')));
+      return ov.addEventListener('transitionend', () => { apply(next); ov.classList.add('fade'); setTimeout(() => ov.remove(), 450); }, { once: true });
+    }
+    const end = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+    document.startViewTransition(() => apply(next)).ready.then(() => root.animate(
+      { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${end}px at ${x}px ${y}px)`] },
+      { duration: 800, easing: 'cubic-bezier(.7,0,.2,1)', pseudoElement: '::view-transition-new(root)' }));
+  };
+  $$('[data-theme-btn]').forEach(b => b.addEventListener('click', e => {
+    const r = b.getBoundingClientRect();
+    toggle(e.detail ? e.clientX : r.left + r.width / 2, e.detail ? e.clientY : r.top + r.height / 2);
+  }));
+  return { toggle };
+})();
+
+/* =====================================================================
+   01 COMMAND BAR
+   ===================================================================== */
+const Mode = (() => {
+  const seg = $('#mode'), btns = $$('button', seg), note = $('#mode-note');
+  const set = v => {
+    btns.forEach((b, i) => { const on = b.dataset.v === v; b.setAttribute('aria-checked', on); b.tabIndex = on ? 0 : -1; if (on) seg.style.setProperty('--i', i); });
+    note.textContent = `Mode: ${v}`;
+  };
+  btns.forEach(b => b.addEventListener('click', () => set(b.dataset.v)));
+  seg.addEventListener('keydown', e => {
+    if (!['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+    const i = btns.findIndex(b => b.getAttribute('aria-checked') === 'true'), n = btns[(i + (e.key === 'ArrowRight' ? 1 : -1) + btns.length) % btns.length];
+    set(n.dataset.v); n.focus(); e.preventDefault();
+  });
+  return { set, get: () => $('button[aria-checked="true"]', seg).dataset.v };
+})();
+
+(() => {
+  const pops = [['#net-a', '#net-b'], ['#wal-a', '#wal-b']].map(([a, b]) => ({ a: $(a), b: $(b) }));
+  const close = () => pops.forEach(p => { p.a.classList.remove('open'); p.b.setAttribute('aria-expanded', false); });
+  pops.forEach(p => p.b.addEventListener('click', e => { e.stopPropagation(); const o = !p.a.classList.contains('open'); close(); p.a.classList.toggle('open', o); p.b.setAttribute('aria-expanded', o); }));
+  addEventListener('click', e => { if (!e.target.closest('.anchor')) close(); });
+  addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+  $$('[data-w]', $('#wal-a')).forEach(b => b.addEventListener('click', () => {
+    const k = b.dataset.w; close();
+    if (k === 'copy') { (navigator.clipboard ? navigator.clipboard.writeText('7VdxQm3Yt9pWc2LhRk8aZfNgD5uBvE4sJXo1TyCwMHn9SEoJ').catch(() => {}) : 0); Toast.info('Address copied', '7Vdx…SEoJ (sample)'); }
+    if (k === 'faucet') Toast.tx('Faucet airdrop');
+    if (k === 'explorer') Toast.info('Explorer', 'Opens the wallet on a Solana explorer (sample).');
+    if (k === 'disconnect') Toast.info('Wallet disconnected', 'This is a demo; nothing changed.');
+  }));
+  let slot = 312048113;
+  setInterval(() => { slot += 2; $('#net-slot').textContent = slot.toLocaleString('en-US'); if (Math.random() < .3) $('#net-lat').textContent = (34 + Math.random() * 30 | 0) + ' ms'; }, 800);
+})();
+
+/* =====================================================================
+   02 COMMAND PALETTE
+   ===================================================================== */
+const Palette = (() => {
+  const root = $('#cp'), input = $('#cp-q'), list = $('#cp-list'), last = $('#cp-last');
+  const ICONS = { dashboard: '<rect x="3.5" y="3.5" width="7" height="7" rx="1"/><rect x="13.5" y="3.5" width="7" height="7" rx="1"/><rect x="3.5" y="13.5" width="7" height="7" rx="1"/><rect x="13.5" y="13.5" width="7" height="7" rx="1"/>', borrow: '<path d="M12 3v18"/><path d="M16.5 7.5c-.8-1.2-2.4-2-4.5-2-2.5 0-4 1.2-4 3s1.5 2.6 4 3 4 1.2 4 3-1.5 3-4 3c-2.2 0-3.9-.9-4.7-2.2"/>', dot: '<circle cx="12" cy="12" r="9"/>' };
+  const ic = n => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${ICONS[n] || ICONS.dot}</svg>`;
+  const nav = n => () => { Sidebar.setActive(n); Toast.info('Navigate', `Opened ${n}`); };
+  const CMDS = () => [
+    ...['Dashboard', 'Markets', 'Position', 'Borrow', 'Activity', 'Learn', 'Verify', 'Faucet'].map(n => ({ g: 'Navigate', t: n, ic: n === 'Borrow' ? 'borrow' : 'dashboard', k: 'G ' + n[0], run: nav(n) })),
+    { g: 'Actions', t: 'Borrow…', ic: 'borrow', run: () => attemptBorrow() },
+    { g: 'Actions', t: 'Deposit collateral', ic: 'dot', run: () => Toast.tx('Deposit collateral') },
+    { g: 'Actions', t: 'Repay', ic: 'dot', run: () => Toast.tx('Repay') },
+    { g: 'Actions', t: 'Request faucet airdrop', ic: 'dot', run: () => Toast.tx('Faucet airdrop') },
+    { g: 'Mode', t: Mode.get() === 'manual' ? 'Switch to Agent mode' : 'Switch to Manual mode', ic: 'dot', run: () => Mode.set(Mode.get() === 'manual' ? 'agent' : 'manual') },
+    { g: 'View', t: 'Toggle theme', ic: 'dot', run: () => Theme.toggle(innerWidth / 2, innerHeight / 3) },
+    { g: 'View', t: 'View Risk Topology', ic: 'dot', run: () => $('#topology').scrollIntoView({ behavior: 'smooth', block: 'center' }) }
+  ];
+  const fuzzy = (q, t) => {
+    if (!q) return { s: 0, idx: [] };
+    const tl = t.toLowerCase(), idx = []; let p = -1, s = 0;
+    for (const c of q.toLowerCase()) { const n = tl.indexOf(c, p + 1); if (n < 0) return null; s += n - p - 1 + (n === 0 ? -2 : 0); idx.push(n); p = n; }
+    return { s, idx };
+  };
+  let items = [], sel = 0;
+  const mark = (t, idx) => [...t].map((c, i) => idx.includes(i) ? `<mark>${c}</mark>` : c).join('');
+  const render = () => {
+    const q = input.value.trim();
+    items = CMDS().map(c => ({ c, m: fuzzy(q, c.t) })).filter(x => x.m).sort((a, b) => a.m.s - b.m.s);
+    sel = 0; let html = '', g = '';
+    if (!items.length) list.innerHTML = `<div class="cp-empty">No results for “${q.replace(/</g, '&lt;')}”</div>`;
+    else {
+      items.forEach((x, i) => { if (!q && x.c.g !== g) { g = x.c.g; html += `<div class="cp-g meta"><b style="font-size:10px">${g}</b></div>`; } html += `<div class="cp-it" role="option" id="cpo${i}" data-i="${i}" aria-selected="${i === 0}"><i>${ic(x.c.ic)}</i><span>${mark(x.c.t, x.m.idx)}</span>${x.c.k ? `<kbd>${x.c.k}</kbd>` : ''}</div>`; });
+      list.innerHTML = html;
+    }
+  };
+  const mark2 = () => { $$('.cp-it', list).forEach((e, i) => e.setAttribute('aria-selected', i === sel)); $$('.cp-it', list)[sel]?.scrollIntoView({ block: 'nearest' }); };
+  const open = () => { root.hidden = false; input.value = ''; render(); requestAnimationFrame(() => { root.classList.add('show'); input.focus(); }); };
+  const close = () => { root.classList.remove('show'); setTimeout(() => { root.hidden = true; }, 260); };
+  const run = i => { const x = items[i]; if (!x) return; close(); last.textContent = `Ran: ${x.c.g} → ${x.c.t}`; setTimeout(x.c.run, 180); };
+  input.addEventListener('input', render);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown') { sel = Math.min(items.length - 1, sel + 1); mark2(); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { sel = Math.max(0, sel - 1); mark2(); e.preventDefault(); }
+    else if (e.key === 'Enter') { run(sel); e.preventDefault(); }
+  });
+  list.addEventListener('click', e => { const it = e.target.closest('.cp-it'); if (it) run(+it.dataset.i); });
+  list.addEventListener('pointermove', e => { const it = e.target.closest('.cp-it'); if (it && +it.dataset.i !== sel) { sel = +it.dataset.i; mark2(); } });
+  root.addEventListener('click', e => { if (e.target.hasAttribute('data-close')) close(); });
+  addEventListener('keydown', e => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); root.hidden ? open() : close(); }
+    else if (e.key === 'Escape' && !root.hidden) close();
+  });
+  $$('[data-cmd]').forEach(b => b.addEventListener('click', open));
+  return { open };
+})();
+
+/* =====================================================================
+   03 SIDEBAR
+   ===================================================================== */
+const Sidebar = (() => {
+  const sb = $('#sb'), nav = $('#sb-nav'), ind = $('.sb-ind', nav), links = $$('a', nav), page = $('#sb-page');
+  const place = () => { const a = $('a.on', nav); ind.style.height = a.offsetHeight + 'px'; ind.style.transform = `translateY(${a.offsetTop}px)`; };
+  const setActive = name => {
+    links.forEach(a => { const on = a.dataset.n === name; a.classList.toggle('on', on); on ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current'); });
+    place();
+    $('h3', page).textContent = name;
+    $$('.rows > *', page).forEach((r, i) => { r.style.animation = 'none'; void r.offsetWidth; r.style.animation = ''; r.style.setProperty('--k', i); });
+  };
+  links.forEach(a => a.addEventListener('click', e => { e.preventDefault(); setActive(a.dataset.n); }));
+  $('#sb-tg').addEventListener('click', e => {
+    const c = sb.dataset.collapsed !== 'true'; sb.dataset.collapsed = c; e.currentTarget.setAttribute('aria-expanded', !c);
+    const t0 = performance.now(); (function f(n) { place(); if (n - t0 < 520) requestAnimationFrame(f); })(t0);
+  });
+  place(); addEventListener('resize', place); document.fonts?.ready.then(place);
+  Risk.on(s => { $('#sb-flag').hidden = s.borrowAllowed; });
+  return { setActive };
+})();
+
+/* =====================================================================
+   04 RISK GATE DIAL
+   ===================================================================== */
+(() => {
+  const gd = $('#gd'), arc = $('#gd-arc'), needle = $('#gd-needle'), st = $('#gd-state'), desc = $('#gd-desc'), rs = $('#gd-reasons');
+  const ARC_LEN = 314; // half-circle radius 100
+  const COPY = {
+    normal: ['NORMAL', 'Reference equity market open and oracle healthy. Borrowing available.'],
+    restricted: ['RESTRICTED', 'Reference equity market closed or elevated uncertainty. Borrowing constrained.'],
+    critical: ['CRITICAL', 'Health factor is close to the liquidation threshold. Borrowing blocked.']
+  };
+  const ANG = { normal: -78, restricted: 0, critical: 78 };   // degrees from vertical
+  let sig = '';
+  Risk.on(s => {
+    const reasons = s.gates.map(g => g.t).concat(s.critical ? ['Low health'] : []);
+    const key = s.state + '|' + reasons.join(); if (key === sig) return; sig = key;
+    const frac = s.state === 'normal' ? .15 : s.state === 'restricted' ? .5 : .88;
+    arc.setAttribute('stroke-dasharray', `${(ARC_LEN * frac).toFixed(0)} 400`);
+    needle.style.transform = `rotate(${ANG[s.state]}deg)`;
+    gd.dataset.crit = s.state === 'critical';
+    st.textContent = COPY[s.state][0]; desc.textContent = COPY[s.state][1];
+    rs.innerHTML = reasons.map((r, i) => `<span style="--k:${i}">${r}</span>`).join('');
+  });
+  $$('[data-topology]').forEach(b => b.addEventListener('click', () => $('#topology').scrollIntoView({ behavior: 'smooth', block: 'center' })));
+})();
+
+/* =====================================================================
+   05 METRIC CARDS
+   ===================================================================== */
+(() => {
+  const wrap = $('#stats'), cards = $$('.stat', wrap); let loaded = false;
+  const sig = t => [...t].map(c => /\d/.test(c) ? 'd' : c).join('');
+  const roll = (el, text, force) => {
+    const s = sig(text);
+    if (force || el._sig !== s) {
+      el._sig = s; let k = 0;
+      el.innerHTML = [...text].map(c => /\d/.test(c) ? `<span class="dg"><span class="col" style="--k:${k++}">${'0123456789'.split('').map(d => `<i>${d}</i>`).join('')}</span></span>` : `<span class="st">${c}</span>`).join('');
+      el.getBoundingClientRect();
+    }
+    [...text].forEach((c, i) => { if (/\d/.test(c)) el.children[i].firstChild.style.transform = `translateY(${-c * 10}%)`; });
+  };
+  const render = (s, force) => {
+    if (!loaded) return;
+    roll($('[data-roll=col]'), usd(s.col, 2), force); roll($('[data-roll=debt]'), usd(POS.debt, 2), force); roll($('[data-roll=hf]'), s.hf.toFixed(2), force);
+    const d = s.shock, dd = $('#col-d'); dd.textContent = (d > 0 ? '+' : d < 0 ? '−' : '') + Math.abs(d).toFixed(1) + '%'; dd.className = 'delta ' + (d < 0 ? 'dn' : 'up');
+    $('#util-t').textContent = (s.ltv * 100).toFixed(1) + '% of collateral'; $('#util-b').style.width = clamp(s.ltv / POS.MAX_LTV * 100, 0, 100) + '%';
+    const h = s.hf < 1 ? 'liq' : s.hf < 1.15 ? 'risk' : s.hf < 1.5 ? 'watch' : 'ok';
+    $('#hf-t').textContent = { liq: 'Liquidatable', risk: 'At risk', watch: 'Watch', ok: 'Healthy' }[h];
+    $('#ring-f').style.strokeDashoffset = 144.5 * (1 - clamp(s.hf / 2.5, 0, 1));
+  };
+  const load = () => {
+    loaded = false; wrap.classList.add('loading'); cards.forEach(c => c.classList.add('loading'));
+    setTimeout(() => { loaded = true; cards.forEach(c => c.classList.remove('loading')); wrap.classList.remove('loading'); render(Risk.get(), true); }, still ? 50 : 1400);
+  };
+  Risk.on(s => render(s, false));
+  $('#stats-replay').addEventListener('click', load);
+  new IntersectionObserver(([e], o) => { if (e.isIntersecting) { o.disconnect(); load(); } }, { threshold: .4 }).observe(wrap);
+})();
+
+/* =====================================================================
+   06 BORROWING POWER
+   ===================================================================== */
+(() => {
+  const used = $('.used'), av = $('.av'), mk = $('#bp-mk'), r = $('#bp-r'), go = $('#bp-go');
+  let S = Risk.get(), lastAmt = 0;
+  const draw = () => {
+    S = Risk.get();
+    const tot = Math.max(1, S.total), u = clamp(POS.debt / tot, 0, 1), a = clamp(S.available / tot, 0, 1 - u);
+    used.style.width = u * 100 + '%'; av.style.width = a * 100 + '%';
+    av.classList.toggle('gated', !S.borrowAllowed && S.available > 0);
+    const chip = $('#bp-chip'); chip.textContent = S.borrowAllowed ? 'Available' : 'Constrained'; chip.className = 'tag ' + (S.borrowAllowed ? 'ok' : 'warn');
+    $('#bp-av').textContent = usd(S.available, 2);
+    const amt = Math.round(+r.value / 100 * Math.max(S.available, 500) / 10) * 10;
+    $('#bp-out').textContent = usd(amt); r.style.setProperty('--v', r.value + '%');
+    const pos = (POS.debt + amt) / tot; mk.style.left = clamp(pos, 0, 1) * 100 + '%';
+    mk.dataset.v = usd(amt); mk.classList.toggle('over', amt > S.available); mk.style.color = amt > S.available ? 'var(--bad)' : 'var(--ink)';
+    const why = $('#bp-why'); go.classList.toggle('dis', !S.borrowAllowed || amt > S.available || amt === 0);
+    if (!S.borrowAllowed) { why.textContent = S.critical ? 'Blocked: health factor too low' : 'Blocked: ' + S.gates[0].d; why.className = 'bp-why bad'; }
+    else if (amt > S.available) { why.textContent = `Exceeds power by ${usd(amt - S.available)}`; why.className = 'bp-why bad'; }
+    else { why.textContent = amt ? `Would leave ${usd(S.available - amt)} available` : 'Choose an amount'; why.className = 'bp-why'; }
+    lastAmt = amt;
+  };
+  r.addEventListener('input', draw); Risk.on(draw);
+  go.addEventListener('click', () => { if (!lastAmt) return Toast.info('Choose an amount', 'Slide to pick a borrow size.'); attemptBorrow(lastAmt); });
+})();
+
+/* =====================================================================
+   07 LIQUIDATION LADDER
+   ===================================================================== */
+(() => {
+  const lad = $('#lad'), h = $('#lad-h'), MAXS = 30, MINS = -70, H = () => lad.clientHeight;
+  const yOf = s => (MAXS - s) / (MAXS - MINS) * H();
+  for (let s = MAXS; s >= MINS; s -= 10) {
+    const t = document.createElement('i'); t.className = 'lad-tick'; t.style.top = yOf(s) + 'px'; lad.append(t);
+    const l = document.createElement('span'); l.className = 'lad-t'; l.style.top = yOf(s) + 'px'; l.textContent = (s > 0 ? '+' : s < 0 ? '−' : '') + Math.abs(s) + '%'; lad.append(l);
+  }
+  const zone = (id, a, b) => { const e = $(id); e.style.top = yOf(a) + 'px'; e.style.height = Math.max(0, yOf(b) - yOf(a)) + 'px'; };
+  const sh = hf => (POS.debt * hf / (POS.collateral * POS.LIQ_TH) - 1) * 100;
+  const layout = () => {
+    const w15 = clamp(sh(1.5), MINS, MAXS), w115 = clamp(sh(1.15), MINS, MAXS), liq = clamp(sh(1), MINS, MAXS);
+    zone('#z-ok', MAXS, w15); zone('#z-watch', w15, w115); zone('#z-risk', w115, liq); zone('#z-liq', liq, MINS);
+    $('#lad-line').style.top = yOf(liq) + 'px';
+    $('#l-liq').textContent = (liq < 0 ? '−' : '+') + Math.abs(liq).toFixed(1) + '%';
+  };
+  let wasLiq = false;
+  Risk.on(s => {
+    h.style.top = yOf(s.shock) + 'px'; h.textContent = (s.shock > 0 ? '+' : s.shock < 0 ? '−' : '') + Math.abs(s.shock) + '%';
+    h.setAttribute('aria-valuenow', s.shock);
+    $('#l-hf').textContent = s.hf.toFixed(2); $('#l-ltv').textContent = (s.ltv * 100).toFixed(1) + '%';
+    const liq = sh(1); $('#l-head').textContent = (s.shock - liq).toFixed(1) + ' pts';
+    const isLiq = s.hf < 1;
+    if (isLiq && !wasLiq) { h.classList.remove('liq'); void h.offsetWidth; h.classList.add('liq'); }
+    if (!isLiq) h.classList.remove('liq');
+    wasLiq = isLiq;
+    layout();
+  });
+  addEventListener('resize', () => { lad.querySelectorAll('.lad-tick,.lad-t').forEach((e, i) => { const s = MAXS - Math.floor(i / 2) * 10; e.style.top = yOf(s) + 'px'; }); layout(); h.style.top = yOf(Risk.get().shock) + 'px'; });
+  const fromY = y => { const b = lad.getBoundingClientRect(); return Math.round(clamp(MAXS - (y - b.top) / b.height * (MAXS - MINS), MINS, MAXS)); };
+  let drag = false;
+  h.addEventListener('pointerdown', e => { drag = true; h.classList.add('drag'); h.setPointerCapture(e.pointerId); });
+  h.addEventListener('pointermove', e => { if (drag) Risk.set({ shock: fromY(e.clientY) }); });
+  const up = () => { drag = false; h.classList.remove('drag'); };
+  h.addEventListener('pointerup', up); h.addEventListener('pointercancel', up);
+  h.addEventListener('keydown', e => {
+    const d = { ArrowUp: 1, ArrowDown: -1, ArrowRight: 1, ArrowLeft: -1 }[e.key]; if (!d) return;
+    e.preventDefault(); Risk.set({ shock: clamp(Risk.get().shock + d * (e.shiftKey ? 5 : 1), MINS, MAXS) });
+  });
+  $('#l-reset').addEventListener('click', () => Risk.set({ shock: 0 }));
+  layout();
+})();
+
+/* =====================================================================
+   08 MARKET CONDITIONS
+   ===================================================================== */
+(() => {
+  const mc = $('#mc'), depth = $('#mc-depth'); let age = 3, px = 182.4, lastO = 'fresh';
+  depth.innerHTML = Array.from({ length: 12 }, () => '<i></i>').join('');
+  const setTag = (id, cls, txt) => { const e = $(id); e.className = 'tag ' + cls; e.textContent = txt; };
+  const drawDepth = thin => $$('i', depth).forEach(b => { b.style.height = (thin ? 12 + Math.random() * 20 : 45 + Math.random() * 55) + '%'; });
+  drawDepth(false);
+  Risk.on(s => {
+    const open = s.market === 'open';
+    setTag('#mc-m', open ? 'ok' : 'bad', open ? 'OPEN' : 'CLOSED');
+    $('#mc-sim').textContent = s.market === s.real ? 'NYSE · regular session · live clock' : 'NYSE · simulated override';
+    setTag('#mc-o', s.oracle === 'fresh' ? 'ok' : 'bad', s.oracle === 'fresh' ? 'FRESH' : 'STALE');
+    if (s.oracle !== lastO) { lastO = s.oracle; age = s.oracle === 'stale' ? 45 : 2; }
+    setTag('#mc-c', s.conf === 'tight' ? 'ok' : 'bad', s.conf === 'tight' ? 'TIGHT' : 'WIDE');
+    $('#mc-band').className = s.conf === 'wide' ? 'wide' : ''; $('#mc-band').style.width = (s.conf === 'wide' ? 62 : 8) + '%';
+    setTag('#mc-cut', s.custody === 'ok' ? 'ok' : 'warn', s.custody === 'ok' ? 'NORMAL' : 'DELAYED');
+    $('#mc-cu').textContent = s.custody === 'ok' ? 'Settlement and custody normal' : 'Settlement and custody delayed';
+    setTag('#mc-l', s.liquidity === 'deep' ? 'ok' : 'warn', s.liquidity === 'deep' ? 'DEEP' : 'THIN');
+    $('#mc-lq').textContent = s.liquidity === 'deep' ? 'Secondary-market depth is healthy' : 'Secondary-market depth is thin';
+    drawDepth(s.liquidity === 'thin');
+    const v = $('#mc-verdict'); v.className = 'tag ' + (s.borrowAllowed ? 'ok' : s.critical ? 'bad' : 'warn'); v.textContent = s.borrowAllowed ? 'Borrowing available' : s.critical ? 'Borrowing blocked' : 'Borrowing constrained';
+  });
+  const tick = () => {
+    const s = Risk.get(), n = nextChange(), e = etNow();
+    $('#mc-cd').textContent = (n.open ? 'Closes in ' : 'Opens in ') + hms(n.s) + ' (real clock)';
+    $('#mc-now').style.left = ((e.min * 60 + e.sec) / 86400 * 100) + '%';
+    if (s.oracle === 'fresh') { age++; if (age > 6 && Math.random() < .5) age = 1; } else age++;
+    $('#mc-age').textContent = 'Updated ' + (age < 60 ? age + 's' : Math.floor(age / 60) + 'm ' + String(age % 60).padStart(2, '0') + 's') + ' ago';
+    $('#mc-age-b').style.width = clamp(age / 30, 0, 1) * 100 + '%';
+    if (Math.random() < .5) px = clamp(px + (Math.random() - .5) * .12, 181.9, 182.9);
+    $('#mc-px').textContent = `$${px.toFixed(2)} ± ${s.conf === 'wide' ? '1.90' : '0.18'}%`;
+  };
+  tick(); setInterval(tick, 1000);
+  const load = () => { mc.classList.add('loading'); setTimeout(() => mc.classList.remove('loading'), still ? 50 : 1400); };
+  $('#mc-replay').addEventListener('click', load);
+  new IntersectionObserver(([e], o) => { if (e.isIntersecting) { o.disconnect(); load(); } }, { threshold: .3 }).observe(mc);
+})();
+
+/* =====================================================================
+   09 RISK TOPOLOGY
+   ===================================================================== */
+(() => {
+  const svg = $('#topo'), NS = 'http://www.w3.org/2000/svg';
+  const IN = [
+    { id: 'market', t: 'Market state', y: 38, ok: s => s.market === 'open', v: s => s.market === 'open' ? 'OPEN' : 'CLOSED', tog: s => ({ market: s.market === 'open' ? 'closed' : 'open' }), why: 'Equities trade during NYSE sessions, not 24/7.' },
+    { id: 'oracle', t: 'Oracle freshness', y: 96, ok: s => s.oracle === 'fresh', v: s => s.oracle === 'fresh' ? 'FRESH' : 'STALE', tog: s => ({ oracle: s.oracle === 'fresh' ? 'stale' : 'fresh' }), why: 'A stale price cannot be trusted for credit.' },
+    { id: 'conf', t: 'Oracle confidence', y: 154, ok: s => s.conf === 'tight', v: s => s.conf === 'tight' ? 'TIGHT' : 'WIDE', tog: s => ({ conf: s.conf === 'tight' ? 'wide' : 'tight' }), why: 'Price uncertainty affects creditworthiness.' },
+    { id: 'custody', t: 'Custody', y: 212, ok: s => s.custody === 'ok', v: s => s.custody === 'ok' ? 'NORMAL' : 'DELAYED', tog: s => ({ custody: s.custody === 'ok' ? 'delayed' : 'ok' }), why: 'Tokenized equity custody can be delayed or impaired.' },
+    { id: 'liquidity', t: 'Liquidity', y: 270, ok: s => s.liquidity === 'deep', v: s => s.liquidity === 'deep' ? 'DEEP' : 'THIN', tog: s => ({ liquidity: s.liquidity === 'deep' ? 'thin' : 'deep' }), why: 'Secondary-market depth varies significantly.' }
+  ];
+  const W = 156, Hh = 44;
+  const el = (n, a = {}, p = svg) => { const e = document.createElementNS(NS, n); Object.entries(a).forEach(([k, v]) => e.setAttribute(k, v)); p.append(e); return e; };
+  const GX = 360, GY = 154, HX = 360, HY = 350, BX = 700, BY = 252;
+  const edges = {};
+  const edge = (id, d) => { edges[id] = { p: el('path', { class: 'edge', d }), f: el('path', { class: 'flow', d }) }; };
+  IN.forEach(n => edge('e-' + n.id, `M${18 + W} ${n.y} C ${GX - 70} ${n.y}, ${GX - 80} ${GY}, ${GX} ${GY}`));
+  edge('e-price', `M${18 + W} ${HY} L ${HX} ${HY}`);
+  edge('e-gate', `M${GX + W} ${GY} C ${BX - 70} ${GY}, ${BX - 90} ${BY}, ${BX} ${BY}`);
+  edge('e-health', `M${HX + W} ${HY} C ${BX - 70} ${HY}, ${BX - 90} ${BY}, ${BX} ${BY}`);
+  const node = (id, x, y, label) => {
+    const g = el('g', { class: 'nd', tabindex: 0, role: 'button', 'data-id': id, 'aria-label': label });
+    el('circle', { class: 'face', cx: x + Hh / 2, cy: y, r: Hh / 2 }, g);
+    el('rect', { x: x + Hh, y: y - Hh / 2, width: W - Hh, height: Hh, fill: 'transparent' }, g);
+    el('circle', { class: 'dt', cx: x + Hh / 2, cy: y, r: 4.5 }, g);
+    const t = el('text', { x: x + Hh + 12, y: y - 3 }, g); t.textContent = label;
+    const v = el('text', { class: 'v', x: x + Hh + 12, y: y + 13 }, g); return { g, v };
+  };
+  const N = {};
+  IN.forEach(n => { N[n.id] = node(n.id, 18, n.y, n.t); });
+  N.price = node('price', 18, HY, 'Collateral price'); N.gate = node('gate', GX, GY, 'Risk gate');
+  N.health = node('health', HX, HY, 'Health factor'); N.borrow = node('borrow', BX, BY, 'Borrow authority');
+  const hint = el('text', { class: 'hint', x: 18, y: 404 }); hint.textContent = 'Click a node to inject a fault · hover to trace';
+  const REL = { price: ['e-price', 'e-health'], health: ['e-price', 'e-health'], borrow: Object.keys(edges) };
+  IN.forEach(n => { REL[n.id] = ['e-' + n.id, 'e-gate']; }); REL.gate = [...IN.map(n => 'e-' + n.id), 'e-gate'];
+  const hl = id => { svg.parentElement.classList.add('dim'); Object.entries(edges).forEach(([k, e]) => { const on = (REL[id] || []).includes(k); e.p.classList.toggle('hl', on); e.f.classList.toggle('hl', on); }); };
+  const unhl = () => { svg.parentElement.classList.remove('dim'); Object.values(edges).forEach(e => { e.p.classList.remove('hl'); e.f.classList.remove('hl'); }); };
+  $$('.nd', svg).forEach(g => { const id = g.dataset.id; g.addEventListener('pointerenter', () => hl(id)); g.addEventListener('pointerleave', unhl); g.addEventListener('focus', () => hl(id)); g.addEventListener('blur', unhl); });
+  const act = id => { const s = Risk.get(), n = IN.find(x => x.id === id); if (n) Risk.set(n.tog(s)); else if (id === 'price' || id === 'health') Risk.set({ shock: s.shock > -30 ? -42 : 0 }); };
+  svg.addEventListener('click', e => { const g = e.target.closest('.nd'); if (g) act(g.dataset.id); });
+  svg.addEventListener('keydown', e => { const g = e.target.closest('.nd'); if (g && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); act(g.dataset.id); } });
+  const setN = (n, ok, val) => { n.g.classList.toggle('bad', !ok); n.g.classList.toggle('ok', ok); n.v.textContent = val; };
+  const setE = (id, ok) => { edges[id].p.classList.toggle('bad', !ok); edges[id].f.classList.toggle('off', !ok); };
+  Risk.on(s => {
+    IN.forEach(n => { const ok = n.ok(s); setN(N[n.id], ok, n.v(s)); setE('e-' + n.id, ok); });
+    const gateOk = s.gates.length === 0, hOk = s.hf >= 1.15;
+    setN(N.gate, gateOk, gateOk ? 'PASS' : 'BLOCK'); setE('e-gate', gateOk);
+    setN(N.price, true, (s.shock > 0 ? '+' : s.shock < 0 ? '−' : '') + Math.abs(s.shock) + '%'); setE('e-price', true);
+    setN(N.health, hOk, s.hf.toFixed(2)); setE('e-health', hOk);
+    setN(N.borrow, s.borrowAllowed, s.borrowAllowed ? 'ALLOWED' : 'BLOCKED');
+    const why = $('#topo-why');
+    if (s.borrowAllowed) why.innerHTML = '<span class="tag ok">ALLOWED</span><p><b>Every check passes.</b> Market is open, the oracle is fresh and tight, custody and liquidity are normal, and health is above the minimum.</p>';
+    else { const first = s.gates[0] ? IN.find(n => n.id === s.gates[0].id) : null;
+      why.innerHTML = `<span class="tag bad">BLOCKED</span><p><b>${s.gates.length ? s.gates.map(g => g.t).join(' + ') : 'Health factor too low'}.</b> ${first ? first.why : 'Health factor is enforced on-chain.'} ${s.gates.length > 1 ? `(+${s.gates.length - 1} more)` : ''}</p>`; }
+  });
+})();
+
+/* =====================================================================
+   10 AGENT CAPITAL CONTROL
+   ===================================================================== */
+(() => {
+  const A = { strat: null, armed: false };
+  const r1 = $('#ag-r1'), r2 = $('#ag-r2'), r3 = $('#ag-r3'), hold = $('#ag-hold'), p = $('#ag-p');
+  const fmt = () => { $('#ag-o1').textContent = usd(+r1.value); $('#ag-o2').textContent = usd(+r2.value); $('#ag-o3').textContent = r3.value + '%'; [r1, r2, r3].forEach(r => r.style.setProperty('--v', (r.value - r.min) / (r.max - r.min) * 100 + '%')); };
+  [r1, r2, r3].forEach(r => r.addEventListener('input', fmt)); fmt();
+  $$('.ag-chips button').forEach(b => b.addEventListener('click', () => b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') !== 'true')));
+  $('#ag-manage').addEventListener('click', e => { const o = !p.classList.contains('open'); p.classList.toggle('open', o); e.currentTarget.setAttribute('aria-expanded', o); });
+  const draw = () => {
+    const s = Risk.get(), tag = $('#ag-auth'), b = $('#ag-borrow'), why = $('#ag-why');
+    $('#ag-strat').textContent = A.strat || 'Not Configured';
+    tag.className = 'tag ' + (A.armed ? 'ok' : 'bad'); tag.textContent = A.armed ? 'ARMED' : 'BLOCKED';
+    const can = A.armed && s.borrowAllowed;
+    b.className = 'st ' + (can ? 'ok' : 'bad'); b.textContent = can ? 'ALLOWED' : 'BLOCKED';
+    why.textContent = !A.strat ? 'Configure a strategy to enable authority.' : !A.armed ? 'Strategy saved. Hold the button to arm authority.' : can ? 'Agent may borrow within the policy.' : `Authority is armed, but borrowing is constrained: ${s.critical ? 'health factor too low' : s.gates[0].d}.`;
+    hold.setAttribute('aria-disabled', !A.strat); hold.classList.toggle('armed', A.armed);
+    $('span', hold).textContent = A.armed ? 'Authority armed · click to revoke' : 'Hold to arm authority';
+    const cap = Math.min(+r1.value, s.available), bar = $('#env-b');
+    bar.style.width = clamp(cap / Math.max(1, +r1.value), 0, 1) * 100 + '%'; bar.classList.toggle('g', !s.borrowAllowed);
+    $('#env-t').textContent = s.borrowAllowed ? `Agent can borrow up to ${usd(cap)} right now` : `${usd(cap)} of headroom, gated by market state`;
+  };
+  Risk.on(draw);
+  $('#ag-save').addEventListener('click', () => { A.strat = `Custom · ${usd(+r1.value)}/borrow`; draw(); Toast.info('Strategy saved', `${usd(+r1.value)} per borrow, ${usd(+r2.value)} daily cap, ${r3.value}% LTV ceiling.`); });
+  $('#ag-reset').addEventListener('click', () => { A.strat = null; A.armed = false; draw(); });
+  let prog = 0, holding = false, t0 = 0, raf = 0;
+  const step = now => {
+    prog = holding ? Math.min(1, (now - t0) / 1200) : Math.max(0, prog - .05);
+    hold.style.setProperty('--hp', prog);
+    if (holding && prog >= 1) { holding = false; A.armed = true; prog = 0; hold.style.setProperty('--hp', 0); draw(); Toast.info('Authority armed', 'Agent borrowing still follows the market gate.'); raf = 0; return; }
+    raf = holding || prog > 0 ? requestAnimationFrame(step) : 0;
+  };
+  const start = () => { if (hold.getAttribute('aria-disabled') === 'true' || A.armed) return; holding = true; t0 = performance.now() - prog * 1200; if (!raf) raf = requestAnimationFrame(step); };
+  const stop = () => { holding = false; if (!raf && prog > 0) raf = requestAnimationFrame(step); };
+  hold.addEventListener('pointerdown', e => { if (A.armed) { A.armed = false; draw(); return; } if (hold.getAttribute('aria-disabled') === 'true') return Toast.info('Configure first', 'Save a strategy before arming authority.'); hold.setPointerCapture(e.pointerId); start(); });
+  hold.addEventListener('pointerup', stop); hold.addEventListener('pointercancel', stop);
+  hold.addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); if (!e.repeat) { if (A.armed) { A.armed = false; draw(); } else start(); } } });
+  hold.addEventListener('keyup', e => { if (e.key === ' ' || e.key === 'Enter') stop(); });
+})();
+
+/* =====================================================================
+   11 TOAST DEMO
+   ===================================================================== */
+(() => {
+  $('#tx-borrow').addEventListener('click', () => attemptBorrow(500));
+  $('#tx-faucet').addEventListener('click', () => Toast.tx('Faucet airdrop'));
+  $('#tx-info').addEventListener('click', () => Toast.info('Heads up', 'Values on this page are sample data. Custody and liquidity are simulated inputs.'));
+})();
+
+/* =====================================================================
+   12 ACTIVITY TIMELINE
+   ===================================================================== */
+(() => {
+  const tl = $('#tl');
+  const EV = [
+    ['deposit', 'Deposited 30.000 NVDAx as collateral', 'Sep 18 · 14:32 ET', 'Tokenized equity locked as collateral.'],
+    ['borrow', 'Borrowed $4,200.00', 'Sep 18 · 14:35 ET', 'Health factor after borrow: 1.93'],
+    ['rejected', 'Borrow rejected', 'Sep 19 · 20:11 ET', 'Reference equity market closed. No state changed.'],
+    ['deposit', 'Deposited 12.500 AAPLx as collateral', 'Sep 20 · 10:04 ET', 'Collateral value increased.'],
+    ['rejected', 'Borrow rejected', 'Sep 20 · 10:06 ET', 'Oracle confidence interval too wide. No state changed.'],
+    ['repay', 'Repaid $500.00', 'Sep 21 · 09:48 ET', 'Outstanding debt reduced.']
+  ];
+  tl.innerHTML = EV.map(e => `<div class="ev" data-t="${e[0]}"><div class="row"><b>${e[1]}</b><span class="metaline">${e[2]}</span></div><p>${e[3]}</p></div>`).join('');
+  const evs = $$('.ev', tl);
+  const upd = () => {
+    const r = tl.getBoundingClientRect(), line = innerHeight * .62;
+    tl.style.setProperty('--p', clamp((line - r.top - 8) / (r.height - 16), 0, 1).toFixed(3));
+    evs.forEach(e => { if (!e.hidden) e.classList.toggle('lit', e.getBoundingClientRect().top < line - 10); });
+  };
+  let q = 0; const kick = () => { if (!q) q = requestAnimationFrame(() => { q = 0; upd(); }); };
+  addEventListener('scroll', kick, { passive: true }); addEventListener('resize', kick); upd();
+  $$('#act-f button').forEach(b => b.addEventListener('click', () => {
+    $$('#act-f button').forEach(x => x.setAttribute('aria-pressed', x === b));
+    const f = b.dataset.f;
+    evs.forEach(e => { const on = f === 'all' || e.dataset.t === f || (f === 'borrow' && e.dataset.t === 'repay'); e.hidden = !on; e.classList.remove('lit'); });
+    requestAnimationFrame(upd);
+  }));
+})();
+
+/* =====================================================================
+   DOCK — simulator (showcase only)
+   ===================================================================== */
+(() => {
+  const dock = $('#dock');
+  const G = [['Market', 'market', [['open', 'Open'], ['closed', 'Closed']]], ['Oracle', 'oracle', [['fresh', 'Fresh'], ['stale', 'Stale']]], ['Confidence', 'conf', [['tight', 'Tight'], ['wide', 'Wide']]], ['Custody', 'custody', [['ok', 'OK'], ['delayed', 'Delayed']]], ['Liquidity', 'liquidity', [['deep', 'Deep'], ['thin', 'Thin']]]];
+  dock.innerHTML = G.map(([l, k, o]) => `<div class="g"><span class="meta">${l}</span><div class="sg" data-k="${k}">${o.map(([v, t]) => `<button data-v="${v}" aria-pressed="false">${t}</button>`).join('')}</div></div>`).join('') +
+    `<i class="dv"></i><div class="g"><span class="meta">Price move <b id="dk-s" style="color:var(--ink)">0%</b></span><input class="rng rw" id="dk-r" type="range" min="-70" max="30" value="0" aria-label="Equity price move"></div><i class="dv"></i><div class="g"><span class="meta">Reset</span><div class="sg"><button id="dk-real">Real clock</button><button id="dk-reset">All</button></div></div>`;
+  dock.addEventListener('click', e => { const b = e.target.closest('.sg[data-k] button'); if (b) Risk.set({ [b.parentElement.dataset.k]: b.dataset.v }); });
+  $('#dk-r').addEventListener('input', e => Risk.set({ shock: +e.target.value }));
+  const realM = () => isOpen(etNow().day, etNow().min) ? 'open' : 'closed';
+  $('#dk-real').addEventListener('click', () => Risk.set({ market: realM() }));
+  $('#dk-reset').addEventListener('click', () => Risk.set({ market: realM(), oracle: 'fresh', conf: 'tight', custody: 'ok', liquidity: 'deep', shock: 0 }));
+  Risk.on(s => {
+    $$('.sg[data-k]', dock).forEach(g => $$('button', g).forEach(b => b.setAttribute('aria-pressed', s[g.dataset.k] === b.dataset.v)));
+    const r = $('#dk-r'); r.value = s.shock; r.style.setProperty('--v', (s.shock + 70) + '%'); $('#dk-s').textContent = (s.shock > 0 ? '+' : s.shock < 0 ? '−' : '') + Math.abs(s.shock) + '%';
+  });
+})();
+</script>
+</body>
+</html>

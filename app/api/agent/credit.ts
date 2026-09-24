@@ -17,6 +17,7 @@ import {
   generateAuthChallenge,
   verifyChallengeFormat,
 } from "./ledger.js";
+
 function setCorsHeaders(req: VercelRequest, res: VercelResponse) {
   const origin = req.headers?.origin;
   if (origin && typeof origin === "string") {

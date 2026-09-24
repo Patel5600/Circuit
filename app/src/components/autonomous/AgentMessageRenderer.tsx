@@ -61,6 +61,7 @@ interface AgentMessageRendererProps {
   content: string;
   blocks?: any[];
   tools?: any[];
+  executionPlan?: { steps?: Array<{ step: number; text: string; status?: "PENDING" | "ACTIVE" | "DONE" | "BLOCKED" }>; title?: string; content?: string } | null;
   streaming?: boolean;
   onApproveProposal?: (proposal: any) => void;
   onRejectProposal?: () => void;
@@ -128,48 +129,16 @@ export function parseContentToBlocks(raw: string): ParsedBlock[] {
     }
   }
 
-  // Detect BLOCKED patterns
-  if (/\b(?:blocked|disallowed|prohibited|not allowed)\b/i.test(clean) && /\b(?:risk|cap|limit|closed|stale)\b/i.test(clean)) {
+  // Detect BLOCKED patterns only on explicit system block markers
+  if (/^(?:PERMISSION REFUSED|ACTION BLOCKED|BLOCKED\s*\[)/i.test(clean)) {
     const lines = clean.split("\n").filter(l => l.trim().length > 0);
     const title = "ACTION RESTRICTED BY PROTOCOL";
-    const reasonLine = lines.find(l => /because|reason|due to|capped|restricted/i.test(l)) || lines[0];
+    const reasonLine = lines.find(l => /because|reason|due to|capped|restricted|suspended/i.test(l)) || lines[0];
     return [
       {
         type: "BLOCKED",
         title,
         reason: stripMarkdown(reasonLine),
-        content: stripMarkdown(clean),
-      },
-    ];
-  }
-
-  // Detect PLAN patterns (e.g. 1. 2. 3. steps)
-  const stepMatches = clean.match(/(?:^|\n)\s*\d+\.\s+([^\n]+)/g);
-  if (stepMatches && stepMatches.length >= 2) {
-    const steps = stepMatches.map((m, idx) => ({
-      step: idx + 1,
-      text: stripMarkdown(m.replace(/^\s*\d+\.\s*/, "")),
-      status: "PENDING" as const,
-    }));
-    return [
-      {
-        type: "PLAN",
-        title: "STRATEGY EXECUTION PLAN",
-        steps,
-        content: stripMarkdown(clean.replace(/(?:^|\n)\s*\d+\.\s+([^\n]+)/g, "").trim()),
-      },
-    ];
-  }
-
-  // Detect OBSERVATION patterns (Asset price, Oracle status, etc.)
-  if (/\b(?:oracle|pyth|price|confidence|freshness)\b/i.test(clean) && /\b(?:nvda|aapl|msft|googl|amzn|tsla)\b/i.test(clean)) {
-    const assetMatch = clean.match(/\b(NVDA|AAPL|MSFT|GOOGL|AMZN|TSLA|META|NFLX|COIN|AMD|SPY)\b/i);
-    const symbol = assetMatch ? assetMatch[1].toUpperCase() : "ASSET";
-    return [
-      {
-        type: "OBSERVATION",
-        title: `${symbol} MARKET OBSERVATION`,
-        symbol,
         content: stripMarkdown(clean),
       },
     ];
@@ -188,6 +157,7 @@ export function AgentMessageRenderer({
   content,
   blocks,
   tools,
+  executionPlan,
   streaming,
   onApproveProposal,
   onRejectProposal,
@@ -230,6 +200,21 @@ export function AgentMessageRenderer({
             </React.Fragment>
           ))}
         </div>
+      )}
+
+      {/* 3. Explicit Execution Plan (only when deliberate strategy / actionable plan is returned) */}
+      {executionPlan && executionPlan.steps && executionPlan.steps.length > 0 && (
+        <RenderParsedBlock
+          block={{
+            type: "PLAN",
+            title: executionPlan.title || "STRATEGY EXECUTION PLAN",
+            steps: executionPlan.steps,
+            content: executionPlan.content,
+          }}
+          onApproveProposal={onApproveProposal}
+          onRejectProposal={onRejectProposal}
+          onActionClick={onActionClick}
+        />
       )}
 
       {/* Streaming cursor */}
