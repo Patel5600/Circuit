@@ -29,6 +29,8 @@
  */
 
 import { decisionLogStore } from "./realtime/decision-log";
+import { AssetRegistry, normalizeAssetId } from "./assets/registry";
+import { OracleService } from "./assets/oracle-service";
 
 export const CANONICAL_POLICY_VERSION = 1;
 
@@ -112,6 +114,7 @@ export interface PermissionResult {
 export interface PermissionEvaluationParams {
   actor: ActorType;
   action: ProtocolAction;
+  assetId?: string;
   amountUsd?: number;
   protocolPaused?: boolean;
   assetEnabled?: boolean;
@@ -167,6 +170,48 @@ export interface PermissionEvaluationParams {
  * Deterministic and actor-agnostic: both humans and agents use this exact logic.
  */
 function evaluatePermissionInternal(params: PermissionEvaluationParams): PermissionResult {
+  let baseLtvBps = params.baseLtvBps ?? 7000;
+  let maxConfBps = params.maxConfBps ?? 100;
+  let liquidationThresholdBps = params.liquidationThresholdBps ?? 8000;
+  let oracleStale = params.oracleStale ?? false;
+  let globalOracleHealthy = params.globalOracleHealthy ?? true;
+  let oracleState = params.oracleState;
+
+  let canonicalConfig: ReturnType<typeof AssetRegistry.get>;
+  let canonicalId: string | undefined;
+
+  // If assetId is passed, resolve from canonical AssetRegistry and check asset-scoped flags
+  if (params.assetId) {
+    canonicalConfig = AssetRegistry.get(params.assetId);
+    canonicalId = canonicalConfig?.assetId || normalizeAssetId(params.assetId);
+
+    if (canonicalConfig) {
+      if (params.baseLtvBps === undefined) {
+        baseLtvBps = canonicalConfig.riskConfig.baseLtvBps;
+      }
+      if (params.maxConfBps === undefined) {
+        maxConfBps = canonicalConfig.riskConfig.maxConfBps;
+      }
+      if (params.liquidationThresholdBps === undefined) {
+        liquidationThresholdBps = canonicalConfig.riskConfig.liqThresholdBps;
+      }
+
+      const assetOracle = OracleService.getState(canonicalConfig.assetId);
+      if (params.oracleStale === undefined && assetOracle) {
+        oracleStale = assetOracle.oracleState === "STALE";
+      }
+      if (params.globalOracleHealthy === undefined && assetOracle) {
+        globalOracleHealthy = assetOracle.oracleState !== "UNAVAILABLE";
+      }
+      if (params.oracleState === undefined && assetOracle) {
+        oracleState = assetOracle.oracleState;
+      }
+    }
+  } else if (params.assetSymbol) {
+    canonicalConfig = AssetRegistry.get(params.assetSymbol);
+    canonicalId = canonicalConfig?.assetId || normalizeAssetId(params.assetSymbol);
+  }
+
   const {
     actor,
     action,
@@ -174,19 +219,14 @@ function evaluatePermissionInternal(params: PermissionEvaluationParams): Permiss
     protocolPaused = false,
     assetEnabled = true,
     isMarketOpen = true,
-    oracleStale = false,
     confBps = 20,
-    maxConfBps = 100,
     riskState = "SAFE",
-    baseLtvBps = 7000,
     collateralUsd = 0,
     currentDebtUsd = 0,
     minHealthFactorBps = 10_000,
-    liquidationThresholdBps = 8000,
     haltState = "open_normal",
     feedStalenessSeconds = 0,
     sessionExpectedOpen = true,
-    globalOracleHealthy = true,
     agentAuthority = null,
   } = params;
 
@@ -259,8 +299,12 @@ function evaluatePermissionInternal(params: PermissionEvaluationParams): Permiss
   // --------------------------------------------------------------------------
   // 3. MARKETGUARD ORACLE VALIDATION & PER-SECURITY HALT STATE
   // --------------------------------------------------------------------------
-  if (!globalOracleHealthy) {
-    return makeResult(false, "ORACLE_UNAVAILABLE", "Global oracle failure or broader data-service degradation detected. Risky actions blocked.", riskState, 0, 0, null, 0, 0);
+  if (!globalOracleHealthy || oracleState === "UNAVAILABLE") {
+    const sym = canonicalConfig?.symbol || params.assetSymbol || canonicalId;
+    const msg = sym
+      ? `${sym} oracle price unavailable. Risky actions blocked.`
+      : "Global oracle failure or broader data-service degradation detected. Risky actions blocked.";
+    return makeResult(false, "ORACLE_UNAVAILABLE", msg, riskState, 0, 0, null, 0, 0);
   }
 
   if (haltState === "halted_inferred") {
@@ -307,8 +351,12 @@ function evaluatePermissionInternal(params: PermissionEvaluationParams): Permiss
     return makeResult(false, "MARKET_CLOSED", "Reference equity market (NYSE) is closed. Credit creation locked.", riskState, 0, 0, null, 0, 0);
   }
 
-  if (oracleStale) {
-    return makeResult(false, "STALE_ORACLE", "Pyth oracle price is stale (> max_oracle_age). Risky actions blocked.", riskState, 0, 0, null, 0, 0);
+  if (oracleStale || oracleState === "STALE") {
+    const sym = canonicalConfig?.symbol || params.assetSymbol || canonicalId;
+    const msg = sym
+      ? `${sym} oracle price is stale (> max_oracle_age). Risky actions blocked.`
+      : "Pyth oracle price is stale (> max_oracle_age). Risky actions blocked.";
+    return makeResult(false, "STALE_ORACLE", msg, riskState, 0, 0, null, 0, 0);
   }
 
   if (confBps > maxConfBps) {
@@ -435,10 +483,12 @@ function evaluatePermissionInternal(params: PermissionEvaluationParams): Permiss
     if (agentAuthority.isExpired) {
       return makeResult(false, "AGENT_EXPIRED", "Autonomous strategy delegation has expired.", riskState, effectiveLtvBps, 0, null, 0, 0);
     }
+    const currentMint = agentAuthority.currentAssetMint || canonicalConfig?.tokenMint;
     if (
       agentAuthority.targetAssetMint &&
-      agentAuthority.currentAssetMint &&
-      agentAuthority.targetAssetMint !== agentAuthority.currentAssetMint
+      currentMint &&
+      agentAuthority.targetAssetMint !== currentMint &&
+      agentAuthority.targetAssetMint !== canonicalId
     ) {
       return makeResult(
         false,
@@ -577,7 +627,7 @@ export function evaluatePermission(params: PermissionEvaluationParams): Permissi
     decisionLogStore.recordDecision({
       actor: params.actor,
       owner: params.owner,
-      assetSymbol: params.assetSymbol ?? "UNKNOWN",
+      assetSymbol: params.assetSymbol ?? (params.assetId ? normalizeAssetId(params.assetId) : "UNKNOWN"),
       action: params.action,
       requestedAmountUsd: params.amountUsd ?? 0,
       riskState: result.riskState,

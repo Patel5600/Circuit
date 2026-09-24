@@ -33,6 +33,7 @@ import {
 import { protocolEventBus } from "../realtime/event-bus";
 import { circuitLiveStore } from "../realtime/live-store";
 import { circuitTransport } from "../transport/circuit-transport";
+import { OracleService } from "../assets/oracle-service";
 
 export { decodePositionDirect };
 
@@ -152,6 +153,9 @@ export async function fetchLivePortfolioSnapshot(
       totalHaircutBps: 0,
       riskState: "SAFE",
       hardOverride: false,
+      overridesByAssetId: {},
+      riskStateByAssetId: {},
+      positionsByAssetId: {},
       borrowAllowed: false,
       withdrawAllowed: false,
       repayAllowed: false,
@@ -385,31 +389,58 @@ export async function fetchLivePortfolioSnapshot(
     ? Math.round(((totalCollateralUsd * (weightedLiqThreshold / BPS)) / totalDebtUsd) * BPS)
     : null;
 
-  // Hard risk overrides check
+  // ── Asset-Scoped Overrides & Risk Derivations ──
+  const overridesByAssetId: Record<string, { hardOverride: boolean; hardOverrideReason?: string }> = {};
+  const riskStateByAssetId: Record<string, "SAFE" | "RESTRICTED" | "DEFENSIVE" | "EMERGENCY"> = {};
+  const positionsByAssetId: Record<string, (typeof enrichedPositions)[0]> = {};
+
   let hardOverride = false;
   let hardOverrideReason: string | undefined = undefined;
 
   for (const p of enrichedPositions) {
+    positionsByAssetId[p.symbol] = p;
+
+    let assetHardOverride = false;
+    let assetHardOverrideReason: string | undefined = undefined;
+
     if (p.confBps > p.maxConfBps && p.maxConfBps > 0) {
-      hardOverride = true;
-      hardOverrideReason = `${p.symbol} oracle confidence breached (${p.confBps} bps > ${p.maxConfBps} bps)`;
-      break;
+      assetHardOverride = true;
+      assetHardOverrideReason = `${p.symbol} oracle confidence breached (${p.confBps} bps > ${p.maxConfBps} bps)`;
+    } else if (p.confBps > 300) {
+      assetHardOverride = true;
+      assetHardOverrideReason = `${p.symbol} oracle confidence blown (${p.confBps} bps > 300 bps)`;
+    } else {
+      const maxAge = p.maxOracleAge ?? 600;
+      if (p.publishTime && p.publishTime > 0 && (nowSeconds - p.publishTime) > maxAge) {
+        assetHardOverride = true;
+        assetHardOverrideReason = `${p.symbol} oracle price stale (${nowSeconds - p.publishTime}s > ${maxAge}s)`;
+      } else if (!p.oracleHealthy && p.priceUsd <= 0) {
+        assetHardOverride = true;
+        assetHardOverrideReason = `${p.symbol} oracle price unavailable`;
+      }
     }
-    if (p.confBps > 300) {
-      hardOverride = true;
-      hardOverrideReason = `${p.symbol} oracle confidence blown (${p.confBps} bps > 300 bps)`;
-      break;
+
+    overridesByAssetId[p.symbol] = { hardOverride: assetHardOverride, hardOverrideReason: assetHardOverrideReason };
+
+    let assetRiskState: "SAFE" | "RESTRICTED" | "DEFENSIVE" | "EMERGENCY" = "SAFE";
+    if (assetHardOverride) {
+      assetRiskState = "EMERGENCY";
+    } else if (p.confBps > 150) {
+      assetRiskState = "DEFENSIVE";
+    } else if (!session.isOpen) {
+      assetRiskState = "RESTRICTED";
+    } else if (p.confBps > 50) {
+      assetRiskState = "RESTRICTED";
+    } else {
+      assetRiskState = "SAFE";
     }
-    const maxAge = p.maxOracleAge ?? 600;
-    if (p.publishTime && p.publishTime > 0 && (nowSeconds - p.publishTime) > maxAge) {
+    riskStateByAssetId[p.symbol] = assetRiskState;
+
+    // Invariant: Only positions with active collateral or active debt can trigger portfolio-wide override
+    const hasHolding = (p.collateralRaw ?? 0n) > 0n || (p.debtRaw ?? 0n) > 0n;
+    if (hasHolding && assetHardOverride && !hardOverride) {
       hardOverride = true;
-      hardOverrideReason = `${p.symbol} oracle price stale (${nowSeconds - p.publishTime}s > ${maxAge}s)`;
-      break;
-    }
-    if (!p.oracleHealthy && p.priceUsd <= 0) {
-      hardOverride = true;
-      hardOverrideReason = `${p.symbol} oracle price unavailable`;
-      break;
+      hardOverrideReason = assetHardOverrideReason;
     }
   }
 
@@ -439,8 +470,16 @@ export async function fetchLivePortfolioSnapshot(
   const repayAllowed = totalDebtUsd > 0;
   const liquidationActive = healthFactorBps !== null && healthFactorBps < BPS;
 
-  // Synchronize canonical CircuitLiveStore
+  // Synchronize canonical CircuitLiveStore and OracleService
   for (const pos of enrichedPositions) {
+    OracleService.updateState(pos.symbol, {
+      priceUsd: pos.priceUsd,
+      confUsd: pos.confidenceUsd,
+      confBps: pos.confBps,
+      publishTime: pos.publishTime,
+      healthy: pos.oracleHealthy,
+    });
+
     circuitLiveStore.updateMarket(pos.mint, {
       symbol: pos.symbol,
       price: pos.priceUsd,
@@ -491,6 +530,9 @@ export async function fetchLivePortfolioSnapshot(
     riskState,
     hardOverride,
     hardOverrideReason,
+    overridesByAssetId,
+    riskStateByAssetId,
+    positionsByAssetId,
     borrowAllowed,
     withdrawAllowed,
     repayAllowed,

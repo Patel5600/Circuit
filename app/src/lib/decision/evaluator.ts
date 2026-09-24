@@ -262,27 +262,27 @@ export function evaluateAction(
     } else if (!globalOracleHealthy) {
       verdictStatus = "BLOCK";
       verdictCode = "ORACLE_UNAVAILABLE";
-      verdictReason = "Global oracle failure or broader data-service degradation detected. Risky actions blocked.";
+      verdictReason = `${state.assetSymbol} oracle unavailable or data-service degradation detected. Risky actions blocked.`;
       source = "ORACLE";
     } else if (haltInference === "HALTED_INFERRED") {
       verdictStatus = "BLOCK";
       verdictCode = "SECURITY_HALT_INFERRED";
-      verdictReason = "Security-level halt condition inferred from session expectations and feed freshness.";
+      verdictReason = `Security-level halt condition inferred for ${state.assetSymbol} from session expectations and feed freshness.`;
       source = "ORACLE";
     } else if (freshness === "UNAVAILABLE") {
       verdictStatus = "UNAVAILABLE";
       verdictCode = "ORACLE_UNAVAILABLE";
-      verdictReason = "Pyth oracle price is unavailable. Verification required.";
+      verdictReason = `${state.assetSymbol} oracle price unavailable`;
       source = "ORACLE";
     } else if (freshness === "STALE") {
       verdictStatus = "BLOCK";
       verdictCode = "STALE_ORACLE";
-      verdictReason = `Pyth oracle price is stale (${ageSeconds}s old). Risky actions blocked until price update.`;
+      verdictReason = `${state.assetSymbol} oracle price stale (${ageSeconds}s old). Risky actions blocked until price update.`;
       source = "ORACLE";
     } else if (state.oracleConfBps > 100) {
       verdictStatus = "BLOCK";
       verdictCode = "CONFIDENCE_TOO_WIDE";
-      verdictReason = `Oracle uncertainty interval (${state.oracleConfBps} bps) exceeds asset bound (100 bps).`;
+      verdictReason = `${state.assetSymbol} oracle uncertainty interval (${state.oracleConfBps} bps) exceeds asset bound (100 bps).`;
       source = "ORACLE";
     } else if (refMarketState === "CLOSED") {
       verdictStatus = "BLOCK";

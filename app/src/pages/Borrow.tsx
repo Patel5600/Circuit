@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useWallet } from "@solana/wallet-adapter-react";
+import { PublicKey } from "@solana/web3.js";
 
 import { PageContainer } from "../components/layout/AppShell";
 import { ConfigNotice, ConnectPrompt } from "../components/layout/Guards";
@@ -39,6 +40,7 @@ import {
 } from "../lib/protocol";
 import { derivePriceAccount } from "../lib/pyth";
 import { CIRCUIT_TREASURY_ADDRESS, PYTH_FEED_ID } from "../config";
+import { AssetRegistry, assertAssetContextIntegrity } from "../lib/assets/registry";
 
 function Step({
   n,
@@ -142,10 +144,14 @@ export default function Borrow() {
     return null;
   }, [s.oracle]);
 
-  const priceAccount = useMemo(
-    () => s.oracle?.address ?? derivePriceAccount(selectedMarket.feedId || PYTH_FEED_ID, 0),
-    [s.oracle, selectedMarket.feedId]
-  );
+  const priceAccount = useMemo(() => {
+    if (s.oracle?.address) return s.oracle.address;
+    try {
+      return new PublicKey(AssetRegistry.getPriceAccount(activeMarket.symbol));
+    } catch {
+      return derivePriceAccount(activeMarket.feedId || PYTH_FEED_ID, 0);
+    }
+  }, [s.oracle, activeMarket.symbol, activeMarket.feedId]);
 
   const available = s.risk?.availableToBorrowNative ?? 0n;
   const max = available < s.vaultLiquidity ? available : s.vaultLiquidity;
@@ -217,6 +223,12 @@ export default function Borrow() {
   const canSubmit = valid && decisionResult.verdict.status === "ALLOW" && objections.length === 0 && tx.ready && !tx.busy;
 
   const submit = async () => {
+    assertAssetContextIntegrity({
+      actionAssetId: activeMarket.symbol,
+      marketAssetId: activeMarket.symbol,
+      oracleAssetId: activeMarket.symbol,
+      positionAssetId: s.position ? activeMarket.symbol : undefined,
+    });
     setTxOpen(true);
     await tx.run({
       verb: "Borrow",

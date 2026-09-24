@@ -8,11 +8,13 @@
 import React, { useState } from "react";
 import { useCircuitDomain } from "../../lib/domain/context";
 import { formatMoney, humanizeReasonCode, stripUnderscores } from "../../lib/format";
+import { AssetRegistry } from "../../lib/assets/registry";
 
 export function DecisionInspector() {
   const [isOpen, setIsOpen] = useState(false);
   const domain = useCircuitDomain();
   const snap = domain.decision;
+  const canonicalConfig = AssetRegistry.get(snap.assetSymbol);
 
   const walletAddr = domain.wallet.address
     ? `${domain.wallet.address.slice(0, 4)}...${domain.wallet.address.slice(-4)}`
@@ -149,6 +151,25 @@ export function DecisionInspector() {
           </div>
           <div style={{ color: "var(--text-2)", marginTop: 4, lineHeight: 1.4 }}>
             {snap.verdict.reason ? snap.verdict.reason.replace(/_/g, " ") : ""}
+          </div>
+        </div>
+
+        {/* Section: Canonical Asset Telemetry (Requirement 14) */}
+        <div>
+          <div style={{ color: "var(--text-3)", fontWeight: 700, marginBottom: 4, textTransform: "uppercase" }}>
+            Canonical Asset Telemetry
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
+            <div>Asset ID: <strong style={{ color: "var(--accent)" }}>{canonicalConfig?.assetId ?? snap.assetSymbol}</strong></div>
+            <div>Symbol: <strong>{canonicalConfig?.symbol ?? snap.assetSymbol}</strong></div>
+            <div>Token Mint: <strong style={{ fontSize: 10 }}>{canonicalConfig?.tokenMint ? `${canonicalConfig.tokenMint.slice(0, 4)}...${canonicalConfig.tokenMint.slice(-4)}` : "—"}</strong></div>
+            <div>Pyth Feed ID: <strong style={{ fontSize: 10 }}>{canonicalConfig?.pythFeedId ? `${canonicalConfig.pythFeedId.slice(0, 4)}...${canonicalConfig.pythFeedId.slice(-4)}` : "—"}</strong></div>
+            <div>Feed Account: <strong style={{ fontSize: 10 }}>{canonicalConfig?.pythFeedAccount ? `${canonicalConfig.pythFeedAccount.slice(0, 4)}...${canonicalConfig.pythFeedAccount.slice(-4)}` : "—"}</strong></div>
+            <div>Oracle Time: <strong>{snap.oracle.lastValidPublishTime ?? snap.freshness.market}</strong></div>
+            <div>Oracle Age: <strong>{snap.oracle.ageSeconds}s</strong></div>
+            <div>Oracle State: <strong style={{ color: oracleState === "FRESH" ? "var(--success)" : "var(--warning)" }}>{oracleState}</strong></div>
+            <div>Risk State: <strong style={{ color: snap.risk.state === "SAFE" ? "var(--success)" : "var(--warning)" }}>{snap.risk.state}</strong></div>
+            <div>Permission: <strong style={{ color: snap.permission.allowed ? "var(--success)" : "var(--danger)" }}>{snap.permission.allowed ? "ALLOWED" : "BLOCKED"}</strong></div>
           </div>
         </div>
 

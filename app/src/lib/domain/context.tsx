@@ -47,6 +47,7 @@ import {
   PermissionResult,
   ProtocolAction,
   CANONICAL_POLICY_VERSION,
+  RiskRatchetState,
 } from "../permission-engine";
 import {
   OnChainAgentAuthority,
@@ -59,6 +60,8 @@ import { Transaction } from "@solana/web3.js";
 import { protocolEventBus, createEvent } from "../realtime/event-bus";
 import { DecisionSnapshot } from "../decision/types";
 import { evaluateAction } from "../decision/evaluator";
+import { AssetRegistry, normalizeAssetId } from "../assets/registry";
+import { OracleService, AssetOracleState } from "../assets/oracle-service";
 
 export interface DomainContextValue {
   decision: DecisionSnapshot;
@@ -83,6 +86,14 @@ export interface DomainContextValue {
   ) => PermissionResult;
   agentAuthority: AgentAuthorityDomainState;
   getAgentAuthorityForAsset: (symbolOrMint: string) => AgentAuthorityDomainState;
+  getRiskForAsset: (symbolOrMint: string) => RiskDomainState;
+  getPermissionsForAsset: (symbolOrMint: string) => CreditDomainState;
+  getOracleForAsset: (symbolOrMint: string) => AssetOracleState;
+  getPositionForAsset: (symbolOrMint: string) => any;
+  riskByAssetId: Record<string, RiskDomainState>;
+  permissionsByAssetId: Record<string, CreditDomainState>;
+  oracleByAssetId: Record<string, AssetOracleState>;
+  positionsByAssetId: Record<string, any>;
   onChainAuthorities: OnChainAgentAuthority[];
   hasActiveAuthority: boolean;
   authoritiesLoading: boolean;
@@ -513,6 +524,199 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
     };
   }, [riskState, portfolioState]);
 
+  // ── Asset-Scoped Risk Dictionary & Accessor ──
+  const riskByAssetId = useMemo<Record<string, RiskDomainState>>(() => {
+    const nyse = isNyseMarketOpen();
+    const result: Record<string, RiskDomainState> = {};
+    const positions = portfolioSnap?.positions ?? [];
+
+    for (const asset of AssetRegistry.list()) {
+      const sym = asset.symbol;
+      const pos = positions.find((p: any) => p.symbol === sym || p.mint === asset.tokenMint);
+      const oracleState = OracleService.getState(sym);
+
+      const hasHolding = (pos?.collateralUi ?? 0) > 0 || (pos?.debtUi ?? 0) > 0;
+      const isStale = hasHolding && (!pos?.oracleHealthy || !oracleState.healthy);
+      const confBps = pos?.confBps ?? oracleState.confBps ?? 0;
+
+      const overrideEntry = portfolioSnap?.overridesByAssetId?.[sym];
+      const assetHardOverride = Boolean(overrideEntry?.hardOverride);
+      const assetHardOverrideReason =
+        overrideEntry?.hardOverrideReason ??
+        (hasHolding && !oracleState.healthy && oracleState.priceUsd <= 0
+          ? `${sym} oracle price unavailable`
+          : isStale
+          ? `Price feed updating for ${sym} collateral`
+          : undefined);
+
+      let derivedRatchet: RiskRatchetState = "SAFE";
+      if (assetHardOverride) {
+        derivedRatchet = "EMERGENCY";
+      } else if (portfolioSnap?.riskStateByAssetId?.[sym]) {
+        derivedRatchet = portfolioSnap.riskStateByAssetId[sym];
+      } else if (confBps > 150) {
+        derivedRatchet = "DEFENSIVE";
+      } else if (!nyse.isOpen) {
+        derivedRatchet = "RESTRICTED";
+      } else if (confBps > 50) {
+        derivedRatchet = "RESTRICTED";
+      } else {
+        derivedRatchet = "SAFE";
+      }
+
+      result[sym] = {
+        ratchetState: derivedRatchet,
+        riskState: derivedRatchet,
+        maxConfSpreadBps: confBps,
+        isStaleOracle: isStale,
+        isMarketOpen: nyse.isOpen,
+        hardOverride: assetHardOverride,
+        hardOverrideReason: assetHardOverrideReason,
+        freshness: makeFreshness(`risk-engine-${sym}`),
+      };
+    }
+    return result;
+  }, [portfolioSnap]);
+
+  const getRiskForAsset = useCallback(
+    (symbolOrMint: string): RiskDomainState => {
+      const config = AssetRegistry.get(symbolOrMint);
+      const sym = config?.symbol || normalizeAssetId(symbolOrMint);
+      return riskByAssetId[sym] ?? riskState;
+    },
+    [riskByAssetId, riskState]
+  );
+
+  // ── Asset-Scoped Credit Permissions Dictionary & Accessor ──
+  const permissionsByAssetId = useMemo<Record<string, CreditDomainState>>(() => {
+    const result: Record<string, CreditDomainState> = {};
+    const positions = portfolioSnap?.positions ?? [];
+
+    for (const asset of AssetRegistry.list()) {
+      const sym = asset.symbol;
+      const assetRisk = riskByAssetId[sym] ?? riskState;
+      const pos = positions.find((p: any) => p.symbol === sym || p.mint === asset.tokenMint);
+      const rState = assetRisk.ratchetState;
+
+      const collatUsd = pos?.collateralValueUsd ?? 0;
+      const debtUsd = pos?.debtUi ?? 0;
+      const hasCollat = collatUsd > 0;
+      const hasDebt = debtUsd > 0;
+      const hardOverride = assetRisk.hardOverride;
+
+      let borrowStatus: "ALLOWED" | "RESTRICTED" | "BLOCKED" = "ALLOWED";
+      let borrowReason: string | undefined;
+
+      if (hardOverride || rState === "EMERGENCY") {
+        borrowStatus = "BLOCKED";
+        borrowReason =
+          assetRisk.hardOverrideReason ||
+          `Hard Safety Gate breached for ${sym}. Borrowing locked by protocol policy.`;
+      } else if (rState === "DEFENSIVE") {
+        borrowStatus = "BLOCKED";
+        borrowReason = `Risk ratchet in DEFENSIVE state for ${sym}. Market volatility exceeds safe threshold.`;
+      } else if (rState === "RESTRICTED") {
+        borrowStatus = "RESTRICTED";
+        borrowReason = !assetRisk.isMarketOpen
+          ? "NYSE reference session closed (MarketGuard active). Credit constrained."
+          : `Risk ratchet in RESTRICTED state for ${sym}. Borrowing capacity constrained.`;
+      } else if (!hasCollat) {
+        borrowStatus = "BLOCKED";
+        borrowReason = `Deposit ${sym} collateral to activate borrowing power.`;
+      }
+
+      let withdrawStatus: "ALLOWED" | "RESTRICTED" | "BLOCKED" | "INACTIVE" = hasCollat
+        ? "ALLOWED"
+        : "INACTIVE";
+      let withdrawReason: string | undefined;
+
+      if (
+        hasCollat &&
+        hasDebt &&
+        (hardOverride || rState === "DEFENSIVE" || rState === "EMERGENCY")
+      ) {
+        withdrawStatus = "BLOCKED";
+        withdrawReason = `Withdrawal locked during ${rState} containment while holding debt to protect pool solvency.`;
+      }
+
+      const effectiveLtvBps =
+        rState === "RESTRICTED"
+          ? Math.max(0, asset.riskConfig.baseLtvBps - 1000)
+          : rState === "DEFENSIVE"
+          ? Math.max(0, asset.riskConfig.baseLtvBps - 2000)
+          : rState === "EMERGENCY"
+          ? 0
+          : asset.riskConfig.baseLtvBps;
+
+      const maxBorrowCapacityUsd = collatUsd * (effectiveLtvBps / 10000);
+      const availableCreditUsd = Math.max(0, maxBorrowCapacityUsd - debtUsd);
+      const creditUtilizationPct =
+        availableCreditUsd + debtUsd > 0
+          ? (debtUsd / (availableCreditUsd + debtUsd)) * 100
+          : 0;
+
+      const healthFactor =
+        debtUsd > 0 ? (collatUsd * (asset.riskConfig.liqThresholdBps / 10000)) / debtUsd : null;
+
+      result[sym] = {
+        permissions: {
+          borrow: { status: borrowStatus, reason: borrowReason },
+          withdraw: { status: withdrawStatus, reason: withdrawReason },
+          repay: { status: hasDebt ? "ALLOWED" : "INACTIVE" },
+          deposit: { status: "ALLOWED" },
+          liquidate: {
+            status: healthFactor !== null && healthFactor < 1.0 ? "ALLOWED" : "INACTIVE",
+          },
+        },
+        availableCreditUsd,
+        creditUtilizationPct,
+        freshness: makeFreshness(`credit-permissions-${sym}`),
+      };
+    }
+
+    return result;
+  }, [riskByAssetId, riskState, portfolioSnap]);
+
+  const getPermissionsForAsset = useCallback(
+    (symbolOrMint: string): CreditDomainState => {
+      const config = AssetRegistry.get(symbolOrMint);
+      const sym = config?.symbol || normalizeAssetId(symbolOrMint);
+      return permissionsByAssetId[sym] ?? creditState;
+    },
+    [permissionsByAssetId, creditState]
+  );
+
+  // ── Asset-Scoped Oracle Dictionary & Accessor ──
+  const oracleByAssetId = useMemo<Record<string, AssetOracleState>>(() => {
+    return OracleService.getAllStates();
+  }, [marketSnapshots, portfolioSnap]);
+
+  const getOracleForAsset = useCallback(
+    (symbolOrMint: string): AssetOracleState => {
+      return OracleService.getState(symbolOrMint);
+    },
+    []
+  );
+
+  // ── Asset-Scoped Positions Dictionary & Accessor ──
+  const positionsByAssetId = useMemo<Record<string, any>>(() => {
+    const result: Record<string, any> = {};
+    const positions = portfolioSnap?.positions ?? [];
+    for (const p of positions) {
+      result[p.symbol] = p;
+    }
+    return result;
+  }, [portfolioSnap]);
+
+  const getPositionForAsset = useCallback(
+    (symbolOrMint: string) => {
+      const config = AssetRegistry.get(symbolOrMint);
+      const sym = config?.symbol || normalizeAssetId(symbolOrMint);
+      return positionsByAssetId[sym] ?? null;
+    },
+    [positionsByAssetId]
+  );
+
   // ── Event Bus: emit real state transition events ──
   const prevRiskStateRef = useRef<string>(riskState.ratchetState);
   useEffect(() => {
@@ -716,51 +920,46 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
       symbolOrMint?: string,
       modeOverride?: ControlMode
     ): DecisionSnapshot => {
-      const sym = (symbolOrMint || activeMarketKey).toUpperCase();
+      const sym = normalizeAssetId(symbolOrMint || activeMarketKey);
+      const canonicalAsset = AssetRegistry.get(sym);
       const mkt = DEPLOYED_MARKETS.find(
-        (m) => m.symbol.toUpperCase() === sym || m.mint === symbolOrMint
+        (m) => m.symbol.toUpperCase() === sym || m.mint === canonicalAsset?.tokenMint
       );
       const pos = portfolioState.positions.find(
-        (p) => p.symbol.toUpperCase() === sym || p.mint === symbolOrMint
+        (p) => p.symbol.toUpperCase() === sym || p.mint === canonicalAsset?.tokenMint
       );
-      const collatUsd =
-        pos?.collateralValueUsd ?? (pos ? 0 : portfolioState.totalCollateralUsd ?? 0);
-      const debtUsd = pos?.debtUi ?? (pos ? 0 : portfolioState.totalDebtUsd || 0);
+      const collatUsd = pos?.collateralValueUsd ?? 0;
+      const debtUsd = pos?.debtUi ?? 0;
 
       const effectiveMode = modeOverride ?? controlMode;
       const isAgent = effectiveMode === "AUTONOMOUS";
       const agentAuth = isAgent ? getAgentAuthorityForAsset(sym) : null;
 
-      const pData = marketState.markets[sym]?.priceData;
-      const cached =
-        oracleCache.get(sym) ||
-        (mkt?.feedId ? oracleCache.get(mkt.feedId) : null) ||
-        (mkt?.mint ? oracleCache.get(mkt.mint) : null);
+      const assetOracle = OracleService.getState(sym);
+      const assetRisk = getRiskForAsset(sym);
 
       const oraclePrice =
-        pData?.price ??
-        cached?.snapshot.priceUsd ??
-        pos?.priceUsd ??
-        ((mkt as any)?.lastValidPrice ? Number((mkt as any).lastValidPrice) : 0);
-      const oracleExpo = -8;
-      const oracleConf = pData?.conf ?? cached?.snapshot.confUsd ?? 0;
-      const oracleConfBps =
-        pData?.confBps ?? cached?.snapshot.confBps ?? (pos ? pos.confBps : 0);
-      const oraclePublishTime =
-        pData?.publishTime ??
-        (cached?.snapshot.update ? Number(cached.snapshot.update.publishTime) : 0) ??
-        pos?.publishTime ??
-        ((mkt as any)?.lastValidPublishTime ? Number((mkt as any).lastValidPublishTime) : 0);
+        assetOracle.priceUsd > 0
+          ? assetOracle.priceUsd
+          : (pos?.priceUsd ?? 0);
+      const oracleExpo = assetOracle.exponent ?? -8;
+      const oracleConf = assetOracle.confUsd ?? 0;
+      const oracleConfBps = assetOracle.confBps ?? (pos ? pos.confBps : 0);
+      const oraclePublishTime = assetOracle.publishTime ?? (pos?.publishTime ?? 0);
 
       const lastValidPrice =
-        (mkt as any)?.lastValidPrice ??
+        assetOracle.lastValidPrice ??
         (pos?.priceUsd && pos.priceUsd > 0 ? pos.priceUsd : (oraclePrice > 0 ? oraclePrice : null));
       const lastValidPublishTime =
-        (mkt as any)?.lastValidPublishTime ??
+        assetOracle.lastValidPublishTime ??
         (pos?.publishTime && pos.publishTime > 0 ? pos.publishTime : (oraclePublishTime > 0 ? oraclePublishTime : null));
-      const referenceMarketState = (mkt as any)?.referenceMarketState ?? (riskState.isMarketOpen ? "OPEN" : "CLOSED");
+
+      const referenceMarketState =
+        (mkt as any)?.referenceMarketState ?? (assetRisk.isMarketOpen ? "OPEN" : "CLOSED");
       const onchainMarketState = (mkt as any)?.onchainMarketState ?? "OPEN";
-      const oracleState = (mkt as any)?.oracleState;
+      const oracleState = assetOracle.oracleState;
+
+      const oracleHealthy = assetOracle.healthy && assetOracle.freshness !== "UNAVAILABLE";
 
       return evaluateAction(
         isAgent
@@ -777,23 +976,23 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
           blockTime: null,
           protocolPaused: protocolState.isFrozen,
           assetEnabled: true,
-          assetMint: mkt?.mint ?? pos?.mint ?? "",
+          assetMint: canonicalAsset?.tokenMint ?? mkt?.mint ?? pos?.mint ?? "",
           assetSymbol: sym,
           oraclePrice,
           oracleExpo,
           oracleConf,
           oracleConfBps,
           oraclePublishTime,
-          maxOracleAge: 600,
-          globalOracleHealthy: !riskState.isStaleOracle,
-          isMarketOpen: riskState.isMarketOpen,
+          maxOracleAge: canonicalAsset?.riskConfig.maxOracleAge ?? 600,
+          globalOracleHealthy: oracleHealthy,
+          isMarketOpen: assetRisk.isMarketOpen,
           referenceMarketState,
           onchainMarketState,
           oracleState,
           lastValidPrice,
           lastValidPublishTime,
-          ratchetState: riskState.ratchetState,
-          baseLtvBps: portfolioState.weightedBaseLtvBps || 7000,
+          ratchetState: assetRisk.ratchetState,
+          baseLtvBps: canonicalAsset?.riskConfig.baseLtvBps ?? (portfolioState.weightedBaseLtvBps || 7000),
           collateralUsd: collatUsd,
           debtUsd: debtUsd,
           agentAuthority: agentAuth
@@ -814,11 +1013,11 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
       controlMode,
       activeMarketKey,
       portfolioState,
-      riskState,
       protocolState,
       marketState,
       currentSlot,
       getAgentAuthorityForAsset,
+      getRiskForAsset,
     ]
   );
 
@@ -862,6 +1061,14 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
     evaluatePermissionForAction,
     agentAuthority: activeAgentAuthority,
     getAgentAuthorityForAsset,
+    getRiskForAsset,
+    getPermissionsForAsset,
+    getOracleForAsset,
+    getPositionForAsset,
+    riskByAssetId,
+    permissionsByAssetId,
+    oracleByAssetId,
+    positionsByAssetId,
     onChainAuthorities,
     hasActiveAuthority,
     authoritiesLoading,

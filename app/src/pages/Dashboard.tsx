@@ -52,6 +52,13 @@ export default function Dashboard() {
 
   const borrowBlocked = Boolean(s.risk && !s.risk.borrowAllowed);
 
+  const activeAssetRisk = domain.getRiskForAsset ? domain.getRiskForAsset(selectedMarket.symbol) : domain.risk;
+  const activeAssetPerms = domain.getPermissionsForAsset ? domain.getPermissionsForAsset(selectedMarket.symbol) : domain.credit;
+  const activeDecision = useMemo(
+    () => domain.evaluateDecision("borrow", 0, selectedMarket.symbol),
+    [domain, selectedMarket.symbol]
+  );
+
   return (
     <PageContainer>
       <ConfigNotice />
@@ -97,11 +104,11 @@ export default function Dashboard() {
 
           {/* Top: PORTFOLIO RISK STATE (Protocol Risk is Primary) */}
           <div
-            className={`risk-banner risk-banner--${(domain.risk.riskState || "safe").toLowerCase()}`}
+            className={`risk-banner risk-banner--${(activeAssetRisk.riskState || "safe").toLowerCase()}`}
           >
             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
               <span
-                className={`risk-banner__dot risk-banner__dot--${(domain.risk.riskState || "safe").toLowerCase()}`}
+                className={`risk-banner__dot risk-banner__dot--${(activeAssetRisk.riskState || "safe").toLowerCase()}`}
                 aria-hidden="true"
               />
               <div>
@@ -115,53 +122,51 @@ export default function Dashboard() {
                       fontFamily: "var(--mono)",
                       fontWeight: 700,
                       color:
-                        domain.risk.riskState === "SAFE"
+                        activeAssetRisk.riskState === "SAFE"
                           ? "var(--success)"
-                          : domain.risk.riskState === "RESTRICTED"
+                          : activeAssetRisk.riskState === "RESTRICTED"
                           ? "var(--warning)"
                           : "var(--danger)",
                     }}
                   >
-                    {domain.risk.riskState}
+                    {activeAssetRisk.riskState}
                   </span>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "4px", flexWrap: "wrap" }}>
                   <span style={{ fontSize: "12px", color: "var(--text-2)" }}>
                     Borrow: <strong style={{
                       color:
-                        domain.portfolio.borrowCapacityUsd > 0 && domain.credit.permissions.borrow.status !== "BLOCKED"
+                        activeDecision.permission.allowed
                           ? "var(--success)"
-                          : domain.credit.permissions.borrow.status === "RESTRICTED"
+                          : activeAssetPerms.permissions.borrow.status === "RESTRICTED"
                           ? "var(--warning)"
                           : "var(--danger)",
                     }}>
-                      {domain.portfolio.borrowCapacityUsd > 0 && domain.credit.permissions.borrow.status !== "BLOCKED"
+                      {activeDecision.permission.allowed
                         ? "ALLOWED"
-                        : domain.credit.permissions.borrow.status === "RESTRICTED"
+                        : activeAssetPerms.permissions.borrow.status === "RESTRICTED"
                         ? "RESTRICTED"
                         : "UNAVAILABLE"}
                     </strong>
-                    {!(domain.portfolio.borrowCapacityUsd > 0 && domain.credit.permissions.borrow.status !== "BLOCKED") && (
+                    {!activeDecision.permission.allowed && (
                       <span style={{ fontSize: 11.5, marginLeft: 4, color: "var(--text-3)" }}>
                         ({humanizeReasonCode(
-                          domain.portfolio.totalCollateralUsd <= 0
-                            ? "INSUFFICIENT_COLLATERAL"
-                            : domain.risk.hardOverrideReason
-                            ? domain.risk.hardOverrideReason
-                            : domain.decision.permission.reasonCode
+                          activeDecision.verdict.reason
+                            ? activeDecision.verdict.reason
+                            : activeDecision.permission.reasonCode
                         )})
                       </span>
                     )}
                   </span>
                   <span style={{ color: "var(--text-3)" }}>·</span>
                   <span style={{ fontSize: "12px", color: "var(--text-2)" }}>
-                    Withdraw: <strong style={{ color: domain.credit.permissions.withdraw.status !== "BLOCKED" ? "var(--success)" : "var(--danger)" }}>
-                      {domain.credit.permissions.withdraw.status !== "BLOCKED" ? "ALLOWED" : "UNAVAILABLE"}
+                    Withdraw: <strong style={{ color: activeAssetPerms.permissions.withdraw.status !== "BLOCKED" ? "var(--success)" : "var(--danger)" }}>
+                      {activeAssetPerms.permissions.withdraw.status !== "BLOCKED" ? "ALLOWED" : "UNAVAILABLE"}
                     </strong>
                   </span>
                   <span style={{ color: "var(--text-3)" }}>·</span>
                   <span className="mono" style={{ fontSize: "11px", color: "var(--text-3)" }}>
-                    Epoch {domain.decision.risk.riskEpoch}
+                    Epoch {activeDecision.risk.riskEpoch}
                   </span>
                 </div>
               </div>

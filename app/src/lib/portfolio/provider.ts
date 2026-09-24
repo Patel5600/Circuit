@@ -111,6 +111,9 @@ export interface PortfolioSnapshot {
   riskState: "SAFE" | "RESTRICTED" | "DEFENSIVE" | "EMERGENCY";
   hardOverride: boolean;
   hardOverrideReason?: string;
+  overridesByAssetId?: Record<string, { hardOverride: boolean; hardOverrideReason?: string }>;
+  riskStateByAssetId?: Record<string, "SAFE" | "RESTRICTED" | "DEFENSIVE" | "EMERGENCY">;
+  positionsByAssetId?: Record<string, Position>;
   borrowAllowed: boolean;
   withdrawAllowed: boolean;
   repayAllowed: boolean;

@@ -53,6 +53,9 @@ export interface UserPortfolioData {
   riskState: "SAFE" | "RESTRICTED" | "DEFENSIVE" | "EMERGENCY";
   hardOverride: boolean;
   hardOverrideReason?: string;
+  overridesByAssetId?: Record<string, { hardOverride: boolean; hardOverrideReason?: string }>;
+  riskStateByAssetId?: Record<string, "SAFE" | "RESTRICTED" | "DEFENSIVE" | "EMERGENCY">;
+  positionsByAssetId?: Record<string, UserMarketPosition>;
   borrowAllowed: boolean;
   refresh: () => void;
 }
@@ -298,31 +301,54 @@ export function useAllUserPositions(): UserPortfolioData {
     ? Math.round((totalCollateralUsd * (weightedLiqThreshold / BPS) / totalDebtUsd) * BPS)
     : null;
 
-  // Hard risk overrides check strictly matching on-chain refresh_guard.rs
+  // ── Asset-Scoped Overrides & Risk Derivations ──
   const nowSeconds = Math.floor(Date.now() / 1000);
+  const overridesByAssetId: Record<string, { hardOverride: boolean; hardOverrideReason?: string }> = {};
+  const riskStateByAssetId: Record<string, "SAFE" | "RESTRICTED" | "DEFENSIVE" | "EMERGENCY"> = {};
+  const positionsByAssetId: Record<string, UserMarketPosition> = {};
+
   let hardOverride = false;
   let hardOverrideReason: string | undefined = undefined;
 
   for (const p of enrichedPositions) {
+    positionsByAssetId[p.market.symbol] = p;
+
+    let assetHardOverride = false;
+    let assetHardOverrideReason: string | undefined = undefined;
+
     if (p.confBps > p.maxConfBps && p.maxConfBps > 0) {
-      hardOverride = true;
-      hardOverrideReason = `${p.market.symbol} oracle confidence breached (${p.confBps} bps > ${p.maxConfBps} bps)`;
-      break;
+      assetHardOverride = true;
+      assetHardOverrideReason = `${p.market.symbol} oracle confidence breached (${p.confBps} bps > ${p.maxConfBps} bps)`;
+    } else if (p.confBps > 300) {
+      assetHardOverride = true;
+      assetHardOverrideReason = `${p.market.symbol} oracle confidence blown (${p.confBps} bps > 300 bps)`;
+    } else if (p.publishTime > 0 && (nowSeconds - p.publishTime) > p.maxOracleAge) {
+      assetHardOverride = true;
+      assetHardOverrideReason = `${p.market.symbol} oracle price stale (${nowSeconds - p.publishTime}s > ${p.maxOracleAge}s)`;
+    } else if (!p.oracleHealthy && p.priceUsd <= 0) {
+      assetHardOverride = true;
+      assetHardOverrideReason = `${p.market.symbol} oracle price unavailable`;
     }
-    if (p.confBps > 300) {
-      hardOverride = true;
-      hardOverrideReason = `${p.market.symbol} oracle confidence blown (${p.confBps} bps > 300 bps)`;
-      break;
+
+    overridesByAssetId[p.market.symbol] = { hardOverride: assetHardOverride, hardOverrideReason: assetHardOverrideReason };
+
+    let assetRiskState: "SAFE" | "RESTRICTED" | "DEFENSIVE" | "EMERGENCY" = "SAFE";
+    if (assetHardOverride) {
+      assetRiskState = "EMERGENCY";
+    } else if (p.confBps > 150) {
+      assetRiskState = "DEFENSIVE";
+    } else if (!p.marketOpen || p.confBps > 50) {
+      assetRiskState = "RESTRICTED";
+    } else {
+      assetRiskState = "SAFE";
     }
-    if (p.publishTime > 0 && (nowSeconds - p.publishTime) > p.maxOracleAge) {
+    riskStateByAssetId[p.market.symbol] = assetRiskState;
+
+    // Only active deposited collateral or outstanding debt can trigger a portfolio-wide override
+    const hasHolding = (p.collateralRaw ?? 0n) > 0n || (p.debtRaw ?? 0n) > 0n;
+    if (hasHolding && assetHardOverride && !hardOverride) {
       hardOverride = true;
-      hardOverrideReason = `${p.market.symbol} oracle price stale (${nowSeconds - p.publishTime}s > ${p.maxOracleAge}s)`;
-      break;
-    }
-    if (!p.oracleHealthy && p.priceUsd <= 0) {
-      hardOverride = true;
-      hardOverrideReason = `${p.market.symbol} oracle price unavailable`;
-      break;
+      hardOverrideReason = assetHardOverrideReason;
     }
   }
 
@@ -330,9 +356,12 @@ export function useAllUserPositions(): UserPortfolioData {
   let riskState: "SAFE" | "RESTRICTED" | "DEFENSIVE" | "EMERGENCY" = "SAFE";
   if (hardOverride) {
     riskState = "EMERGENCY";
-  } else if (enrichedPositions.some((p) => p.confBps > 150)) {
+  } else if (enrichedPositions.some((p) => ((p.collateralRaw ?? 0n) > 0n || (p.debtRaw ?? 0n) > 0n) && p.confBps > 150)) {
     riskState = "DEFENSIVE";
-  } else if (maxWeightPct > 40 || enrichedPositions.some((p) => p.confBps > 50) || !enrichedPositions.every((p) => p.marketOpen)) {
+  } else if (
+    maxWeightPct > 40 ||
+    enrichedPositions.some((p) => ((p.collateralRaw ?? 0n) > 0n || (p.debtRaw ?? 0n) > 0n) && (p.confBps > 50 || !p.marketOpen))
+  ) {
     riskState = "RESTRICTED";
   } else {
     riskState = "SAFE";
@@ -355,6 +384,9 @@ export function useAllUserPositions(): UserPortfolioData {
     riskState,
     hardOverride,
     hardOverrideReason,
+    overridesByAssetId,
+    riskStateByAssetId,
+    positionsByAssetId,
     borrowAllowed,
     refresh,
   };

@@ -43,13 +43,14 @@ import {
 import { derivePriceAccount } from "../lib/pyth";
 import { PYTH_FEED_ID } from "../config";
 import { calculateMinimumRestorationDebt } from "../lib/recovery-engine";
+import { AssetRegistry, assertAssetContextIntegrity } from "../lib/assets/registry";
 
 type ActionType = "deposit" | "repay" | "withdraw";
 type ViewMode = "table" | "graph" | "topology3d" | "sensitivity";
 
 export default function Position() {
   const { connected, publicKey } = useWallet();
-  const { portfolio, risk, credit, invalidate, getAgentAuthorityForAsset, revokeAgentAuthority, controlMode, setControlMode } = useCircuitDomain();
+  const { portfolio, risk, credit, invalidate, getAgentAuthorityForAsset, revokeAgentAuthority, controlMode, setControlMode, getPermissionsForAsset } = useCircuitDomain();
   const { selectedMarket, selectMarket } = useMarket();
   const [searchParams] = useSearchParams();
   const marketQuery = searchParams.get("market");
@@ -108,8 +109,9 @@ export default function Position() {
 
   const activeSymbol = targetMarket ? targetMarket.symbol : null;
   const activeTokenSymbol = targetMarket ? targetMarket.tokenSymbol : null;
-  const isWithdrawBlocked = credit.permissions.withdraw.status === "BLOCKED";
-  const isBorrowBlocked = credit.permissions.borrow.status === "BLOCKED";
+  const activeAssetPerms = activeSymbol && getPermissionsForAsset ? getPermissionsForAsset(activeSymbol) : credit;
+  const isWithdrawBlocked = activeAssetPerms.permissions.withdraw.status === "BLOCKED";
+  const isBorrowBlocked = activeAssetPerms.permissions.borrow.status === "BLOCKED";
 
   const recoveryAdvice = useMemo(() => {
     if (portfolio.totalDebtUsd <= 0 || portfolio.healthFactor === null) return null;
@@ -140,9 +142,16 @@ export default function Position() {
     const parsed = Number(amount);
     if (!parsed || parsed <= 0 || !publicKey || !targetMarket) return;
 
+    assertAssetContextIntegrity({
+      actionAssetId: targetMarket.symbol,
+      positionAssetId: targetMarket.symbol,
+      marketAssetId: targetMarket.symbol,
+      oracleAssetId: targetMarket.symbol,
+    });
+
     setTxOpen(true);
     const amountNative = toNative(parsed);
-    const priceAccount = derivePriceAccount(targetMarket.feedId || PYTH_FEED_ID, 0);
+    const priceAccount = new PublicKey(AssetRegistry.getPriceAccount(targetMarket.symbol));
 
     const success = await tx.run({
       verb: action === "deposit" ? "Deposit" : action === "withdraw" ? "Withdraw" : "Repay",
