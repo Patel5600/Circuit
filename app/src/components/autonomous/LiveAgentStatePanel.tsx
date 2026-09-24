@@ -77,10 +77,10 @@ export function LiveAgentStatePanel({
 
   const riskColor =
     riskState === "SAFE"
-      ? "var(--mint, #79c2a4)"
+      ? "var(--success)"
       : riskState === "RESTRICTED"
-      ? "var(--warning, #cfad74)"
-      : "var(--danger, #cf8b8b)";
+      ? "var(--warning)"
+      : "var(--danger)";
 
   return (
     <div
@@ -92,14 +92,14 @@ export function LiveAgentStatePanel({
         height: "100%",
         overflowY: "auto",
         padding: "16px",
-        background: "var(--surface-0, #0c0c0d)",
+        background: "var(--surface-0)",
         borderLeft: "1px solid var(--border)",
       }}
     >
       {/* 1. Header: Live State */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--mint, #79c2a4)", display: "inline-block" }} />
+          <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--success)", display: "inline-block" }} />
           <span style={{ fontSize: 11, fontFamily: "var(--mono)", fontWeight: 700, color: "var(--text)", letterSpacing: "0.08em" }}>
             LIVE AGENT STATE
           </span>
@@ -114,7 +114,7 @@ export function LiveAgentStatePanel({
             padding: "2px 7px",
             fontSize: 10,
             fontFamily: "var(--mono)",
-            color: "#818cf8",
+            color: "var(--accent)",
             cursor: "pointer",
           }}
         >
@@ -134,7 +134,7 @@ export function LiveAgentStatePanel({
       {/* 2. Current Objective */}
       <div
         style={{
-          background: "var(--surface-1, #121214)",
+          background: "var(--surface-1)",
           border: "1px solid var(--border)",
           borderRadius: 8,
           padding: "12px 14px",
@@ -157,7 +157,7 @@ export function LiveAgentStatePanel({
       {/* 2.5 Agent Compute Budget */}
       <div
         style={{
-          background: "var(--surface-1, #121214)",
+          background: "var(--surface-1)",
           border: "1px solid var(--border)",
           borderRadius: 8,
           padding: "12px 14px",
@@ -175,15 +175,15 @@ export function LiveAgentStatePanel({
               fontWeight: 700,
               padding: "1px 6px",
               borderRadius: 3,
-              background: agentTier === "PRO" ? "rgba(167, 139, 250, 0.2)" : "rgba(236, 234, 230, 0.12)",
-              color: agentTier === "PRO" ? "#a78bfa" : "var(--accent)",
+              background: agentTier === "PRO" ? "var(--accent-dim)" : "var(--surface-2)",
+              color: agentTier === "PRO" ? "var(--accent)" : "var(--text-2)",
             }}
           >
             CIRCUIT {agentTier === "PRO" ? "PRO AGENT" : "LITE"}
           </span>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 2 }}>
-          <span style={{ fontSize: 16, fontWeight: 800, color: agentCreditsAvailable <= 10 ? "var(--danger, #cf8b8b)" : "var(--mint, #79c2a4)" }}>
+          <span style={{ fontSize: 16, fontWeight: 800, color: agentCreditsAvailable <= 10 ? "var(--danger)" : "var(--success)" }}>
             {agentCreditsAvailable} <span style={{ fontSize: 10, fontWeight: 500, color: "var(--text-3)" }}>CREDITS</span>
           </span>
           {agentCreditsReserved > 0 && (
@@ -192,9 +192,9 @@ export function LiveAgentStatePanel({
             </span>
           )}
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--text-3)", marginTop: 4, paddingTop: 6, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--text-3)", marginTop: 4, paddingTop: 6, borderTop: "1px solid var(--border)" }}>
           <span>SENTINELS: <strong style={{ color: "var(--text-2)" }}>9 ACTIVE</strong></span>
-          <span>STATUS: <strong style={{ color: isAgentPaused ? "var(--danger, #cf8b8b)" : "var(--mint, #79c2a4)" }}>{isAgentPaused ? "PAUSED" : "ONLINE"}</strong></span>
+          <span>STATUS: <strong style={{ color: isAgentPaused ? "var(--danger)" : "var(--success)" }}>{isAgentPaused ? "PAUSED" : "ONLINE"}</strong></span>
         </div>
       </div>
 
@@ -229,7 +229,7 @@ export function LiveAgentStatePanel({
           </div>
           <div>
             <div style={{ fontSize: 10, color: "var(--text-3)" }}>AVAIL CREDIT</div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: "var(--mint, #79c2a4)" }}>{fmtMoney(availableCreditUsd)}</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "var(--success)" }}>{fmtMoney(availableCreditUsd)}</div>
           </div>
           <div>
             <div style={{ fontSize: 10, color: "var(--text-3)" }}>HEALTH FACTOR</div>
@@ -252,7 +252,7 @@ export function LiveAgentStatePanel({
       {/* 5. Active Automation Tasks / Watches */}
       <div
         style={{
-          background: "var(--surface-1, #121214)",
+          background: "var(--surface-1)",
           border: "1px solid var(--border)",
           borderRadius: 8,
           padding: "12px 14px",
@@ -278,8 +278,8 @@ export function LiveAgentStatePanel({
             style={{
               marginTop: 10,
               padding: "6px 10px",
-              background: "rgba(207,173,116,0.12)",
-              border: "1px solid rgba(207,173,116,0.3)",
+              background: "var(--warning-dim)",
+              border: "1px solid var(--warning)",
               borderRadius: 6,
               display: "flex",
               justifyContent: "space-between",
@@ -287,7 +287,7 @@ export function LiveAgentStatePanel({
               cursor: "pointer",
             }}
           >
-            <span style={{ fontSize: 11, color: "var(--warning, #cfad74)", fontWeight: 700 }}>
+            <span style={{ fontSize: 11, color: "var(--warning)", fontWeight: 700 }}>
               {pendingApprovalsCount} Approval Required
             </span>
             <span style={{ fontSize: 10, color: "var(--text-3)" }}>Review →</span>

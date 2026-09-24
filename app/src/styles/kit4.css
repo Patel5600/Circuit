@@ -5,18 +5,28 @@
    ===================================================================== */
 
 :root {
-  --bg: #e6e6e3;
-  --paper: #ffffff;
-  --ink: #000000;
-  --mute: #7d7d79;
-  --dim: #adada8;
-  --line: rgba(0, 0, 0, 0.38);
-  --line2: rgba(0, 0, 0, 0.16);
-  --note: #3d5afe;
-  --note-ink: #ffffff;
-  --ok: #1f7a3d;
-  --warn: #a15a00;
-  --bad: #b3261e;
+  /* Circuit Brand Palette Tokens */
+  --c-mist: #B6BBD9;
+  --c-harvest: #AD8820;
+  --c-terrain: #90844A;
+  --c-forest: #444F24;
+  --c-shadow: #212413;
+  --c-deep: #122311;
+
+  /* Kit 4 Tokens mapped to Circuit Landing System — Light Mode */
+  --bg: #B6BBD9;
+  --paper: #FFFFFF;
+  --ink: #212413;
+  --mute: #545D33;
+  --dim: rgba(33, 36, 19, 0.42);
+  --line: rgba(33, 36, 19, 0.28);
+  --line2: rgba(33, 36, 19, 0.12);
+  --note: #AD8820;
+  --note-ink: #FFFFFF;
+  --ok: #2A3614;
+  --warn: #AD8820;
+  --bad: #9E2A2B;
+  --accent: #AD8820;
   --font: "Helvetica Neue", Helvetica, Arial, sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -24,10 +34,10 @@
 
   /* Semantic aliases for backwards compatibility with existing UI */
   --surface: var(--paper);
-  --surface-0: var(--paper);
+  --surface-0: #F4F6FB;
   --surface-1: var(--paper);
-  --surface-2: var(--bg);
-  --surface-3: var(--bg);
+  --surface-2: #E6E9F4;
+  --surface-3: #D8DCEB;
   --text: var(--ink);
   --text-1: var(--ink);
   --text-2: var(--mute);
@@ -35,43 +45,45 @@
   --border: var(--line2);
   --border-strong: var(--line);
   --success: var(--ok);
-  --success-dim: rgba(31, 122, 61, 0.12);
+  --success-dim: rgba(42, 54, 20, 0.12);
   --warning: var(--warn);
-  --warning-dim: rgba(161, 90, 0, 0.12);
+  --warning-dim: rgba(173, 136, 32, 0.14);
   --danger: var(--bad);
-  --danger-dim: rgba(179, 38, 30, 0.12);
-  --accent: var(--ink);
-  --accent-dim: var(--line2);
+  --danger-dim: rgba(158, 42, 43, 0.12);
+  --accent-dim: rgba(173, 136, 32, 0.14);
   --sans: var(--font);
 
   /* Geometry & Radius */
   --r-sm: 4px;
   --r: 6px;
   --r-lg: 14px;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-lg: 0 20px 44px -16px rgba(0, 0, 0, 0.25);
+  --shadow: 0 1px 2px rgba(18, 35, 17, 0.05);
+  --shadow-lg: 0 20px 44px -16px rgba(18, 35, 17, 0.20);
 }
 
 :root[data-theme="dark"],
 [data-theme="dark"] {
-  --bg: #1c1c1a;
-  --paper: #131311;
-  --ink: #f2f2ee;
-  --mute: #97978f;
-  --dim: #5c5c56;
-  --line: rgba(255, 255, 255, 0.32);
-  --line2: rgba(255, 255, 255, 0.14);
-  --note: #8fa2ff;
-  --ok: #4ade80;
-  --warn: #ffb84d;
-  --bad: #ff6b5e;
+  /* Kit 4 Tokens mapped to Circuit Landing System — Dark Mode */
+  --bg: #122311;
+  --paper: #1B2418;
+  --ink: #ECEAF7;
+  --mute: #90844A;
+  --dim: rgba(182, 187, 217, 0.35);
+  --line: rgba(182, 187, 217, 0.22);
+  --line2: rgba(182, 187, 217, 0.10);
+  --note: #AD8820;
+  --note-ink: #122311;
+  --ok: #627536;
+  --warn: #AD8820;
+  --bad: #CF8B8B;
+  --accent: #AD8820;
   color-scheme: dark;
 
   --surface: var(--paper);
-  --surface-0: var(--paper);
+  --surface-0: #161D13;
   --surface-1: var(--paper);
-  --surface-2: var(--bg);
-  --surface-3: var(--bg);
+  --surface-2: #212B1E;
+  --surface-3: #2B3827;
   --text: var(--ink);
   --text-1: var(--ink);
   --text-2: var(--mute);
@@ -79,13 +91,30 @@
   --border: var(--line2);
   --border-strong: var(--line);
   --success: var(--ok);
-  --success-dim: rgba(74, 222, 128, 0.14);
+  --success-dim: rgba(98, 117, 54, 0.18);
   --warning: var(--warn);
-  --warning-dim: rgba(255, 184, 77, 0.14);
+  --warning-dim: rgba(173, 136, 32, 0.18);
   --danger: var(--bad);
-  --danger-dim: rgba(255, 107, 94, 0.14);
-  --accent: var(--ink);
-  --accent-dim: var(--line2);
+  --danger-dim: rgba(207, 139, 139, 0.16);
+  --accent-dim: rgba(173, 136, 32, 0.18);
+}
+
+:root[data-theme="light"],
+[data-theme="light"] {
+  --bg: #B6BBD9;
+  --paper: #FFFFFF;
+  --ink: #212413;
+  --mute: #545D33;
+  --dim: rgba(33, 36, 19, 0.42);
+  --line: rgba(33, 36, 19, 0.28);
+  --line2: rgba(33, 36, 19, 0.12);
+  --note: #AD8820;
+  --note-ink: #FFFFFF;
+  --ok: #2A3614;
+  --warn: #AD8820;
+  --bad: #9E2A2B;
+  --accent: #AD8820;
+  color-scheme: light;
 }
 
 /* =====================================================================

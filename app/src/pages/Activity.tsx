@@ -88,8 +88,8 @@ function ActivityRow({
               borderRadius: 4,
               fontFamily: "var(--mono)",
               fontWeight: 600,
-              background: item.actor === "AGENT" ? "rgba(96, 165, 250, 0.15)" : "rgba(127, 195, 154, 0.15)",
-              color: item.actor === "AGENT" ? "#93c5fd" : "var(--success)",
+              background: item.actor === "AGENT" ? "var(--accent-dim)" : "var(--success-dim)",
+              color: item.actor === "AGENT" ? "var(--accent)" : "var(--success)",
             }}
           >
             {item.actor === "AGENT" ? "AGENT" : "MANUAL"}
@@ -119,7 +119,7 @@ function ActivityRow({
               fontSize: 11,
               padding: "1px 6px",
               borderRadius: 3,
-              background: item.success ? "rgba(127, 195, 154, 0.1)" : "rgba(224, 82, 82, 0.15)",
+              background: item.success ? "var(--success-dim)" : "var(--danger-dim)",
               color: item.success ? "var(--success)" : "var(--danger)",
             }}
           >
@@ -299,16 +299,16 @@ export default function Activity() {
                       borderRadius: "var(--r-sm, 8px)",
                       background:
                         pat.severity === "critical"
-                          ? "rgba(224, 82, 82, 0.08)"
+                          ? "var(--danger-dim)"
                           : pat.severity === "warning"
-                          ? "rgba(229, 169, 59, 0.08)"
-                          : "rgba(127, 195, 154, 0.08)",
+                          ? "var(--warning-dim)"
+                          : "var(--success-dim)",
                       border: `1px solid ${
                         pat.severity === "critical"
-                          ? "rgba(224, 82, 82, 0.3)"
+                          ? "var(--danger)"
                           : pat.severity === "warning"
-                          ? "rgba(229, 169, 59, 0.3)"
-                          : "rgba(127, 195, 154, 0.3)"
+                          ? "var(--warning)"
+                          : "var(--success)"
                       }`,
                     }}
                   >

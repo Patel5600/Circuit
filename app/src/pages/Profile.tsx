@@ -366,9 +366,9 @@ export default function Profile() {
                       fontWeight: 750,
                       padding: "2px 7px",
                       borderRadius: 4,
-                      background: "rgba(153, 69, 255, 0.15)",
-                      border: "1px solid rgba(153, 69, 255, 0.35)",
-                      color: "#c4a0ff",
+                      background: "var(--accent-dim)",
+                      border: "1px solid var(--accent)",
+                      color: "var(--accent)",
                       letterSpacing: "0.05em",
                     }}
                   >

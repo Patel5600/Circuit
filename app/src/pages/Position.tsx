@@ -226,14 +226,14 @@ export default function Position() {
                 alignItems: "center",
                 justifyContent: "space-between",
                 padding: "10px 14px",
-                background: "rgba(96, 165, 250, 0.08)",
-                border: "1px solid rgba(96, 165, 250, 0.25)",
-                borderRadius: "var(--r, 10px)",
+                background: "var(--accent-dim, rgba(173, 136, 32, 0.12))",
+                border: "1px solid var(--accent)",
+                borderRadius: "var(--r, 6px)",
                 fontSize: 12.5,
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#60a5fa" }} />
+                <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "var(--accent)" }} />
                 <span>
                   <strong>AGENT STRATEGY MODE</strong> — Delegated execution active. Bounded by Circuit Risk Ratchet, Capital Policy, and agent authorization limits.
                 </span>
@@ -572,7 +572,7 @@ export default function Position() {
                                   width: 28,
                                   height: 28,
                                   borderRadius: "50%",
-                                  background: "#141721",
+                                  background: "var(--surface-2)",
                                   display: "flex",
                                   alignItems: "center",
                                   justifyContent: "center",

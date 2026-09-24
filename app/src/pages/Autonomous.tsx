@@ -320,9 +320,9 @@ function ToolExecutionCard({ tool }: { tool: CircuitToolEvent }) {
             fontWeight: 700,
             padding: "1px 6px",
             borderRadius: 3,
-            background: isConfirmed ? "rgba(121,194,164,0.15)" : "rgba(207,139,139,0.15)",
-            color: isConfirmed ? "var(--mint, #79c2a4)" : "var(--danger, #cf8b8b)",
-            border: `1px solid ${isConfirmed ? "rgba(121,194,164,0.3)" : "rgba(207,139,139,0.3)"}`,
+            background: isConfirmed ? "var(--success-dim)" : "var(--danger-dim)",
+            color: isConfirmed ? "var(--success)" : "var(--danger)",
+            border: `1px solid ${isConfirmed ? "var(--success)" : "var(--danger)"}`,
           }}>
             {tool.status}
           </span>
@@ -338,7 +338,7 @@ function ToolExecutionCard({ tool }: { tool: CircuitToolEvent }) {
           display: "flex",
           flexWrap: "wrap",
           gap: 8,
-          borderTop: "1px solid rgba(255,255,255,0.04)",
+          borderTop: "1px solid var(--border)",
         }}>
           {Object.entries(tool.output || {}).slice(0, 3).map(([k, v]) => (
             <span key={k}>
@@ -350,7 +350,7 @@ function ToolExecutionCard({ tool }: { tool: CircuitToolEvent }) {
         <div style={{
           padding: "8px 10px",
           borderTop: "1px solid var(--border)",
-          background: "rgba(0,0,0,0.2)",
+          background: "var(--surface-3)",
           fontSize: 10,
         }}>
           <div style={{ marginBottom: 4, color: "var(--text-3)" }}>INPUT:</div>
@@ -358,7 +358,7 @@ function ToolExecutionCard({ tool }: { tool: CircuitToolEvent }) {
             {JSON.stringify(tool.input, null, 2)}
           </pre>
           <div style={{ marginBottom: 4, color: "var(--text-3)" }}>OUTPUT:</div>
-          <pre style={{ margin: 0, color: isConfirmed ? "var(--mint, #79c2a4)" : "var(--danger, #cf8b8b)", whiteSpace: "pre-wrap" }}>
+          <pre style={{ margin: 0, color: isConfirmed ? "var(--success)" : "var(--danger)", whiteSpace: "pre-wrap" }}>
             {JSON.stringify(tool.output, null, 2)}
           </pre>
         </div>
@@ -386,19 +386,19 @@ function ActionProposalCard({
   const isDbc = ["swap", "enter_liquidity", "exit_liquidity", "rebalance"].includes(proposal.action);
 
   const badgeBg = isBorrow
-    ? "rgba(207,173,116,0.15)"
+    ? "var(--warning-dim)"
     : isDeposit
-    ? "rgba(121,194,164,0.15)"
+    ? "var(--success-dim)"
     : isDbc
-    ? "rgba(167,139,250,0.15)"
-    : "rgba(207,139,139,0.15)";
+    ? "var(--accent-dim)"
+    : "var(--danger-dim)";
   const badgeFg = isBorrow
-    ? "var(--warning,#cfad74)"
+    ? "var(--warning)"
     : isDeposit
-    ? "var(--mint,#79c2a4)"
+    ? "var(--success)"
     : isDbc
-    ? "#a78bfa"
-    : "var(--danger,#cf8b8b)";
+    ? "var(--accent)"
+    : "var(--danger)";
 
   return (
     <div style={{
