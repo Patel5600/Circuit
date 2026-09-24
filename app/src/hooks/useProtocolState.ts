@@ -429,8 +429,7 @@ export function useProtocolState(overrideMarket?: DeployedMarket): ProtocolState
         `Oracle confidence too wide (${oracle.confBps} > ${asset.maxConfBps} bps)`
       );
     }
-    const session = nyseSessionHint(chainUnixTime);
-    if (!session.open) blockers.push(`Reference market closed (${session.label})`);
+    // Note: session is maintained for reference-market context, but onchain Solana token trading continues 24/7
     if (asset.custodyState === "impaired") blockers.push("Custody impaired");
     if (asset.liquidityState === "thin" || asset.liquidityState === "critical") {
       blockers.push(`Liquidity ${asset.liquidityState}`);

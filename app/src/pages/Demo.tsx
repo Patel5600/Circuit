@@ -484,7 +484,7 @@ function RiskEnvelopePipeline() {
             {[
               { k: 'TTL', v: '20 slots (~8 seconds)' },
               { k: 'Replay Protection', v: 'Unique nonce per envelope PDA' },
-              { k: 'Epoch Binding', v: 'Invalidated if risk_epoch changes' },
+              { k: 'Epoch Binding', v: 'Invalidated if risk epoch changes' },
               { k: 'Single Use', v: 'consumed flag prevents reuse' },
               { k: 'CPI Verifiable', v: 'Downstream programs verify via circuit-risk-sdk' },
               { k: 'Rent Refund', v: 'Owner reclaims SOL after expiry' }
@@ -494,6 +494,226 @@ function RiskEnvelopePipeline() {
                 <span className="drow__v">{prop.v}</span>
               </div>
             ))}
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function ClosedLoopCapitalController() {
+  const {
+    nvdaCollateral,
+    nvdaPriceUsd,
+    borrowDebtUsd,
+    effectiveHf,
+    ratchetState,
+    triggerDefensiveShock,
+    executeDemoBorrow,
+    executeDemoRepay,
+    triggerStepRecovery,
+    resetDemo,
+    openRevertModal,
+    consecutiveObservations,
+    requiredObservations,
+  } = useDemoHarness();
+
+  const totalCollat = nvdaCollateral * nvdaPriceUsd;
+  const maxCapacity = totalCollat * 0.7;
+  const availBorrow = Math.max(0, maxCapacity - borrowDebtUsd);
+  const currentLtvPct = totalCollat > 0 ? (borrowDebtUsd / totalCollat) * 100 : 0;
+  const isDefensive = ratchetState === "DEFENSIVE" || ratchetState === "EMERGENCY";
+  const isRestricted = ratchetState === "RESTRICTED";
+  const isSafe = ratchetState === "SAFE";
+
+  const currentStage =
+    borrowDebtUsd === 0 && isSafe ? 1 :
+    borrowDebtUsd > 0 && isSafe ? 2 :
+    isDefensive && borrowDebtUsd >= 500 ? 3 :
+    isDefensive && borrowDebtUsd < 500 ? 4 :
+    5;
+
+  return (
+    <Card
+      title={
+        <div className="row between g-12 wrap" style={{ alignItems: "center" }}>
+          <div className="row g-8" style={{ alignItems: "center" }}>
+            <span style={{ fontSize: 16, fontWeight: 700 }}>
+              The Closed-Loop Capital Controller
+            </span>
+            <Pill tone={isSafe ? "success" : isRestricted ? "warning" : "danger"} withDot>
+              RATCHET: {ratchetState}
+            </Pill>
+          </div>
+          <div className="row g-6">
+            <Pill tone="accent">THE GOLDEN PATH</Pill>
+            <Pill tone="neutral">ADAPTIVE SOLVENCY</Pill>
+          </div>
+        </div>
+      }
+    >
+      <div className="stack g-16">
+        <p className="t-sm muted" style={{ margin: 0, lineHeight: 1.5 }}>
+          Circuit does not compete on simple deposit and borrow buttons. Circuit sits <strong>above venues</strong> and makes capital permissions dynamically adaptive to live market risk:
+          <br />
+          <code style={{ fontSize: 11.5, color: "var(--accent)" }}>
+            SAFE &rarr; BORROW (DEBT CREATED) &rarr; MARKET SHOCK &rarr; LOCKDOWN &rarr; REPAY (EXEMPTION) &rarr; RECOVER &rarr; BORROW UNLOCKS
+          </code>
+        </p>
+
+        {/* 5-Step Pipeline Flow */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
+          {[
+            { step: 1, title: "1. Safe & Borrow", desc: "Borrow capacity enabled. 70% base LTV.", active: currentStage === 1 },
+            { step: 2, title: "2. Debt Exists", desc: "USDC drawn to wallet. Real debt created.", active: currentStage === 2 },
+            { step: 3, title: "3. Defensive Shock", desc: "Volatility surge. Borrow & withdraw locked.", active: currentStage === 3 },
+            { step: 4, title: "4. Repay Exemption", desc: "Risk-reducing repayment unconditionally open.", active: currentStage === 4 },
+            { step: 5, title: "5. Risk Recovers", desc: "Health restored. Borrow capacity unlocks.", active: currentStage === 5 },
+          ].map((s) => (
+            <div
+              key={s.step}
+              style={{
+                padding: "10px 12px",
+                borderRadius: "var(--r)",
+                background: s.active ? "var(--surface-3)" : "var(--surface-2)",
+                border: `1px solid ${s.active ? "var(--accent)" : "var(--border)"}`,
+                transition: "all 0.2s ease",
+              }}
+            >
+              <div style={{ fontSize: 12, fontWeight: 700, color: s.active ? "var(--accent)" : "var(--text)" }}>
+                {s.title}
+              </div>
+              <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 2 }}>
+                {s.desc}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Real Financial Position Card Grid */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
+          <div style={{ padding: 12, borderRadius: "var(--r)", background: "var(--surface-2)", border: "1px solid var(--border)" }}>
+            <span className="t-meta">COLLATERAL DEPOSITED</span>
+            <div style={{ fontSize: 18, fontWeight: 700, marginTop: 4 }}>
+              ${totalCollat.toFixed(2)}
+              <span style={{ fontSize: 12, color: "var(--text-3)", marginLeft: 6 }}>({nvdaCollateral} NVDA)</span>
+            </div>
+          </div>
+
+          <div style={{ padding: 12, borderRadius: "var(--r)", background: "var(--surface-2)", border: "1px solid var(--border)" }}>
+            <span className="t-meta">OUTSTANDING DEBT</span>
+            <div style={{ fontSize: 18, fontWeight: 700, color: borrowDebtUsd > 0 ? "var(--accent)" : "var(--text)", marginTop: 4 }}>
+              ${borrowDebtUsd.toFixed(2)} USDC
+            </div>
+          </div>
+
+          <div style={{ padding: 12, borderRadius: "var(--r)", background: "var(--surface-2)", border: "1px solid var(--border)" }}>
+            <span className="t-meta">EFFECTIVE LTV</span>
+            <div style={{ fontSize: 18, fontWeight: 700, marginTop: 4 }}>
+              {currentLtvPct.toFixed(1)}%
+              <span style={{ fontSize: 11, color: "var(--text-3)", marginLeft: 6 }}>(Max {isDefensive ? "50%" : "70%"})</span>
+            </div>
+          </div>
+
+          <div style={{ padding: 12, borderRadius: "var(--r)", background: "var(--surface-2)", border: "1px solid var(--border)" }}>
+            <span className="t-meta">HEALTH FACTOR</span>
+            <div style={{ fontSize: 18, fontWeight: 800, color: effectiveHf >= 1.25 ? "var(--success)" : "var(--danger)", marginTop: 4 }}>
+              {borrowDebtUsd === 0 ? "Infinite" : effectiveHf.toFixed(2)}
+              <span style={{ fontSize: 11, color: "var(--text-3)", marginLeft: 6 }}>(&gt; 1.0 safe)</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Dynamic Protocol Permissions Status Bar */}
+        <div
+          style={{
+            padding: "12px 14px",
+            borderRadius: "var(--r)",
+            background: isDefensive ? "rgba(207, 139, 139, 0.1)" : isSafe ? "rgba(127, 195, 154, 0.1)" : "rgba(207, 173, 116, 0.1)",
+            border: `1px solid ${isDefensive ? "rgba(207, 139, 139, 0.35)" : isSafe ? "rgba(127, 195, 154, 0.35)" : "rgba(207, 173, 116, 0.35)"}`,
+          }}
+          className="row between g-12 wrap"
+        >
+          <div className="row g-8" style={{ alignItems: "center" }}>
+            <Pill tone={isSafe ? "success" : isDefensive ? "danger" : "warning"} withDot>
+              {isSafe ? "BORROW ENABLED" : "BORROW RESTRICTED"}
+            </Pill>
+            <span style={{ fontSize: 12.5, color: "var(--text-2)" }}>
+              {isSafe
+                ? "Risk state SAFE: Borrow origination open up to 70% LTV ($" + availBorrow.toFixed(2) + " capacity)."
+                : isDefensive
+                ? "DEFENSIVE preservation active: New borrow & withdraw BLOCKED. Repay unconditionally OPEN."
+                : "RESTRICTED capacity active: Borrowing throttled while oracle conditions stabilize."}
+            </span>
+          </div>
+          <div className="row g-6 wrap">
+            <Pill tone={isSafe ? "success" : "danger"}>WITHDRAW: {isSafe ? "ALLOWED" : "BLOCKED"}</Pill>
+            <Pill tone="success">REPAY: ALLOWED (EXEMPT)</Pill>
+            <Pill tone="success">DEPOSIT: ALLOWED</Pill>
+          </div>
+        </div>
+
+        {/* Interactive Lifecycle Execution Buttons */}
+        <div className="stack g-10">
+          <span className="t-meta">INTERACTIVE LIFECYCLE CONTROLS</span>
+          <div className="row g-8 wrap" style={{ alignItems: "center" }}>
+            <Button
+              variant={borrowDebtUsd === 0 && isSafe ? "accent" : "secondary"}
+              size="sm"
+              disabled={borrowDebtUsd > 0 || !isSafe}
+              onClick={() => executeDemoBorrow(500)}
+            >
+              <Icon name="borrow" size={14} />
+              1. Draw $500 USDC Debt
+            </Button>
+
+            <Button
+              variant={borrowDebtUsd > 0 && isSafe ? "danger" : "secondary"}
+              size="sm"
+              disabled={isDefensive}
+              onClick={() => triggerDefensiveShock()}
+            >
+              <Icon name="alert" size={14} />
+              2. Trigger Market Volatility Shock
+            </Button>
+
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={!isDefensive}
+              onClick={() => openRevertModal()}
+            >
+              <Icon name="cross" size={14} />
+              3. Attempt New Borrow (Verify Blocked)
+            </Button>
+
+            <Button
+              variant={isDefensive && borrowDebtUsd > 0 ? "accent" : "secondary"}
+              size="sm"
+              disabled={borrowDebtUsd === 0}
+              onClick={() => executeDemoRepay(250)}
+            >
+              <Icon name="check" size={14} />
+              4. Agent Repays $250 USDC (Exemption)
+            </Button>
+
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={isSafe}
+              onClick={() => triggerStepRecovery()}
+            >
+              <Icon name="activity" size={14} />
+              5. Recovery Crank ({consecutiveObservations}/{requiredObservations})
+            </Button>
+
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => resetDemo()}
+            >
+              Reset Loop
+            </Button>
           </div>
         </div>
       </div>
@@ -548,6 +768,9 @@ function DemoView() {
           </div>
         </div>
 
+        {/* The Closed-Loop Capital Controller */}
+        <ClosedLoopCapitalController />
+
         {/* The Central Proof */}
         <div className="stack g-16" style={{ marginTop: 8, marginBottom: 8 }}>
           <div className="row g-8 wrap">
@@ -591,7 +814,7 @@ function DemoView() {
                 </div>
                 <div style={{ padding: 12, borderRadius: 'var(--r)', background: 'rgba(207, 139, 139, 0.12)', border: '1px solid rgba(207, 139, 139, 0.4)' }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--danger)', marginBottom: 4 }}>
-                    BORROW $40 USDC &rarr; CIRCUIT RISK KERNEL &rarr; REJECTED (DEFENSIVE_RISK_POLICY)
+                    BORROW $40 USDC &rarr; CIRCUIT RISK KERNEL &rarr; REJECTED (DEFENSIVE RISK POLICY)
                   </div>
                   <div style={{ fontSize: 11.5, color: 'var(--text-2)' }}>
                     Same actor. Same collateral. Same amount. Different market state &rarr; different authority.
@@ -615,7 +838,7 @@ function DemoView() {
                 </div>
                 <div style={{ padding: 12, borderRadius: 'var(--r)', background: 'rgba(127, 195, 154, 0.12)', border: '1px solid rgba(127, 195, 154, 0.4)' }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--success)', marginBottom: 4 }}>
-                    REPAY $10 USDC &rarr; CIRCUIT RISK KERNEL &rarr; ALLOWED (RISK_REDUCING_EXEMPTION)
+                    REPAY $10 USDC &rarr; CIRCUIT RISK KERNEL &rarr; ALLOWED (RISK REDUCING EXEMPTION)
                   </div>
                   <div style={{ fontSize: 11.5, color: 'var(--text-2)' }}>
                     Same defensive market state. Repayment reduces risk &rarr; always permitted. This is the asymmetric enforcement thesis.

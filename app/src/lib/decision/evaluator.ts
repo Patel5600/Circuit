@@ -42,6 +42,7 @@ export interface LiveStateInput {
   oracleConf?: number;
   oracleConfBps: number;
   oraclePublishTime: number;
+  maxOracleAge?: number;
   globalOracleHealthy?: boolean;
   oracleState?: OracleState;
   lastValidPrice?: number | null;
@@ -97,6 +98,7 @@ export function evaluateAction(
   const ageSlots = state.slot ? Math.max(0, Math.floor(ageSeconds / 0.4)) : 0;
 
   // 1. Measured Oracle Freshness
+  const maxOracleAge = state.maxOracleAge ?? 60;
   let freshness: OracleFreshness = "UNAVAILABLE";
   if (state.oraclePrice <= 0) {
     freshness = "UNAVAILABLE";
@@ -105,7 +107,7 @@ export function evaluateAction(
     freshness = "RECENT";
   } else if (ageSeconds < 30) {
     freshness = "LIVE";
-  } else if (ageSeconds <= 120) {
+  } else if (ageSeconds <= maxOracleAge) {
     freshness = "RECENT";
   } else {
     freshness = "STALE";
@@ -117,7 +119,8 @@ export function evaluateAction(
     ageSeconds,
     hasValidPrice,
     state.oracleConfBps,
-    globalOracleHealthy
+    globalOracleHealthy,
+    maxOracleAge
   );
 
   const oracleHealthy =
@@ -138,7 +141,7 @@ export function evaluateAction(
     haltInference = "ORACLE_UNAVAILABLE";
   } else if (state.oraclePrice <= 0 || freshness === "UNAVAILABLE") {
     haltInference = "ORACLE_UNAVAILABLE";
-  } else if (refMarketState === "OPEN" && ageSeconds > 60 && state.oraclePublishTime > 0) {
+  } else if (refMarketState === "OPEN" && ageSeconds > maxOracleAge && state.oraclePublishTime > 0) {
     haltInference = "HALTED_INFERRED";
   } else if (refMarketState === "CLOSED") {
     haltInference = "CLOSED";

@@ -426,8 +426,6 @@ export function MarketCard({
             ? "Borrow Paused (Halt Inferred)"
             : securityState === "ORACLE_UNAVAILABLE"
             ? "Oracle Syncing"
-            : refMarketState === "CLOSED"
-            ? "Borrow Paused (Session Closed)"
             : !row.live
             ? "Discovery"
             : `Borrow ${isSol ? "SOL" : (row.quoteSymbol || "USDC")}`}

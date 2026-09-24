@@ -784,6 +784,7 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
           oracleConf,
           oracleConfBps,
           oraclePublishTime,
+          maxOracleAge: 600,
           globalOracleHealthy: !riskState.isStaleOracle,
           isMarketOpen: riskState.isMarketOpen,
           referenceMarketState,

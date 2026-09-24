@@ -128,11 +128,12 @@ export function classifyOracleState(
   ageSeconds: number,
   hasPrice: boolean,
   confBps = 0,
-  globalHealthy = true
+  globalHealthy = true,
+  maxOracleAge = 60
 ): OracleState {
   if (!hasPrice || !globalHealthy) return "UNAVAILABLE";
   if (confBps > 100) return "INVALID";
-  if (ageSeconds <= 60) return "FRESH";
+  if (ageSeconds <= maxOracleAge) return "FRESH";
   return "STALE";
 }
 

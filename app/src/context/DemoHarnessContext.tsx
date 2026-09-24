@@ -35,7 +35,11 @@ export interface DemoContextValue {
   triggerConfidenceShock: () => void;
   triggerMarketClose: () => void;
   triggerCustodyImpairment: () => void;
+  triggerDefensiveShock: () => void;
   triggerStepRecovery: () => void;
+  executeDemoBorrow: (amount?: number) => void;
+  executeDemoRepay: (amount?: number) => void;
+  setBorrowDebtUsd: (val: number) => void;
   resetDemo: () => void;
 
   // On-chain Revert Simulation Modal
@@ -63,9 +67,27 @@ export function DemoHarnessProvider({ children }: { children: React.ReactNode })
   const nvdaCollateral = 10;
   const nvdaPriceUsd = 138.25;
   const aaplPriceUsd = 224.50;
-  const [borrowDebtUsd] = useState(500.0);
+  const [borrowDebtUsd, setBorrowDebtUsd] = useState(0);
   const baseLtvBps = 7000;
   const liqThresholdBps = 8000;
+
+  const executeDemoBorrow = (amount: number = 500) => {
+    setBorrowDebtUsd((d) => d + amount);
+  };
+
+  const executeDemoRepay = (amount: number = 250) => {
+    setBorrowDebtUsd((d) => Math.max(0, d - amount));
+  };
+
+  const triggerDefensiveShock = () => {
+    setRatchetState("DEFENSIVE");
+    setGuardReason("Market volatility surge: Pyth confidence interval 285 bps exceeds safe bound");
+    setConfBps(285);
+    setRiskEpoch((e) => e + 1);
+    setConsecutiveObservations(0);
+    setLastStressSlot(328491024);
+    setActiveShock("volatility_spike");
+  };
 
   // Ratchet parameters
   const [ratchetState, setRatchetState] = useState<RatchetTier>("SAFE");
@@ -190,6 +212,7 @@ export function DemoHarnessProvider({ children }: { children: React.ReactNode })
     setActiveShock(null);
     setAllocationNvdaPct(50);
     setMarketDropPct(0);
+    setBorrowDebtUsd(0);
   };
 
   const openRevertModal = (details?: Partial<RevertSimulationDetails>) => {
@@ -241,7 +264,11 @@ export function DemoHarnessProvider({ children }: { children: React.ReactNode })
         triggerConfidenceShock,
         triggerMarketClose,
         triggerCustodyImpairment,
+        triggerDefensiveShock,
         triggerStepRecovery,
+        executeDemoBorrow,
+        executeDemoRepay,
+        setBorrowDebtUsd,
         resetDemo,
         isRevertModalOpen,
         revertDetails,

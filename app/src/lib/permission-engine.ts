@@ -560,6 +560,19 @@ function evaluatePermissionInternal(params: PermissionEvaluationParams): Permiss
  */
 export function evaluatePermission(params: PermissionEvaluationParams): PermissionResult {
   const result = evaluatePermissionInternal(params);
+  const isDbcAction =
+    params.action === "swap" ||
+    params.action === "enter_liquidity" ||
+    params.action === "exit_liquidity" ||
+    params.action === "recover_liquidity" ||
+    params.action === "rebalance" ||
+    params.action === "create_dbc_position" ||
+    params.action === "manage_dbc_position" ||
+    params.action === "rebalance_liquidity";
+  const venue: "CIRCUIT_LENDING" | "METEORA_DBC" =
+    params.venue ?? (isDbcAction ? "METEORA_DBC" : result.venue ?? "CIRCUIT_LENDING");
+  result.venue = venue;
+
   try {
     decisionLogStore.recordDecision({
       actor: params.actor,
@@ -575,7 +588,7 @@ export function evaluatePermission(params: PermissionEvaluationParams): Permissi
       message: result.message,
       effectiveLtvBps: result.effectiveLtvBps,
       remainingRiskBudgetUsd: result.remainingRiskBudgetUsd,
-      venue: params.venue ?? result.venue ?? "CIRCUIT_LENDING",
+      venue,
       executionStatus: result.allowed ? "PENDING" : "BLOCKED",
     });
   } catch (e) {
