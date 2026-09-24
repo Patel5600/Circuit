@@ -19,8 +19,10 @@ import { useMarketData } from "../context/MarketDataContext";
 // Kit 4 Components
 import { RiskGateDial } from "../components/kit4/RiskGateDial";
 import { MetricCards } from "../components/kit4/MetricCards";
+import { CollateralHoldingCard } from "../components/kit4/CollateralHoldingCard";
 import { BorrowingPower } from "../components/kit4/BorrowingPower";
 import { RiskTopologyGraph } from "../components/kit4/RiskTopologyGraph";
+import { AgentCapitalControl } from "../components/kit4/AgentCapitalControl";
 import { ActivityTimeline } from "../components/kit4/ActivityTimeline";
 
 export default function Dashboard() {
@@ -44,44 +46,96 @@ export default function Dashboard() {
     ((s.position?.collateralAmount ?? 0n) > 0n ||
       (s.position?.debtAmount ?? 0n) > 0n);
 
-  // Plain-language summary of the user's standing
-  const headline = useMemo(() => {
-    if (!connected) return "Connect a wallet to view your tokenized equity credit.";
-    if (s.loading) return "Loading position telemetry...";
-    if (!hasPosition) return `You do not have a ${display.symbol} position yet.`;
-    const hf = s.risk?.healthFactorBps ?? null;
-    if (hf === null) return `You have ${display.symbol} deposited and no debt.`;
-    if (hf < minBps) return "Your position is at risk of liquidation.";
-    if (hf < minBps * 1.25) return "Your position is close to its safety limit.";
-    return "Your position is healthy.";
-  }, [connected, s.loading, hasPosition, s.risk, minBps, display.symbol]);
-
   const activeAssetRisk = domain.getRiskForAsset ? domain.getRiskForAsset(selectedMarket.symbol) : domain.risk;
   const activeDecision = useMemo(
     () => domain.evaluateDecision("borrow", 0, selectedMarket.symbol),
     [domain, selectedMarket.symbol]
   );
 
-  // Derive real numerical quantities
+  // Derive real numerical quantities with immediate fallback to domain.portfolio
+  const spotPrice = useMemo(() => {
+    if (s.oracle?.priceUsd && s.oracle.priceUsd > 0) return s.oracle.priceUsd;
+    const snap = snapshots[selectedMarket.symbol];
+    if (snap?.priceUsd && snap.priceUsd > 0) return snap.priceUsd;
+    const pos = domain.portfolio.positions.find((p) => p.symbol === selectedMarket.symbol);
+    if (pos && pos.collateralUi > 0 && pos.collateralValueUsd > 0) {
+      return pos.collateralValueUsd / pos.collateralUi;
+    }
+    return 0;
+  }, [s.oracle?.priceUsd, snapshots, selectedMarket.symbol, domain.portfolio.positions]);
+
+  const collateralUnits = useMemo(() => {
+    if (s.position?.collateralAmount) {
+      return toUi(s.position.collateralAmount, 6);
+    }
+    const pos = domain.portfolio.positions.find((p) => p.symbol === selectedMarket.symbol);
+    if (pos?.collateralUi) return pos.collateralUi;
+    return 0;
+  }, [s.position?.collateralAmount, domain.portfolio.positions, selectedMarket.symbol]);
+
   const collateralValueUsd = useMemo(() => {
-    if (!s.position?.collateralAmount || !s.oracle?.priceUsd) return 0;
-    const units = toUi(s.position.collateralAmount, 6);
-    return units * s.oracle.priceUsd;
-  }, [s.position?.collateralAmount, s.oracle?.priceUsd]);
+    if (s.position?.collateralAmount && spotPrice > 0) {
+      return toUi(s.position.collateralAmount, 6) * spotPrice;
+    }
+    const pos = domain.portfolio.positions.find((p) => p.symbol === selectedMarket.symbol);
+    if (pos && pos.collateralValueUsd > 0) return pos.collateralValueUsd;
+    if (collateralUnits > 0 && spotPrice > 0) return collateralUnits * spotPrice;
+    return domain.portfolio.totalCollateralUsd || 0;
+  }, [s.position?.collateralAmount, spotPrice, domain.portfolio.positions, domain.portfolio.totalCollateralUsd, collateralUnits, selectedMarket.symbol]);
 
   const debtUsd = useMemo(() => {
-    if (!s.position?.debtAmount) return 0;
-    return toUi(s.position.debtAmount, 6);
-  }, [s.position?.debtAmount]);
+    if (s.position?.debtAmount) {
+      return toUi(s.position.debtAmount, 6);
+    }
+    const pos = domain.portfolio.positions.find((p) => p.symbol === selectedMarket.symbol);
+    if (pos && pos.debtUi !== undefined) return pos.debtUi;
+    return domain.portfolio.totalDebtUsd || 0;
+  }, [s.position?.debtAmount, domain.portfolio.positions, domain.portfolio.totalDebtUsd, selectedMarket.symbol]);
 
   const healthFactor = useMemo(() => {
-    if (!s.risk?.healthFactorBps) return null;
-    return s.risk.healthFactorBps / 10000;
-  }, [s.risk?.healthFactorBps]);
+    if (s.risk?.healthFactorBps) {
+      return s.risk.healthFactorBps / 10000;
+    }
+    if (domain.portfolio.healthFactor !== null && domain.portfolio.healthFactor !== undefined) {
+      return domain.portfolio.healthFactor;
+    }
+    if (collateralValueUsd > 0 && debtUsd === 0) return null; // No debt
+    return null;
+  }, [s.risk?.healthFactorBps, domain.portfolio.healthFactor, collateralValueUsd, debtUsd]);
 
-  const borrowCapacityUsd = s.risk ? toUi(s.risk.availableToBorrowNative, 6) : 0;
-  const totalCapacityUsd = s.risk ? toUi(s.risk.capacityNative, 6) : collateralValueUsd * 0.5;
+  const borrowCapacityUsd = useMemo(() => {
+    if (s.risk && s.risk.availableToBorrowNative > 0n) {
+      return toUi(s.risk.availableToBorrowNative, 6);
+    }
+    if (domain.portfolio.borrowCapacityUsd > 0) {
+      return domain.portfolio.borrowCapacityUsd;
+    }
+    return activeDecision.capitalPolicy?.maxBorrow ?? (collateralValueUsd * 0.5);
+  }, [s.risk, domain.portfolio.borrowCapacityUsd, activeDecision.capitalPolicy?.maxBorrow, collateralValueUsd]);
+
+  const totalCapacityUsd = useMemo(() => {
+    if (s.risk && s.risk.capacityNative > 0n) {
+      return toUi(s.risk.capacityNative, 6);
+    }
+    return collateralValueUsd * 0.5;
+  }, [s.risk, collateralValueUsd]);
+
   const collateralDelta24h = snapshots[selectedMarket.symbol]?.change24hPercent ?? 0;
+
+  // Immediate data hydration: no skeletons if portfolio or position data already exists
+  const isMetricsLoading = s.loading && collateralValueUsd === 0 && !domain.portfolio.hasPositions;
+
+  // Plain-language summary of the user's standing
+  const headline = useMemo(() => {
+    if (!connected) return "Connect a wallet to view your tokenized equity credit.";
+    if (isMetricsLoading) return "Loading position telemetry...";
+    if (!hasPosition && collateralValueUsd === 0) return `You do not have a ${display.symbol} position yet.`;
+    const hf = healthFactor;
+    if (hf === null) return `You have ${display.symbol} deposited and no debt.`;
+    if (hf < 1.0) return "Your position is at risk of liquidation.";
+    if (hf < 1.15) return "Your position is close to its safety limit.";
+    return "Your position is healthy.";
+  }, [connected, isMetricsLoading, hasPosition, collateralValueUsd, healthFactor, display.symbol]);
 
   // Derive risk gate reasons
   const riskReasons = useMemo(() => {
@@ -105,7 +159,7 @@ export default function Dashboard() {
       <ConfigNotice />
 
       {/* 1. Header: Greeting & Market Selector */}
-      <header style={{ marginBottom: 24 }}>
+      <header style={{ marginBottom: 20 }}>
         <div className="row between g-12 wrap" style={{ alignItems: "center" }}>
           <div>
             <span className="meta">
@@ -116,7 +170,7 @@ export default function Dashboard() {
               style={{
                 marginTop: 4,
                 fontWeight: 400,
-                fontSize: "clamp(24px, 3.5vw, 36px)",
+                fontSize: "clamp(22px, 3.2vw, 32px)",
                 letterSpacing: "-0.035em",
               }}
               aria-live="polite"
@@ -148,95 +202,94 @@ export default function Dashboard() {
       {!connected ? (
         <ConnectPrompt />
       ) : (
-        <div className="stack g-20">
-          {s.loading && <LoadingRegion label="Loading position data" />}
-
-          {/* 2. Primary Risk Gate Dial */}
+        <div className="dashboard-grid">
+          {/* Row 1: Primary Compact Risk Gate Dial */}
           <RiskGateDial
             riskState={activeAssetRisk.riskState || "SAFE"}
             reasons={riskReasons}
+            oracleStatus={activeDecision.oracle.freshness}
+            borrowVerdict={activeDecision.permission.allowed ? "ALLOWED" : "BLOCKED"}
+            effectiveLtvPct={collateralValueUsd > 0 ? (debtUsd / collateralValueUsd) * 100 : 0}
             onViewTopology={scrollToTopology}
           />
 
-          {/* 3. Metric Cards: Collateral, Debt, Health */}
+          {/* Row 2: 3 Equal Metric Cards: Collateral, Debt, Health */}
           <MetricCards
             collateralValueUsd={collateralValueUsd}
             debtUsd={debtUsd}
             healthFactor={healthFactor}
             borrowCapacityUsd={borrowCapacityUsd}
             collateralDelta24h={collateralDelta24h}
-            loading={s.loading}
+            loading={isMetricsLoading}
           />
 
-          {/* 4. Borrowing Power Card & Preview Slider */}
-          <BorrowingPower
-            availableCapacityUsd={borrowCapacityUsd}
-            totalCapacityUsd={totalCapacityUsd}
-            currentDebtUsd={debtUsd}
-            collateralUsd={collateralValueUsd}
-            borrowAllowed={activeDecision.permission.allowed}
-            restrictionReason={
-              activeDecision.permission.message ||
-              humanizeReasonCode(activeDecision.permission.reasonCode)
-            }
-            onBorrow={(amount) => {
-              openAction({ type: "borrow", market: selectedMarket });
-            }}
-            currencySymbol={quoteSymbol}
-          />
+          {/* Row 3: Secondary Panels — Collateral Holding | Borrowing Power */}
+          <div className="dashboard-row--split">
+            <CollateralHoldingCard
+              symbol={display.symbol}
+              name={display.name}
+              tokenAmount={collateralUnits}
+              collateralUsd={collateralValueUsd}
+              priceUsd={spotPrice}
+              debtUsd={debtUsd}
+              onDeposit={() => openAction({ type: "deposit", market: selectedMarket })}
+              onWithdraw={() => openAction({ type: "withdraw", market: selectedMarket })}
+              loading={isMetricsLoading}
+            />
 
-          {/* 5. Execution Authority & Control Surface */}
-          <div className="card" style={{ padding: "18px 22px" }}>
-            <div className="row between g-12 wrap" style={{ alignItems: "center" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
-                <div>
-                  <span className="meta">Control mode</span>
-                  <b style={{ fontSize: 13.5 }}>
-                    {domain.controlMode === "MANUAL" ? "Direct Wallet (Self-Sovereign)" : "Autonomous Strategy"}
-                  </b>
-                </div>
-
-                <div>
-                  <span className="meta">Agent authority</span>
-                  <span className={`tag ${domain.controlMode === "MANUAL" ? "" : domain.agentAuthority.effectiveAuthority === "FULL" ? "ok" : "warn"}`}>
-                    {domain.controlMode === "MANUAL" ? "UNRESTRICTED" : domain.agentAuthority.effectiveAuthority}
-                  </span>
-                </div>
-
-                <div>
-                  <span className="meta">Borrow permission</span>
-                  <span className={`tag ${activeDecision.permission.allowed ? "ok" : "bad"}`}>
-                    {activeDecision.permission.allowed ? "ALLOWED" : "BLOCKED"}
-                  </span>
-                </div>
-              </div>
-
-              <Link
-                to="/app/autonomous"
-                className="btn secondary"
-                style={{ height: 32, fontSize: 12, padding: "0 14px" }}
-              >
-                {domain.controlMode === "MANUAL" ? "Configure Strategy" : "Manage Agent"}
-              </Link>
-            </div>
-          </div>
-
-          {/* 6. Risk Topology Graph */}
-          <div ref={topologyRef}>
-            <RiskTopologyGraph
-              isMarketOpen={Boolean(activeDecision.market.sessionOpen)}
-              isOracleFresh={activeDecision.oracle.freshness === "LIVE" || activeDecision.oracle.freshness === "RECENT"}
-              isConfidenceTight={Boolean(activeDecision.oracle.healthy)}
-              healthFactor={healthFactor}
-              borrowAllowed={Boolean(activeDecision.permission.allowed)}
-              blockedReason={
+            <BorrowingPower
+              availableCapacityUsd={borrowCapacityUsd}
+              totalCapacityUsd={totalCapacityUsd}
+              currentDebtUsd={debtUsd}
+              collateralUsd={collateralValueUsd}
+              borrowAllowed={activeDecision.permission.allowed}
+              restrictionReason={
                 activeDecision.permission.message ||
                 humanizeReasonCode(activeDecision.permission.reasonCode)
               }
+              onBorrow={(amount) => {
+                openAction({ type: "borrow", market: selectedMarket });
+              }}
+              currencySymbol={quoteSymbol}
             />
           </div>
 
-          {/* 7. Recent Activity Timeline */}
+          {/* Row 4: Risk Topology Graph | Agent Capital Control */}
+          <div className="dashboard-row--split">
+            <div ref={topologyRef}>
+              <RiskTopologyGraph
+                isMarketOpen={Boolean(activeDecision.market.sessionOpen)}
+                isOracleFresh={activeDecision.oracle.freshness === "LIVE" || activeDecision.oracle.freshness === "RECENT"}
+                isConfidenceTight={Boolean(activeDecision.oracle.healthy)}
+                healthFactor={healthFactor}
+                borrowAllowed={Boolean(activeDecision.permission.allowed)}
+                blockedReason={
+                  activeDecision.permission.message ||
+                  humanizeReasonCode(activeDecision.permission.reasonCode)
+                }
+              />
+            </div>
+
+            <div>
+              <AgentCapitalControl
+                strategyName={domain.controlMode === "MANUAL" ? null : (domain.agentAuthority.strategyName || "Circuit Sovereign Sentinel")}
+                isArmed={domain.controlMode === "AUTONOMOUS" || domain.agentAuthority.hasAuthority}
+                borrowAllowed={Boolean(activeDecision.permission.allowed)}
+                availableCapacityUsd={borrowCapacityUsd}
+                maxPerBorrow={domain.agentAuthority.maxBorrowLimit || 500}
+                dailyCap={1500}
+                ltvCeilingPct={activeDecision.capitalPolicy?.maxLtv ? activeDecision.capitalPolicy.maxLtv * 100 : 40}
+                onArmAuthority={() => {
+                  navigate("/app/autonomous");
+                }}
+                onRevokeAuthority={() => {
+                  domain.revokeAgentAuthority(selectedMarket.symbol);
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Row 5: Recent Activity Timeline (Full width) */}
           <div>
             <ActivityTimeline
               items={(activityItems ?? []).slice(0, 8)}

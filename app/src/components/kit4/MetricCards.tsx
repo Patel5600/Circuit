@@ -39,10 +39,18 @@ export function MetricCards({
     return 144.5 * (1 - clamped / 2.5);
   }, [healthFactor]);
 
+  // Per-card readiness checks — show real numbers immediately if data is present
+  const isColLoading = loading && collateralValueUsd === 0;
+  const isDebtLoading = loading && debtUsd === 0 && collateralValueUsd === 0;
+  const isHfLoading = loading && healthFactor === undefined && collateralValueUsd === 0;
+
   return (
-    <div className={`stats ${loading ? "loading" : ""}`}>
+    <div className="stats">
       {/* 1. Collateral Value */}
-      <div className={`card stat ${loading ? "loading" : ""}`}>
+      <div
+        className={`card stat ${isColLoading ? "loading" : ""}`}
+        style={{ height: 150, padding: "16px 20px", boxSizing: "border-box" }}
+      >
         <span className="meta">
           (Circuit)<b>Collateral value</b>
         </span>
@@ -71,7 +79,10 @@ export function MetricCards({
       </div>
 
       {/* 2. Borrowed / Debt */}
-      <div className={`card stat ${loading ? "loading" : ""}`}>
+      <div
+        className={`card stat ${isDebtLoading ? "loading" : ""}`}
+        style={{ height: 150, padding: "16px 20px", boxSizing: "border-box" }}
+      >
         <span className="meta">
           (Circuit)<b>Borrowed</b>
         </span>
@@ -86,7 +97,7 @@ export function MetricCards({
             ${debtUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
           <div className="sub">
-            <span>{ltvPercent.toFixed(1)}% of collateral</span>
+            <span>{debtUsd === 0 ? "No active debt" : `${ltvPercent.toFixed(1)}% of collateral`}</span>
           </div>
           <div className="util">
             <i style={{ width: `${Math.min(100, ltvPercent)}%` }} />
@@ -95,7 +106,10 @@ export function MetricCards({
       </div>
 
       {/* 3. Health Factor */}
-      <div className={`card stat ${loading ? "loading" : ""}`}>
+      <div
+        className={`card stat ${isHfLoading ? "loading" : ""}`}
+        style={{ height: 150, padding: "16px 20px", boxSizing: "border-box" }}
+      >
         <span className="meta">
           (Circuit)<b>Health</b>
         </span>

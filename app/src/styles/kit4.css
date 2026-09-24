@@ -266,6 +266,31 @@
 }
 
 /* =====================================================================
+   TOP SHELL LAYERING
+   ===================================================================== */
+.shell__top {
+  position: sticky;
+  top: 0;
+  z-index: 900;
+  background: var(--bg);
+  padding: 10px 14px 8px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-bottom: 1px solid var(--line2);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.shell__header {
+  width: 100%;
+}
+
+.shell__realtime {
+  width: 100%;
+}
+
+/* =====================================================================
    01 COMMAND BAR
    ===================================================================== */
 .tb {
@@ -851,17 +876,38 @@ kbd {
    ===================================================================== */
 .gate {
   display: grid;
-  grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
-  gap: clamp(20px, 4vw, 48px);
+  grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
+  gap: clamp(16px, 3vw, 36px);
   align-items: center;
+  padding: 18px 24px;
+  box-sizing: border-box;
+}
+@media (min-width: 768px) {
+  .gate {
+    min-height: 220px;
+    max-height: 260px;
+  }
+}
+@media (max-width: 760px) {
+  .gate {
+    grid-template-columns: 1fr;
+  }
 }
 .gd-wrap {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  max-width: 240px;
+  margin: 0 auto;
 }
 .gd svg {
   width: 100%;
+  max-width: 220px;
   height: auto;
   overflow: visible;
+  display: block;
 }
 .gd .arc-bg {
   fill: none;
@@ -899,32 +945,30 @@ kbd {
   stroke-width: 2;
 }
 .gd-read {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 6%;
+  position: static;
   text-align: center;
+  margin-top: 4px;
 }
 .gd-read span.meta {
-  font-size: 10px;
+  font-size: 9px;
 }
 .gd-state {
-  font-weight: 400;
-  font-size: clamp(24px, 3.4vw, 34px);
-  letter-spacing: -0.03em;
+  font-weight: 500;
+  font-size: 22px;
+  letter-spacing: -0.02em;
   margin-top: 2px;
 }
 .gate-r p.desc {
   color: var(--mute);
-  font-size: 14.5px;
+  font-size: 13.5px;
   max-width: 48ch;
-  margin: 14px 0 16px;
+  margin: 8px 0 12px;
 }
 .reasons {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 20px;
+  margin-bottom: 0;
   min-height: 28px;
 }
 .reasons span {
@@ -941,13 +985,28 @@ kbd {
 .stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
+  gap: 16px;
+  width: 100%;
 }
 .stat {
-  padding: 20px;
-  min-height: 140px;
+  padding: 16px 20px;
+  height: 150px;
+  box-sizing: border-box;
   overflow: hidden;
   position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+@media (max-width: 900px) {
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 600px) {
+  .stats {
+    grid-template-columns: 1fr;
+  }
 }
 .stat .skel {
   position: absolute;
@@ -1772,6 +1831,60 @@ kbd {
   margin-top: 3px;
   font-size: 13px;
   color: var(--mute);
+}
+
+/* =====================================================================
+   DASHBOARD UNIFIED GRID (5 Rows)
+   ===================================================================== */
+.dashboard-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.dashboard-row--metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  width: 100%;
+}
+
+.dashboard-row--split {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: stretch;
+  width: 100%;
+}
+
+.dashboard-row--split > * {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (max-width: 900px) {
+  .dashboard-row--metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .dashboard-row--split {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .dashboard-row--metrics {
+    grid-template-columns: 1fr;
+  }
+}
+
+.dashboard-grid .bp,
+.dashboard-grid .ag,
+.dashboard-grid .act {
+  max-width: none;
+  margin: 0;
+  width: 100%;
 }
 
 /* =====================================================================

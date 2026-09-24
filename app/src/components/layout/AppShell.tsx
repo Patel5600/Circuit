@@ -51,7 +51,16 @@ export function PageContainer({
   children: React.ReactNode;
 }) {
   return (
-    <div className={`container${narrow ? " container--narrow" : ""}`} style={{ maxWidth: 1240, margin: "0 auto", padding: "0 clamp(14px, 2.5vw, 24px)" }}>
+    <div
+      className={`container${narrow ? " container--narrow" : ""}`}
+      style={{
+        maxWidth: 1280,
+        margin: "0 auto",
+        padding: "0 clamp(16px, 2.5vw, 24px)",
+        width: "100%",
+        boxSizing: "border-box",
+      }}
+    >
       {(title || action) && (
         <div className="pagehead row between g-16 wrap" style={{ marginBottom: 20 }}>
           <div>
@@ -126,14 +135,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           Skip to content
         </a>
 
-        {/* 1. Kit 4 Top Command Bar */}
-        <header style={{ position: "sticky", top: 12, zIndex: 900, margin: "10px 14px 4px 14px" }}>
-          <CommandBar onOpenCommand={() => setCommandOpen(true)} />
-        </header>
-
-        {/* 2. Kit 4 Realtime Status Strip */}
-        <div style={{ margin: "4px 14px 10px 14px" }}>
-          <RealtimeStrip />
+        {/* Top Shell: Sticky Command Bar + Realtime Status Strip */}
+        <div className="shell__top">
+          <header className="shell__header">
+            <CommandBar onOpenCommand={() => setCommandOpen(true)} />
+          </header>
+          <div className="shell__realtime">
+            <RealtimeStrip />
+          </div>
         </div>
 
         {/* 3. Product Body: Sidebar + Main Canvas */}
@@ -163,7 +172,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 : {
                     flex: 1,
                     minWidth: 0,
-                    padding: "16px clamp(12px, 2.5vw, 28px) 80px",
+                    padding: "24px clamp(16px, 2.5vw, 24px) 80px",
                     overflowY: "auto",
                   }
             }
