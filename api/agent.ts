@@ -7,9 +7,9 @@
  */
 
 import type { VercelRequest, VercelResponse } from "./_types";
-import { orchestrateAgentChat, type AgentResponsePayload } from "./agent/orchestrator";
-import { isGeminiConfigured } from "./agent/gemini";
-import type { ProtocolSnapshot } from "./agent/tools";
+import { orchestrateAgentChat, type AgentResponsePayload } from "./agent/_orchestrator";
+import { isGeminiConfigured } from "./agent/_gemini";
+import type { ProtocolSnapshot } from "./agent/_tools";
 
 function setCorsHeaders(req: VercelRequest, res: VercelResponse) {
   const origin = req.headers?.origin;

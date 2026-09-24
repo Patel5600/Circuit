@@ -13,15 +13,15 @@
  */
 
 import { expect } from "chai";
-import { classifyIntent } from "../api/agent/classifier";
+import { classifyIntent } from "../api/agent/_classifier";
 import {
   orchestrateAgentChat,
   formatTextResponse,
   type AgentResponsePayload,
-} from "../api/agent/orchestrator";
+} from "../api/agent/_orchestrator";
 import { getDurableIntentServer } from "../api/automation/_store";
 import { handleOfflineChat } from "../api/agent/chat";
-import type { ProtocolSnapshot } from "../api/agent/tools";
+import type { ProtocolSnapshot } from "../api/agent/_tools";
 
 describe("Circuit Autonomous Agent — Intelligence & Response Architecture", () => {
   const mockSnapshot: ProtocolSnapshot = {

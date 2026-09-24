@@ -5,7 +5,7 @@
  * on-chain asset-scoped context, and response channel separation.
  */
 
-import { classifyIntent, type ClassifiedIntent, type IntentClass } from "./classifier";
+import { classifyIntent, type ClassifiedIntent, type IntentClass } from "./_classifier";
 import {
   getAssetContext,
   explainConcept,
@@ -16,8 +16,8 @@ import {
   type PermissionResult,
   type ExecutionPlan,
   type ToolCallRecord,
-} from "./tools";
-import { generateGeminiReply } from "./gemini";
+} from "./_tools";
+import { generateGeminiReply } from "./_gemini";
 import { createDurableIntentServer } from "../automation/_store";
 import type { DurableIntent } from "../../app/src/lib/agent/intent/types";
 

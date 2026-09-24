@@ -12,12 +12,12 @@ import {
   orchestrateAgentChat,
   formatTextResponse,
   type AgentResponsePayload,
-} from "./orchestrator";
+} from "./_orchestrator";
 import {
   classifyIntent,
   sanitizeInputText,
   type ClassifiedIntent,
-} from "./classifier";
+} from "./_classifier";
 import {
   getAssetContext,
   explainConcept,
@@ -25,7 +25,7 @@ import {
   buildExecutionPlan,
   type ProtocolSnapshot,
   type ToolCallRecord,
-} from "./tools";
+} from "./_tools";
 
 interface ChatRequest {
   messages: Array<{ role: "user" | "assistant" | "system"; content: string }>;

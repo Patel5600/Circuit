@@ -6,9 +6,9 @@
  */
 
 import { GoogleGenAI } from "@google/genai";
-import type { ProtocolSnapshot, AssetContext } from "./tools";
-import { explainConcept } from "./tools";
-import type { ClassifiedIntent } from "./classifier";
+import type { ProtocolSnapshot, AssetContext } from "./_tools";
+import { explainConcept } from "./_tools";
+import type { ClassifiedIntent } from "./_classifier";
 
 function resolveApiKey(): string | null {
   return (
