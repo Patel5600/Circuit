@@ -39,64 +39,69 @@ export function DecisionInspector() {
 
   if (!isOpen) {
     return (
-      <button
-        type="button"
-        onClick={() => setIsOpen(true)}
-        style={{
-          position: "fixed",
-          bottom: 16,
-          right: 16,
-          zIndex: 9999,
-          background: "var(--surface-3, #1c202d)",
-          color: "var(--accent, #9945FF)",
-          border: "1px solid var(--border)",
-          borderRadius: "var(--r-sm, 6px)",
-          padding: "6px 12px",
-          fontFamily: "var(--mono)",
-          fontSize: 11,
-          fontWeight: 650,
-          cursor: "pointer",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-        }}
-      >
-        <span
-          style={{
-            width: 7,
-            height: 7,
-            borderRadius: "50%",
-            background: snap.verdict.status === "ALLOW" ? "var(--success, #22c55e)" : "var(--warning, #eab308)",
-          }}
-        />
-        <span>{pillLabel}</span>
-      </button>
+      <>
+        <button
+          type="button"
+          className="di-trigger"
+          onClick={() => setIsOpen(true)}
+          aria-label="Open Decision Inspector"
+        >
+          <span
+            style={{
+              width: 7,
+              height: 7,
+              borderRadius: "50%",
+              background: snap.verdict.status === "ALLOW" ? "var(--success, #22c55e)" : "var(--warning, #eab308)",
+              flexShrink: 0,
+            }}
+          />
+          <span className="di-trigger-text">{pillLabel}</span>
+        </button>
+        <style>{`
+          .di-trigger {
+            position: fixed;
+            bottom: 16px;
+            right: 16px;
+            z-index: 9999;
+            background: var(--surface-3, #1c202d);
+            color: var(--accent, #9945FF);
+            border: 1px solid var(--border);
+            border-radius: var(--r-sm, 6px);
+            padding: 6px 12px;
+            font-family: var(--mono);
+            font-size: 11px;
+            font-weight: 650;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: transform 0.2s, background 0.2s;
+          }
+          @media (max-width: 768px) {
+            .di-trigger {
+              bottom: 68px !important;
+              right: 12px !important;
+              padding: 6px 10px !important;
+              font-size: 10px !important;
+              max-width: calc(100vw - 24px) !important;
+            }
+            .di-trigger-text {
+              overflow: hidden;
+              text-overflow: ellipsis;
+              white-space: nowrap;
+            }
+          }
+        `}</style>
+      </>
     );
   }
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        bottom: 16,
-        right: 16,
-        width: 400,
-        maxHeight: "85vh",
-        background: "var(--surface-1, #0e111a)",
-        border: "1px solid var(--border)",
-        borderRadius: "var(--r, 10px)",
-        boxShadow: "0 12px 32px rgba(0,0,0,0.8)",
-        zIndex: 9999,
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-        fontFamily: "var(--mono)",
-        fontSize: 11,
-      }}
-    >
-      {/* Header */}
-      <div
+    <>
+      <div className="di-panel">
+        {/* Header */}
+        <div
         style={{
           padding: "10px 14px",
           background: "var(--surface-2, #141824)",
@@ -249,5 +254,39 @@ export function DecisionInspector() {
         </div>
       </div>
     </div>
+    <style>{`
+      .di-panel {
+        position: fixed;
+        bottom: 16px;
+        right: 16px;
+        width: 390px;
+        max-width: calc(100vw - 32px);
+        max-height: 85vh;
+        background: var(--surface-1, #0e111a);
+        border: 1px solid var(--border);
+        border-radius: var(--r, 10px);
+        box-shadow: 0 16px 48px rgba(0,0,0,0.8);
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        font-family: var(--mono);
+        font-size: 11px;
+        animation: k4ModalPopIn 260ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+      @media (max-width: 768px) {
+        .di-panel {
+          bottom: 68px !important;
+          left: 10px !important;
+          right: 10px !important;
+          width: auto !important;
+          max-width: none !important;
+          max-height: 75vh !important;
+          border-radius: 14px !important;
+          box-shadow: 0 -8px 36px rgba(0, 0, 0, 0.65) !important;
+        }
+      }
+    `}</style>
+  </>
   );
 }

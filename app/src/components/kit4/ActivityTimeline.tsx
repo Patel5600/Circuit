@@ -13,13 +13,14 @@ export function ActivityTimeline({
   collateralSymbol = "NVDAx",
   onItemClick,
 }: ActivityTimelineProps) {
-  const [filter, setFilter] = useState<"all" | "deposit" | "borrow" | "rejected">("all");
+  const [filter, setFilter] = useState<"all" | "deposit" | "borrow" | "withdraw" | "rejected">("all");
 
   const filteredItems = useMemo(() => {
     return (items || []).filter((item) => {
       if (filter === "all") return true;
       if (filter === "deposit") return item.kind === "deposit";
       if (filter === "borrow") return item.kind === "borrow" || item.kind === "repay";
+      if (filter === "withdraw") return item.kind === "withdraw";
       if (filter === "rejected") return !item.success;
       return true;
     });
@@ -59,6 +60,14 @@ export function ActivityTimeline({
           </button>
           <button
             type="button"
+            className={filter === "withdraw" ? "active" : ""}
+            aria-pressed={filter === "withdraw"}
+            onClick={() => setFilter("withdraw")}
+          >
+            Withdrawals
+          </button>
+          <button
+            type="button"
             className={filter === "rejected" ? "active" : ""}
             aria-pressed={filter === "rejected"}
             onClick={() => setFilter("rejected")}
@@ -86,17 +95,18 @@ export function ActivityTimeline({
 
             const uiAmount = item.amount !== null ? toUi(item.amount, 6) : null;
             const amountStr = uiAmount !== null ? uiAmount.toFixed(2) : "";
+            const currentSymbol = item.assetSymbol || (item.unit === "quote" ? "USDC" : collateralSymbol);
 
             const title =
               item.kind === "deposit"
-                ? `Deposited ${amountStr} ${collateralSymbol}`
+                ? `Deposited ${amountStr ? amountStr + " " : ""}${currentSymbol}`
                 : item.kind === "borrow"
-                ? `Borrowed $${amountStr}`
+                ? `Borrowed ${amountStr ? "$" + amountStr : "USDC"}`
                 : item.kind === "repay"
-                ? `Repaid $${amountStr}`
+                ? `Repaid ${amountStr ? "$" + amountStr : "USDC"}`
                 : item.kind === "withdraw"
-                ? `Withdrew ${amountStr} ${collateralSymbol}`
-                : "Position update";
+                ? `Withdrew ${amountStr ? amountStr + " " : ""}${currentSymbol}`
+                : `Position update · ${currentSymbol}`;
 
             const desc = item.success
               ? `Executed by ${item.actor === "AGENT" ? "Autonomous Agent" : "Manual Wallet"}. Confirmed on Solana Devnet.`

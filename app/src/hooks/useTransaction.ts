@@ -156,6 +156,14 @@ export function useTransaction(overrideMarket?: DeployedMarket) {
         opts.onSuccess?.();
         return true;
       } catch (e: any) {
+        if (typeof e?.getLogs === "function") {
+          try {
+            const logs = await e.getLogs(connection);
+            console.error("[useTransaction] simulation failed logs:", logs);
+          } catch {}
+        } else if (e?.logs) {
+          console.error("[useTransaction] transaction logs:", e.logs);
+        }
         const errDesc = describeError(e, errorMap);
         set("error", { error: errDesc });
         transactionStateMachine.transition(txRecord.id, "FAILED", { error: errDesc });

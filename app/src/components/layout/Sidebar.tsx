@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useCircuitDomain } from "../../lib/domain/context";
+import { CircuitLogo } from "../brand/CircuitLogo";
 
 export interface SidebarProps {
   collapsed: boolean;
@@ -121,7 +122,10 @@ export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
   return (
     <aside className="sb" data-collapsed={collapsed}>
       <div className="sb-top">
-        <span className="meta">Platform</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <CircuitLogo size={20} className="circuit-logo-mark" />
+          <span className="meta">Platform</span>
+        </div>
         <button
           type="button"
           className="sb-tg"

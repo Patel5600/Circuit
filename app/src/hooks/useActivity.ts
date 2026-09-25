@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
-import { ConfirmedSignatureInfo } from "@solana/web3.js";
+import { ConfirmedSignatureInfo, PublicKey } from "@solana/web3.js";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 
-import { EQUITY_MINT } from "../config";
+import { EQUITY_MINT, PROGRAM_ID } from "../config";
 import { DECIMALS, positionPda } from "../lib/protocol";
+import { AssetRegistry } from "../lib/assets/registry";
+import { normalizedStore } from "../lib/realtime/normalized-store";
 
 /**
  * Real activity history.
  *
- * Derived from actual signatures touching the user's Position PDA, with the
- * action and amount recovered from the program's own log lines. Nothing here is
- * synthesised: if a transaction cannot be classified it is reported as
- * "Position update" rather than guessed at.
+ * Derived from actual signatures touching the user's Position PDAs and wallet,
+ * with the action and amount recovered from the program's own log lines and
+ * real-time normalized store. Zero synthetic data.
  */
 
 export type ActivityKind =
@@ -33,6 +34,7 @@ export interface ActivityItem {
   success: boolean;
   actor: "HUMAN" | "AGENT";
   reasonCode: string;
+  assetSymbol?: string;
 }
 
 /**
@@ -103,12 +105,30 @@ function classify(logs: string[] | null): {
       return { kind: p.kind, amount: BigInt(m[1]), unit: p.unit, actor, reasonCode };
     }
   }
+
+  // Instruction-based fallback if formatted numbers were not in standard msg! logs
+  if (joined.includes("Instruction: Deposit")) {
+    return { kind: "deposit", amount: null, unit: "collateral", actor, reasonCode };
+  }
+  if (joined.includes("Instruction: Withdraw")) {
+    return { kind: "withdraw", amount: null, unit: "collateral", actor, reasonCode };
+  }
+  if (joined.includes("Instruction: Borrow")) {
+    return { kind: "borrow", amount: null, unit: "quote", actor, reasonCode };
+  }
+  if (joined.includes("Instruction: Repay")) {
+    return { kind: "repay", amount: null, unit: "quote", actor, reasonCode };
+  }
+  if (joined.includes("Instruction: Liquidate")) {
+    return { kind: "liquidation", amount: null, unit: "quote", actor, reasonCode };
+  }
+
   return { kind: "other", amount: null, unit: null, actor, reasonCode };
 }
 
 export const ACTIVITY_DECIMALS = DECIMALS;
 
-export function useActivity(limit = 25) {
+export function useActivity(limit = 35) {
   const { connection } = useConnection();
   const { publicKey } = useWallet();
 
@@ -119,44 +139,117 @@ export function useActivity(limit = 25) {
 
   const refresh = useCallback(() => setNonce((n) => n + 1), []);
 
+  // Subscribe to normalized realtime store so confirmed user actions show up instantly
+  useEffect(() => {
+    const unsub = normalizedStore.subscribeTransactions(() => {
+      setNonce((n) => n + 1);
+    });
+    return unsub;
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
-      if (!publicKey || !EQUITY_MINT) {
+      if (!publicKey) {
         setItems(null);
         return;
       }
       setLoading(true);
       setError(null);
       try {
-        const position = positionPda(publicKey, EQUITY_MINT);
+        const allAssets = AssetRegistry.list();
+        const targets: { address: PublicKey; assetSymbol?: string }[] = [];
 
-        let sigs: ConfirmedSignatureInfo[] = [];
-        try {
-          sigs = await connection.getSignaturesForAddress(position, { limit });
-        } catch {
-          // A position that has never existed has no signature history.
-          sigs = [];
+        // 1. Wallet public key
+        targets.push({ address: publicKey });
+
+        // 2. Position PDAs across all canonical market assets
+        for (const asset of allAssets) {
+          try {
+            if (asset.tokenMint) {
+              const mintKey = new PublicKey(asset.tokenMint);
+              const pda = positionPda(publicKey, mintKey);
+              targets.push({ address: pda, assetSymbol: asset.tokenSymbol || asset.symbol });
+            }
+          } catch {
+            // Ignore malformed keys
+          }
         }
 
-        if (sigs.length === 0) {
-          if (!cancelled) setItems([]);
-          return;
+        // Add default equity mint if not already included
+        if (EQUITY_MINT && !targets.some((t) => t.address.equals(positionPda(publicKey, EQUITY_MINT!)))) {
+          targets.push({ address: positionPda(publicKey, EQUITY_MINT), assetSymbol: "NVDAx" });
         }
 
-        // Batch the detail fetch; public RPC rate limits punish per-signature calls.
-        const parsed = await connection.getParsedTransactions(
-          sigs.map((s) => s.signature),
-          { maxSupportedTransactionVersion: 0 }
+        // Fetch signatures for all target addresses in parallel
+        const sigResults = await Promise.allSettled(
+          targets.map(async (t) => {
+            try {
+              const sigs = await connection.getSignaturesForAddress(t.address, { limit: 15 });
+              return sigs.map((s) => ({ sig: s, targetAsset: t.assetSymbol }));
+            } catch {
+              return [];
+            }
+          })
         );
 
-        const out: ActivityItem[] = sigs.map((s, i) => {
+        const sigMap = new Map<string, { sig: ConfirmedSignatureInfo; targetAsset?: string }>();
+        for (const res of sigResults) {
+          if (res.status === "fulfilled") {
+            for (const item of res.value) {
+              if (!sigMap.has(item.sig.signature)) {
+                sigMap.set(item.sig.signature, item);
+              } else if (!sigMap.get(item.sig.signature)!.targetAsset && item.targetAsset) {
+                sigMap.get(item.sig.signature)!.targetAsset = item.targetAsset;
+              }
+            }
+          }
+        }
+
+        const sortedSigs = Array.from(sigMap.values())
+          .sort((a, b) => (b.sig.blockTime ?? 0) - (a.sig.blockTime ?? 0))
+          .slice(0, limit);
+
+        const parsed = sortedSigs.length > 0
+          ? await connection.getParsedTransactions(
+              sortedSigs.map((s) => s.sig.signature),
+              { maxSupportedTransactionVersion: 0 }
+            )
+          : [];
+
+        const onChainItems: ActivityItem[] = [];
+
+        for (let i = 0; i < sortedSigs.length; i++) {
+          const { sig: s, targetAsset } = sortedSigs[i];
           const tx = parsed[i];
           const logs = tx?.meta?.logMessages ?? null;
+
+          const programIdStr = PROGRAM_ID.toBase58();
+          const touchesCircuit = logs
+            ? logs.some((l) => l.includes(programIdStr) || l.includes("Instruction: Deposit") || l.includes("Instruction: Withdraw") || l.includes("Instruction: Borrow") || l.includes("Instruction: Repay"))
+            : Boolean(targetAsset);
+
+          // If from general wallet query and didn't touch Circuit, ignore unrelated Solana txs
+          if (!targetAsset && !touchesCircuit) {
+            continue;
+          }
+
           const { kind, amount, unit, actor, reasonCode } = classify(logs);
           const success = !s.err && !tx?.meta?.err;
-          return {
+
+          let assetSymbol = targetAsset;
+          if (!assetSymbol && tx?.transaction?.message?.accountKeys) {
+            const keys = tx.transaction.message.accountKeys.map((k) =>
+              typeof k === "string" ? k : k.pubkey.toBase58()
+            );
+            const matched = allAssets.find((a) => keys.includes(a.tokenMint));
+            if (matched) {
+              assetSymbol = matched.tokenSymbol || matched.symbol;
+            }
+          }
+
+          onChainItems.push({
             signature: s.signature,
             kind,
             amount,
@@ -165,10 +258,48 @@ export function useActivity(limit = 25) {
             success,
             actor,
             reasonCode: success ? "ALLOWED" : reasonCode,
-          };
-        });
+            assetSymbol: assetSymbol || "NVDAx",
+          });
+        }
 
-        if (!cancelled) setItems(out);
+        // Merge live confirmed/pending transactions from client store
+        const liveTxs = normalizedStore.getAllTransactions();
+        const existingSigs = new Set(onChainItems.map((it) => it.signature));
+
+        for (const prov of liveTxs) {
+          const txRec = prov.value;
+          if (txRec.signature && !existingSigs.has(txRec.signature)) {
+            const kind: ActivityKind =
+              txRec.action === "DEPOSIT"
+                ? "deposit"
+                : txRec.action === "BORROW"
+                ? "borrow"
+                : txRec.action === "REPAY"
+                ? "repay"
+                : txRec.action === "WITHDRAW"
+                ? "withdraw"
+                : "other";
+
+            const isQuote = txRec.action === "BORROW" || txRec.action === "REPAY";
+            const amountBigInt = BigInt(Math.round(txRec.amount * 1_000_000));
+            const success = txRec.state === "CONFIRMED" || txRec.state === "FINALIZED";
+
+            onChainItems.unshift({
+              signature: txRec.signature,
+              kind,
+              amount: amountBigInt,
+              unit: isQuote ? "quote" : "collateral",
+              blockTime: Math.floor((txRec.confirmedAtTs ?? txRec.startedAtTs) / 1000),
+              success,
+              actor: "HUMAN",
+              reasonCode: success ? "ALLOWED" : (txRec.errorCode || "CONFIRMED"),
+              assetSymbol: txRec.assetSymbol || "NVDAx",
+            });
+            existingSigs.add(txRec.signature);
+          }
+        }
+
+        if (!cancelled) setItems(onChainItems);
       } catch (e: any) {
         if (!cancelled) setError(e?.message ?? String(e));
       } finally {

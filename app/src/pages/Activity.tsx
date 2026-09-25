@@ -44,10 +44,10 @@ function ActivityRow({
   collateralSymbol: string;
   onClick: () => void;
 }) {
-  const meta = KIND_META[item.kind];
+  const meta = KIND_META[item.kind] || KIND_META.other;
   const unitSymbol =
-    item.unit === "collateral" ? collateralSymbol : item.unit === "quote" ? QUOTE_SYMBOL : "";
-  const resultText = item.success ? "✓ ALLOWED" : "✕ BLOCKED";
+    item.unit === "collateral" ? (item.assetSymbol || collateralSymbol) : item.unit === "quote" ? QUOTE_SYMBOL : "";
+  const resultText = item.success ? "ALLOWED" : "BLOCKED";
   const riskState = item.success ? "SAFE" : "DEFENSIVE";
   const reasonCode = item.reasonCode || (item.success ? "ALLOWED" : "BORROW_DISABLED_BY_RISK_STATE");
 
@@ -144,8 +144,23 @@ export default function Activity() {
   const display = useMemo(activeAssetDisplay, []);
   const [selectedEvent, setSelectedEvent] = useState<ActivityEvent | null>(null);
   const [actorFilter, setActorFilter] = useState<"ALL" | "HUMAN" | "AGENT">("ALL");
+  const [viewMode, setViewMode] = useState<"timeline" | "forensic" | "split">("timeline");
 
-  // Normalize into domain ActivityEvent[] for pattern engine
+  // Summary Metrics Calculation
+  const metrics = useMemo(() => {
+    if (!items || items.length === 0) {
+      return { total: 0, allowed: 0, blocked: 0, ratePct: 100, agentCount: 0, manualCount: 0 };
+    }
+    const total = items.length;
+    const allowed = items.filter((i) => i.success).length;
+    const blocked = total - allowed;
+    const ratePct = total > 0 ? Math.round((allowed / total) * 100) : 100;
+    const agentCount = items.filter((i) => i.actor === "AGENT").length;
+    const manualCount = total - agentCount;
+    return { total, allowed, blocked, ratePct, agentCount, manualCount };
+  }, [items]);
+
+  // Normalize into domain ActivityEvent[] for pattern engine and drawer
   const domainEvents: ActivityEvent[] = useMemo(() => {
     if (!items || !publicKey) return [];
     return items.map((it) => ({
@@ -162,8 +177,8 @@ export default function Activity() {
           : it.kind === "liquidation"
           ? "LIQUIDATION"
           : "PROGRAM_INTERACTION",
-      action: KIND_META[it.kind].label,
-      assetSymbol: it.unit === "collateral" ? display.symbol : "USDC",
+      action: (KIND_META[it.kind] || KIND_META.other).label,
+      assetSymbol: it.assetSymbol || (it.unit === "collateral" ? display.symbol : "USDC"),
       amountNative: it.amount,
       amountUi: it.amount !== null ? toUi(it.amount) : null,
       status: it.success ? "CONFIRMED" : "FAILED",
@@ -218,8 +233,8 @@ export default function Activity() {
       setSelectedEvent({
         id: item.signature,
         type: "PROGRAM_INTERACTION",
-        action: KIND_META[item.kind].label,
-        assetSymbol: display.symbol,
+        action: (KIND_META[item.kind] || KIND_META.other).label,
+        assetSymbol: item.assetSymbol || display.symbol,
         amountNative: item.amount,
         amountUi: item.amount ? toUi(item.amount) : null,
         status: item.success ? "CONFIRMED" : "FAILED",
@@ -233,7 +248,7 @@ export default function Activity() {
   return (
     <PageContainer
       title="Activity & Event Intelligence"
-      subtitle="On-chain forensic activity feed, deterministic pattern recognition, and transaction verification."
+      subtitle="On-chain forensic activity feed, deterministic pattern recognition, and transaction verification across all markets."
       action={
         connected ? (
           <Button variant="ghost" size="sm" onClick={refresh} loading={loading}>
@@ -270,6 +285,73 @@ export default function Activity() {
         </EmptyState>
       ) : (
         <div className="stack g-20">
+          {/* EXECUTIVE METRICS BAR */}
+          <div className="grid grid--4 g-12">
+            <div
+              style={{
+                padding: "14px 16px",
+                background: "var(--surface-2)",
+                borderRadius: "var(--r)",
+                border: "1px solid var(--border)",
+              }}
+            >
+              <span className="t-label">Total Transactions</span>
+              <div style={{ fontSize: 22, fontWeight: 700, marginTop: 4, fontFamily: "var(--mono)" }}>
+                {metrics.total}
+              </div>
+              <span style={{ fontSize: 11, color: "var(--text-3)" }}>All Deployed Markets</span>
+            </div>
+
+            <div
+              style={{
+                padding: "14px 16px",
+                background: "var(--surface-2)",
+                borderRadius: "var(--r)",
+                border: "1px solid var(--border)",
+              }}
+            >
+              <span className="t-label">Solana Policy Pass Rate</span>
+              <div style={{ fontSize: 22, fontWeight: 700, marginTop: 4, fontFamily: "var(--mono)", color: "var(--success)" }}>
+                {metrics.ratePct}%
+              </div>
+              <span style={{ fontSize: 11, color: "var(--text-3)" }}>
+                {metrics.allowed} allowed · {metrics.blocked} blocked
+              </span>
+            </div>
+
+            <div
+              style={{
+                padding: "14px 16px",
+                background: "var(--surface-2)",
+                borderRadius: "var(--r)",
+                border: "1px solid var(--border)",
+              }}
+            >
+              <span className="t-label">Agent Authority Ratio</span>
+              <div style={{ fontSize: 22, fontWeight: 700, marginTop: 4, fontFamily: "var(--mono)", color: "var(--accent)" }}>
+                {metrics.agentCount} / {metrics.total}
+              </div>
+              <span style={{ fontSize: 11, color: "var(--text-3)" }}>
+                {metrics.manualCount} manual · {metrics.agentCount} autonomous
+              </span>
+            </div>
+
+            <div
+              style={{
+                padding: "14px 16px",
+                background: "var(--surface-2)",
+                borderRadius: "var(--r)",
+                border: "1px solid var(--border)",
+              }}
+            >
+              <span className="t-label">Verification Mode</span>
+              <div style={{ fontSize: 15, fontWeight: 700, marginTop: 8, color: "var(--text)" }}>
+                On-Chain Canonical
+              </div>
+              <span style={{ fontSize: 11, color: "var(--success)" }}>Live Solana Devnet</span>
+            </div>
+          </div>
+
           {/* DETECTED PATTERNS INTELLIGENCE PANEL */}
           {patterns.length > 0 && (
             <div
@@ -337,45 +419,178 @@ export default function Activity() {
             </div>
           )}
 
-          {/* ACTOR FILTER SELECTOR */}
+          {/* CONTROLS BAR: ACTOR FILTER & VIEW SELECTOR */}
           <div className="row between g-12 wrap" style={{ alignItems: "center", padding: "4px 0" }}>
-            <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-3)" }}>
-              EXECUTION ACTOR
-            </span>
-            <div className="chips" style={{ margin: 0 }}>
-              <button
-                type="button"
-                className={`chip ${actorFilter === "ALL" ? "chip--active" : ""}`}
-                onClick={() => setActorFilter("ALL")}
-                style={{ fontSize: 11, padding: "3px 10px", height: 26 }}
-              >
-                ALL ({items.length})
-              </button>
-              <button
-                type="button"
-                className={`chip ${actorFilter === "HUMAN" ? "chip--active" : ""}`}
-                onClick={() => setActorFilter("HUMAN")}
-                style={{ fontSize: 11, padding: "3px 10px", height: 26 }}
-              >
-                HUMAN ({items.filter((i) => i.actor === "HUMAN").length})
-              </button>
-              <button
-                type="button"
-                className={`chip ${actorFilter === "AGENT" ? "chip--active" : ""}`}
-                onClick={() => setActorFilter("AGENT")}
-                style={{ fontSize: 11, padding: "3px 10px", height: 26 }}
-              >
-                AGENT ({items.filter((i) => i.actor === "AGENT").length})
-              </button>
+            <div className="row g-8" style={{ alignItems: "center" }}>
+              <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-3)" }}>
+                ACTOR:
+              </span>
+              <div className="chips" style={{ margin: 0 }}>
+                <button
+                  type="button"
+                  className={`chip ${actorFilter === "ALL" ? "chip--active" : ""}`}
+                  onClick={() => setActorFilter("ALL")}
+                  style={{ fontSize: 11, padding: "3px 10px", height: 26 }}
+                >
+                  ALL ({items.length})
+                </button>
+                <button
+                  type="button"
+                  className={`chip ${actorFilter === "HUMAN" ? "chip--active" : ""}`}
+                  onClick={() => setActorFilter("HUMAN")}
+                  style={{ fontSize: 11, padding: "3px 10px", height: 26 }}
+                >
+                  HUMAN ({items.filter((i) => i.actor === "HUMAN").length})
+                </button>
+                <button
+                  type="button"
+                  className={`chip ${actorFilter === "AGENT" ? "chip--active" : ""}`}
+                  onClick={() => setActorFilter("AGENT")}
+                  style={{ fontSize: 11, padding: "3px 10px", height: 26 }}
+                >
+                  AGENT ({items.filter((i) => i.actor === "AGENT").length})
+                </button>
+              </div>
+            </div>
+
+            <div className="row g-8" style={{ alignItems: "center" }}>
+              <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-3)" }}>
+                VIEW:
+              </span>
+              <div className="chips" style={{ margin: 0 }}>
+                <button
+                  type="button"
+                  className={`chip ${viewMode === "timeline" ? "chip--active" : ""}`}
+                  onClick={() => setViewMode("timeline")}
+                  style={{ fontSize: 11, padding: "3px 10px", height: 26 }}
+                >
+                  Timeline
+                </button>
+                <button
+                  type="button"
+                  className={`chip ${viewMode === "forensic" ? "chip--active" : ""}`}
+                  onClick={() => setViewMode("forensic")}
+                  style={{ fontSize: 11, padding: "3px 10px", height: 26 }}
+                >
+                  Forensic List
+                </button>
+                <button
+                  type="button"
+                  className={`chip ${viewMode === "split" ? "chip--active" : ""}`}
+                  onClick={() => setViewMode("split")}
+                  style={{ fontSize: 11, padding: "3px 10px", height: 26 }}
+                >
+                  Split View
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* KIT 4 ACTIVITY TIMELINE */}
-          <ActivityTimeline
-            items={items.filter((it) => actorFilter === "ALL" || it.actor === actorFilter)}
-            collateralSymbol={display.symbol}
-            onItemClick={handleRowClick}
-          />
+          {/* VIEW: TIMELINE */}
+          {(viewMode === "timeline" || viewMode === "split") && (
+            <ActivityTimeline
+              items={items.filter((it) => actorFilter === "ALL" || it.actor === actorFilter)}
+              collateralSymbol={display.symbol}
+              onItemClick={handleRowClick}
+            />
+          )}
+
+          {/* VIEW: FORENSIC LIST */}
+          {(viewMode === "forensic" || viewMode === "split") && (
+            <Card flush>
+              <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)" }} className="row between g-8">
+                <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-3)" }}>
+                  ON-CHAIN FORENSIC TRANSACTION LEDGER
+                </span>
+                <span style={{ fontSize: 11, color: "var(--text-3)", fontFamily: "var(--mono)" }}>
+                  Click row to inspect on-chain execution details
+                </span>
+              </div>
+
+              <div className="stack">
+                {grouped.today.length > 0 && (
+                  <div>
+                    <div style={{ padding: "8px 20px", background: "var(--surface-3)", fontSize: 11, fontWeight: 700, color: "var(--text-3)", letterSpacing: "0.05em" }}>
+                      TODAY ({grouped.today.length})
+                    </div>
+                    <ul className="act-list" style={{ margin: 0, padding: 0, listStyle: "none" }}>
+                      {grouped.today.map((item) => (
+                        <ActivityRow
+                          key={item.signature}
+                          item={item}
+                          collateralSymbol={display.symbol}
+                          onClick={() => handleRowClick(item)}
+                        />
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {grouped.yesterday.length > 0 && (
+                  <div>
+                    <div style={{ padding: "8px 20px", background: "var(--surface-3)", fontSize: 11, fontWeight: 700, color: "var(--text-3)", letterSpacing: "0.05em" }}>
+                      YESTERDAY ({grouped.yesterday.length})
+                    </div>
+                    <ul className="act-list" style={{ margin: 0, padding: 0, listStyle: "none" }}>
+                      {grouped.yesterday.map((item) => (
+                        <ActivityRow
+                          key={item.signature}
+                          item={item}
+                          collateralSymbol={display.symbol}
+                          onClick={() => handleRowClick(item)}
+                        />
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {grouped.thisWeek.length > 0 && (
+                  <div>
+                    <div style={{ padding: "8px 20px", background: "var(--surface-3)", fontSize: 11, fontWeight: 700, color: "var(--text-3)", letterSpacing: "0.05em" }}>
+                      THIS WEEK ({grouped.thisWeek.length})
+                    </div>
+                    <ul className="act-list" style={{ margin: 0, padding: 0, listStyle: "none" }}>
+                      {grouped.thisWeek.map((item) => (
+                        <ActivityRow
+                          key={item.signature}
+                          item={item}
+                          collateralSymbol={display.symbol}
+                          onClick={() => handleRowClick(item)}
+                        />
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {grouped.older.length > 0 && (
+                  <div>
+                    <div style={{ padding: "8px 20px", background: "var(--surface-3)", fontSize: 11, fontWeight: 700, color: "var(--text-3)", letterSpacing: "0.05em" }}>
+                      OLDER ({grouped.older.length})
+                    </div>
+                    <ul className="act-list" style={{ margin: 0, padding: 0, listStyle: "none" }}>
+                      {grouped.older.map((item) => (
+                        <ActivityRow
+                          key={item.signature}
+                          item={item}
+                          collateralSymbol={display.symbol}
+                          onClick={() => handleRowClick(item)}
+                        />
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {grouped.today.length === 0 &&
+                  grouped.yesterday.length === 0 &&
+                  grouped.thisWeek.length === 0 &&
+                  grouped.older.length === 0 && (
+                    <div style={{ padding: 24, textAlign: "center", color: "var(--text-3)", fontSize: 13 }}>
+                      No forensic activity records found matching current actor filter.
+                    </div>
+                  )}
+              </div>
+            </Card>
+          )}
         </div>
       )}
 

@@ -42,7 +42,7 @@ import {
   toUi,
 } from "../lib/protocol";
 import { derivePriceAccount } from "../lib/pyth";
-import { PYTH_FEED_ID } from "../config";
+import { PYTH_FEED_ID, PYTH_PRICE_ACCOUNT } from "../config";
 import { calculateMinimumRestorationDebt } from "../lib/recovery-engine";
 import { AssetRegistry, assertAssetContextIntegrity } from "../lib/assets/registry";
 
@@ -152,7 +152,9 @@ export default function Position() {
 
     setTxOpen(true);
     const amountNative = toNative(parsed);
-    const priceAccount = new PublicKey(AssetRegistry.getPriceAccount(targetMarket.symbol));
+    const priceAccount =
+      PYTH_PRICE_ACCOUNT ??
+      new PublicKey(AssetRegistry.getPriceAccount(targetMarket.symbol));
 
     const success = await tx.run({
       verb: action === "deposit" ? "Deposit" : action === "withdraw" ? "Withdraw" : "Repay",

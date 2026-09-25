@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Circuit Protocol - Transaction Detail Drawer
  *
  * Provides institutional on-chain forensic detail for any activity event.
@@ -30,7 +30,7 @@ export function TransactionDetailDrawer({
     <Drawer
       open={open}
       onClose={onClose}
-      title={`${event.action} Â· ${event.assetSymbol}`}
+      title={`${event.action} · ${event.assetSymbol}`}
       subtitle={`On-Chain Event Forensics`}
       badge={
         <Pill tone={isConfirmed ? "success" : "danger"} withDot>

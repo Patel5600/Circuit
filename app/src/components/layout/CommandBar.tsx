@@ -7,6 +7,7 @@ import { useCircuitDomain } from "../../lib/domain/context";
 import { circuitTransport } from "../../lib/transport/circuit-transport";
 import { shortenAddress } from "../../lib/format";
 import { CLUSTER_LABEL } from "../../env";
+import { CircuitLogo } from "../brand/CircuitLogo";
 
 export interface CommandBarProps {
   onOpenCommand?: () => void;
@@ -96,13 +97,8 @@ export function CommandBar({ onOpenCommand }: CommandBarProps) {
       {/* Left: Brand + Command Chip */}
       <div className="tb-l">
         <NavLink to="/" className="brand" aria-label="Circuit Home">
-          <svg viewBox="0 0 24 24">
-            <circle cx="4" cy="12" r="2.2" />
-            <path d="M6.2 12H12" />
-            <path d="M12 12h5.8" strokeOpacity=".4" />
-            <circle cx="20" cy="12" r="2.2" />
-          </svg>
-          circuit
+          <CircuitLogo size={24} className="circuit-logo-mark" />
+          <span>circuit</span>
         </NavLink>
 
         <button

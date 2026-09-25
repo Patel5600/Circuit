@@ -13,7 +13,8 @@ import {
   getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
 
-import { CIRCUIT_TREASURY_KEY, PROGRAM_ID, PYTH_FEED_ID, idl } from "../config";
+import { CIRCUIT_TREASURY_KEY, PROGRAM_ID, PYTH_FEED_ID, PYTH_PRICE_ACCOUNT, idl } from "../config";
+import { derivePriceAccount } from "./pyth";
 export { PROGRAM_ID };
 
 /**
@@ -646,7 +647,15 @@ export async function buildDeposit(
       systemProgram: SystemProgram.programId,
     })
     .instruction();
-  return [ix];
+  return [
+    createAssociatedTokenAccountIdempotentInstruction(
+      ctx.owner,
+      userAta,
+      ctx.owner,
+      ctx.equityMint
+    ),
+    ix,
+  ];
 }
 
 export async function buildBorrow(
@@ -713,6 +722,12 @@ export async function buildWithdraw(
   ctx: ActionContext,
   amountNative: bigint
 ): Promise<TransactionInstruction[]> {
+  const userCollateralAta = getAssociatedTokenAddressSync(
+    ctx.equityMint,
+    ctx.owner
+  );
+  const priceUpdateKey = ctx.priceUpdate ?? PYTH_PRICE_ACCOUNT ?? derivePriceAccount();
+
   const ix = await ctx.program.methods
     .withdraw(new BN(amountNative.toString()))
     .accountsPartial({
@@ -720,13 +735,10 @@ export async function buildWithdraw(
       protocolConfig: protocolConfigPda(),
       assetConfig: assetConfigPda(ctx.equityMint),
       position: positionPda(ctx.owner, ctx.equityMint),
-      priceUpdate: ctx.priceUpdate,
+      priceUpdate: priceUpdateKey,
       collateralMint: ctx.equityMint,
       quoteMint: ctx.quoteMint,
-      userCollateralAta: getAssociatedTokenAddressSync(
-        ctx.equityMint,
-        ctx.owner
-      ),
+      userCollateralAta,
       collateralVault: vaultFor(ctx.equityMint),
       tokenProgram: TOKEN_PROGRAM_ID,
     })
@@ -738,7 +750,15 @@ export async function buildWithdraw(
       },
     ])
     .instruction();
-  return [ix];
+  return [
+    createAssociatedTokenAccountIdempotentInstruction(
+      ctx.owner,
+      userCollateralAta,
+      ctx.owner,
+      ctx.equityMint
+    ),
+    ix,
+  ];
 }
 
 /**

@@ -10,7 +10,7 @@
  */
 
 import marketsJson from "../../data/markets.json";
-import { derivePriceAccount } from "../pyth";
+import { derivePriceAccount, PYTH_PRICE_ACCOUNT } from "../pyth";
 
 export interface AssetSessionConfig {
   referenceMarket: "EQUITY_US";
@@ -94,7 +94,10 @@ class CanonicalAssetRegistry {
       const canonicalId = normalizeAssetId(m.symbol);
       const isExactMatch = m.symbol === canonicalId;
       const isPrimaryQuote = m.quoteSymbol === "USDC" || !m.quoteSymbol;
-      const derivedPriceAccount = derivePriceAccount(m.feedId, 0).toBase58();
+      const derivedPriceAccount =
+        PYTH_PRICE_ACCOUNT && canonicalId === "NVDA"
+          ? PYTH_PRICE_ACCOUNT.toBase58()
+          : derivePriceAccount(m.feedId, 0).toBase58();
 
       const config: CanonicalAssetConfig = {
         assetId: canonicalId,

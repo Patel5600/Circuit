@@ -5,7 +5,6 @@
  * GEMINI_AI_KEY is kept strictly server-side and never exposed to client bundles, logs, or state.
  */
 
-import { GoogleGenAI } from "@google/genai";
 import type { ProtocolSnapshot, AssetContext } from "./_tools";
 import { explainConcept } from "./_tools";
 import type { ClassifiedIntent } from "./_classifier";
@@ -80,9 +79,7 @@ export async function generateGeminiReply(params: {
   }
 
   try {
-    const ai = new GoogleGenAI({ apiKey });
     const systemInstruction = buildSystemInstruction(assetCtx, snapshot);
-
     const candidateModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
 
     // Format chat contents
@@ -94,22 +91,29 @@ export async function generateGeminiReply(params: {
 
     for (const model of candidateModels) {
       try {
-        const response = await ai.models.generateContent({
-          model,
-          contents: promptText,
-          config: {
-            systemInstruction,
-            temperature: 0.2,
-            maxOutputTokens: 1024,
-          },
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: promptText }] }],
+            systemInstruction: { parts: [{ text: systemInstruction }] },
+            generationConfig: {
+              temperature: 0.2,
+              maxOutputTokens: 1024,
+            },
+          }),
         });
 
-        if (response && response.text) {
-          responseText = response.text.trim();
-          break;
+        if (res.ok) {
+          const data: any = await res.json();
+          const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (candidateText) {
+            responseText = candidateText.trim();
+            break;
+          }
         }
       } catch (err: any) {
-        // Continue to next model candidate
         console.warn(`Gemini model ${model} attempt failed:`, err?.message || err);
       }
     }

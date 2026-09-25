@@ -21,7 +21,7 @@ import {
   healthFactorBps,
 } from "../../lib/protocol";
 import { derivePriceAccount } from "../../lib/pyth";
-import { PYTH_FEED_ID } from "../../config";
+import { PYTH_FEED_ID, PYTH_PRICE_ACCOUNT } from "../../config";
 import { decisionLogStore } from "../../lib/realtime/decision-log";
 import { protocolEventBus, createEvent } from "../../lib/realtime/event-bus";
 
@@ -147,7 +147,10 @@ function AssetActionDrawerContent({ intent }: { intent: ActionIntent }) {
     setErrorMsg(null);
 
     const amountNative = toNative(parsedAmount);
-    const priceAccount = derivePriceAccount(market.feedId || PYTH_FEED_ID, 0);
+    const priceAccount =
+      s.oracle?.address ||
+      PYTH_PRICE_ACCOUNT ||
+      derivePriceAccount(market.feedId || PYTH_FEED_ID, 0);
 
     let verb = "Deposit";
     let summary = `${parsedAmount} ${tokenSymbol} deposited`;

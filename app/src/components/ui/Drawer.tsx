@@ -61,9 +61,10 @@ export function Drawer({
           position: "fixed",
           inset: 0,
           background: "rgba(0, 0, 0, 0.72)",
-          backdropFilter: "blur(4px)",
+          backdropFilter: "blur(8px)",
+          WebkitBackdropFilter: "blur(8px)",
           zIndex: 900,
-          animation: "fadeIn 180ms ease-out forwards",
+          animation: "fadeIn 260ms cubic-bezier(0.16, 1, 0.3, 1) forwards",
         }}
       />
 
@@ -83,7 +84,7 @@ export function Drawer({
           display: "flex",
           flexDirection: "column",
           boxShadow: "-12px 0 40px rgba(0, 0, 0, 0.8)",
-          animation: "slideInRight 220ms cubic-bezier(0.16, 1, 0.3, 1) forwards",
+          animation: "slideInRight 300ms cubic-bezier(0.16, 1, 0.3, 1) forwards",
         }}
       >
         {/* Drawer Header */}
@@ -179,7 +180,7 @@ export function Drawer({
             border-left: none !important;
             border-top: 1px solid var(--border-strong, #1f232d) !important;
             border-radius: 16px 16px 0 0 !important;
-            animation: slideUpBottom 220ms cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+            animation: slideUpBottom 320ms cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
           }
           @keyframes slideUpBottom {
             from { transform: translateY(100%); }
