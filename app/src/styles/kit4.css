@@ -1113,8 +1113,10 @@ kbd {
    06 BORROWING POWER
    ===================================================================== */
 .bp {
-  max-width: 720px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  box-sizing: border-box;
 }
 .bp-big {
   display: flex;

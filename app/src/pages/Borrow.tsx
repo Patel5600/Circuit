@@ -289,7 +289,6 @@ export default function Borrow() {
     <PageContainer
       title="Borrow"
       subtitle={`Borrow ${quoteSymbol} against your deposited ${display.symbol} collateral. Every borrow is checked against live Pyth feeds and market conditions.`}
-      narrow
     >
       <ConfigNotice />
 

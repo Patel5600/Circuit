@@ -55,7 +55,7 @@ export function PageContainer({
     <div
       className={`container${narrow ? " container--narrow" : ""}`}
       style={{
-        maxWidth: 1280,
+        maxWidth: narrow ? 840 : 1440,
         margin: "0 auto",
         padding: "0 clamp(16px, 2.5vw, 24px)",
         width: "100%",

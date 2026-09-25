@@ -28,7 +28,15 @@ export function CollateralHoldingCard({
   const liqThresholdPct = 65;
 
   return (
-    <div className={`card bp ${loading ? "loading" : ""}`} style={{ padding: "22px clamp(18px, 3vw, 28px)" }}>
+    <div
+      className={`card bp ${loading ? "loading" : ""}`}
+      style={{
+        padding: "22px clamp(18px, 3vw, 28px)",
+        width: "100%",
+        maxWidth: "100%",
+        boxSizing: "border-box",
+      }}
+    >
       <span className="meta">
         (Circuit)<b>Collateral holding</b>
       </span>

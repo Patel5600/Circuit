@@ -50,7 +50,15 @@ export function BorrowingPower({
   const canExecute = borrowAllowed && proposedAmount > 0 && !isOverPower;
 
   return (
-    <div className="card bp" style={{ padding: "22px clamp(18px, 3vw, 28px)" }}>
+    <div
+      className="card bp"
+      style={{
+        padding: "22px clamp(18px, 3vw, 28px)",
+        width: "100%",
+        maxWidth: "100%",
+        boxSizing: "border-box",
+      }}
+    >
       <span className="meta">
         (Circuit)<b>Borrowing power</b>
       </span>
