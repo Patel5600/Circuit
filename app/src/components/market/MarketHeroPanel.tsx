@@ -3,6 +3,7 @@ import { MarketSnapshot } from "../../lib/market-data/types";
 import { Card, Icon, Pill } from "../ui";
 import { formatMoney, formatPercent, formatAge } from "../../lib/format";
 import { AssetLogo } from "../brand/AssetLogo";
+import { RealtimeFinancialChart } from "../charts/RealtimeFinancialChart";
 
 interface MarketHeroPanelProps {
   snapshot: MarketSnapshot;
@@ -386,42 +387,15 @@ export function MarketHeroPanel({
           </div>
         </div>
 
-        {/* ── CENTER: Bitcoin-style real-time area chart ───────────────── */}
-        <div className="stack g-8">
-          <PriceAreaChart
-            points={snapshot.sparkline ?? []}
-            isPositive={isPos}
-            height={168}
-            dayLow={snapshot.dayLowUsd}
-            dayHigh={snapshot.dayHighUsd}
-            changeStatus={snapshot.changeStatus}
+        {/* ── CENTER: Institutional Real-time Financial Chart ───────────────── */}
+        <div className="stack g-8" style={{ minWidth: 280, flex: "1 1 480px" }}>
+          <RealtimeFinancialChart
+            symbol={snapshot.displaySymbol || snapshot.symbol}
+            mint={snapshot.mint}
+            height={185}
+            chartType="candlestick"
+            showVolume={true}
           />
-          <div
-            style={{
-              fontSize: 10,
-              fontFamily: "var(--mono)",
-              color: "var(--text-3)",
-              letterSpacing: "0.04em",
-              paddingLeft: 56,
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-            }}
-          >
-            <span
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: "50%",
-                background: snapshot.oracleStatus === "LIVE"
-                  ? "var(--mint,#7fc39a)"
-                  : "var(--accent)",
-                display: "inline-block",
-                animation: snapshot.oracleStatus === "LIVE" ? "pulse 2s infinite" : "none",
-              }}
-            />
-            REAL-TIME PYTH PRICE FEED · {snapshot.marketDataSource?.toUpperCase() ?? "SOLANA DEVNET"}
-          </div>
         </div>
 
         {/* ── RIGHT: 4-Dimension Status Grid ──────────────────────────── */}

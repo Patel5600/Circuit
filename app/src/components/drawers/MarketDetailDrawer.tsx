@@ -15,6 +15,7 @@ import { MarketSnapshot } from "../../lib/market-data/types";
 import { MarketRow } from "../market/MarketParts";
 import { AssetLogo } from "../brand/AssetLogo";
 import { MarketCandlestick } from "../market/MarketCandlestick";
+import { RealtimeFinancialChart } from "../charts/RealtimeFinancialChart";
 import { PublicKey } from "@solana/web3.js";
 import { useCircuitDomain } from "../../lib/domain/context";
 import { deriveDbcPoolAddress, METEORA_DBC_PROGRAM_ID } from "../../lib/meteora/dbc";
@@ -180,16 +181,12 @@ export function MarketDetailDrawer({
             border: "1px solid var(--border, #1a1d26)",
           }}
         >
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-3)", textTransform: "uppercase", marginBottom: 12 }}>
-            Intraday Candlestick Chart Â· 15M Intervals
-          </div>
-          <MarketCandlestick
-            candles={snapshot?.candles}
-            width="100%"
-            height={160}
-            compact={false}
-            isPositive={isPos}
-            referencePrice={snapshot?.referencePrice24h}
+          <RealtimeFinancialChart
+            symbol={snapshot?.displaySymbol || snapshot?.symbol || market.symbol}
+            mint={snapshot?.mint || market.mint}
+            height={220}
+            chartType="candlestick"
+            showVolume={true}
           />
         </div>
 

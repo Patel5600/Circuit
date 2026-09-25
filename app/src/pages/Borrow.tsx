@@ -19,6 +19,7 @@ import { HealthFactor } from "../components/position/PositionParts";
 import { TransactionModal } from "../components/transactions/TransactionModal";
 import { RiskTopology3D } from "../components/risk/RiskTopology3D";
 import { RiskSensitivityMatrix } from "../components/risk/RiskSensitivityMatrix";
+import { PositionRiskChart } from "../components/charts/PositionRiskChart";
 import { MarketSelector } from "../components/market/MarketSelector";
 import { BorrowingPower } from "../components/kit4/BorrowingPower";
 import { useProtocolState } from "../hooks/useProtocolState";
@@ -566,6 +567,13 @@ export default function Borrow() {
             )}
           </div>
         </Card>
+
+        {/* Realtime Synchronized Position & Risk Topology Chart */}
+        <PositionRiskChart
+          symbol={activeMarket.symbol}
+          mint={activeMarket.mint}
+          compact
+        />
 
         {/* Kit 4 Borrowing Power Component */}
         <BorrowingPower

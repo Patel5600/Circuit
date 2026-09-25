@@ -33,6 +33,7 @@ import { Position as PositionModel } from "../lib/portfolio/provider";
 import { PortfolioRiskGraph, AssetNode } from "../components/profile/PortfolioRiskGraph";
 import { RiskTopology3D } from "../components/risk/RiskTopology3D";
 import { RiskSensitivityMatrix } from "../components/risk/RiskSensitivityMatrix";
+import { PositionRiskChart } from "../components/charts/PositionRiskChart";
 import {
   buildDeposit,
   buildRepay,
@@ -46,7 +47,7 @@ import { calculateMinimumRestorationDebt } from "../lib/recovery-engine";
 import { AssetRegistry, assertAssetContextIntegrity } from "../lib/assets/registry";
 
 type ActionType = "deposit" | "repay" | "withdraw";
-type ViewMode = "table" | "graph" | "topology3d" | "sensitivity";
+type ViewMode = "table" | "solvency" | "graph" | "topology3d" | "sensitivity";
 
 export default function Position() {
   const { connected, publicKey } = useWallet();
@@ -405,6 +406,14 @@ export default function Position() {
                     </button>
                     <button
                       type="button"
+                      className={`chip ${viewMode === "solvency" ? "chip--active" : ""}`}
+                      onClick={() => setViewMode("solvency")}
+                      style={{ fontSize: 11, padding: "3px 10px", height: 26 }}
+                    >
+                      Realtime Solvency
+                    </button>
+                    <button
+                      type="button"
                       className={`chip ${viewMode === "graph" ? "chip--active" : ""}`}
                       onClick={() => setViewMode("graph")}
                       style={{ fontSize: 11, padding: "3px 10px", height: 26 }}
@@ -447,6 +456,13 @@ export default function Position() {
                     Open Devnet Faucet &rarr;
                   </Link>
                 </div>
+              </div>
+            ) : viewMode === "solvency" ? (
+              <div style={{ margin: "4px 0" }}>
+                <PositionRiskChart
+                  symbol={activePosition?.symbol ?? positions[0]?.symbol ?? "NVDA"}
+                  mint={activePosition?.mint ?? positions[0]?.mint}
+                />
               </div>
             ) : viewMode === "graph" ? (
               <div style={{ margin: "4px 0" }}>

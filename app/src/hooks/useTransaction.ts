@@ -12,6 +12,7 @@ import {
   readOnlyProgram,
   sendInstructions,
 } from "../lib/protocol";
+import { transactionStateMachine } from "../lib/realtime/transaction-machine";
 
 /**
  * Transaction lifecycle.
@@ -109,8 +110,16 @@ export function useTransaction(overrideMarket?: DeployedMarket) {
       const set = (phase: TxPhase, extra: Partial<TxState> = {}) =>
         setState((s) => ({ ...s, phase, label: PHASE_LABEL[phase], ...extra }));
 
+      const txRecord = transactionStateMachine.createTransaction({
+        action: (opts.verb.toUpperCase() as any) || "DEPOSIT",
+        assetSymbol: activeMarket?.symbol || "ASSET",
+        assetMint: eqMint.toBase58(),
+        amount: 0,
+      });
+
       try {
         set("preparing", { error: null, signature: null, summary: null });
+        transactionStateMachine.transition(txRecord.id, "PREPARING");
 
         const ctx: ActionContext = {
           program: readOnlyProgram(connection),
@@ -124,25 +133,36 @@ export function useTransaction(overrideMarket?: DeployedMarket) {
         // Wallet approval and submission are distinct stages for the user even
         // though the helper performs them together.
         set("awaiting-wallet");
+        transactionStateMachine.transition(txRecord.id, "AWAITING_SIGNATURE");
+
         const signature = await sendInstructions(
           connection,
           { publicKey, signTransaction },
           ixs,
           {
-            onSigned: () => set("submitting"),
-            onSent: () => set("confirming"),
+            onSigned: () => {
+              set("submitting");
+              transactionStateMachine.transition(txRecord.id, "SUBMITTED");
+            },
+            onSent: () => {
+              set("confirming");
+              transactionStateMachine.transition(txRecord.id, "CONFIRMING");
+            },
           }
         );
 
         set("success", { signature, summary: opts.summary });
+        transactionStateMachine.transition(txRecord.id, "CONFIRMED", { signature });
         opts.onSuccess?.();
         return true;
       } catch (e: any) {
-        set("error", { error: describeError(e, errorMap) });
+        const errDesc = describeError(e, errorMap);
+        set("error", { error: errDesc });
+        transactionStateMachine.transition(txRecord.id, "FAILED", { error: errDesc });
         return false;
       }
     },
-    [connection, publicKey, signTransaction, errorMap, defaultEquityMint, defaultQuoteMint]
+    [connection, publicKey, signTransaction, errorMap, defaultEquityMint, defaultQuoteMint, activeMarket]
   );
 
   const busy =

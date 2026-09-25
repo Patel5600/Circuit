@@ -14,6 +14,7 @@ import { useSyncExternalStore, useMemo } from "react";
 import { Connection, PublicKey, AccountInfo } from "@solana/web3.js";
 import { DecisionSnapshot } from "../decision/types";
 import { RiskRatchetState, ProtocolAction } from "../permission-engine";
+import { normalizedStore } from "./normalized-store";
 
 export type ConnectionStatus = "connected" | "degraded" | "disconnected" | "reconnecting";
 
@@ -223,6 +224,25 @@ export class CircuitLiveStore {
         },
       };
     });
+
+    try {
+      normalizedStore.updateMarket(
+        mint,
+        {
+          symbol: data.symbol,
+          name: data.name,
+          price: data.price !== undefined ? data.price : undefined,
+          oraclePrice: data.price !== undefined ? data.price : undefined,
+          oracleConfBps: data.confBps !== undefined ? data.confBps : undefined,
+          oracleAgeSeconds: data.ageSeconds !== undefined ? data.ageSeconds : undefined,
+          oraclePublishTime: data.publishTime !== undefined ? data.publishTime : undefined,
+        },
+        "live-provider",
+        data.status === "LIVE" ? "LIVE" : data.status === "RECENT" ? "FRESH" : data.status === "STALE" ? "STALE" : "UNAVAILABLE"
+      );
+    } catch {
+      // ignore
+    }
   }
 
   public updatePosition(mint: string, data: Partial<LivePositionSlice>) {
@@ -247,6 +267,28 @@ export class CircuitLiveStore {
         },
       };
     });
+
+    try {
+      normalizedStore.updatePosition(
+        mint,
+        {
+          symbol: data.symbol,
+          collateralAmount: data.collateralAmount,
+          collateralAmountUi: data.collateralAmount !== undefined ? Number(data.collateralAmount) / 1e6 : undefined,
+          collateralValueUsd: data.collateralUsd,
+          debtAmount: data.debtAmount,
+          debtAmountUi: data.debtUsd,
+          currentLtvPct: data.currentLtvBps !== undefined ? data.currentLtvBps / 100 : undefined,
+          healthFactor: data.healthFactor,
+          updatedAtSlot: data.updatedAtSlot,
+        },
+        "live-provider",
+        "LIVE",
+        data.updatedAtSlot ?? null
+      );
+    } catch {
+      // ignore
+    }
   }
 
   public updateRisk(mint: string, data: Partial<LiveRiskSlice>) {
