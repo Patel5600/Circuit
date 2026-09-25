@@ -10,6 +10,7 @@ import { RealtimeStrip } from "./RealtimeStrip";
 import { Sidebar } from "./Sidebar";
 import { CommandPalette } from "./CommandPalette";
 import { TruthCheckPanel } from "../dev/TruthCheckPanel";
+import { ErrorBoundary } from "./ErrorBoundary";
 
 /** Primary destinations for mobile bottom bar */
 const PRIMARY_MOBILE: { to: string; label: string; icon: IconName }[] = [
@@ -185,7 +186,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {!isAutonomous && <MobileNav />}
 
         <CommandPalette open={commandOpen} onClose={() => setCommandOpen(false)} />
-        <TruthCheckPanel />
+        <ErrorBoundary section label="Truth Check Diagnostics">
+          <TruthCheckPanel />
+        </ErrorBoundary>
       </div>
     </ToastProvider>
   );

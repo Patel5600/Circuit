@@ -26,6 +26,7 @@ import {
   CircuitRiskState,
 } from "./types";
 import { realtimeConnection } from "./connection-manager";
+import { DEPLOYED_MARKETS } from "../../data/markets-registry";
 
 // ── Default Provenance Slices ──
 
@@ -143,6 +144,11 @@ export class NormalizedRealtimeStore {
   private _cachedAllPositions: Provenance<LivePositionData>[] = [];
   private _cachedAllTransactions: Provenance<TransactionRecord>[] = [];
 
+  // Fallback cache for unseeded lookups so getMarket/getPosition remain strictly pure
+  private _fallbackMarkets: Map<string, Provenance<LiveMarketData>> = new Map();
+  private _fallbackPositions: Map<string, Provenance<LivePositionData>> = new Map();
+  private _telemetryTimer: any = null;
+
   // Granular Listeners
   private _marketListeners: Map<string, Set<() => void>> = new Map();
   private _allMarketsListeners: Set<() => void> = new Set();
@@ -153,13 +159,30 @@ export class NormalizedRealtimeStore {
   private _telemetryListeners: Set<() => void> = new Set();
 
   constructor() {
+    // Seed initial deployed markets and positions so reads and snapshots are pure
+    for (const m of DEPLOYED_MARKETS) {
+      this._marketSlices.set(
+        m.mint,
+        makeProvenance(defaultMarketData(m.mint, m.symbol), "init", "LOADING")
+      );
+      this._positionSlices.set(
+        m.mint,
+        makeProvenance(defaultPositionData(m.mint, m.symbol), "init", "LOADING")
+      );
+    }
+    this._cachedAllMarkets = Array.from(this._marketSlices.values());
+    this._cachedAllPositions = Array.from(this._positionSlices.values());
+
     // Connect telemetry to connection manager
     realtimeConnection.subscribeState((state) => {
-      this.updateTelemetry({
-        connectionStatus: state,
-        currentSlot: realtimeConnection.getCurrentSlot(),
-        slotVelocityPerSec: realtimeConnection.getSlotVelocity(),
-      });
+      this.updateTelemetry(
+        {
+          connectionStatus: state,
+          currentSlot: realtimeConnection.getCurrentSlot(),
+          slotVelocityPerSec: realtimeConnection.getSlotVelocity(),
+        },
+        true
+      );
     });
 
     realtimeConnection.subscribeSlot((slot) => {
@@ -176,10 +199,12 @@ export class NormalizedRealtimeStore {
   public getMarket(mint: string): Provenance<LiveMarketData> {
     const existing = this._marketSlices.get(mint);
     if (!existing) {
-      const init = makeProvenance(defaultMarketData(mint), "init", "LOADING");
-      this._marketSlices.set(mint, init);
-      this._cachedAllMarkets = Array.from(this._marketSlices.values());
-      return init;
+      let fb = this._fallbackMarkets.get(mint);
+      if (!fb) {
+        fb = makeProvenance(defaultMarketData(mint), "init", "LOADING");
+        this._fallbackMarkets.set(mint, fb);
+      }
+      return fb;
     }
     return existing;
   }
@@ -269,10 +294,12 @@ export class NormalizedRealtimeStore {
   public getPosition(mint: string): Provenance<LivePositionData> {
     const existing = this._positionSlices.get(mint);
     if (!existing) {
-      const init = makeProvenance(defaultPositionData(mint), "init", "LOADING");
-      this._positionSlices.set(mint, init);
-      this._cachedAllPositions = Array.from(this._positionSlices.values());
-      return init;
+      let fb = this._fallbackPositions.get(mint);
+      if (!fb) {
+        fb = makeProvenance(defaultPositionData(mint), "init", "LOADING");
+        this._fallbackPositions.set(mint, fb);
+      }
+      return fb;
     }
     return existing;
   }
@@ -447,7 +474,7 @@ export class NormalizedRealtimeStore {
     return this._telemetry;
   }
 
-  public updateTelemetry(patch: Partial<RealtimeTelemetry>) {
+  public updateTelemetry(patch: Partial<RealtimeTelemetry>, immediate = false) {
     this._telemetry = {
       ...this._telemetry,
       value: {
@@ -455,16 +482,37 @@ export class NormalizedRealtimeStore {
         ...patch,
       },
       observedAt: Date.now(),
-      version: this._telemetry.version + 1,
     };
 
-    this._telemetryListeners.forEach((cb) => {
-      try {
-        cb();
-      } catch (e) {
-        console.warn("Telemetry listener error:", e);
+    if (immediate) {
+      if (this._telemetryTimer) {
+        clearTimeout(this._telemetryTimer);
+        this._telemetryTimer = null;
       }
-    });
+      this._telemetry.version += 1;
+      this._telemetryListeners.forEach((cb) => {
+        try {
+          cb();
+        } catch (e) {
+          console.warn("Telemetry listener error:", e);
+        }
+      });
+      return;
+    }
+
+    if (!this._telemetryTimer) {
+      this._telemetryTimer = setTimeout(() => {
+        this._telemetryTimer = null;
+        this._telemetry.version += 1;
+        this._telemetryListeners.forEach((cb) => {
+          try {
+            cb();
+          } catch (e) {
+            console.warn("Telemetry listener error:", e);
+          }
+        });
+      }, 350);
+    }
   }
 
   public subscribeTelemetry(callback: () => void): () => void {
@@ -474,17 +522,20 @@ export class NormalizedRealtimeStore {
 
   private recordEventTelemetry(source: string, slot: number | null, processingMs: number) {
     const cur = this._telemetry.value;
-    this.updateTelemetry({
-      eventCount: cur.eventCount + 1,
-      lastEventSource: source,
-      lastEventSlot: slot ?? cur.lastEventSlot,
-      lastEventTs: Date.now(),
-      latencies: {
-        ...cur.latencies,
-        eventToStoreMs: processingMs,
-        totalPipelineLatencyMs: processingMs + cur.latencies.storeToDerivedMs,
+    this.updateTelemetry(
+      {
+        eventCount: cur.eventCount + 1,
+        lastEventSource: source,
+        lastEventSlot: slot ?? cur.lastEventSlot,
+        lastEventTs: Date.now(),
+        latencies: {
+          ...cur.latencies,
+          eventToStoreMs: processingMs,
+          totalPipelineLatencyMs: processingMs + cur.latencies.storeToDerivedMs,
+        },
       },
-    });
+      false
+    );
   }
 }
 
@@ -493,6 +544,8 @@ export const normalizedStore = NormalizedRealtimeStore.getInstance();
 // -------------------------------------------------------------
 // Granular React Hooks with useSyncExternalStore
 // -------------------------------------------------------------
+
+const NULL_SNAPSHOT = () => null;
 
 export function useMarketSlice(mint: string | undefined): Provenance<LiveMarketData> | null {
   const subscribe = useMemo(() => {
@@ -509,7 +562,7 @@ export function useMarketSlice(mint: string | undefined): Provenance<LiveMarketD
     };
   }, [mint]);
 
-  return useSyncExternalStore(subscribe, getSnapshot, () => null);
+  return useSyncExternalStore(subscribe, getSnapshot, NULL_SNAPSHOT);
 }
 
 export function usePositionSlice(mint: string | undefined): Provenance<LivePositionData> | null {
@@ -527,29 +580,40 @@ export function usePositionSlice(mint: string | undefined): Provenance<LivePosit
     };
   }, [mint]);
 
-  return useSyncExternalStore(subscribe, getSnapshot, () => null);
+  return useSyncExternalStore(subscribe, getSnapshot, NULL_SNAPSHOT);
 }
+
+const subscribeProtocol = (cb: () => void) => normalizedStore.subscribeProtocol(cb);
+const getProtocolSnapshot = () => normalizedStore.getProtocol();
 
 export function useProtocolSlice(): Provenance<LiveProtocolData> {
   return useSyncExternalStore(
-    (cb) => normalizedStore.subscribeProtocol(cb),
-    () => normalizedStore.getProtocol(),
-    () => normalizedStore.getProtocol()
+    subscribeProtocol,
+    getProtocolSnapshot,
+    getProtocolSnapshot
   );
 }
+
+const subscribeTransactions = (cb: () => void) => normalizedStore.subscribeTransactions(cb);
+const getTransactionsSnapshot = () => normalizedStore.getAllTransactions();
+const EMPTY_TX_ARRAY: Provenance<TransactionRecord>[] = [];
+const getTransactionsServerSnapshot = () => EMPTY_TX_ARRAY;
 
 export function useTransactionSlices(): Provenance<TransactionRecord>[] {
   return useSyncExternalStore(
-    (cb) => normalizedStore.subscribeTransactions(cb),
-    () => normalizedStore.getAllTransactions(),
-    () => []
+    subscribeTransactions,
+    getTransactionsSnapshot,
+    getTransactionsServerSnapshot
   );
 }
 
+const subscribeTelemetry = (cb: () => void) => normalizedStore.subscribeTelemetry(cb);
+const getTelemetrySnapshot = () => normalizedStore.getTelemetry();
+
 export function useRealtimeTelemetry(): Provenance<RealtimeTelemetry> {
   return useSyncExternalStore(
-    (cb) => normalizedStore.subscribeTelemetry(cb),
-    () => normalizedStore.getTelemetry(),
-    () => normalizedStore.getTelemetry()
+    subscribeTelemetry,
+    getTelemetrySnapshot,
+    getTelemetrySnapshot
   );
 }

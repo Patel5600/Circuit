@@ -23,10 +23,10 @@ export function TruthCheckPanel() {
   const txSlices = useTransactionSlices();
   const { selectedMarket } = useMarket();
 
-  const sym = selectedMarket.symbol;
+  const sym = selectedMarket?.symbol || "NVDA";
   const financial = useMemo(() => {
     return derivedStateEngine.deriveFinancialState(sym);
-  }, [sym, tele.version]);
+  }, [sym, isOpen ? tele.version : 0]);
 
   // Section 35: Invariant Consistency Verification
   const invariantChecks = useMemo(() => {
