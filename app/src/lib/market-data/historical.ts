@@ -185,62 +185,86 @@ export function calculate24hChange(
 import { Candle } from "./types";
 
 /**
- * Builds standard financial candle observation series anchored by reference close and current price.
+ * Builds an initial candle series from a real observation.
+ *
+ * Kit 6 policy: only show candles from actual observations.
+ * When no historical candle data is available, this creates a single candle
+ * from the current observed price. The candle engine will accumulate real
+ * ticks over time to build genuine OHLCV history.
+ *
+ * If a real previousClose is available, two candles are created:
+ * one anchored at the reference close and one at the current observation.
  */
 export function buildCandleSeries(
   previousClose: number,
   currentPrice: number,
-  count = 16
+  _count = 16
 ): Candle[] {
-  if (previousClose <= 0 || currentPrice <= 0) return [];
   const nowSec = Math.floor(Date.now() / 1000);
   const interval = 15 * 60;
-  const candles: Candle[] = [];
-  const delta = currentPrice - previousClose;
+  const bucketTime = Math.floor(nowSec / interval) * interval;
 
-  for (let i = 0; i < count; i++) {
-    const t = nowSec - (count - 1 - i) * interval;
-    const p0 = i / count;
-    const p1 = (i + 1) / count;
-    const open = Number((previousClose + delta * p0).toFixed(2));
-    const close = Number((previousClose + delta * p1).toFixed(2));
-    const spread = Math.max(0.05, Math.abs(delta) * 0.08);
-    const high = Number((Math.max(open, close) + spread).toFixed(2));
-    const low = Number((Math.max(0.01, Math.min(open, close) - spread)).toFixed(2));
+  if (currentPrice <= 0 && previousClose <= 0) return [];
 
-    candles.push({
-      time: t,
-      open,
-      high,
-      low,
-      close,
-      volume: 1500 + i * 120,
-    });
+  const price = currentPrice > 0 ? currentPrice : previousClose;
+
+  if (previousClose > 0 && currentPrice > 0 && previousClose !== currentPrice) {
+    // Two honest candles: reference close observation + current observation
+    return [
+      {
+        time: bucketTime - interval,
+        open: previousClose,
+        high: Math.max(previousClose, currentPrice),
+        low: Math.min(previousClose, currentPrice),
+        close: previousClose,
+        volume: 0,
+      },
+      {
+        time: bucketTime,
+        open: previousClose,
+        high: Math.max(previousClose, currentPrice),
+        low: Math.min(previousClose, currentPrice),
+        close: currentPrice,
+        volume: 0,
+      },
+    ];
   }
-  return candles;
+
+  // Single honest candle from current observation
+  return [
+    {
+      time: bucketTime,
+      open: price,
+      high: price,
+      low: price,
+      close: price,
+      volume: 0,
+    },
+  ];
 }
 
 /**
- * Backwards compatibility helper for sparkline series.
+ * Builds an initial sparkline from observed prices.
+ *
+ * Kit 6 policy: no synthetic interpolation. Returns only the observed
+ * price points available. The rolling history buffer will accumulate
+ * real ticks over time.
  */
 export function buildIntradayCurve(
   previousClose: number,
   currentPrice: number,
   _symbol?: string,
-  count = 20
+  _count = 20
 ): number[] {
-  if (previousClose <= 0 || currentPrice <= 0) {
-    const p = currentPrice > 0 ? currentPrice : previousClose > 0 ? previousClose : 0;
-    if (p <= 0) return [];
-    return Array(count).fill(Number(p.toFixed(2)));
-  }
+  if (previousClose <= 0 && currentPrice <= 0) return [];
 
-  const series: number[] = [];
-  const delta = currentPrice - previousClose;
-  for (let i = 0; i < count; i++) {
-    const progress = i / (count - 1);
-    const val = previousClose + delta * progress;
-    series.push(Number(val.toFixed(2)));
+  const points: number[] = [];
+  if (previousClose > 0) points.push(Number(previousClose.toFixed(2)));
+  if (currentPrice > 0 && currentPrice !== previousClose) {
+    points.push(Number(currentPrice.toFixed(2)));
   }
-  return series;
+  if (points.length === 0 && currentPrice > 0) {
+    points.push(Number(currentPrice.toFixed(2)));
+  }
+  return points;
 }

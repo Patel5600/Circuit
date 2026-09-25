@@ -20,7 +20,7 @@ import {
   OracleState,
   CircuitPermissionState,
 } from "./types";
-import { MarketHistoryProvider, buildIntradayCurve, buildCandleSeries } from "./historical";
+import { MarketHistoryProvider, buildCandleSeries } from "./historical";
 
 /**
  * Deterministic NYSE session derivation with detailed day/night and transition states.
@@ -355,18 +355,21 @@ export function useMarketDataService() {
           : null;
 
         // Maintain real rolling observation buffer
+        // Kit 6 policy: only show observed prices, never interpolated curves
         let history = rollingHistoryRef.current[asset.symbol];
-        if (!history || history.length < 5) {
-          const baseCurve = (serverItem?.sparkline && serverItem.sparkline.length >= 5)
-            ? serverItem.sparkline
-            : buildIntradayCurve(ref24h, activePriceUsd, asset.symbol);
-
-          const stepMs = 15 * 60 * 1000;
-          const startTime = nowMs - (baseCurve.length - 1) * stepMs;
-          history = baseCurve.map((p, idx) => ({
-            timestamp: startTime + idx * stepMs,
-            price: p,
-          }));
+        if (!history || history.length < 2) {
+          if (serverItem?.sparkline && serverItem.sparkline.length >= 5) {
+            // Real server sparkline available
+            const stepMs = 15 * 60 * 1000;
+            const startTime = nowMs - (serverItem.sparkline.length - 1) * stepMs;
+            history = serverItem.sparkline.map((p: number, idx: number) => ({
+              timestamp: startTime + idx * stepMs,
+              price: p,
+            }));
+          } else {
+            // No real history yet — seed with single observed price
+            history = [{ timestamp: nowMs, price: activePriceUsd }];
+          }
           rollingHistoryRef.current[asset.symbol] = history;
         }
 
@@ -419,8 +422,8 @@ export function useMarketDataService() {
           }
         }
 
-        const dayHigh = serverItem?.dayHigh ?? Math.max(...sparkline, activePriceUsd * 1.005);
-        const dayLow = serverItem?.dayLow ?? Math.min(...sparkline, activePriceUsd * 0.995);
+        const dayHigh = serverItem?.dayHigh ?? null;
+        const dayLow = serverItem?.dayLow ?? null;
 
         // 6. Detect subtle price direction
         const prev = previousPricesRef.current[asset.id];
