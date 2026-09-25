@@ -138,6 +138,11 @@ export class NormalizedRealtimeStore {
     "LIVE"
   );
 
+  // Cached array snapshots for stable useSyncExternalStore references
+  private _cachedAllMarkets: Provenance<LiveMarketData>[] = [];
+  private _cachedAllPositions: Provenance<LivePositionData>[] = [];
+  private _cachedAllTransactions: Provenance<TransactionRecord>[] = [];
+
   // Granular Listeners
   private _marketListeners: Map<string, Set<() => void>> = new Map();
   private _allMarketsListeners: Set<() => void> = new Set();
@@ -173,13 +178,14 @@ export class NormalizedRealtimeStore {
     if (!existing) {
       const init = makeProvenance(defaultMarketData(mint), "init", "LOADING");
       this._marketSlices.set(mint, init);
+      this._cachedAllMarkets = Array.from(this._marketSlices.values());
       return init;
     }
     return existing;
   }
 
   public getAllMarkets(): Provenance<LiveMarketData>[] {
-    return Array.from(this._marketSlices.values());
+    return this._cachedAllMarkets;
   }
 
   public updateMarket(
@@ -211,6 +217,7 @@ export class NormalizedRealtimeStore {
     };
 
     this._marketSlices.set(mint, nextProvenance);
+    this._cachedAllMarkets = Array.from(this._marketSlices.values());
 
     // Notify only subscribers of this specific market
     const set = this._marketListeners.get(mint);
@@ -264,13 +271,14 @@ export class NormalizedRealtimeStore {
     if (!existing) {
       const init = makeProvenance(defaultPositionData(mint), "init", "LOADING");
       this._positionSlices.set(mint, init);
+      this._cachedAllPositions = Array.from(this._positionSlices.values());
       return init;
     }
     return existing;
   }
 
   public getAllPositions(): Provenance<LivePositionData>[] {
-    return Array.from(this._positionSlices.values());
+    return this._cachedAllPositions;
   }
 
   public updatePosition(
@@ -302,6 +310,7 @@ export class NormalizedRealtimeStore {
     };
 
     this._positionSlices.set(mint, nextProvenance);
+    this._cachedAllPositions = Array.from(this._positionSlices.values());
 
     const set = this._positionListeners.get(mint);
     if (set) {
@@ -401,9 +410,7 @@ export class NormalizedRealtimeStore {
   }
 
   public getAllTransactions(): Provenance<TransactionRecord>[] {
-    return Array.from(this._transactions.values()).sort(
-      (a, b) => b.value.startedAtTs - a.value.startedAtTs
-    );
+    return this._cachedAllTransactions;
   }
 
   public setTransaction(record: TransactionRecord, source = "transaction-engine") {
@@ -417,6 +424,9 @@ export class NormalizedRealtimeStore {
     );
 
     this._transactions.set(record.id, provenance);
+    this._cachedAllTransactions = Array.from(this._transactions.values()).sort(
+      (a, b) => b.value.startedAtTs - a.value.startedAtTs
+    );
     this._transactionListeners.forEach((cb) => {
       try {
         cb();

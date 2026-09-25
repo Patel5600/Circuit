@@ -46,7 +46,7 @@ export const FAUCET_ASSETS: FaucetAssetInfo[] = [
     symbol: "WSOL",
     name: "Wrapped SOL (Mock Quote)",
     tokenSymbol: "WSOL",
-    mint: "So11111111111111111111111111111111111111112",
+    mint: "DsjcwkWNxJk5Rvw7dvdJLY3AY5jg9fpnYJvewUaVjxbL",
     decimals: 6,
     fullAmount: 20,
     addressAmount: 4,
@@ -73,7 +73,7 @@ export const FAUCET_ASSETS: FaucetAssetInfo[] = [
     symbol: "MSFT",
     name: "Microsoft Corporation",
     tokenSymbol: "MSFTx",
-    mint: "83K7QWw28kC9u2yCqfG77k7tH5vS9w87Z1eX2y3z4A5B",
+    mint: "gLjzboHgbevzEedufXfWyrgaFk7ePNLBKzRnpGbWpF2",
     decimals: 6,
     fullAmount: 50,
     addressAmount: 10,
@@ -82,7 +82,7 @@ export const FAUCET_ASSETS: FaucetAssetInfo[] = [
     symbol: "AMZN",
     name: "Amazon.com Inc.",
     tokenSymbol: "AMZNx",
-    mint: "9zL8RXx39lD8v3zDrgH88l8uI6wT0x98a2fY3z4A5B6C",
+    mint: "CuAhF2Y4via5vd85WxuXGS6NEjhQ6moTwpbJmvzX2ZNo",
     decimals: 6,
     fullAmount: 50,
     addressAmount: 10,
@@ -91,7 +91,7 @@ export const FAUCET_ASSETS: FaucetAssetInfo[] = [
     symbol: "GOOGL",
     name: "Alphabet Inc.",
     tokenSymbol: "GOOGLx",
-    mint: "A1b2CXy40mE9w4aEshI99m9vJ7xU1y09b3gZ4a5B6C7D",
+    mint: "8VjvTWpKHJYkMzhNDhVWWJTLx1FPBVfCextL5fDRgq11",
     decimals: 6,
     fullAmount: 50,
     addressAmount: 10,
@@ -100,7 +100,7 @@ export const FAUCET_ASSETS: FaucetAssetInfo[] = [
     symbol: "META",
     name: "Meta Platforms Inc.",
     tokenSymbol: "METAx",
-    mint: "B2c3DYz51nF0x5bFtiJ00n0wK8yV2z10c4hA5b6C7D8E",
+    mint: "9hLNCvmhQqcadie1Bi978z4FVAJADNpruN8SsUEy5dZ3",
     decimals: 6,
     fullAmount: 50,
     addressAmount: 10,
@@ -109,7 +109,7 @@ export const FAUCET_ASSETS: FaucetAssetInfo[] = [
     symbol: "TSLA",
     name: "Tesla Inc.",
     tokenSymbol: "TSLAx",
-    mint: "C3d4EZa62oG1y6cGujK11o1xL9zW3a21d5iB6c7D8E9F",
+    mint: "8aN6tJaFz4SfM5Tw3SYVs7sBwi4tYoJcb3tmsYf7159B",
     decimals: 6,
     fullAmount: 50,
     addressAmount: 10,
@@ -118,7 +118,7 @@ export const FAUCET_ASSETS: FaucetAssetInfo[] = [
     symbol: "NFLX",
     name: "Netflix Inc.",
     tokenSymbol: "NFLXx",
-    mint: "D4e2VBb73pH2z7dHvkL22p2yM0aX4b32e6jC7d8E9F0G",
+    mint: "6QpijMYxF1TFWNqfvDJUzDoX5D1zPnpKV7LacV85BmaQ",
     decimals: 6,
     fullAmount: 50,
     addressAmount: 10,
@@ -127,7 +127,7 @@ export const FAUCET_ASSETS: FaucetAssetInfo[] = [
     symbol: "COIN",
     name: "Coinbase Global Inc.",
     tokenSymbol: "COINx",
-    mint: "E5f3WCc84qI3a8eIw233q3zN1bY5c43f7kD8e9F0G1H",
+    mint: "FTcW7uFQkHfXLQ8TJz38vPTMoD3QruzYjbsN27SjEtiK",
     decimals: 6,
     fullAmount: 50,
     addressAmount: 10,
@@ -136,7 +136,7 @@ export const FAUCET_ASSETS: FaucetAssetInfo[] = [
     symbol: "AMD",
     name: "Advanced Micro Devices",
     tokenSymbol: "AMDx",
-    mint: "F6g4XDd95rJ4b9fJx344r4aO2cZ6d54g8lE9f0G1H2I",
+    mint: "7KewtMcmKxvw9vMfpuqmPGVr9GNT5v5mgdggBa9gQYEi",
     decimals: 6,
     fullAmount: 50,
     addressAmount: 10,
@@ -145,7 +145,7 @@ export const FAUCET_ASSETS: FaucetAssetInfo[] = [
     symbol: "SPY",
     name: "SPDR S&P 500 ETF Trust",
     tokenSymbol: "SPYx",
-    mint: "G7h5YEe06sK5c0gKy455s5bP3da7e65h9mF0g1H2I3J",
+    mint: "HGD3ERQrsDXZnrR2EjmKKdoCuw2eBABtfkZgWYxjy2MP",
     decimals: 6,
     fullAmount: 50,
     addressAmount: 10,
@@ -233,8 +233,14 @@ export default async function handler(req: any, res: any) {
   }
 
   // 2. Canonical Mint Whitelist Verification
+  const mintStr = String(mint).trim();
   const allowedAsset = FAUCET_ASSETS.find(
-    (a) => a.mint === mint || (Boolean(a.isNativeSol) && (mint === "11111111111111111111111111111111" || mint === "SOL" || mint === "native"))
+    (a) =>
+      a.mint === mintStr ||
+      a.symbol.toUpperCase() === mintStr.toUpperCase() ||
+      a.tokenSymbol.toUpperCase() === mintStr.toUpperCase() ||
+      (mintStr.toUpperCase() === "GOOGLE" && a.symbol === "GOOGL") ||
+      (Boolean(a.isNativeSol) && (mintStr === "11111111111111111111111111111111" || mintStr.toUpperCase() === "SOL" || mintStr.toLowerCase() === "native"))
   );
   if (!allowedAsset) {
     return res.status(400).json({
@@ -317,7 +323,7 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    const mintPubkey = new PublicKey(mint);
+    const mintPubkey = new PublicKey(allowedAsset.mint);
 
     const recipientAta = getAssociatedTokenAddressSync(mintPubkey, recipientPubkey, true);
     const tokenDecimals = allowedAsset.decimals ?? decimals ?? 6;
@@ -351,6 +357,17 @@ export default async function handler(req: any, res: any) {
     });
   } catch (err: any) {
     console.error("Faucet minting error:", err);
-    res.status(500).json({ error: err?.message || "Failed to mint test tokens on Devnet" });
+    let errorDetails = err?.message || "Failed to mint test tokens on Devnet";
+    if (typeof err?.getLogs === "function") {
+      try {
+        const logs = await err.getLogs();
+        if (Array.isArray(logs) && logs.length > 0) {
+          errorDetails += ` | Logs: [ ${logs.map((l: string) => `"${l}"`).join(", ")} ]`;
+        }
+      } catch {}
+    } else if (err?.logs && Array.isArray(err.logs)) {
+      errorDetails += ` | Logs: [ ${err.logs.map((l: string) => `"${l}"`).join(", ")} ]`;
+    }
+    res.status(500).json({ error: errorDetails });
   }
 }
