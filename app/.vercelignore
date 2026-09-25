@@ -1,0 +1,6 @@
+# Vercel Deployment Ignore for app/
+dist/
+.next/
+*.log
+*.webm
+*.mp4

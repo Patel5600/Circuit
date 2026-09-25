@@ -1,0 +1,32 @@
+# Vercel Deployment Ignore
+# Prevents uploading non-production, non-web directories to Vercel build container
+
+# Rust & Anchor contract source and build outputs (built locally/on-chain)
+target/
+programs/
+.anchor/
+Anchor.toml
+Cargo.toml
+Cargo.lock
+
+# Standalone applications / large folders accidentally in workspace root
+Recordly/
+chrome-temp/
+assests/
+
+# Local build artifacts & caches
+dist/
+app/dist/
+app/.next/
+devnet/
+scratch/
+
+# Tests & automation
+tests/
+scripts/
+docs/
+
+# Logs & temp files
+*.log
+*.webm
+*.mp4
