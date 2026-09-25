@@ -191,12 +191,46 @@ export default function Borrow() {
 
   const checks = buildSafetyChecks(s.asset, s.oracle, s.session);
   const gatesPass = checks.every((c) => c.ok);
+  const isMarketOpen = Boolean(s.session?.open);
+
+  const collateralValueUsd = toUi(s.risk?.collateralValueNative ?? 0n);
+  const nominalLtvBps = s.asset?.baseLtvBps ?? 7000;
+  const theoreticalCapacityUsd = (collateralValueUsd * nominalLtvBps) / 10_000;
+
+  const isExecutable =
+    hasCollateral &&
+    !s.protocol?.paused &&
+    isMarketOpen &&
+    gatesPass &&
+    (decisionResult.capitalPolicy.borrowAllowed ?? true) &&
+    decisionResult.risk.state !== "DEFENSIVE" &&
+    decisionResult.risk.state !== "EMERGENCY";
+
+  const executableCapacityUsd = isExecutable
+    ? Math.max(0, Math.min(toUi(max), theoreticalCapacityUsd - toUi(debt)))
+    : 0;
+
+  const constraintReason = s.protocol?.paused
+    ? "Protocol paused by admin"
+    : !isMarketOpen
+    ? "Reference market (NYSE) closed"
+    : decisionResult.risk.state === "DEFENSIVE"
+    ? "Risk ratchet in DEFENSIVE state"
+    : decisionResult.risk.state === "EMERGENCY"
+    ? "Protocol in EMERGENCY containment"
+    : !decisionResult.capitalPolicy.borrowAllowed
+    ? decisionResult.verdict.reason
+    : null;
 
   /** Amount-specific objections, on top of the market gates. */
   const objections = useMemo<string[]>(() => {
     const out: string[] = [];
     if (!valid) return out;
-    if (decisionResult.verdict.status !== "ALLOW") {
+    if (s.protocol?.paused) {
+      out.push("Borrowing is paused right now by protocol policy");
+    } else if (!isMarketOpen) {
+      out.push("Reference equity market (NYSE) is closed. Credit origination paused until regular session (9:30 AM ET).");
+    } else if (decisionResult.verdict.status !== "ALLOW") {
       out.push(decisionResult.verdict.reason);
     }
     if (amountNative > max) {
@@ -210,18 +244,15 @@ export default function Borrow() {
         );
       }
     }
-    if (s.protocol?.paused || !decisionResult.capitalPolicy.borrowAllowed) {
-      out.push("Borrowing is paused right now by protocol policy");
-    }
     if (projectedHf !== null && projectedHf < minBps) {
       out.push(
         `This would leave a health factor of ${(projectedHf / 10_000).toFixed(2)}, below the ${(minBps / 10_000).toFixed(2)} minimum`
       );
     }
     return Array.from(new Set(out));
-  }, [valid, decisionResult, amountNative, max, isSolBorrow, quoteSymbol, s.protocol, projectedHf, minBps]);
+  }, [valid, s.protocol, isMarketOpen, decisionResult, amountNative, max, isSolBorrow, quoteSymbol, projectedHf, minBps]);
 
-  const canSubmit = valid && decisionResult.verdict.status === "ALLOW" && objections.length === 0 && tx.ready && !tx.busy;
+  const canSubmit = valid && isExecutable && objections.length === 0 && tx.ready && !tx.busy;
 
   const submit = async () => {
     assertAssetContextIntegrity({
@@ -310,16 +341,20 @@ export default function Borrow() {
           style={{
             padding: "12px 16px",
             background:
-              s.protocol?.paused || !decisionResult.capitalPolicy.borrowAllowed
+              s.protocol?.paused
                 ? "rgba(207, 139, 139, 0.12)"
+                : !isMarketOpen
+                ? "rgba(207, 173, 116, 0.12)"
                 : decisionResult.risk.state === "SAFE"
                 ? "rgba(127, 195, 154, 0.08)"
                 : decisionResult.risk.state === "RESTRICTED"
                 ? "rgba(207, 173, 116, 0.08)"
                 : "rgba(207, 139, 139, 0.12)",
             border: `1px solid ${
-              s.protocol?.paused || !decisionResult.capitalPolicy.borrowAllowed
+              s.protocol?.paused
                 ? "rgba(207, 139, 139, 0.4)"
+                : !isMarketOpen
+                ? "rgba(207, 173, 116, 0.4)"
                 : decisionResult.risk.state === "SAFE"
                 ? "rgba(127, 195, 154, 0.3)"
                 : decisionResult.risk.state === "RESTRICTED"
@@ -333,8 +368,10 @@ export default function Borrow() {
             <div className="row g-10" style={{ alignItems: "center" }}>
               <Pill
                 tone={
-                  s.protocol?.paused || !decisionResult.capitalPolicy.borrowAllowed
+                  s.protocol?.paused
                     ? "danger"
+                    : !isMarketOpen
+                    ? "warning"
                     : decisionResult.risk.state === "SAFE"
                     ? "success"
                     : decisionResult.risk.state === "RESTRICTED"
@@ -343,13 +380,19 @@ export default function Borrow() {
                 }
                 withDot
               >
-                {s.protocol?.paused || !decisionResult.capitalPolicy.borrowAllowed
+                {s.protocol?.paused
                   ? "POLICY: PAUSED"
+                  : !isMarketOpen
+                  ? "MARKET: CLOSED"
+                  : !decisionResult.capitalPolicy.borrowAllowed
+                  ? "POLICY: RESTRICTED"
                   : `RATCHET: ${decisionResult.risk.state}`}
               </Pill>
               <span style={{ fontSize: 13, color: "var(--text-2)" }}>
-                {s.protocol?.paused || !decisionResult.capitalPolicy.borrowAllowed
+                {s.protocol?.paused
                   ? "New borrowing is paused by protocol capital policy."
+                  : !isMarketOpen
+                  ? "Reference equity market (NYSE) is closed. Onchain trading remains available; new borrowing opens at regular session."
                   : decisionResult.verdict.status !== "ALLOW"
                   ? decisionResult.verdict.reason
                   : decisionResult.risk.state === "SAFE"
@@ -421,7 +464,7 @@ export default function Borrow() {
           <div className="grid grid--2 g-12">
             <DataRow
               label="Collateral Deposited"
-              value={`$${formatMoney(toUi(s.risk?.collateralValueNative ?? 0n))}`}
+              value={`$${formatMoney(collateralValueUsd)} (${formatTokens(toUi(collateral))} ${display.symbol})`}
             />
             <DataRow
               label="Current Debt"
@@ -429,17 +472,30 @@ export default function Borrow() {
             />
             <DataRow
               label="Current LTV"
-              value={`${(toUi(s.risk?.collateralValueNative ?? 0n) > 0 ? (toUi(debt) / toUi(s.risk?.collateralValueNative ?? 0n)) * 100 : 0).toFixed(1)}%`}
+              value={`${(collateralValueUsd > 0 ? (toUi(debt) / collateralValueUsd) * 100 : 0).toFixed(1)}%`}
+            />
+            <DataRow
+              label="Nominal LTV Limit"
+              value={`${formatPercent(nominalLtvBps)}`}
             />
             <DataRow
               label="Effective LTV Limit"
-              value={`${formatPercent(portfolio.effectiveLtvBps)}`}
+              value={`${formatPercent(isExecutable ? (portfolio.effectiveLtvBps || nominalLtvBps) : 0)}`}
             />
             <DataRow
-              label="Available Borrow"
+              label="Theoretical Capacity"
+              value={`$${formatMoney(theoreticalCapacityUsd)} ${quoteSymbol}`}
+            />
+            <DataRow
+              label="Executable Capacity"
               value={
-                <span className="mono" style={{ fontWeight: 700, color: "var(--accent)" }}>
-                  ${formatMoney(toUi(max))} {quoteSymbol}
+                <span className="mono" style={{ fontWeight: 700, color: executableCapacityUsd > 0 ? "var(--accent)" : "var(--text-3)" }}>
+                  ${formatMoney(executableCapacityUsd)} {quoteSymbol}
+                  {constraintReason && (
+                    <span style={{ fontSize: 11, fontWeight: 500, color: "var(--warning)", marginLeft: 8 }}>
+                      ({constraintReason})
+                    </span>
+                  )}
                 </span>
               }
             />
@@ -448,15 +504,15 @@ export default function Borrow() {
               value={
                 <Pill
                   tone={
-                    risk.ratchetState === "SAFE"
+                    decisionResult.risk.state === "SAFE"
                       ? "success"
-                      : risk.ratchetState === "RESTRICTED"
+                      : decisionResult.risk.state === "RESTRICTED"
                       ? "warning"
                       : "danger"
                   }
                   withDot
                 >
-                  {risk.ratchetState}
+                  {decisionResult.risk.state}
                 </Pill>
               }
             />
@@ -513,12 +569,12 @@ export default function Borrow() {
 
         {/* Kit 4 Borrowing Power Component */}
         <BorrowingPower
-          availableCapacityUsd={toUi(max)}
-          totalCapacityUsd={toUi(s.risk?.capacityNative ?? 0n) || (toUi(s.risk?.collateralValueNative ?? 0n) * 0.7)}
+          availableCapacityUsd={executableCapacityUsd}
+          totalCapacityUsd={theoreticalCapacityUsd}
           currentDebtUsd={toUi(debt)}
-          collateralUsd={toUi(s.risk?.collateralValueNative ?? 0n)}
-          borrowAllowed={permResult.allowed && (decisionResult.capitalPolicy.borrowAllowed ?? true) && !s.protocol?.paused}
-          restrictionReason={permResult.message ? permResult.message.replace(/_/g, " ") : decisionResult.verdict.reason}
+          collateralUsd={collateralValueUsd}
+          borrowAllowed={isExecutable}
+          restrictionReason={constraintReason || decisionResult.verdict.reason}
           currencySymbol={quoteSymbol}
           onBorrow={(borrowAmt) => {
             setAmount(borrowAmt.toString());
@@ -925,8 +981,12 @@ export default function Borrow() {
               loading={tx.busy}
               onClick={submit}
             >
-              {credit.permissions.borrow.status === "BLOCKED"
-                ? `Blocked by Circuit: ${risk.ratchetState}`
+              {!isMarketOpen
+                ? "Reference Market Closed — Opens 9:30 AM ET"
+                : s.protocol?.paused
+                ? "Protocol Paused"
+                : decisionResult.risk.state === "DEFENSIVE" || decisionResult.risk.state === "EMERGENCY"
+                ? `Blocked by Circuit: ${decisionResult.risk.state}`
                 : valid
                 ? `Borrow ${formatMoney(toUi(amountNative))} ${quoteSymbol}`
                 : `Borrow ${quoteSymbol}`}

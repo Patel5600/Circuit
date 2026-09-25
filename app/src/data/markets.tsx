@@ -1,5 +1,5 @@
 import React from "react";
-export * from "./markets-registry";
+export { DEPLOYED_MARKETS, getDeployedMarket, getDeployedMarketByMint, type DeployedMarket } from "./markets-registry";
 
 /**
  * CATALOGUE - branding metadata with verified on-chain devnet parameters.

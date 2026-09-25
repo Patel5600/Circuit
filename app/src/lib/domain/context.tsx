@@ -925,9 +925,13 @@ export function CircuitProtocolProvider({ children }: { children: React.ReactNod
       const mkt = DEPLOYED_MARKETS.find(
         (m) => m.symbol.toUpperCase() === sym || m.mint === canonicalAsset?.tokenMint
       );
-      const pos = portfolioState.positions.find(
-        (p) => p.symbol.toUpperCase() === sym || p.mint === canonicalAsset?.tokenMint
-      );
+      const pos =
+        portfolioState.positions.find(
+          (p) => p.symbol.toUpperCase() === sym || p.mint === canonicalAsset?.tokenMint
+        ) ||
+        portfolioSnap?.positions.find(
+          (p) => p.symbol.toUpperCase() === sym || p.mint === canonicalAsset?.tokenMint
+        );
       const collatUsd = pos?.collateralValueUsd ?? 0;
       const debtUsd = pos?.debtUi ?? 0;
 

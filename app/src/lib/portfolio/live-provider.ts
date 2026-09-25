@@ -8,7 +8,8 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Connection, PublicKey } from "@solana/web3.js";
-import { DEPLOYED_MARKETS, DeployedMarket, MARKETS_DATA } from "../../data/markets";
+import { DEPLOYED_MARKETS, DeployedMarket } from "../../data/markets-registry";
+import { MARKETS_DATA } from "../../data/markets";
 import { isNyseMarketOpen } from "../session";
 import { getAssetMark, getAssetName } from "../../data/logos";
 import { PROGRAM_ID } from "../../config";
@@ -65,7 +66,7 @@ export async function discoverOnChainPositions(
   // 1. Fast authoritative on-chain query: batched check for all 12 deployed market position PDAs
   try {
     const pdas = DEPLOYED_MARKETS.map((m) => positionPda(wallet, new PublicKey(m.mint)));
-    const infos = await circuitTransport.getMultipleAccountsInfo(connection, pdas, "P2_PORTFOLIO", 2000);
+    const infos = await circuitTransport.getMultipleAccountsInfo(connection, pdas, "P2_PORTFOLIO", 5000);
 
     for (let i = 0; i < DEPLOYED_MARKETS.length; i++) {
       const m = DEPLOYED_MARKETS[i];
@@ -84,6 +85,34 @@ export async function discoverOnChainPositions(
           lastValidExpo: decoded.lastValidExpo,
           state: decoded.state,
         });
+      }
+    }
+
+    // Direct fallback if circuitTransport missed or was empty
+    if (discoveredMap.size === 0) {
+      try {
+        const directInfos = await connection.getMultipleAccountsInfo(pdas, "confirmed");
+        for (let i = 0; i < DEPLOYED_MARKETS.length; i++) {
+          const m = DEPLOYED_MARKETS[i];
+          const info = directInfos[i];
+          if (!info || info.data.length < 102) continue;
+
+          const decoded = decodePositionDirect(info.data);
+          if (decoded && (decoded.collateralAmount > 0n || decoded.debtAmount > 0n)) {
+            discoveredMap.set(m.mint, {
+              pda: pdas[i],
+              owner: decoded.owner,
+              assetMint: m.mint,
+              collateralAmount: decoded.collateralAmount,
+              debtAmount: decoded.debtAmount,
+              lastValidPrice: decoded.lastValidPrice,
+              lastValidExpo: decoded.lastValidExpo,
+              state: decoded.state,
+            });
+          }
+        }
+      } catch (directErr) {
+        console.warn("Direct getMultipleAccountsInfo fallback warning:", directErr);
       }
     }
   } catch (err) {
@@ -187,7 +216,7 @@ export async function fetchLivePortfolioSnapshot(
     connection,
     allAuxPdas,
     "P2_PORTFOLIO",
-    2000
+    5000
   );
 
   const num = rawPositions.length;
@@ -200,7 +229,7 @@ export async function fetchLivePortfolioSnapshot(
   // First pass: compute nominal values
   const prelimPositions = rawPositions.map((raw, idx) => {
     const market = matchedMarkets[idx];
-    const cat = MARKETS_DATA.find((c) => c.mint === raw.assetMint || c.symbol === market?.symbol);
+    const cat = MARKETS_DATA?.find?.((c: any) => c.mint === raw.assetMint || c.symbol === market?.symbol);
 
     const symbol = market?.symbol ?? cat?.symbol ?? "ASSET";
     const name = market?.name ?? cat?.displayName ?? getAssetName(symbol);
