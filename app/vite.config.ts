@@ -246,11 +246,46 @@ export default defineConfig({
       },
     },
   ],
+  resolve: {
+    alias: {
+      vm: path.resolve(__dirname, "src/lib/empty-module.ts"),
+    },
+  },
   ssr: {
     external: ["node:crypto", "crypto", "node:buffer", "buffer", "node:fs", "fs", "node:path", "path"],
   },
   build: {
     target: "esnext",
     cssCodeSplit: false,
+    chunkSizeWarningLimit: 1200,
+    rollupOptions: {
+      onwarn(warning, defaultHandler) {
+        if (warning.code === "INVALID_ANNOTATION") return;
+        if (warning.code === "MODULE_LEVEL_DIRECTIVE") return;
+        defaultHandler(warning);
+      },
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules")) {
+            if (
+              id.includes("@solana/web3.js") ||
+              id.includes("@solana/spl-token") ||
+              id.includes("@solana/buffer-layout")
+            ) {
+              return "solana-web3";
+            }
+            if (id.includes("@meteora-ag")) {
+              return "meteora-sdk";
+            }
+            if (id.includes("@solana/wallet-adapter")) {
+              return "wallet-adapter";
+            }
+            if (id.includes("lightweight-charts")) {
+              return "lightweight-charts";
+            }
+          }
+        },
+      },
+    },
   },
 });
